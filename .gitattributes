@@ -1,0 +1,10 @@
+# 统一文本文件为 LF 换行：保证 .ai/sync.mjs --check 的内容比对
+# 在 Windows（autocrlf）与 Linux/macOS 检出时结果一致
+* text=auto eol=lf
+
+# 二进制文件不做行尾处理
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.zip binary

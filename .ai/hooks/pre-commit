@@ -1,0 +1,13 @@
+#!/bin/sh
+# 提交前校验：AI 配置必须全工具联动同步（.ai/ ↔ 各派生文件）
+# 启用方式（一次性）：git config core.hooksPath .ai/hooks
+if ! command -v node >/dev/null 2>&1; then
+  echo "⚠️  未检测到 node，跳过 AI 配置同步校验。"
+  exit 0
+fi
+node .ai/sync.mjs --check || {
+  echo ""
+  echo "❌ 提交被拒绝：.ai/ 的改动尚未派生到所有工具目录。"
+  echo "   修复：node .ai/sync.mjs && git add -A && 重新提交"
+  exit 1
+}

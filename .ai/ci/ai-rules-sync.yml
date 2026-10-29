@@ -1,0 +1,44 @@
+# AI 配置联动校验：修改 AI-Coding 相关内容必须触发所有工具联动更新。
+# 源文件即本文件（.ai/ci/ai-rules-sync.yml），由 .ai/sync.mjs 派生到 .github/workflows/（GitHub 固定路径要求）。
+name: ai-rules-sync
+
+on:
+  push:
+    paths:
+      - '.ai/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'GEMINI.md'
+      - 'CODEBUDDY.md'
+      - '.github/**'
+      - '.claude/**'
+      - '.cursor/**'
+      - '.gemini/**'
+      - '.iflow/**'
+      - '.trae/**'
+      - '.qoder/**'
+  pull_request:
+    paths:
+      - '.ai/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'GEMINI.md'
+      - 'CODEBUDDY.md'
+      - '.github/**'
+      - '.claude/**'
+      - '.cursor/**'
+      - '.gemini/**'
+      - '.iflow/**'
+      - '.trae/**'
+      - '.qoder/**'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 校验 AI 配置全工具同步
+        run: node .ai/sync.mjs --check
