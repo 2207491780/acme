@@ -1,7 +1,7 @@
 # 分工具使用教程
 
 > 每个工具讲三件事：**读什么** / **如何确认生效（冒烟测试）** / **如何让它维护配置**。
-> 通用流程见 [GUIDE.md](GUIDE.md)，提示词库见 [PROMPTS.md](PROMPTS.md)，体系说明见 [README.md](README.md)。
+> 通用流程见 [GUIDE.md](GUIDE.md)，提示词库见 [PROMPTS.md](PROMPTS.md)，体系说明见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
 ## 通用冒烟测试（任何工具都适用）
 
@@ -98,4 +98,4 @@
 
 ## 排障
 
-规则没生效？依次检查：① 入口文件存在且非手改（`node .ai/sync.mjs --check`）；② 工具是否在该仓库根目录启动；③ 该工具是否有「需在设置中启用项目规则」的开关；④ 仍不行 → 按工具官方文档核对入口路径是否变化（工具会演进，必要时更新 `sync.mjs` 的登记，见 [README.md](README.md)「新增一个 AI 工具的兼容」）。
+规则没生效？依次检查：① 入口文件存在且非手改（`node .ai/sync.mjs --check`）；② 工具是否在该仓库根目录启动；③ 该工具是否有「需在设置中启用项目规则」的开关；④ 仍不行 → 按工具官方文档核对入口路径是否变化（工具会演进，必要时更新 `sync.mjs` 的登记，见 [ARCHITECTURE.md](ARCHITECTURE.md)「新增一个 AI 工具的兼容」）。

@@ -4,13 +4,13 @@
 
 | 层 | 位置 | 性质 |
 |---|---|---|
-| 定稿决策（为什么） | [decisions/](decisions/README.md) | ADR 三段式，**只增不改** |
-| 操作手册（怎么做） | [playbooks/](playbooks/README.md) | 按需读取 |
-| 工作记忆（草稿） | [drafts/](drafts/README.md) | 随时改写；`*.local.md` 个人草稿不入库 |
+| 定稿决策（为什么） | [decisions/](decisions/ADR-GUIDE.md) | ADR 三段式，**只增不改** |
+| 操作手册（怎么做） | [playbooks/](playbooks/PLAYBOOK-GUIDE.md) | 按需读取 |
+| 工作记忆（草稿） | [drafts/](drafts/DRAFTS-GUIDE.md) | 随时改写；`*.local.md` 个人草稿不入库 |
 
 ## 说明
 
 - **约束**（是什么）不在这里——在 `.ai/rules/`（需拼接派生进所有工具入口，属配置工程）。
 - **沉淀路径**：`drafts/` 中验证成熟的结论 → 提炼进 `decisions/`（理由）、`playbooks/`（步骤），或升级为 `.ai/rules/` 约束 → 删除草稿。
 - 落盘强制条款见 `.ai/rules/ai-guidelines.md`「过程性内容落盘」。
-- 各层格式详见各自 README。
+- 各层格式详见各自说明文件（ADR-GUIDE / PLAYBOOK-GUIDE / DRAFTS-GUIDE）。

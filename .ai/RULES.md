@@ -30,7 +30,7 @@
 
 ## AI 配置修改任务
 
-凡任务涉及增删改 AI-Coding 配置（公共规范、分层规则、agents/skills/commands 公共池、工具专属配置、钩子、CI、派生引擎）：先完整阅读 `.ai-memory/ai-config.md`，严格按其五步流程执行（定位意图 → 只改源 → `node .ai/sync.mjs` 派生 → `--check` 校验 → 汇报）。支持子代理/技能的工具，可直接调用 `ai-config-editor`（子代理）或 `ai-config`（技能）。
+凡任务涉及增删改 AI-Coding 配置（公共规范、分层规则、agents/skills/commands 公共池、工具专属配置、钩子、CI、派生引擎）：先完整阅读 `.ai-memory/playbooks/ai-config.md`，严格按其五步流程执行（定位意图 → 只改源 → `node .ai/sync.mjs` 派生 → `--check` 校验 → 汇报）。支持子代理/技能的工具，可直接调用 `ai-config-editor`（子代理）或 `ai-config`（技能）。
 
 ## 过程性内容落盘
 
@@ -161,7 +161,7 @@ TODO：项目骨架确定后在此登记，AI 会优先按此表导航，避免�
 
 ```text
 acme/
-├── .ai/      # AI 配置中心（唯一事实源，内部结构见 .ai/README.md）
+├── .ai/      # AI 配置中心（唯一事实源，内部结构见 .ai/ARCHITECTURE.md）
 ├── docs/     # 项目文档
 └── ...       # TODO：项目骨架确定后在此补全
 ```

@@ -22,7 +22,7 @@ TODO：项目骨架确定后在此登记，AI 会优先按此表导航，避免�
 
 ```text
 acme/
-├── .ai/      # AI 配置中心（唯一事实源，内部结构见 .ai/README.md）
+├── .ai/      # AI 配置中心（唯一事实源，内部结构见 .ai/ARCHITECTURE.md）
 ├── docs/     # 项目文档
 └── ...       # TODO：项目骨架确定后在此补全
 ```

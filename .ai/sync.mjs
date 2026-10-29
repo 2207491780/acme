@@ -11,7 +11,7 @@
  *   3) .ai/scopes/**    → 分层 AGENTS.md：按同路径派生到仓库对应目录（就近生效），
  *        并自动在同级生成 CLAUDE.md 引用存根（默认）或链接（--links）
  *   4) .ai/agents|skills|commands/ → 跨工具公共池，拷贝派生到各工具目录（保证跨平台可移植）
- *   5) .ai/tools/<工具>/**         → 工具专属配置，派生到对应工具目录
+ *   5) .ai/tools/<工具>/**         → 工具专属配置，派生到对应工具目录（doc 派生为目录说明）
  *   6) .ai/ci/**       → 派生到 .github/workflows/（GitHub 要求固定路径）
  *
  * 用法：
@@ -57,22 +57,22 @@ const STUB_TARGETS = [
   },
 ];
 
-/** 跨工具公共池：.ai/<src>/** → 各工具目录（README.md 仅作源目录说明，不派生） */
+/** 跨工具公共池：.ai/<src>/** → 各工具目录（doc 仅作源目录说明，不派生） */
 const POOLS = [
-  { src: 'agents', targets: ['.claude/agents', '.iflow/agents', '.gemini/agents'] },
-  { src: 'skills', targets: ['.claude/skills', '.iflow/workflows'] },
-  { src: 'commands', targets: ['.claude/commands', '.iflow/commands'] },
+  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', '.iflow/agents', '.gemini/agents'] },
+  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills', '.iflow/workflows'] },
+  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands', '.iflow/commands'] },
 ];
 
-/** 工具专属配置：.ai/tools/<key>/** → <target>/**（README.md 派生为工具目录内的说明文件） */
+/** 工具专属配置：.ai/tools/<key>/** → <target>/**（doc 派生为工具目录内的说明文件） */
 const TOOLS = [
-  { key: 'claude', target: '.claude' },
-  { key: 'cursor', target: '.cursor' },
-  { key: 'gemini', target: '.gemini' },
-  { key: 'iflow', target: '.iflow' },
-  { key: 'trae', target: '.trae' },
-  { key: 'qoder', target: '.qoder' },
-  { key: 'github', target: '.github' },
+  { key: 'claude', doc: 'CLAUDE-CODE.md', target: '.claude' },
+  { key: 'cursor', doc: 'CURSOR.md', target: '.cursor' },
+  { key: 'gemini', doc: 'GEMINI-CLI.md', target: '.gemini' },
+  { key: 'iflow', doc: 'IFLOW-CLI.md', target: '.iflow' },
+  { key: 'trae', doc: 'TRAE.md', target: '.trae' },
+  { key: 'qoder', doc: 'QODER.md', target: '.qoder' },
+  { key: 'github', doc: 'GITHUB-CONFIG.md', target: '.github' },
 ];
 
 /** 其他派生目标：.ai 内的源 → 仓库固定路径（GitHub Actions 只认 .github/workflows/） */
@@ -82,8 +82,8 @@ const banner = (tool) =>
   `<!-- ⚠️ 本文件由 .ai/sync.mjs 自动生成（服务对象：${tool}），请勿直接修改。\n     所有 AI 配置唯一事实源：.ai/ 。修改源文件后运行 node .ai/sync.mjs 重新生成。 -->`;
 const footer = (src) =>
   `\n\n<!-- 派生自 ${src}（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->\n`;
-/** 工具目录说明文件的统一标头（源 README 无需手写，派生时自动前置，避免 7 处重复） */
-const PLACARD_HEAD = `> ⚙️ 本目录为**生成产物**：所有 AI 配置统一维护于 [.ai/](../.ai/README.md)，由 [.ai/sync.mjs](../.ai/sync.mjs) 派生，请勿手改（本说明文件亦然）。\n\n`;
+/** 工具目录说明文件的统一标头（源文件无需手写，派生时自动前置，避免多处重复） */
+const PLACARD_HEAD = `> ⚙️ 本目录为**生成产物**：所有 AI 配置统一维护于 [.ai/](../.ai/ARCHITECTURE.md)，由 [.ai/sync.mjs](../.ai/sync.mjs) 派生，请勿手改（本说明文件亦然）。\n\n`;
 /** 派生文件标记：用于孤儿检测（源已删、派生物残留） */
 const DERIVED_MARK = /派生自 \.ai\/|本文件由 \.ai\/sync\.mjs 自动生成/;
 
@@ -131,7 +131,6 @@ const links = new Map();
 // ---- 1. 公共规范：拼接为唯一完整副本 .ai/RULES.md ----
 let body = '';
 for (const f of (await walk(join(AI, 'rules'))).sort()) {
-  if (f.endsWith('README.md')) continue;
   body += norm(await readFile(f, 'utf8')).trim() + '\n\n';
 }
 if (!body.trim()) {
@@ -170,7 +169,7 @@ for (const t of STUB_TARGETS) {
 const SCOPES = join(AI, 'scopes');
 for (const f of await walk(SCOPES)) {
   const rel = relative(SCOPES, f).split('\\').join('/');
-  if (rel === 'README.md') continue;
+  if (rel === 'SCOPED-RULES.md') continue;
   let content = norm(await readFile(f, 'utf8'));
   if (rel.endsWith('.md')) content = content.trimEnd() + footer(`.ai/scopes/${rel}`);
   expected.set(rel, content);
@@ -186,13 +185,13 @@ for (const f of await walk(SCOPES)) {
 }
 
 // ---- 5. 公共池、工具专属、其他目标（逐文件派生） ----
-async function derive(srcDir, outRoot, srcLabel, { excludeReadme, placard = false }) {
+async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc = null }) {
   for (const f of await walk(srcDir)) {
     const rel = relative(srcDir, f).split('\\').join('/');
-    if (excludeReadme && rel === 'README.md') continue;
+    if (excludeDocs.includes(rel)) continue;
     const label = `${srcLabel}${rel}`;
     let content = norm(await readFile(f, 'utf8'));
-    if (placard && rel === 'README.md') content = PLACARD_HEAD + content;
+    if (placardDoc && rel === placardDoc) content = PLACARD_HEAD + content;
     if (rel.endsWith('.md')) content = content.trimEnd() + footer(label);
     else if (/\.(ya?ml|toml)$/.test(rel))
       content = `# 派生自 ${label}（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs\n\n` + content;
@@ -202,15 +201,15 @@ async function derive(srcDir, outRoot, srcLabel, { excludeReadme, placard = fals
 
 for (const p of POOLS) {
   for (const t of p.targets) {
-    await derive(join(AI, p.src), t, `.ai/${p.src}/`, { excludeReadme: true });
+    await derive(join(AI, p.src), t, `.ai/${p.src}/`, { excludeDocs: [p.doc] });
   }
 }
 for (const t of TOOLS) {
-  await derive(join(AI, 'tools', t.key), t.target, `.ai/tools/${t.key}/`, { excludeReadme: false, placard: true });
+  await derive(join(AI, 'tools', t.key), t.target, `.ai/tools/${t.key}/`, { placardDoc: t.doc });
 }
 for (const e of EXTRA) {
-  // excludeReadme：防止未来在 .ai/ci/ 放说明文件被派生成 .github/workflows/README.md
-  await derive(join(AI, e.src), e.target, `.ai/${e.src}/`, { excludeReadme: true });
+  // 说明文件已实义命名，.ai/ci/ 内不存在会被误派生的说明文档
+  await derive(join(AI, e.src), e.target, `.ai/${e.src}/`, {});
 }
 
 // ---- 6. 写入 / 校验 ----

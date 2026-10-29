@@ -34,7 +34,7 @@
 acme/
 ├── README.md / .gitignore / .gitattributes   # 项目介绍与工程配置（非 AI 内容）
 ├── AGENTS.md  CLAUDE.md  GEMINI.md  CODEBUDDY.md   # ⚙️ 引用存根 → .ai/RULES.md（全文仅此一份）
-├── .ai/                          # ★★ AI 配置唯一事实源（结构见 .ai/README.md）
+├── .ai/                          # ★★ AI 配置唯一事实源（结构见 .ai/ARCHITECTURE.md）
 ├── .ai-memory/                   # ★ 知识与记忆落盘（decisions 定稿 / playbooks 手册 / drafts 草稿）
 ├── .claude/ .cursor/ .gemini/ .iflow/ .trae/ .qoder/   # ⚙️ 全部为生成产物
 ├── .github/                      # ⚙️ Copilot 指令存根 + CI（全部生成）
@@ -56,6 +56,6 @@ git init && git config core.hooksPath .ai/hooks     # 一次性初始化
 | **分工具使用教程**（11 类工具逐一说明 + 冒烟测试） | [.ai/TUTORIAL.md](.ai/TUTORIAL.md) |
 | **让 AI 自维护**（21 条提示词案例 + 验收核对单） | [.ai/PROMPTS.md](.ai/PROMPTS.md) |
 | **使用指南**（9 个实操案例、两种模式、故障排查） | [.ai/GUIDE.md](.ai/GUIDE.md) |
-| 体系结构 / 派生一览 / 联动防线 / 新增工具 | [.ai/README.md](.ai/README.md) |
+| 体系结构 / 派生一览 / 联动防线 / 新增工具 | [.ai/ARCHITECTURE.md](.ai/ARCHITECTURE.md) |
 | AI 工具执行配置修改的五步流程 | [.ai-memory/playbooks/ai-config.md](.ai-memory/playbooks/ai-config.md) |
-| 分层规则 / 工具专属配置 / 公共池格式 | `.ai/` 内各目录的 README.md |
+| 分层规则 / 工具专属配置 / 公共池格式 | `.ai/` 内各目录的说明文件（如 `AGENT-POOL.md`、`TOOL-SOURCES.md`） |

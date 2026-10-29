@@ -14,6 +14,6 @@
 
 ## 说明
 
-- 派生目标见 [../README.md](../README.md)「派生一览」（iFlow 以 workflow 形态承接技能目录）。
+- 派生目标见 [../ARCHITECTURE.md](../ARCHITECTURE.md)「派生一览」（iFlow 以 workflow 形态承接技能目录）。
 - 不支持技能目录的工具：以规则形式摘要并入其规则文件（摘要注明完整版位置，手工维护）。
-- 本 `README.md` 仅作源目录说明，**不会被派生**；只给单一工具用的技能放该工具自己的目录源（如 `.ai/tools/claude/skills/`）。
+- 本文件（SKILL-POOL.md）仅作源目录说明，**不会被派生**；只给单一工具用的技能放该工具自己的目录源（如 `.ai/tools/claude/skills/`）。

@@ -15,7 +15,7 @@
 
 ## 操作流程（五步，缺一不可）
 
-1. **定位意图**：明确要改什么（哪一类源、哪个工具）。不确定时对照 `.ai/README.md` 的「目录结构」与「派生一览」。
+1. **定位意图**：明确要改什么（哪一类源、哪个工具）。不确定时对照 `.ai/ARCHITECTURE.md` 的「目录结构」与「派生一览」。
 2. **只改源**：在 `.ai/` 对应源位置修改。**绝不**直接编辑任何派生文件（`AGENTS.md`、`CLAUDE.md`、`.ai/RULES.md`、`.claude/**`、`.cursor/**`、`.github/**` 等）。
 3. **派生**：运行 `node .ai/sync.mjs`（需要链接模式时加 `--links`）。
 4. **校验**：运行 `node .ai/sync.mjs --check`，必须输出「校验通过 … 无孤儿残留」；出现孤儿文件按提示手动移除后复检。
@@ -27,11 +27,11 @@
 |---|---|
 | 改全局规范（所有工具生效） | `.ai/rules/*.md`（新增文件无需改脚本，按文件名排序拼接） |
 | 某目录专属规则（就近生效） | `.ai/scopes/<仓库相对路径>/AGENTS.md` |
-| 新增跨工具子代理 | `.ai/agents/<name>.md`（frontmatter 规范见该目录 README） |
+| 新增跨工具子代理 | `.ai/agents/<name>.md`（frontmatter 规范见该目录 `AGENT-POOL.md`） |
 | 新增跨工具技能 | `.ai/skills/<name>/SKILL.md` |
 | 新增斜杠命令 | `.ai/commands/<name>.md`（Gemini 需手工转 TOML 放 `.ai/tools/gemini/commands/`） |
 | 某工具私有配置（settings / 私有规则 / .cursorignore…） | `.ai/tools/<工具>/`（镜像目标路径） |
-| 新增兼容一个 AI 工具 | 流程见 `.ai/README.md`「新增一个 AI 工具的兼容」 |
+| 新增兼容一个 AI 工具 | 流程见 `.ai/ARCHITECTURE.md`「新增一个 AI 工具的兼容」 |
 | git 钩子 / CI 工作流 | `.ai/hooks/` / `.ai/ci/`（CI 会自动派生到 `.github/workflows/`） |
 
 ## 红线

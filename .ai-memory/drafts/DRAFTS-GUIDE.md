@@ -1,6 +1,6 @@
 # .ai-memory/drafts/ — 工作记忆草稿（跨会话便签）
 
-与 [../decisions/](../decisions/README.md) 的分工：**drafts 是草稿区，decisions 是定稿区**。
+与 [../decisions/](../decisions/ADR-GUIDE.md) 的分工：**drafts 是草稿区，decisions 是定稿区**。
 
 | | drafts/（本目录） | ../decisions/ |
 |---|---|---|

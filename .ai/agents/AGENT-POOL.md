@@ -19,6 +19,6 @@ model: inherit
 
 ## 说明
 
-- 新建/修改后运行 `node .ai/sync.mjs` 自动派生（尾部加「派生自」标注）；派生目标见 [../README.md](../README.md)「派生一览」。
-- 本 `README.md` 仅作源目录说明，**不会被派生**。
+- 新建/修改后运行 `node .ai/sync.mjs` 自动派生（尾部加「派生自」标注）；派生目标见 [../ARCHITECTURE.md](../ARCHITECTURE.md)「派生一览」。
+- 本文件（AGENT-POOL.md）仅作源目录说明，**不会被派生**。
 - 只给单一工具用的 agent：放 `.ai/tools/<工具>/agents/`，不放公共池。

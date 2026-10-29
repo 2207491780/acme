@@ -9,18 +9,18 @@
 
 ```text
 .ai/
-├── README.md      # 本文件（体系唯一权威说明）
+├── ARCHITECTURE.md # 本文件（体系唯一权威说明）
 ├── GUIDE.md       # 使用指南（9 个实操案例 + 故障排查）
 ├── TUTORIAL.md    # 分工具教程（11 类工具的入口、冒烟测试、维护方式）
 ├── PROMPTS.md     # 提示词案例库（21 条让 AI 自维护的指令 + 验收核对单）
 ├── sync.mjs       # 派生引擎：node .ai/sync.mjs（--check 为校验模式）
 ├── RULES.md       # ⚙️ 生成：公共规范唯一完整副本（由 rules/ 按文件名排序拼接）
 ├── rules/         # 公共规范源（AI 协作准则 / 编码规范 / Git 工作流 / 项目上下文）
-├── scopes/        # 分层 AGENTS.md 源 → 派生到仓库同路径（就近生效，见其 README.md）
-├── agents/        # 跨工具子代理公共池（格式见其 README.md）
-├── skills/        # 跨工具技能公共池（格式见其 README.md）
-├── commands/      # 跨工具命令公共池（格式见其 README.md）
-├── tools/         # 各工具专属配置源（用法见其 README.md）
+├── scopes/        # 分层 AGENTS.md 源 → 派生到仓库同路径（就近生效，见 SCOPED-RULES.md）
+├── agents/        # 跨工具子代理公共池（格式见 AGENT-POOL.md）
+├── skills/        # 跨工具技能公共池（格式见 SKILL-POOL.md）
+├── commands/      # 跨工具命令公共池（格式见 COMMAND-POOL.md）
+├── tools/         # 各工具专属配置源（用法见 TOOL-SOURCES.md）
 ├── ci/            # CI 工作流源 → .github/workflows/（GitHub 要求固定路径）
 └── hooks/         # git 钩子（git config core.hooksPath .ai/hooks 直接指向，零拷贝）
 ```
@@ -50,7 +50,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | `.ai/agents/` | `.claude/agents/`、`.iflow/agents/`、`.gemini/agents/` | 拷贝派生 |
 | `.ai/skills/` | `.claude/skills/`、`.iflow/workflows/` | 拷贝派生 |
 | `.ai/commands/` | `.claude/commands/`、`.iflow/commands/` | 拷贝派生 |
-| `.ai/tools/<工具>/**` | 对应工具目录 | 拷贝派生（README 自动前置「生成产物」标头） |
+| `.ai/tools/<工具>/**` | 对应工具目录 | 拷贝派生（目录说明文件如 `CLAUDE-CODE.md` 自动前置「生成产物」标头） |
 | `.ai/ci/**` | `.github/workflows/` | 拷贝派生 |
 
 ## 入口分发：默认引用存根，可选符号链接
@@ -62,11 +62,11 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 
 两种模式下 `--check` 均能通过（链接校验目标、存根校验内容）；从任一模式切换到另一模式，运行对应命令即可自动转换。
 
-> 取舍理由（为何默认存根、为何公共池拷贝派生等）见 [../.ai-memory/decisions/](../.ai-memory/decisions/README.md)——决策只增不改，新决策取代旧决策时在记录开头标注。
+> 取舍理由（为何默认存根、为何公共池拷贝派生等）见 [../.ai-memory/decisions/](../.ai-memory/decisions/ADR-GUIDE.md)——决策只增不改，新决策取代旧决策时在记录开头标注。
 
 ## 过程性内容落盘（在 `.ai-memory/`，独立于本配置工程）
 
-知识与记忆的落盘统一在根目录 [.ai-memory/](../.ai-memory/README.md)（decisions 定稿 / playbooks 手册 / drafts 草稿），与本目录（配置工程）分离；只有**约束**留在本目录 `.ai/rules/`（需派生进工具入口）。
+知识与记忆的落盘统一在根目录 [.ai-memory/](../.ai-memory/KNOWLEDGE.md)（decisions 定稿 / playbooks 手册 / drafts 草稿），与本目录（配置工程）分离；只有**约束**留在本目录 `.ai/rules/`（需派生进工具入口）。
 
 | 内容 | 位置 |
 |---|---|
@@ -90,7 +90,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 1. 若该工具读 `AGENTS.md` —— 无需任何改动，已覆盖。
 2. 否则：
    - 在 `.ai/sync.mjs` 的 `LINK_TARGETS`（根部入口：存根/链接）/ `STUB_TARGETS`（需专属格式的入口）/ `TOOLS`（专属目录）登记；
-   - 建 `.ai/tools/<工具>/README.md`（标头自动生成，只写工具特有要点）；
+   - 建 `.ai/tools/<工具>/<工具名>.md`（如 `CURSOR.md`；标头自动生成，只写工具特有要点）；
    - 运行 `node .ai/sync.mjs`。
 
 ## MCP 服务器配置

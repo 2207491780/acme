@@ -15,6 +15,6 @@ allowed-tools: [Bash(npm:*)]
 
 ## 说明
 
-- 派生目标见 [../README.md](../README.md)「派生一览」。
+- 派生目标见 [../ARCHITECTURE.md](../ARCHITECTURE.md)「派生一览」。
 - ⚠️ Gemini 命令是 **TOML** 格式：公共池不自动转换，需手工转换后放 `.ai/tools/gemini/commands/`。
-- 本 `README.md` 仅作源目录说明，**不会被派生**。
+- 本文件（COMMAND-POOL.md）仅作源目录说明，**不会被派生**。

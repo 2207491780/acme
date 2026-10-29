@@ -1,6 +1,6 @@
 # ACME AI 配置使用指南
 
-> 面向使用者的操作手册，含完整实操案例与故障排查。体系结构说明见 [README.md](README.md)；项目介绍见[根 README.md](../README.md)。
+> 面向使用者的操作手册，含完整实操案例与故障排查。体系结构说明见 [ARCHITECTURE.md](ARCHITECTURE.md)；项目介绍见[根 README.md](../README.md)。
 > 本指南随 `.ai/` 一起维护（AI-Coding 相关内容的唯一事实源在本目录）。
 
 ## 准备工作（一次性）
@@ -177,9 +177,9 @@ alwaysApply: false
 { tool: 'Windsurf', file: '.windsurf/rules/project_rules.md' },
 ```
 
-② 新建 `.ai/tools/windsurf/README.md`（写该目录用途即可，「生成产物」标头会自动前置）。
+② 新建 `.ai/tools/windsurf/WINDSURF.md`（写该目录用途即可，「生成产物」标头会自动前置）。
 
-③ 跑通用流程 → 生成 `.windsurf/rules/project_rules.md`（引用存根）与 `.windsurf/README.md`。
+③ 跑通用流程 → 生成 `.windsurf/rules/project_rules.md`（引用存根）与 `.windsurf/WINDSURF.md`。
 
 > 若新工具直接读 `AGENTS.md`（如 Amp、Goose、Kimi Code），则**任何登记都不需要**，天然已覆盖。
 
@@ -222,6 +222,6 @@ AI 工具会自动执行五步：读手册 → 只改 `.ai/` 源 → `node .ai/s
 |---|---|
 | [.ai/TUTORIAL.md](TUTORIAL.md) | **分工具教程**：11 类工具的读取入口、冒烟测试、维护方式 |
 | [.ai/PROMPTS.md](PROMPTS.md) | **提示词案例库**：21 条让 AI 自维护的指令 + 验收核对单 |
-| [.ai/README.md](README.md) | 体系结构 / 派生一览 / 联动防线 / 新增工具 |
+| [.ai/ARCHITECTURE.md](ARCHITECTURE.md) | 体系结构 / 派生一览 / 联动防线 / 新增工具 |
 | [.ai-memory/playbooks/ai-config.md](../.ai-memory/playbooks/ai-config.md) | AI 工具执行配置修改的五步流程 |
 | [根 README.md](../README.md) | 项目介绍与厂商声明 |

@@ -11,7 +11,7 @@ model: inherit
 
 1. 动手前**必须完整阅读** `.ai-memory/playbooks/ai-config.md`，严格按其五步流程执行：定位意图 → 只改源 → 派生 → 校验 → 汇报。
 2. 铁律：只在 `.ai/` 下修改源文件；绝不直接编辑任何派生文件；改完必跑 `node .ai/sync.mjs`；`node .ai/sync.mjs --check` 不通过不交付。
-3. 结构性变更（如新增工具兼容）先读 `.ai/README.md` 的「目录结构」「派生一览」「新增一个 AI 工具的兼容」。
+3. 结构性变更（如新增工具兼容）先读 `.ai/ARCHITECTURE.md` 的「目录结构」「派生一览」「新增一个 AI 工具的兼容」。
 4. 完成时汇报三件套：源改动清单 + 派生变化清单 + 校验输出原文。
 
 <!-- 派生自 .ai/agents/ai-config-editor.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->

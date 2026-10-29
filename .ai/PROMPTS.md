@@ -48,7 +48,7 @@ Claude Code / iFlow / Gemini 有原生子代理与技能，后半句可省（自
 | # | 提示词 | 预期 AI 行为 |
 |---|---|---|
 | 5 | 给 packages/api 加目录级规范：错误统一抛 ApiError 带 code，handler 不写 try/catch | 新建 `.ai/scopes/packages/api/AGENTS.md` → sync 自动生成同路径副本与同级 `CLAUDE.md` 存根 |
-| 6 | 删掉 packages/api 的目录级规范 | 删 `.ai/scopes/packages/api/AGENTS.md`；**并手动清理** `packages/api/AGENTS.md` 与 `packages/api/CLAUDE.md`（分层派生文件不在孤儿检测范围，见 `.ai/scopes/README.md`） |
+| 6 | 删掉 packages/api 的目录级规范 | 删 `.ai/scopes/packages/api/AGENTS.md`；**并手动清理** `packages/api/AGENTS.md` 与 `packages/api/CLAUDE.md`（分层派生文件不在孤儿检测范围，见 `.ai/scopes/SCOPED-RULES.md`） |
 | 7 | 把测试要求从编码规范里拆成独立的 testing.md | 源文件移动/拆分到 `.ai/rules/`（文件名排序即拼接序）→ sync |
 
 ### 三、能力扩展（子代理 / 技能 / 命令）
@@ -64,7 +64,7 @@ Claude Code / iFlow / Gemini 有原生子代理与技能，后半句可省（自
 
 | # | 提示词 | 预期 AI 行为 |
 |---|---|---|
-| 12 | 团队要新增 Windsurf 支持 | 读 `.ai/README.md` 新增工具流程 → 改 `sync.mjs` 的 `STUB_TARGETS` → 建 `.ai/tools/windsurf/README.md` → sync |
+| 12 | 团队要新增 Windsurf 支持 | 读 `.ai/ARCHITECTURE.md` 新增工具流程 → 改 `sync.mjs` 的 `STUB_TARGETS` → 建 `.ai/tools/windsurf/WINDSURF.md` → sync |
 | 13 | 我们还用 Kimi Code，需要做什么？ | 正确回答：**什么都不用做**，它读 `AGENTS.md`，已天然覆盖（考验 AI 是否真懂体系） |
 
 ### 五、体检与治理
