@@ -1,5 +1,4 @@
 ---
-'@vben/web-antdv-next': patch
 '@vben/playground': patch
 ---
 

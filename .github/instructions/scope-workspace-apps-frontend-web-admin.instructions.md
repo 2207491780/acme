@@ -21,7 +21,7 @@ pnpm run lint           # 校验（vsh lint，含 oxlint/oxfmt/stylelint）
 
 ## 结构
 
-- `apps/*`：可独立运行的应用（`web-antd` / `web-antd-next` / `web-ele` / `web-naive` / `web-tdesign` / `backend-mock`）。
+- `apps/*`：可独立运行的应用（`web-naive` / `backend-mock`）。按官方「精简版本」指引已裁掉 `web-antd`、`web-antdv-next`、`web-ele`、`web-tdesign`，不要再引用这些包名。
 - `packages/*`：共享包（`@core`、`effects`、`stores`、`utils`、`locales`、`styles` 等）。
 - `internal/*`：内部工程配置与脚本；`playground/` 为演示。
 
