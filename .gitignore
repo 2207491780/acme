@@ -24,6 +24,9 @@ dist/
 build/
 coverage/
 
+# Turborepo 本地缓存
+.turbo/
+
 # Java / Maven
 target/
 *.class
