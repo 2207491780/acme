@@ -5,6 +5,7 @@
 | 手册 | 用途 | 触发方式 |
 |---|---|---|
 | [ai-config.md](ai-config.md) | 修改本仓库任何 AI-Coding 配置的标准流程 | 规则条款（`.ai/rules/ai-guidelines.md`「AI 配置修改任务」）；Claude Code / iFlow / Gemini 可直接调用 `ai-config-editor` 子代理或 `ai-config` 技能 |
+| [dev-commands.md](dev-commands.md) | 构建 / 测试 / 环境命令的**唯一权威清单**（后端 Maven、前端 pnpm、env-stack） | `.ai/rules/project.md`「常用命令」；各应用 scope 的构建小节 |
 
 ## 说明
 

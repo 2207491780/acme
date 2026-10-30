@@ -16,7 +16,7 @@
 ├── sync.mjs       # 派生引擎：node .ai/sync.mjs（--check 为校验模式）
 ├── RULES.md       # ⚙️ 生成：公共规范唯一完整副本（由 rules/ 按文件名排序拼接）
 ├── rules/         # 公共规范源（AI 协作准则 / 编码规范 / Git 工作流 / 项目上下文）
-├── scopes/        # 分层 AGENTS.md 源 → 派生到仓库同路径（就近生效，见 SCOPED-RULES.md）
+├── scopes/        # 分层 AGENTS.md 源（当前：apps/backend、apps/frontend、apps/frontend/web-admin）→ 派生到仓库同路径
 ├── agents/        # 跨工具子代理公共池（格式见 AGENT-POOL.md）
 ├── skills/        # 跨工具技能公共池（格式见 SKILL-POOL.md）
 ├── commands/      # 跨工具命令公共池（格式见 COMMAND-POOL.md）
@@ -47,7 +47,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | `.ai/rules/*.md` | `.ai/RULES.md` | 拼接副本 |
 | `.ai/RULES.md` | 根部 `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` / `CODEBUDDY.md` | 引用存根（默认）；`--links` 可选符号链接 |
 | 同上（存根形态） | `.cursor/rules/project.mdc`、`.trae/rules/project_rules.md`、`.qoder/rules/project_rules.md`、`.github/copilot-instructions.md` | frontmatter 存根（Cursor/Qoder 需 `alwaysApply`；Copilot 规避长度限制） |
-| `.ai/scopes/**` | 仓库同路径 `AGENTS.md` + 同级 `CLAUDE.md`（默认 `@` 导入存根；`--links` 模式为链接） | 副本 + 引用 |
+| `.ai/scopes/**/AGENTS.md` | 同路径 `AGENTS.md` + `CLAUDE.md`（@导入）+ `GEMINI.md`（@导入）+ `.cursor/rules/scope-*.mdc`（glob）+ `.github/instructions/scope-*.instructions.md`（applyTo） | 分层·五形态（见 SCOPED-RULES.md） |
 | `.ai/agents/` | `.claude/agents/`、`.iflow/agents/`、`.gemini/agents/` | 拷贝派生 |
 | `.ai/skills/` | `.claude/skills/`、`.iflow/workflows/` | 拷贝派生 |
 | `.ai/commands/` | `.claude/commands/`、`.iflow/commands/` | 拷贝派生 |
@@ -86,13 +86,9 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | 本地层 | `.ai/hooks/pre-commit` 提交前运行 `--check`（含孤儿派生文件检测） | 不同步的提交被拒绝 |
 | 远端层 | `.ai/ci/` 派生出的 `.github/workflows/ai-rules-sync.yml` 在 push / PR 时校验 | 不同步的推送/合并被阻断 |
 
-## CI/CD（工作流源在 [ci/CI-GUIDE.md](ci/CI-GUIDE.md)）
+## CI/CD
 
-| 工作流 | 触发 | 职责 |
-|---|---|---|
-| `ci.yml` | push(main) / PR | 门禁：AI 配置同步校验 + 应用构建测试（待接线） |
-| `cd.yml` | dispatch 选环境 / `v*` 标签 → prod | 构建 → `env-stack/scripts/deploy.sh` 部署 → 健康检查；prod 走 GitHub Environment 审批 |
-| `ai-rules-sync.yml` | 触及 AI 配置相关文件 | 联动防线·远端层 |
+三个工作流（`ci.yml` / `cd.yml` / `ai-rules-sync.yml`）的职责、触发与环境约定**唯一维护于 [ci/CI-GUIDE.md](ci/CI-GUIDE.md)**；源文件在 `.ai/ci/`，派生到 `.github/workflows/`。
 
 ## 新增一个 AI 工具的兼容
 

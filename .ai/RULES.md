@@ -61,18 +61,16 @@
 
 ## 语言与格式
 
-- TODO：主语言及版本（例：TypeScript 5.x strict 模式）。
-- 统一使用项目的格式化与 lint 配置，禁止自行调整缩进/引号风格。
+- 后端：Java 25（Spring Boot 4.1.1 / Spring Cloud 2025.1.3），Maven 多模块；规范详见 `workspace/apps/backend/doc/Backend.md`。
+- 前端：TypeScript（strict），Vue 3 + Vite；web-admin 基于 vben v5，命令用 pnpm。
+- 统一使用项目的格式化与 lint 配置（前端 `pnpm run lint`、后端按 Backend.md），禁止自行调整缩进/引号风格。
 - 文件编码 UTF-8（无 BOM），换行符 LF。
 
 ## 命名约定
 
-| 对象 | 约定 | 示例 |
-|---|---|---|
-| 目录/文件 | TODO（kebab-case / snake_case） | `user-service` |
-| 变量/函数 | 小驼峰 | `getUserById` |
-| 类/类型 | 大驼峰 | `UserService` |
-| 常量 | 全大写下划线 | `MAX_RETRY` |
+- Java：包全小写点分（`com.acme.platform.auth`）、类 PascalCase、类文件随类名。
+- TS/Vue：变量函数小驼峰、组件 PascalCase；文件/目录 kebab-case。
+- 常量 UPPER_SNAKE（`MAX_RETRY`）。
 
 ## 注释
 
@@ -140,54 +138,36 @@
 
 # 项目上下文
 
-> 所有 AI 工具共享的项目背景说明。标注 TODO 的部分请在项目定型后补齐。
+> 详细命令与结构见 `.ai-memory/playbooks/dev-commands.md`。
 
 ## 项目简介
 
-TODO：一句话说清楚本项目解决什么问题、给谁用。
+ACME：AI-Coding 工程模板 + 实际业务仓。业务代码在 `workspace/`：后端 Spring Cloud 微服务、前端 vben v5 中后台。
 
 ## 技术栈
 
-| 层 | 选型 | 版本 | 备注 |
-|---|---|---|---|
-| 语言 | TODO | | |
-| 框架 | TODO | | |
-| 包管理 | TODO | | npm / pnpm / uv / cargo … |
-| 测试 | TODO | | |
-| 构建 / 运行 | TODO | | |
+| 层 | 选型 |
+|---|---|
+| 后端 | Java 25 · Spring Boot 4.1.1 · Spring Cloud 2025.1.3 · Maven 多模块 |
+| 前端 | Vue 3 · Vite · TS · pnpm 11 · turbo（web-admin = vben v5）；其余前端占位 |
+| 环境 | Docker Compose 依赖栈（PG / Redis / Kafka / RocketMQ / Nacos） |
 
 ## 目录结构
 
-TODO：项目骨架确定后在此登记，AI 会优先按此表导航，避免全库扫描。
-
 ```text
-acme/
-├── .ai/          # AI 配置中心（唯一事实源，见 .ai/ARCHITECTURE.md）
-├── .ai-memory/   # 知识与记忆落盘（decisions / playbooks / drafts）
-├── .ai-tmp/      # AI 临时文件区（内容不入库）
-├── workspace/    # 实际工作目录（见 WORKSPACE.md）
-│   ├── apps/     #   应用代码（见 apps/APPS.md）
-│   └── env-stack/#   环境搭建（见 env-stack/ENV-STACK.md）
-└── docs/         # 项目文档
+acme/{.ai,.ai-memory,.ai-tmp,workspace,docs}
+workspace/apps/backend    # 后端，规范权威 doc/Backend.md（目录说明 BACKEND.md）
+workspace/apps/frontend   # 前端多项目，web-admin 活跃（见 web-admin/AGENTS.md）
+workspace/env-stack       # 环境搭建（见 ENV-STACK.md）
 ```
 
 ## 环境与 MCP 连接
 
-- 环境三态与 MCP 直连定义：`.ai/env/{dev,test,prod}.yaml`（dev/test 读写，**prod 只读**；Schema 与纪律见 `.ai/env/ENV-GUIDE.md`，严禁明文密钥）。
+- 环境三态与 MCP 直连：`.ai/env/{dev,test,prod}.yaml`（dev/test 读写，**prod 只读**；Schema 见 `.ai/env/ENV-GUIDE.md`，严禁明文密钥）。
 - 环境搭建 `workspace/env-stack/`；应用代码 `workspace/apps/`。
 
 ## 常用命令
 
-| 用途 | 命令 |
-|---|---|
-| 安装依赖 | TODO |
-| 本地运行 | TODO |
-| 运行测试 | TODO |
-| 构建 | TODO |
-| 代码检查 | TODO |
-
-## 术语表
-
-| 术语 | 含义 |
-|---|---|
-| TODO | |
+- 后端：`mvn -N install -f acme-parent/pom.xml` → `mvn -f acme-cloud/pom.xml clean install`
+- 前端：`cd workspace/apps/frontend/web-admin && pnpm install && pnpm dev`
+- 环境：`docker compose -f workspace/env-stack/docker/dev/compose.dev.yml up -d`

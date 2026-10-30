@@ -39,7 +39,10 @@ acme/
 ├── apps/                          # ★ 实际业务代码（应用层，约定见 apps/README.md）
 ├── .claude/ .cursor/ .gemini/ .iflow/ .trae/ .qoder/   # ⚙️ 全部为生成产物
 ├── .github/                      # ⚙️ Copilot 指令存根 + CI（全部生成）
-├── workspace/                    # 实际工作目录（apps 应用代码 + env-stack 环境搭建）
+├── workspace/                    # 实际工作目录
+│   ├── apps/backend/             #   后端（Java 25 / Spring Cloud，规范见 doc/Backend.md）
+│   ├── apps/frontend/            #   前端（web-admin = vben v5，其余占位）
+│   └── env-stack/                #   环境搭建（Docker Compose 依赖栈）
 └── docs/                         # 项目文档（设计/API 文档等，非 AI 配置）
 ```
 

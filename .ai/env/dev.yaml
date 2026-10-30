@@ -32,7 +32,7 @@ mcp:
         NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY}
         NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE}
 notes: |
-  环境搭建（拉起容器、初始化卷）在 workspace/env-stack/docker/dev/，见其 README.md；本文件只管连接。
+  环境搭建（拉起容器、初始化卷）在 workspace/env-stack/docker/dev/，见其 DEV-STACK.md；本文件只管连接。
   - 前置：先 `docker compose -f env-stack/docker/dev/compose.dev.yml up -d`，各组件 healthy 后再连 MCP；
     凭证取自 env-stack/docker/dev/.env（不入库）。
   - 端口均绑定 127.0.0.1，仅本机可访问。
@@ -42,6 +42,6 @@ notes: |
   - Nacos 3.x 缺口：配置/服务/命名空间读写无通用 MCP 包。两条路径：
     ① 经 `docker compose exec` 调 v3 admin API（`/nacos/v3/admin/*`，需登录态）；
     ② 本地适配层 stdio 启动器从本目录 .env 注入凭证（3.x 就绪探针走 8080）。
-    本地管理员初始化见 env-stack/docker/dev/nacos/init-admin/README.md。
-  - RocketMQ 无 MCP server：经 `docker compose exec` + mqadmin 操作（见 rocketmq/README.md）。
+    本地管理员初始化见 env-stack/docker/dev/nacos/init-admin/INIT-ADMIN.md。
+  - RocketMQ 无 MCP server：经 `docker compose exec` + mqadmin 操作（见 rocketmq/ROCKETMQ.md）。
   - Kafka MCP 缺口：kafka-mcp-server 为注册表可查到的第三方包，非官方参考实现，用前核对其能力与鉴权。

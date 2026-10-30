@@ -11,6 +11,12 @@
 
 **正确回答**应包含：唯一事实源是 `.ai/`；必须运行 `node .ai/sync.mjs` 并通过 `--check`。答不出 = 该工具没读到规则，按各工具下方「读什么」排查入口文件是否存在。
 
+## 目录级规则（应用内工作时）
+
+`workspace/apps/**` 有专属规则，按工具机制分发（Claude/Gemini 进入目录读同级 `CLAUDE.md`/`GEMINI.md`；Cursor 用 `globs`、Copilot 用 `applyTo` 按路径自动附加；AGENTS.md 标准族读目录内 `AGENTS.md`）。**完整覆盖矩阵见 [`.ai/scopes/SCOPED-RULES.md`](scopes/SCOPED-RULES.md)。**
+
+> Trae / Qoder / CodeBuddy / iFlow 等根级工具无目录级机制：进入应用后**主动读取**该目录 `AGENTS.md`（根规则「动手之前」已要求先读上下文）。
+
 ---
 
 ## 1. Claude Code（Anthropic）

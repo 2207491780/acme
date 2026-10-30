@@ -8,8 +8,8 @@
  *      → 默认为「引用存根」（~1KB：必读指引 + 铁律节选，指向 .ai/RULES.md）；
  *        可选 --links（或环境变量 AI_SYNC_LINK=1）切换为符号链接模式（磁盘零拷贝，
  *        但编辑器中会显示为全文；在不支持 symlink 的机器上会被 git 检出成损坏文本，sync 可自愈）
- *   3) .ai/scopes/**    → 分层 AGENTS.md：按同路径派生到仓库对应目录（就近生效），
- *        并自动在同级生成 CLAUDE.md 引用存根（默认）或链接（--links）
+ *   3) .ai/scopes/**    → 分层规则多工具分发：同路径 AGENTS.md + CLAUDE.md（@导入/链接）+
+ *        GEMINI.md（@导入）+ .cursor/rules/scope-*.mdc（glob 自动附加）+ .github/instructions/scope-*.instructions.md（applyTo）
  *   4) .ai/agents|skills|commands/ → 跨工具公共池，拷贝派生到各工具目录（保证跨平台可移植）
  *   5) .ai/tools/<工具>/**         → 工具专属配置，派生到对应工具目录（doc 派生为目录说明）
  *   6) .ai/ci/**       → 派生到 .github/workflows/（GitHub 要求固定路径）
@@ -91,6 +91,9 @@ const norm = (s) => s.replace(/\r\n/g, '\n');
 /** 链接目标规范化：Windows 上 readlink 可能把正斜杠规范成反斜杠 */
 const normLink = (p) => p.split('\\').join('/');
 
+/** 遍历时跳过的重型/无关目录（依赖、构建产物、临时区） */
+const SKIP_DIRS = new Set(['.git', 'node_modules', 'target', 'dist', 'build', 'coverage', '.turbo', '.ai-tmp']);
+
 async function walk(dir) {
   let entries = [];
   try {
@@ -100,6 +103,7 @@ async function walk(dir) {
   }
   const files = [];
   for (const e of entries) {
+    if (SKIP_DIRS.has(e.name)) continue;
     const p = join(dir, e.name);
     if (e.isDirectory()) files.push(...(await walk(p)));
     else files.push(p);
@@ -165,22 +169,47 @@ for (const t of STUB_TARGETS) {
   expected.set(t.file, norm(`${front}${banner(t.tool)}\n\n# ACME 项目规范（入口）\n\n${stub}\n`));
 }
 
-// ---- 4. 分层 AGENTS.md：.ai/scopes/** → 仓库同路径 + 同级 CLAUDE.md ----
+// ---- 4. 分层规则：.ai/scopes/** → 每个作用域产出多种工具形态（多工具兼容） ----
+// 同一份 AGENTS.md 内容分发为：AGENTS.md（标准族/Codex/Cursor 嵌套）· CLAUDE.md（Claude）·
+// GEMINI.md（Gemini 层级）· .cursor/rules/*.mdc（按 glob 自动附加）· .github/instructions（Copilot applyTo）
 const SCOPES = join(AI, 'scopes');
 for (const f of await walk(SCOPES)) {
   const rel = relative(SCOPES, f).split('\\').join('/');
   if (rel === 'SCOPED-RULES.md') continue;
-  let content = norm(await readFile(f, 'utf8'));
-  if (rel.endsWith('.md')) content = content.trimEnd() + footer(`.ai/scopes/${rel}`);
-  expected.set(rel, content);
+  const content = norm(await readFile(f, 'utf8'));
+  const tagged = rel.endsWith('.md') ? content.trimEnd() + footer(`.ai/scopes/${rel}`) : content;
+  expected.set(rel, tagged);
+
   if (/(^|\/)AGENTS\.md$/.test(rel)) {
-    // 同级 CLAUDE.md：默认为 @ 导入存根（引用同目录 AGENTS.md）；--links 模式为符号链接
-    links.set(rel.replace(/AGENTS\.md$/, 'CLAUDE.md'), {
+    const scopeDir = rel.replace(/(^|\/)AGENTS\.md$/, '');
+    if (!scopeDir) continue; // 根 AGENTS.md 由根部入口机制负责
+    const slug = scopeDir.split('/').join('-');
+    const label = `.ai/scopes/${rel}`;
+
+    // CLAUDE.md：@ 导入存根（--links 模式下为符号链接）；带派生标记以便孤儿检测
+    links.set(`${scopeDir}/CLAUDE.md`, {
       target: 'AGENTS.md',
       fallback: norm(
-        `@AGENTS.md\n\n本目录的目录级规范在同目录 \`AGENTS.md\`（唯一事实源：\`.ai/scopes/${rel}\`）。\n`
+        `@AGENTS.md\n\n本目录的目录级规范见同目录 \`AGENTS.md\`（源：\`${label}\`）。\n${footer(label)}`
       ),
     });
+    // GEMINI.md：Gemini CLI 层级记忆，@ 导入
+    expected.set(
+      `${scopeDir}/GEMINI.md`,
+      norm(`@AGENTS.md\n\n本目录的目录级规范见同目录 \`AGENTS.md\`（源：\`${label}\`）。\n${footer(label)}`)
+    );
+    // Cursor：按 glob 自动附加的规则（alwaysApply: false）
+    expected.set(
+      `.cursor/rules/scope-${slug}.mdc`,
+      norm(
+        `---\ndescription: ${scopeDir}/ 目录规范（自动生成，源：${label}）\nglobs: ["${scopeDir}/**"]\nalwaysApply: false\n---\n\n${tagged}`
+      )
+    );
+    // GitHub Copilot：按路径生效的指令
+    expected.set(
+      `.github/instructions/scope-${slug}.instructions.md`,
+      norm(`---\napplyTo: "${scopeDir}/**"\n---\n\n${tagged}`)
+    );
   }
 }
 
@@ -288,11 +317,33 @@ for (const [rel, want] of expected) {
   await ensureContent(rel, want);
 }
 
-// ---- 7. 孤儿派生文件检测：工具目录中带派生标记、但已不在期望集内的残留 ----
-for (const t of TOOLS) {
-  for (const f of await walk(join(root, t.target))) {
+// ---- 6. 命名与预算约束（预算条款见 .ai/rules/ai-guidelines.md） ----
+const RULES_BUDGET = 8192;
+const rulesBytes = Buffer.byteLength(expected.get('.ai/RULES.md') ?? '', 'utf8');
+if (rulesBytes > RULES_BUDGET) {
+  errors++;
+  console.error(`❌ .ai/RULES.md 超出预算：${rulesBytes}B > ${RULES_BUDGET}B（细节移入 .ai-memory/playbooks，规则只留结论+路径）`);
+} else {
+  console.log(`✅ 预算：RULES.md ${rulesBytes}B ≤ ${RULES_BUDGET}B`);
+}
+
+// 命名规则：全库仅根 README.md；第三方脚手架（vendored）原样保留
+const VENDOR_README_PREFIXES = ['workspace/apps/frontend/web-admin/'];
+for (const f of await walk(root)) {
+  const rel = relative(root, f).split('\\').join('/');
+  if (!/(^|\/)README\.md$/.test(rel) || rel === 'README.md') continue;
+  if (VENDOR_README_PREFIXES.some((p) => rel.startsWith(p))) continue;
+  errors++;
+  console.error(`❌ 命名规则：${rel} 应改为实义命名（全库仅保留根 README.md）`);
+}
+
+// ---- 7. 孤儿派生文件检测：派生文件带标记但源已删除的残留 ----
+const ORPHAN_ROOTS = [...TOOLS.map((t) => t.target), 'workspace'];
+for (const rootDir of ORPHAN_ROOTS) {
+  for (const f of await walk(join(root, rootDir))) {
     const rel = relative(root, f).split('\\').join('/');
-    if (expected.has(rel)) continue;
+    if (expected.has(rel) || links.has(rel)) continue;
+    if (!/\.(md|mdc|instructions\.md)$/.test(rel)) continue;
     let txt = '';
     try {
       txt = await readFile(f, 'utf8');

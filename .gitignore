@@ -12,6 +12,9 @@ CLAUDE.local.md
 .env
 .env.*
 !.env.example
+# vben 脚手架的模板环境文件（非密钥；真实密钥放根 .env）
+!workspace/apps/frontend/web-admin/**/.env
+!workspace/apps/frontend/web-admin/**/.env.*
 *.pem
 *.key
 
@@ -21,8 +24,18 @@ dist/
 build/
 coverage/
 
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+.flattened-pom.xml
+hs_err_pid*
+*.log
+
 # --- 操作系统 / 编辑器杂项 ---
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+*.iml

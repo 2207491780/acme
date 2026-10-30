@@ -4,18 +4,16 @@
 
 ## 语言与格式
 
-- TODO：主语言及版本（例：TypeScript 5.x strict 模式）。
-- 统一使用项目的格式化与 lint 配置，禁止自行调整缩进/引号风格。
+- 后端：Java 25（Spring Boot 4.1.1 / Spring Cloud 2025.1.3），Maven 多模块；规范详见 `workspace/apps/backend/doc/Backend.md`。
+- 前端：TypeScript（strict），Vue 3 + Vite；web-admin 基于 vben v5，命令用 pnpm。
+- 统一使用项目的格式化与 lint 配置（前端 `pnpm run lint`、后端按 Backend.md），禁止自行调整缩进/引号风格。
 - 文件编码 UTF-8（无 BOM），换行符 LF。
 
 ## 命名约定
 
-| 对象 | 约定 | 示例 |
-|---|---|---|
-| 目录/文件 | TODO（kebab-case / snake_case） | `user-service` |
-| 变量/函数 | 小驼峰 | `getUserById` |
-| 类/类型 | 大驼峰 | `UserService` |
-| 常量 | 全大写下划线 | `MAX_RETRY` |
+- Java：包全小写点分（`com.acme.platform.auth`）、类 PascalCase、类文件随类名。
+- TS/Vue：变量函数小驼峰、组件 PascalCase；文件/目录 kebab-case。
+- 常量 UPPER_SNAKE（`MAX_RETRY`）。
 
 ## 注释
 
