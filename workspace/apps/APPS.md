@@ -1,25 +1,17 @@
 # apps/ — 应用代码
 
-实际业务代码的唯一存放处。本仓库是「AI 配置体系 + 应用代码」双职责：`.ai/` 管 AI Coding 配置，`apps/` 管可运行的应用程序。
+实际业务代码的唯一存放处。AI 规范统一由仓库根 `.ai/` 派生（本目录各项目根会有派生出的 `AGENTS.md` / `CLAUDE.md`），**禁止手工新增其他 AI 配置文件**。
 
-## 目录约定
+## 应用清单
 
-```text
-apps/
-├── APPS.md          # 本文件：apps 层的约定说明
-├── <app>/           # 一个可独立运行/部署的应用
-│   ├── <app>.md     # 该应用的职责、启动方式、依赖说明（如 web-console.md）
-│   └── ...
-└── packages/        # （按需）跨应用共享的库
-```
+| 目录 | 类型 | 状态 | 说明 |
+|---|---|---|---|
+| [backend/](backend/BACKEND.md) | 后端 | ✅ 活跃 | Java 25 + Spring Boot 4.1.1 + Spring Cloud 2025.1.3，Maven 多模块；规范见 `backend/doc/Backend.md` |
+| [frontend/](frontend/FRONTEND.md) | 前端 | ✅ 活跃 | 多项目：`web-admin`（vben v5）活跃；data-visual / flutter-app / wechat-mini 占位 |
 
-## 应用划分原则
+## 约定
 
-- **一个目录一个应用**：以「能否独立部署」为界。能独立部署的（前端站点、后端服务、CLI、桌面端）各自一个目录；只被其他应用引用的代码进 `packages/`。
-- **命名**：目录名用 kebab-case，与应用包名保持一致（如 `apps/web-console`）。
-- **自洽性**：每个应用目录内放一份与目录同名的说明文件（如 `web-console.md`），写清「做什么、怎么跑、依赖什么」。外部 AI 工具进入该目录时只读它即可上手。
-- **禁止**在应用目录内放置 AI 工具的配置文件（如 `CLAUDE.md`、`.cursor/rules/`）。AI 规范全局统一，由根目录 `.ai/` 派生，详见[根 README](../../README.md)。
-
-## 待办
-
-此目录当前为空骨架。待应用定型后在此登记应用清单与技术栈。
+- **一个目录一个可部署应用**；共享库进 `packages/`（按需）。
+- 每个项目根放一份实义命名的工程说明（`backend/BACKEND.md`、`frontend/FRONTEND.md`），**不使用 README.md**（全库仅根目录保留 README.md）。
+- 每个项目根的 AI 规则（`AGENTS.md` / `CLAUDE.md` / `GEMINI.md`）由 `.ai/scopes/workspace/apps/**/AGENTS.md` 派生；Cursor / Copilot 分别额外生成 `.cursor/rules/scope-*.mdc`、`.github/instructions/scope-*.instructions.md`。
+- 命名用 kebab-case，与应用包名一致。
