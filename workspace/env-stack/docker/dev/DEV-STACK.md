@@ -30,7 +30,7 @@ docker compose -f env-stack/docker/dev/compose.dev.yml down -v     # 停止并�
 
 ## AI 接入（MCP）
 
-本目录只负责**搭**；MCP **连**的唯一事实源是 [.ai/env/dev.yaml](../../../.ai/env/dev.yaml)（Schema 与纪律见 .ai/env/ENV-GUIDE.md）。AI 需要操作中间件时按该文件建立连接，凭证一律用 `${VAR}` 引用、由启动器从本目录 `.env` 注入。
+本目录只负责**搭**；MCP **连**的唯一事实源是 [.ai/env/dev.yaml](../../../../.ai/env/dev.yaml)（Schema 与纪律见 .ai/env/ENV-GUIDE.md）。AI 需要操作中间件时按该文件建立连接，凭证一律用 `${VAR}` 引用、由启动器从本目录 `.env` 注入。
 
 | MCP server | 组件 | 能力 |
 |---|---|---|
@@ -41,8 +41,8 @@ docker compose -f env-stack/docker/dev/compose.dev.yml down -v     # 停止并�
 
 缺口（待补）：
 
-- **Nacos MCP 启动器**：3.x 管理 API 需登录态与 `NACOS_AUTH_TOKEN`，无通用 MCP 包，需本地适配层（3.x 就绪探针与 v3 admin 路径与 2.x 不同）；补齐后在 [.ai/env/dev.yaml](../../../.ai/env/dev.yaml) 登记 `command`。
-- **RocketMQ 无 MCP server**：经 `docker compose exec` 或 `mqadmin` 操作（见 [rocketmq/README.md](rocketmq/README.md)「中间件侧观测」）。
+- **Nacos MCP 启动器**：3.x 管理 API 需登录态与 `NACOS_AUTH_TOKEN`，无通用 MCP 包，需本地适配层（3.x 就绪探针与 v3 admin 路径与 2.x 不同）；补齐后在 [.ai/env/dev.yaml](../../../../.ai/env/dev.yaml) 登记 `command`。
+- **RocketMQ 无 MCP server**：经 `docker compose exec` 或 `mqadmin` 操作（见 `rocketmq/ROCKETMQ.md`「中间件侧观测」）。
 
 容器编排本身（启停、日志）不走 MCP，AI 直接执行本文「使用」一节的 docker compose 命令。
 
@@ -53,8 +53,8 @@ docker/dev/
 ├── compose.dev.yml        # 编排入口：只做 include 聚合，不写组件细节
 ├── .env.example           # 环境变量模板（入库）
 ├── .env                   # 本地环境变量（不入库）
-├── README.md
-├── pgsql/                 # 一组件一目录：docker-compose.yml + 配置 + README
+├── DEV-STACK.md
+├── pgsql/                 # 一组件一目录：docker-compose.yml + 配置 + 组件说明文件
 ├── redis/
 ├── nacos/
 ├── kafka/
@@ -72,7 +72,7 @@ docker/dev/
 1. 新建 `docker/dev/<组件名>/` 目录，放入三个文件：
    - `docker-compose.yml` —— 只写该组件的 `services` / `volumes` / `networks`（网络声明照抄任一组件的 `dev-stack` 段）；
    - 组件配置文件（无可省略）；
-   - `README.md` —— 用途、端口、连接示例、相关契约条款号。
+   - `<COMPONENT>.md` —— 用途、端口、连接示例、相关契约条款号。
 2. 在 [compose.dev.yml](compose.dev.yml) 的 `include:` 列表追加一行 `<组件名>/docker-compose.yml`。
 3. 在 [.env.example](.env.example) 追加该组件的端口/密码变量，并同步本地 `.env`。
 4. `docker compose -f env-stack/docker/dev/compose.dev.yml up -d <组件名>` 验证 `healthy`。

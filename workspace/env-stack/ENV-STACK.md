@@ -34,7 +34,7 @@ docker compose -f env-stack/docker/dev/compose.dev.yml ps        # 各组件须�
 docker compose -f env-stack/docker/dev/compose.dev.yml down -v    # 停并清数据（慎用）
 ```
 
-组件、端口、MCP 接入与新增组件步骤见 [docker/dev/README.md](docker/dev/README.md)。
+组件、端口、MCP 接入与新增组件步骤见 [docker/dev/DEV-STACK.md](docker/dev/DEV-STACK.md)。
 
 ## 测试 / 生产（待建）
 
