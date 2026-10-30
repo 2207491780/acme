@@ -1,15 +1,47 @@
 # 开发环境 MCP 连接定义 —— 唯一事实源：.ai/env/dev.yaml（Schema 与纪律见 ENV-GUIDE.md）
-# 敏感值用 ${VAR} 引用本地环境变量，严禁明文。
+# 敏感值用 ${VAR} 引用 env-stack/docker/dev/.env（本地，不入库），严禁明文。
+# 说明：YAML 不做 ${VAR} 展开；各工具原生 MCP 配置由此手动适配时，把 ${VAR} 解析为实际值。
 env: dev
-description: 开发环境（本地/联调），允许读写。
+description: 开发环境（本地 Docker Desktop 依赖栈），允许读写。
 mcp:
-  servers: [] # TODO 按需登记，示例：
-  # - name: dev-db
-  #   transport: stdio
-  #   command: [npx, -y, @modelcontextprotocol/server-postgres]
-  #   env:
-  #     DATABASE_URL: ${DEV_DATABASE_URL}
-  # - name: dev-api
-  #   transport: http
-  #   url: http://localhost:9100/mcp
-notes: TODO 本环境注意事项（数据可否重置、依赖哪些本地服务等）
+  servers:
+    - name: dev-pgsql
+      transport: stdio
+      command: [npx, -y, @modelcontextprotocol/server-postgres]
+      env:
+        DATABASE_URL: postgresql://${PG_USER}:${PG_PASSWORD}@127.0.0.1:${PG_PORT}/${PG_DB}
+    - name: dev-redis
+      transport: stdio
+      command: [npx, -y, @modelcontextprotocol/server-redis]
+      env:
+        REDIS_URL: redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT}
+    # 包名核对：@modelcontextprotocol/server-kafka 不存在，用注册表可查到的 kafka-mcp-server；
+    # 其 broker 环境变量名以该包 README 为准（TODO(MiHong): 起一次实例确认后回填）
+    - name: dev-kafka
+      transport: stdio
+      command: [npx, -y, kafka-mcp-server]
+      env:
+        KAFKA_BROKERS: 127.0.0.1:${KAFKA_PORT}
+    # Nacos 3.x：管理 API 需登录态且 v3 admin 路径与 2.x 不同，无通用 MCP 包；
+    # 此处仅登记服务 API 端点（HTTP）。配置/服务/命名空间读写需本地适配层（见 notes）
+    - name: dev-nacos
+      transport: http
+      url: http://127.0.0.1:${NACOS_PORT}
+      env:
+        NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN}
+        NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY}
+        NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE}
+notes: |
+  环境搭建（拉起容器、初始化卷）在 workspace/env-stack/docker/dev/，见其 README.md；本文件只管连接。
+  - 前置：先 `docker compose -f env-stack/docker/dev/compose.dev.yml up -d`，各组件 healthy 后再连 MCP；
+    凭证取自 env-stack/docker/dev/.env（不入库）。
+  - 端口均绑定 127.0.0.1，仅本机可访问。
+  - PostgreSQL：dev 允许读写与改表；各服务独占库/schema，不跨服务共享表（M-03）。
+  - Redis：dev 允许读写；缓存键带服务前缀（12.3.2）。
+  - Kafka / RocketMQ：dev 允许建主题与收发消息；正式主题治理按业务域划分（13.2.4）。
+  - Nacos 3.x 缺口：配置/服务/命名空间读写无通用 MCP 包。两条路径：
+    ① 经 `docker compose exec` 调 v3 admin API（`/nacos/v3/admin/*`，需登录态）；
+    ② 本地适配层 stdio 启动器从本目录 .env 注入凭证（3.x 就绪探针走 8080）。
+    本地管理员初始化见 env-stack/docker/dev/nacos/init-admin/README.md。
+  - RocketMQ 无 MCP server：经 `docker compose exec` + mqadmin 操作（见 rocketmq/README.md）。
+  - Kafka MCP 缺口：kafka-mcp-server 为注册表可查到的第三方包，非官方参考实现，用前核对其能力与鉴权。

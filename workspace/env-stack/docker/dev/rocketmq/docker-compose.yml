@@ -1,0 +1,67 @@
+# RocketMQ：消息中间件，nameserver + broker 两容器（poc-gate POC-3 多 binder 验证前置，Q-003 已授权，仅开发用）
+# 架构：nameserver（注册发现）+ broker（消息存储）；客户端经宿主机映射端口连接（brokerIP1=127.0.0.1，见 broker.conf）
+# 消息约束见 Backend.md 13.2：traceId/幂等键/版本号、主题配死信、消费幂等 M-12
+services:
+  rocketmq-nameserver:
+    image: apache/rocketmq:${ROCKETMQ_VERSION:-5.3.1}
+    container_name: acme-rocketmq-nameserver
+    restart: unless-stopped
+    # 命名卷由 docker 创建、属主 root，镜像默认 uid 3000(rocketmq) 写入失败导致 broker 起不来；
+    # 仅开发编排以 root 运行规避（非生产口径，生产见 Backend.md 第 15 章）
+    user: root
+    command: sh mqnamesrv
+    ports:
+      - "127.0.0.1:${ROCKETMQ_NAMESRV_PORT:-9876}:9876"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - acme-rocketmq-nameserver-logs:/home/rocketmq/logs
+    healthcheck:
+      # namesrv 就绪判定：mqadmin 能连上 9876 并返回集群列表
+      test: ["CMD-SHELL", "sh mqadmin clusterList -n localhost:9876 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+    networks: [dev-stack]
+
+  rocketmq-broker:
+    image: apache/rocketmq:${ROCKETMQ_VERSION:-5.3.1}
+    container_name: acme-rocketmq-broker
+    restart: unless-stopped
+    # 同 nameserver：命名卷属主与镜像 uid 不匹配，仅开发以 root 运行
+    user: root
+    command: sh mqbroker -n rocketmq-nameserver:9876 -c /home/rocketmq/conf/broker.conf
+    depends_on:
+      rocketmq-nameserver:
+        condition: service_healthy
+    ports:
+      # 10911：remoting（客户端收发主端口）；10909：fast remoting（VIP 通道，客户端默认也会用）
+      - "127.0.0.1:${ROCKETMQ_BROKER_PORT:-10911}:10911"
+      - "127.0.0.1:${ROCKETMQ_BROKER_FAST_PORT:-10909}:10909"
+    environment:
+      NAMESRV_ADDR: rocketmq-nameserver:9876
+      TZ: Asia/Shanghai
+    volumes:
+      - ./broker.conf:/home/rocketmq/conf/broker.conf:ro
+      - acme-rocketmq-broker-store:/home/rocketmq/store
+      - acme-rocketmq-broker-logs:/home/rocketmq/logs
+    healthcheck:
+      # broker 就绪判定：经 namesrv 可查到 broker 节点（注意 broker 容器内须用容器 DNS 名访问 nameserver，
+      # localhost:9876 指向 broker 容器自身、并非 nameserver）
+      test: ["CMD-SHELL", "sh mqadmin clusterList -n rocketmq-nameserver:9876 2>/dev/null | grep -q broker-a"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+    networks: [dev-stack]
+
+volumes:
+  acme-rocketmq-nameserver-logs:
+    name: acme-rocketmq-nameserver-logs
+  acme-rocketmq-broker-store:
+    name: acme-rocketmq-broker-store
+  acme-rocketmq-broker-logs:
+    name: acme-rocketmq-broker-logs
+
+networks:
+  dev-stack:
+    name: acme-dev-stack

@@ -1,0 +1,42 @@
+# Nacos：注册 + 配置中心（配置按命名空间隔离环境，Backend.md 14.3.1）
+services:
+  nacos:
+    image: nacos/nacos-server:${NACOS_VERSION:-v3.0.0}
+    container_name: acme-nacos
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${NACOS_PORT:-8848}:8848"
+      - "127.0.0.1:${NACOS_GRPC_PORT:-9848}:9848"
+      # Nacos 3.x 控制台独立端口（8848 只承载服务 API）
+      - "127.0.0.1:${NACOS_CONSOLE_PORT:-8080}:8080"
+    environment:
+      MODE: standalone
+      # 本地开启鉴权（Nacos 3.x 控制台/管理 API 需登录；默认用户 nacos/nacos，取值经 .env 注入，14.3.3）
+      NACOS_AUTH_ENABLE: "true"
+      # Nacos 3.x 镜像强制要求认证令牌与身份标识（即使关闭鉴权），取值经 .env 注入、不入库
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:?请在 env-stack/docker/dev/.env 中设置 NACOS_AUTH_TOKEN（Base64，生成见 .env.example）}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:?请在 env-stack/docker/dev/.env 中设置 NACOS_AUTH_IDENTITY_KEY}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:?请在 env-stack/docker/dev/.env 中设置 NACOS_AUTH_IDENTITY_VALUE}
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      TZ: Asia/Shanghai
+    volumes:
+      - acme-nacos-data:/home/nacos/data
+      - acme-nacos-logs:/home/nacos/logs
+    healthcheck:
+      # Nacos 3.x 就绪端点在控制台端口（context 为 /），v1 探针已废弃（410）
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/v3/console/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    networks: [dev-stack]
+
+volumes:
+  acme-nacos-data:
+    name: acme-nacos-data
+  acme-nacos-logs:
+    name: acme-nacos-logs
+
+networks:
+  dev-stack:
+    name: acme-dev-stack

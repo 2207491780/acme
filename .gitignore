@@ -11,6 +11,7 @@ CLAUDE.local.md
 # --- 密钥与环境 ---
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 

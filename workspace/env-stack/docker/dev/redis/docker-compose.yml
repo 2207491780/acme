@@ -1,0 +1,29 @@
+# Redis：缓存 / 分布式锁 / 限流共用（缓存键带服务前缀，Backend.md 12.3.2）
+services:
+  redis:
+    image: redis:7.4-alpine
+    container_name: acme-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 env-stack/docker/dev/.env 中设置 REDIS_PASSWORD}
+    # 密码经命令注入，不写入 redis.conf（凭证不入库，14.3.3）
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - acme-redis-data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [dev-stack]
+
+volumes:
+  acme-redis-data:
+    name: acme-redis-data
+
+networks:
+  dev-stack:
+    name: acme-dev-stack

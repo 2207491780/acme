@@ -1,0 +1,18 @@
+# Acme 开发依赖环境编排入口（仅开发用，非生产编排；生产见 Backend.md 第 15 章）
+# 用法（仓库根执行）：
+#   cp env-stack/docker/dev/.env.example env-stack/docker/dev/.env   # 首次：填本地取值（.env 不入库）
+#   docker compose -f env-stack/docker/dev/compose.dev.yml up -d
+#   docker compose -f env-stack/docker/dev/compose.dev.yml ps
+# 结构：本文件只做聚合（include），组件定义在各自子目录；新增组件步骤见 README.md。
+name: acme-dev-stack
+
+include:
+  - pgsql/docker-compose.yml
+  - redis/docker-compose.yml
+  - nacos/docker-compose.yml
+  - kafka/docker-compose.yml
+  - rocketmq/docker-compose.yml
+
+networks:
+  dev-stack:
+    name: acme-dev-stack

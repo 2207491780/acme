@@ -1,0 +1,30 @@
+# PostgreSQL：各服务独占库 / 独立 schema（Backend.md 12.1.1），新增服务时按 18.1.1 第 7 步建库
+services:
+  pgsql:
+    image: postgres:17-alpine
+    container_name: acme-pgsql
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PG_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${PG_USER:?请在 env-stack/docker/dev/.env 中设置 PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?请在 env-stack/docker/dev/.env 中设置 PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB:-acme}
+      TZ: Asia/Shanghai
+    volumes:
+      - acme-pgsql-data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-acme} -d ${PG_DB:-acme}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [dev-stack]
+
+volumes:
+  acme-pgsql-data:
+    name: acme-pgsql-data
+
+networks:
+  dev-stack:
+    name: acme-dev-stack

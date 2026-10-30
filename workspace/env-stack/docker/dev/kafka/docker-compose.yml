@@ -1,0 +1,46 @@
+# Kafka：消息中间件，KRaft 单节点（消息约束见 Backend.md 13.2：traceId/幂等键/版本号、主题配死信、消费幂等 M-12）
+# 监听器说明：
+#   PLAINTEXT_HOST://127.0.0.1:9092  —— 宿主机侧应用（IDE 启动）经映射端口连接
+#   PLAINTEXT://kafka:29092         —— dev-stack 网络内其他容器互联
+services:
+  kafka:
+    image: apache/kafka:${KAFKA_VERSION:-4.0.0}
+    container_name: acme-kafka
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${KAFKA_PORT:-9092}:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://127.0.0.1:${KAFKA_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # 日志目录与下方命名卷挂载点一致，否则数据落在容器 /tmp、重建即丢
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # 开发期允许自动建主题；正式主题治理见 Backend.md 13.2.4（按业务域设主题、消费组与服务名对应）
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      TZ: Asia/Shanghai
+    volumes:
+      - acme-kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+    networks: [dev-stack]
+
+volumes:
+  acme-kafka-data:
+    name: acme-kafka-data
+
+networks:
+  dev-stack:
+    name: acme-dev-stack
