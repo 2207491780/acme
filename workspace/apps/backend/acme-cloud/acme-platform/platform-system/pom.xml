@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-platform</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>platform-system</artifactId>
+    <packaging>pom</packaging>
+    <name>platform-system</name>
+    <description>
+        系统管理域平台服务（G2.5 拆分评审结论，Backend.md 18.1.1）
+        - 能力域：system（用户 / 角色 / 权限点 / 菜单 / 字典 / 租户管理，FR-006~009）
+        - 结构：platform-system-api（契约）+ platform-system-service（实现与启动，5.3.2）
+        - 数据独占 schema：platform_system（12.1.1）
+        - 约束：不依赖 auth 任何模块（服务间依赖单向 auth → system，4.4.2）
+    </description>
+
+    <modules>
+        <module>platform-system-api</module>
+        <module>platform-system-service</module>
+    </modules>
+
+</project>

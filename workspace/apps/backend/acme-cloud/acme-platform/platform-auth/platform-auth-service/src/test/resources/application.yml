@@ -1,0 +1,51 @@
+# platform-auth 测试域配置（遮蔽主 application.yml：无 Nacos 导入，16.2.1 测试不依赖共享环境）
+spring:
+  application:
+    name: platform-auth
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        enabled: false
+  flyway:
+    enabled: true
+    default-schema: public
+    schemas: public
+    placeholders:
+      # 种子密码占位（Q-D05 测试取值，非生产）
+      seedSuperadminPassword: "Admin@123456"
+      # 演示账号种子密码（business-api-integration 测试取值，非生产；主配置无仓库内缺省值）
+      seedDemoAdminPassword: "DemoAdmin@123456"
+      seedDemoOperatorPassword: "DemoOperator@123456"
+
+acme:
+  security:
+    public-paths:
+      - /admin/v1/auth/tokens
+    token:
+      hmac-secret: auth-it-secret-0123456789abcdef
+  auth:
+    token:
+      hmac-secret: auth-it-secret-0123456789abcdef
+      issuer: acme-auth
+      ttl-seconds: 1800
+    login:
+      max-failures: 5
+      window-seconds: 900
+      lock-seconds: 900
+  i18n:
+    basenames: i18n/acme-messages,i18n/platform-auth-messages
+  jpa:
+    id:
+      worker-id: 1
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true

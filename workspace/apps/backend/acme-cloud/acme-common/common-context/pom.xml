@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-common</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>common-context</artifactId>
+    <packaging>jar</packaging>
+    <name>common-context</name>
+    <description>
+        线程上下文持有者：User/Tenant/Trace/Locale/Client Context 与 ContextSnapshot/ContextScope（Modules.md 2.1、2.4）
+    </description>
+
+    <dependencies>
+        <!-- 依赖=pom 实际引用（本次重构定稿）：允许依赖上界见 Modules.md 2.1，未用不声明 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

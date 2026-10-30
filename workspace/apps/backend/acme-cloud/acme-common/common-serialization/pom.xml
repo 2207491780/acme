@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-common</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>common-serialization</artifactId>
+    <packaging>jar</packaging>
+    <name>common-serialization</name>
+    <description>
+        Jackson 3 标准 Module 集（Long→String、时间格式与时区、枚举 code、脱敏、BigDecimal 规整）与 Json 门面（Modules.md 2.1、2.5）
+    </description>
+
+    <dependencies>
+        <!-- BR-002：本模块对 common-core 的依赖仅限 Json 门面异常转换（Modules.md 2.5.3），用途约束无法机器判定，靠评审约束；
+             其余类型（Module/序列化器/脱敏注解）不得引用 core 类型（架构设计 3.5） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+        </dependency>
+        <!-- BR-012：禁用 jackson-datatype-jsr310 / jackson-datatype-jdk8 / jackson-module-parameter-names；
+             亦不得 new ObjectMapper()/copy()（Modules.md 2.5.4），由 acme-common 白名单 enforcer 拦截外部引入 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

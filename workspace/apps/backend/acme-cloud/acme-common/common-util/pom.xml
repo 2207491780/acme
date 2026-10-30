@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-common</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>common-util</artifactId>
+    <packaging>jar</packaging>
+    <name>common-util</name>
+    <description>
+        语言层工具：日期、字符串、集合、加解密、ID 生成、树构建、金额辅助（Modules.md 2.1）
+        - 仅 JDK（Modules.md 2.1 允许依赖列；Backend.md 7.1.2）
+    </description>
+
+    <dependencies>
+        <!-- 依赖=pom 实际引用（本次重构定稿）：允许依赖上界见 Modules.md 2.1，未用不声明 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

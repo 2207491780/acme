@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-parent</artifactId>
+        <!-- acme-parent 基线版本，独立演进；产品线版本由下方 revision 重写（6.3.2） -->
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../acme-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>acme-cloud</artifactId>
+    <version>${revision}</version>
+    <packaging>pom</packaging>
+    <name>acme-cloud</name>
+    <description>
+        Acme Cloud 项目总聚合
+        - 定位：构建什么（模块清单、模块间版本约束）
+        - 内容：parent 指向 acme-parent、modules 仅列子聚合与网关、本项目模块 dependencyManagement
+        - modules：仅声明子聚合（acme-common / acme-framework / acme-platform / acme-business）与 acme-gateway；
+          各层内部模块清单由子聚合器自管（5.3.2），新增服务不动本 POM
+        - 版本：在此重写 ${revision} 统一产品线版本，acme-cloud 全部子模块继承（6.3.2）
+        - 产出：聚合构建、汇总报告
+    </description>
+
+    <properties>
+        <!-- 产品线版本唯一来源（6.3.2）：在此重写，统一整棵 cloud 模块树 -->
+        <revision>1.0.0-SNAPSHOT</revision>
+    </properties>
+
+    <modules>
+        <module>acme-common</module>
+        <module>acme-framework</module>
+        <module>acme-gateway</module>
+        <module>acme-platform</module>
+        <module>acme-business</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- 本项目模块版本统一在此登记（6.1），服务间仅经 *-api 依赖 -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>common-util</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>common-context</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>common-contract</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>common-serialization</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>common-test</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>common-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>common-i18n</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>common-validation</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- framework 模块（framework-core 起，随 P1–P5 批次登记） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-trace</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-jackson</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-web</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-jpa</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-security</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-gateway</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- P4 能力层（Modules.md 3.1） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-tenant</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-cache</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-lock</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-stream</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-feign</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-job</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- P5 按需模块（Modules.md 3.2；架构设计 2.3） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-idempotent</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-excel</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-i18n</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-audit</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-storage</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-doc</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-ratelimit</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-observability</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-tx</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 服务契约模块（18.1.1 第 3 步登记；G2.5 首批：platform-auth / platform-system） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>platform-auth-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>platform-auth-service</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>platform-system-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>platform-system-service</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- platform-infra 增补登记（platform-infra-audit 拆分评审，18.1.1 第 3 步） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>platform-infra-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>platform-infra-service</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 服务契约模块（18.1.1 第 3 步登记；business-api-integration G2.5：business-content） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>business-content-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>business-content-service</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+</project>

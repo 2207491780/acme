@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-framework</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>framework-jackson</artifactId>
+    <packaging>jar</packaging>
+    <name>framework-jackson</name>
+    <description>
+        Jackson 3 装配模块（Modules.md 3.1）：JsonMapperBuilderCustomizer 注册 common-serialization 的 Module、
+        @AcmeJacksonComponent 扫描、时间/枚举/脱敏统一；四包形态与开关见 Modules.md 3.5
+    </description>
+
+    <dependencies>
+        <!-- Q-002：直接依赖 common-serialization + framework-core（复用自动装配基类与开关条件） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-serialization</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-core</artifactId>
+        </dependency>
+
+        <!-- Modules.md 3.5 依赖粒度：Boot 4 细粒度模块（spring-boot-jackson），禁大而全 starter（BR-009） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+
+        <!-- 测试域（不引大而全 starter-test，framework-core 先例） -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

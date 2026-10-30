@@ -1,0 +1,66 @@
+# platform-system 应用配置（Backend.md 8.1.3 前缀 acme.*；14.3.1 本地仅启动级配置）
+# 路径约定：Controller 映射含端别前缀 /admin/v1/system/**（网关不 StripPrefix，架构设计 6.1 取舍 #8）
+spring:
+  application:
+    name: platform-system
+  config:
+    # 配置中心集中配置（FR-018；不可达显式失败 fail-fast，不静默缺省运行）
+    import: nacos:platform-system.yaml
+  cloud:
+    nacos:
+      server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:acme_local_nacos_2026}
+      discovery:
+        # Nacos 注册健康纳入就绪探针（14.2.2、架构设计 9.5；SCA 该指标缺省关）
+        health-indicator:
+          enabled: true
+  datasource:
+    # 每服务独占 schema（12.1.1）与独立账号（12.1.3；本地开发取值对应 .dev-stack）
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:acme}?currentSchema=platform_system
+    username: ${PG_USER:acme}
+    password: ${PG_PASSWORD:acme_local_pg_2026}
+  jpa:
+    hibernate:
+      # 12.3.3：生产口径 validate，schema 唯一来源为 Flyway 脚本
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    default-schema: platform_system
+    schemas: platform_system
+
+server:
+  port: 9881
+
+acme:
+  security:
+    # 公开端点豁免：无业务公开路径——system 全部接口需认证（架构设计 6.2）；
+    # 仅探针与指标面（14.2.1/14.2.2）直连放行：kubelet / 监控直连服务端口，网关不路由故无对外暴露
+    public-paths:
+      - /actuator/**
+    token:
+      # 内部令牌校验密钥域（与网关签发同源；14.3.3 经环境注入）
+      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}
+  i18n:
+    # zh/en 双语（NFR-007）：框架汇总资源 + 本服务资源（消息键=错误码，8.2）
+    basenames: i18n/acme-messages,i18n/platform-system-messages
+  jpa:
+    id:
+      # 雪花 worker 标识（12.3.1 必填；与 platform-auth 配不同值防碰撞）
+      worker-id: 2
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 14.2.1 指标暴露 / 14.2.2 探针（FR-019 装配级验证）
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # 就绪探针校验关键依赖可用性（14.2.2、架构设计 9.5）：DB / Nacos
+        readiness:
+          include: readinessState,db,nacosDiscovery

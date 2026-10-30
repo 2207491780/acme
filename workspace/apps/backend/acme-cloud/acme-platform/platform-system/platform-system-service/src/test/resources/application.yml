@@ -1,0 +1,35 @@
+# platform-system 测试域配置（遮蔽主 application.yml：无 Nacos 导入，16.2.1 测试不依赖共享环境）
+spring:
+  application:
+    name: platform-system
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        enabled: false
+  flyway:
+    enabled: true
+    default-schema: public
+    schemas: public
+
+acme:
+  security:
+    public-paths: []
+    token:
+      hmac-secret: system-it-secret-0123456789abcdef
+  i18n:
+    basenames: i18n/acme-messages,i18n/platform-system-messages
+  jpa:
+    id:
+      worker-id: 2
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true

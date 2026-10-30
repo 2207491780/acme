@@ -1,0 +1,101 @@
+# acme-gateway 应用配置（Backend.md 11.1；路由归应用面 8.10）
+# 注：SCG 5.x WebFlux 变体配置前缀为 spring.cloud.gateway.server.webflux（开发时按 BOM 核验，4.1）
+# platform-services-bootstrap：移除 P3 验收残留路由 sample-admin / sample-app / sample-admin-gray
+# 与公开路径 /admin/sample/test-token（Q-D07，验收应用已随 foundation-refactor 清理）；
+# 追加 platform-auth / platform-system 按能力域路由（11.1.4，FR-010）。
+spring:
+  application:
+    name: acme-gateway
+  cloud:
+    nacos:
+      server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+      # 注册与凭证经环境 / 配置中心注入（14.3.3；本地开发默认值仅连 .dev-stack）
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:acme_local_nacos_2026}
+    gateway:
+      server:
+        webflux:
+          # 路由按能力域注册（11.1.4）；uri 用 lb://（Nacos 服务发现，FR-018）
+          routes:
+            - id: platform-auth
+              uri: lb://platform-auth
+              predicates:
+                - Path=/admin/v1/auth/**
+            - id: platform-system
+              uri: lb://platform-system
+              predicates:
+                - Path=/admin/v1/system/**
+            # platform-infra 增补路由（仅追加不改既有，11.1.4；platform-infra-audit）
+            - id: platform-infra
+              uri: lb://platform-infra
+              predicates:
+                - Path=/admin/v1/infra/**
+            # C 端认证路由（仅追加，11.1.3 双端前缀；consumer-auth-refresh-dataperm）
+            - id: platform-auth-app
+              uri: lb://platform-auth
+              predicates:
+                - Path=/app/v1/auth/**
+            # business-content 增补路由（仅追加不改既有，11.1.4；business-api-integration G2.5）
+            # 路径族 /contents/**、/search/** 同时覆盖裸路径与子路径（Ant/PathPattern 语义，实现说明登记）
+            - id: business-content
+              uri: lb://business-content
+              predicates:
+                - Path=/admin/v1/contents/**,/admin/v1/categories
+            - id: business-content-app
+              uri: lb://business-content
+              predicates:
+                - Path=/app/v1/contents/**,/app/v1/feeds,/app/v1/hot-searches,/app/v1/search/**,/app/v1/categories
+          # 跨域归网关统一处理（BR-011、8.9、AC-026）；origin 白名单经环境注入（11.1.1 生产形态），
+          # 通配仅限开发默认，生产必须以 ACME_CORS_ALLOWED_ORIGINS 注入显式白名单
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowedOrigins: "${ACME_CORS_ALLOWED_ORIGINS:*}"
+                allowedMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+                allowedHeaders: "${ACME_CORS_ALLOWED_HEADERS:*}"
+                maxAge: 3600
+
+server:
+  port: 9888
+
+acme:
+  gateway:
+    auth:
+      b:
+        public-paths:
+          # 公开豁免最小集（FR-012）：仅登录端点；默认全部路由验签
+          - /admin/v1/auth/tokens
+      c:
+        public-paths:
+          # C 端公开豁免最小集（11.4：验证码 / 登录 / 刷新自证；consumer-auth-refresh-dataperm）
+          - /app/v1/auth/captcha
+          - /app/v1/auth/tokens
+          - /app/v1/auth/tokens/refresh
+          # C 端内容读豁免最小集（Q-12=A；仅 GET 路径，本服务这些路径仅暴露 GET；business-api-integration）
+          - /app/v1/feeds
+          - /app/v1/hot-searches
+          - /app/v1/contents/**
+          - /app/v1/search/**
+          - /app/v1/categories
+    user-token:
+      # 用户令牌密钥域（11.6.2 与内部令牌密钥域隔离；14.3.3 经环境注入；
+      # 与 platform-auth acme.auth.token.hmac-secret 同值——auth 为签发方）
+      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}
+      issuer: acme-auth
+    revocation:
+      # 撤销检查异常兜底（Q-D02 子项：默认 FAIL_OPEN 可用性优先，可切 FAIL_CLOSE）
+      on-error: FAIL_OPEN
+    ratelimit:
+      # 按端限流默认策略显式化（FR-014 / Q-006 裁定 B；framework-gateway 既有默认值，静态可核对 AC-012）
+      b:
+        quota-per-minute: 120
+      c:
+        quota-per-minute: 240
+      fallback:
+        # 公开端点 / 未鉴权流量兜底（IP + 接口，Modules.md 3.1.3）
+        quota-per-minute: 60
+  security:
+    token:
+      # 内部令牌密钥域：与下游校验同源（7.7；14.3.3 经环境注入）；与用户令牌密钥域隔离（11.6.2）
+      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}

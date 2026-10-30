@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-business</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>business-content</artifactId>
+    <packaging>pom</packaging>
+    <name>business-content</name>
+    <description>
+        内容域业务服务（business-api-integration G2.5 拆分评审通过，Backend.md 18.1.1）
+        - 能力域：内容域（内容读侧消费 + 管理侧维护闭环；分类、热搜词支撑子域）
+        - 结构：business-content-api（契约）+ business-content-service（实现与启动，5.3.2）
+        - 数据独占 schema：business_content（12.1.1，biz_content / biz_content_category / biz_hot_search_word）
+        - 服务间依赖：仅 platform-system-api（权限判定 AuthorizationClient，4.4.2；调用链含网关压线 3，M-07）
+    </description>
+
+    <modules>
+        <module>business-content-api</module>
+        <module>business-content-service</module>
+    </modules>
+
+</project>

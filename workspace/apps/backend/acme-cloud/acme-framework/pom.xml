@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>acme-framework</artifactId>
+    <packaging>pom</packaging>
+    <name>acme-framework</name>
+
+    <modules>
+        <!-- 模块清单由本 POM 自管（5.3.2）；按 Modules.md 3.3 分层登记 -->
+        <module>framework-core</module>
+        <module>framework-trace</module>
+        <module>framework-jackson</module>
+        <module>framework-jpa</module>
+        <module>framework-web</module>
+        <module>framework-security</module>
+        <module>framework-gateway</module>
+        <!-- P4 能力层（Modules.md 3.1） -->
+        <module>framework-tenant</module>
+        <module>framework-cache</module>
+        <module>framework-lock</module>
+        <module>framework-stream</module>
+        <module>framework-feign</module>
+        <module>framework-job</module>
+        <!-- P5 按需模块（Modules.md 3.2/3.3；架构设计 2.2） -->
+        <module>framework-idempotent</module>
+        <module>framework-excel</module>
+        <module>framework-i18n</module>
+        <module>framework-audit</module>
+        <module>framework-storage</module>
+        <module>framework-doc</module>
+        <module>framework-ratelimit</module>
+        <module>framework-observability</module>
+        <module>framework-tx</module>
+    </modules>
+
+    <description>
+        Acme Cloud 框架模块
+        - 本质：中间件适配层
+        - 解决的问题：这套中间件每次都要配
+        - 定位：framework-* 的 parent 与子聚合器；framework-* 模块清单由本 POM 的 modules 自管（5.3.2）
+        - 准入方式：代码评审
+    </description>
+
+    <build>
+        <plugins>
+            <!-- 单测覆盖率量化（16.1/NFR-002：≥70% 量化出数；子模块自动继承） -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 4.4.4 / 17.1：framework 不得依赖任何服务模块 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-framework-deps</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <exclude>com.acme:platform-*</exclude>
+                                        <exclude>com.acme:business-*</exclude>
+                                        <exclude>com.acme:*-service</exclude>
+                                        <exclude>com.acme:acme-gateway</exclude>
+                                    </excludes>
+                                    <message>framework 不得依赖任何服务模块（4.4.4）</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

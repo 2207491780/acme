@@ -1,0 +1,102 @@
+# platform-auth 应用配置（Backend.md 8.1.3 前缀 acme.*；14.3.1 本地仅启动级配置）
+# 路径约定：Controller 映射含端别前缀 /admin/v1/auth/**（网关不 StripPrefix，架构设计 6.1 取舍 #8）
+spring:
+  application:
+    name: platform-auth
+  config:
+    # 配置中心集中配置（FR-018；不可达显式失败 fail-fast，不静默缺省运行）
+    import: nacos:platform-auth.yaml
+  cloud:
+    nacos:
+      server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:acme_local_nacos_2026}
+      discovery:
+        # Nacos 注册健康纳入就绪探针（14.2.2、架构设计 9.5；SCA 该指标缺省关）
+        health-indicator:
+          enabled: true
+  datasource:
+    # 每服务独占 schema（12.1.1）与独立账号（12.1.3；本地开发取值对应 .dev-stack）
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:acme}?currentSchema=platform_auth
+    username: ${PG_USER:acme}
+    password: ${PG_PASSWORD:acme_local_pg_2026}
+  jpa:
+    hibernate:
+      # 12.3.3：生产口径 validate，schema 唯一来源为 Flyway 脚本
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    default-schema: platform_auth
+    schemas: platform_auth
+    placeholders:
+      # 超管种子密码（Q-D05：Flyway placeholder 环境注入，pgcrypto BCrypt 散列，明文不落仓库；
+      # 开发默认值仅本地；生产必须以 ACME_SEED_SUPERADMIN_PASSWORD 注入）
+      seedSuperadminPassword: "${ACME_SEED_SUPERADMIN_PASSWORD:Admin@123456}"
+      # B 端演示账号种子密码（business-api-integration，架构设计 3.7）：无仓库内缺省值（密码不落仓库，
+      # 14.3.3），联调/生产经部署环境注入 ACME_SEED_DEMO_ADMIN_PASSWORD / ACME_SEED_DEMO_OPERATOR_PASSWORD
+      seedDemoAdminPassword: "${ACME_SEED_DEMO_ADMIN_PASSWORD}"
+      seedDemoOperatorPassword: "${ACME_SEED_DEMO_OPERATOR_PASSWORD}"
+  data:
+    redis:
+      # 防爆破 / 撤销集（架构设计 4.2/4.3；键前缀 auth:，12.3.2）
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:acme_local_redis_2026}
+
+server:
+  port: 9882
+
+acme:
+  security:
+    # 服务侧公开端点（FR-012 最小集：B 端登录 + C 端验证码/登录/刷新；与网关豁免清单一致）
+    public-paths:
+      - /admin/v1/auth/tokens
+      - /app/v1/auth/captcha
+      - /app/v1/auth/tokens
+      - /app/v1/auth/tokens/refresh
+      # 探针与指标面（14.2.1/14.2.2）：kubelet / 监控直连服务端口，网关不路由故无对外暴露
+      - /actuator/**
+    token:
+      # 内部令牌校验密钥域（与网关签发同源；14.3.3 经环境注入）
+      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}
+  auth:
+    token:
+      # 用户令牌签发密钥（与网关 acme.gateway.user-token.hmac-secret 同值——auth 为签发方；14.3.3）
+      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}
+      issuer: acme-auth
+      ttl-seconds: 1800
+      # C 端双令牌（11.4：access 2h / refresh 14d，一次性轮换）
+      consumer:
+        access-ttl-seconds: 7200
+        refresh-ttl-seconds: 1209600
+        captcha-ttl-seconds: 300
+        captcha-send-interval-seconds: 60
+        captcha-max-failures: 5
+    login:
+      # 防爆破（Q-002：默认 5 次 / 15 分钟窗口 / 锁 15 分钟；Redis 异常 fail-open）
+      max-failures: 5
+      window-seconds: 900
+      lock-seconds: 900
+  i18n:
+    # zh/en 双语（NFR-007）：框架汇总资源 + 本服务资源（消息键=错误码，8.2）
+    basenames: i18n/acme-messages,i18n/platform-auth-messages
+  jpa:
+    id:
+      # 雪花 worker 标识（12.3.1 必填；与 platform-system 配不同值防碰撞）
+      worker-id: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 14.2.1 指标暴露 / 14.2.2 探针（FR-019 装配级验证）
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # 就绪探针校验关键依赖可用性（14.2.2、架构设计 9.5）：DB / Nacos
+        readiness:
+          include: readinessState,db,nacosDiscovery

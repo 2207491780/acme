@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>acme-common</artifactId>
+    <packaging>pom</packaging>
+    <name>acme-common</name>
+    <description>
+        Acme Cloud 公共模块父POM
+        - 本质：语言层补充
+        - 解决的问题：这段代码每个项目都要写
+        - 定位：common-* 的 parent 与子聚合器；common-* 模块清单由本 POM 的 modules 自管（5.3.2）
+        - 准入方式：代码评审
+    </description>
+
+    <modules>
+        <!-- 按依赖方向登记（架构设计 5.2） -->
+        <module>common-util</module>
+        <module>common-context</module>
+        <module>common-core</module>
+        <module>common-contract</module>
+        <module>common-serialization</module>
+        <module>common-i18n</module>
+        <module>common-validation</module>
+        <module>common-test</module>
+    </modules>
+
+    <build>
+        <plugins>
+            <!-- 单测覆盖率量化（16.1/NFR-002：≥70% 量化出数；与 acme-framework 树对齐，子模块自动继承） -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 7.1.2 / 17.1：common-* 仅限白名单基础依赖；Lombok 仅编译期、测试栈仅测试域 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-common-deps</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <exclude>*:*</exclude>
+                                    </excludes>
+                                    <includes>
+                                        <include>com.acme:common-*</include>
+                                        <include>org.slf4j:slf4j-api</include>
+                                        <include>tools.jackson.core:*</include>
+                                        <include>com.fasterxml.jackson.core:jackson-annotations</include>
+                                        <include>jakarta.validation:jakarta.validation-api</include>
+                                        <include>org.projectlombok:lombok</include>
+                                        <include>org.junit.jupiter:*</include>
+                                        <include>org.junit.platform:*</include>
+                                        <include>org.assertj:*</include>
+                                        <include>org.mockito:*</include>
+                                        <include>org.hamcrest:*</include>
+                                        <include>org.testcontainers:*</include>
+                                        <include>org.awaitility:*</include>
+                                        <!-- 测试栈传递依赖（JUnit 6 / Testcontainers 2.x 传递件；测试域口径 Q-012、BR-023） -->
+                                        <include>org.opentest4j:*</include>
+                                        <include>org.apiguardian:*</include>
+                                        <include>org.jspecify:*</include>
+                                        <include>org.rnorth.duct-tape:*</include>
+                                        <include>com.github.docker-java:*</include>
+                                        <include>org.apache.commons:commons-compress</include>
+                                        <include>commons-io:*</include>
+                                        <include>commons-codec:*</include>
+                                        <include>org.apache.commons:commons-lang3</include>
+                                        <include>net.bytebuddy:*</include>
+                                        <include>org.jetbrains:annotations</include>
+                                        <include>net.java.dev.jna:*</include>
+                                    </includes>
+                                    <message>common-* 仅限白名单基础依赖（Backend.md 7.1.2）</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>acme-business</artifactId>
+    <packaging>pom</packaging>
+    <name>acme-business</name>
+    <description>
+        Acme Cloud 业务模块
+        - 本质：业务本身
+        - 解决的问题：这个业务规则只有这里有
+        - 定位：business-** 的 parent 与子聚合器；business-** 模块清单由本 POM 的 modules 自管（5.3.2）
+        - 准入方式：需求评审即可
+    </description>
+
+    <modules>
+        <!-- business-api-integration G2.5 拆分评审通过（18.1.1 第 3 步登记）：内容域首个业务服务 -->
+        <module>business-content</module>
+    </modules>
+
+    <build>
+        <plugins>
+            <!-- 4.4.2 / 17.1：服务间仅经 *-api，不得依赖任何服务实现模块 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-business-deps</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <exclude>com.acme:*-service</exclude>
+                                    </excludes>
+                                    <message>服务间仅经 *-api 依赖，不得依赖任何服务实现模块（4.4.2）</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

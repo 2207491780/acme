@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-platform</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>platform-auth</artifactId>
+    <packaging>pom</packaging>
+    <name>platform-auth</name>
+    <description>
+        认证域平台服务（G2.5 拆分评审结论，Backend.md 18.1.1）
+        - 能力域：auth（B 端登录、用户令牌签发、单会话互踢、登出即时失效、防爆破锁定、凭据管理，FR-001~005）
+        - 结构：platform-auth-api（契约）+ platform-auth-service（实现与启动，5.3.2）
+        - 数据独占 schema：platform_auth（12.1.1）；防爆破 / 撤销集走 Redis（键前缀 auth:，12.3.2）
+        - 服务间依赖：仅 platform-system-api（auth → system 单向，4.4.2；system 不感知 auth）
+    </description>
+
+    <modules>
+        <module>platform-auth-api</module>
+        <module>platform-auth-service</module>
+    </modules>
+
+</project>
