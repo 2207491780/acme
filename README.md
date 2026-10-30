@@ -36,6 +36,7 @@ acme/
 ├── AGENTS.md  CLAUDE.md  GEMINI.md  CODEBUDDY.md   # ⚙️ 引用存根 → .ai/RULES.md（全文仅此一份）
 ├── .ai/                          # ★★ AI 配置唯一事实源（结构见 .ai/ARCHITECTURE.md）
 ├── .ai-memory/                   # ★ 知识与记忆落盘（decisions 定稿 / playbooks 手册 / drafts 草稿）
+├── apps/                          # ★ 实际业务代码（应用层，约定见 apps/README.md）
 ├── .claude/ .cursor/ .gemini/ .iflow/ .trae/ .qoder/   # ⚙️ 全部为生成产物
 ├── .github/                      # ⚙️ Copilot 指令存根 + CI（全部生成）
 └── docs/                         # 项目文档（设计/API 文档等，非 AI 配置）
