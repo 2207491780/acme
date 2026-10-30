@@ -1,0 +1,13 @@
+# 生产环境 MCP 连接定义 —— 唯一事实源：.ai/env/prod.yaml（Schema 与纪律见 ENV-GUIDE.md）
+# ⚠️ 默认只读；任何写操作必须先获用户明确批准（.ai/rules 安全红线）。
+# 敏感值用 ${VAR} 引用本地环境变量，严禁明文。
+env: prod
+description: 生产环境，默认只读。
+mcp:
+  servers: [] # TODO 按需登记（建议仅暴露观测/查询类 server），示例：
+  # - name: prod-readonly-db
+  #   transport: http
+  #   url: https://mcp.internal.example.com/prod-db-readonly
+  #   headers:
+  #     Authorization: Bearer ${PROD_MCP_TOKEN}
+notes: TODO 本环境注意事项（值班联系人、禁止操作清单等）

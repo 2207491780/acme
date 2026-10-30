@@ -1,0 +1,15 @@
+# 开发环境 MCP 连接定义 —— 唯一事实源：.ai/env/dev.yaml（Schema 与纪律见 ENV-GUIDE.md）
+# 敏感值用 ${VAR} 引用本地环境变量，严禁明文。
+env: dev
+description: 开发环境（本地/联调），允许读写。
+mcp:
+  servers: [] # TODO 按需登记，示例：
+  # - name: dev-db
+  #   transport: stdio
+  #   command: [npx, -y, @modelcontextprotocol/server-postgres]
+  #   env:
+  #     DATABASE_URL: ${DEV_DATABASE_URL}
+  # - name: dev-api
+  #   transport: http
+  #   url: http://localhost:9100/mcp
+notes: TODO 本环境注意事项（数据可否重置、依赖哪些本地服务等）

@@ -21,7 +21,8 @@
 ├── skills/        # 跨工具技能公共池（格式见 SKILL-POOL.md）
 ├── commands/      # 跨工具命令公共池（格式见 COMMAND-POOL.md）
 ├── tools/         # 各工具专属配置源（用法见 TOOL-SOURCES.md）
-├── ci/            # CI 工作流源 → .github/workflows/（GitHub 要求固定路径）
+├── env/           # 环境与 MCP 连接定义 dev/test/prod（AI 按需读取，见 ENV-GUIDE.md）
+├── ci/            # CI/CD 工作流源 → .github/workflows/（ci / cd / ai-rules-sync，见 CI-GUIDE.md）
 └── hooks/         # git 钩子（git config core.hooksPath .ai/hooks 直接指向，零拷贝）
 ```
 
@@ -85,6 +86,14 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | 本地层 | `.ai/hooks/pre-commit` 提交前运行 `--check`（含孤儿派生文件检测） | 不同步的提交被拒绝 |
 | 远端层 | `.ai/ci/` 派生出的 `.github/workflows/ai-rules-sync.yml` 在 push / PR 时校验 | 不同步的推送/合并被阻断 |
 
+## CI/CD（工作流源在 [ci/CI-GUIDE.md](ci/CI-GUIDE.md)）
+
+| 工作流 | 触发 | 职责 |
+|---|---|---|
+| `ci.yml` | push(main) / PR | 门禁：AI 配置同步校验 + 应用构建测试（待接线） |
+| `cd.yml` | dispatch 选环境 / `v*` 标签 → prod | 构建 → `env-stack/scripts/deploy.sh` 部署 → 健康检查；prod 走 GitHub Environment 审批 |
+| `ai-rules-sync.yml` | 触及 AI 配置相关文件 | 联动防线·远端层 |
+
 ## 新增一个 AI 工具的兼容
 
 1. 若该工具读 `AGENTS.md` —— 无需任何改动，已覆盖。
@@ -97,6 +106,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 
 | 工具 | 源位置 | 派生目标 |
 |---|---|---|
+| 环境级 MCP 端点（跨工具） | `.ai/env/{dev,test,prod}.yaml`（见 [ENV-GUIDE.md](env/ENV-GUIDE.md)） | AI 按需读取；各工具原生 MCP 配置由此适配 |
 | Claude Code | 根目录 `.mcp.json` | 例外：根级文件，暂手工维护 |
 | Cursor | `.ai/tools/cursor/mcp.json` | `.cursor/mcp.json` |
 | Gemini CLI | `.ai/tools/gemini/settings.json`（`mcpServers` 字段） | `.gemini/settings.json` |

@@ -1,0 +1,52 @@
+name: cd
+# 部署流水线 —— 源：.ai/ci/cd.yml（唯一事实源），由 .ai/sync.mjs 派生到 .github/workflows/。
+# 触发：手动 dispatch（选 dev/test/prod）；打 v* 标签 → 自动部署 prod（建议在 GitHub Environments 为 prod 配审批）。
+# 部署逻辑收敛在 workspace/env-stack/scripts/；环境三态与 .ai/env/*.yaml 对齐。详见 .ai/ci/CI-GUIDE.md。
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 目标环境
+        type: choice
+        options: [dev, test, prod]
+        default: dev
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: 构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 构建产物（TODO：待技术栈定型后接线）
+        run: |
+          echo "TODO 构建：实现后用 actions/upload-artifact@v4 上传产物，deploy 作业再 download"
+      # - uses: actions/upload-artifact@v4
+      #   with:
+      #     name: dist
+      #     path: TODO
+
+  deploy:
+    name: 部署 (${{ github.event_name == 'push' && 'prod' || inputs.env }})
+    needs: build
+    runs-on: ubuntu-latest
+    # GitHub Environment（建议在仓库设置建 dev/test/prod；prod 配 required reviewers 人工审批）
+    environment: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
+    env:
+      TARGET_ENV: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
+    steps:
+      - uses: actions/checkout@v4
+      # - uses: actions/download-artifact@v4
+      #   with: { name: dist }
+      - name: 部署（env-stack 脚本）
+        run: bash workspace/env-stack/scripts/deploy.sh "$TARGET_ENV"
+      - name: 健康检查
+        run: bash workspace/env-stack/scripts/healthcheck.sh "$TARGET_ENV"

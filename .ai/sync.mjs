@@ -208,8 +208,8 @@ for (const t of TOOLS) {
   await derive(join(AI, 'tools', t.key), t.target, `.ai/tools/${t.key}/`, { placardDoc: t.doc });
 }
 for (const e of EXTRA) {
-  // 说明文件已实义命名，.ai/ci/ 内不存在会被误派生的说明文档
-  await derive(join(AI, e.src), e.target, `.ai/${e.src}/`, {});
+  // CI-GUIDE.md 是目录说明，不派生到 .github/workflows/
+  await derive(join(AI, e.src), e.target, `.ai/${e.src}/`, { excludeDocs: ['CI-GUIDE.md'] });
 }
 
 // ---- 6. 写入 / 校验 ----

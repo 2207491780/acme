@@ -22,11 +22,19 @@ TODO：项目骨架确定后在此登记，AI 会优先按此表导航，避免�
 
 ```text
 acme/
-├── .ai/          # AI 配置中心（唯一事实源，内部结构见 .ai/ARCHITECTURE.md）
-├── .ai-memory/   # 知识与记忆落盘（decisions 定稿 / playbooks 手册 / drafts 草稿）
-├── apps/         # 实际业务代码：一个目录一个可部署应用，约定见 apps/README.md
-└── docs/         # 项目文档（设计/API/架构/部署手册等）
+├── .ai/          # AI 配置中心（唯一事实源，见 .ai/ARCHITECTURE.md）
+├── .ai-memory/   # 知识与记忆落盘（decisions / playbooks / drafts）
+├── .ai-tmp/      # AI 临时文件区（内容不入库）
+├── workspace/    # 实际工作目录（见 WORKSPACE.md）
+│   ├── apps/     #   应用代码（见 apps/APPS.md）
+│   └── env-stack/#   环境搭建（见 env-stack/ENV-STACK.md）
+└── docs/         # 项目文档
 ```
+
+## 环境与 MCP 连接
+
+- 环境三态与 MCP 直连定义：`.ai/env/{dev,test,prod}.yaml`（dev/test 读写，**prod 只读**；Schema 与纪律见 `.ai/env/ENV-GUIDE.md`，严禁明文密钥）。
+- 环境搭建 `workspace/env-stack/`；应用代码 `workspace/apps/`。
 
 ## 常用命令
 

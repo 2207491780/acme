@@ -1,0 +1,12 @@
+# 测试环境 MCP 连接定义 —— 唯一事实源：.ai/env/test.yaml（Schema 与纪律见 ENV-GUIDE.md）
+# 敏感值用 ${VAR} 引用本地环境变量，严禁明文。
+env: test
+description: 测试环境（共享联调/回归），允许读写但注意他人正在使用。
+mcp:
+  servers: [] # TODO 按需登记，示例：
+  # - name: test-db
+  #   transport: http
+  #   url: http://test-db.internal:9101/mcp
+  #   headers:
+  #     Authorization: Bearer ${TEST_MCP_TOKEN}
+notes: TODO 本环境注意事项（变更窗口、数据归属等）

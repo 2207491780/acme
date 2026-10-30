@@ -4,9 +4,9 @@ AGENTS.local.md
 CLAUDE.local.md
 .ai-memory/drafts/*.local.md
 
-# --- AI 临时文件（内容不入库，仅 README 说明文件入库） ---
+# --- AI 临时文件（内容不入库，仅说明文件 ABOUT.md 入库） ---
 .ai-tmp/*
-!.ai-tmp/README.md
+!.ai-tmp/ABOUT.md
 
 # --- 密钥与环境 ---
 .env

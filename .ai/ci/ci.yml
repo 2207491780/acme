@@ -1,0 +1,41 @@
+name: ci
+# 主门禁流水线 —— 源：.ai/ci/ci.yml（唯一事实源），由 .ai/sync.mjs 派生到 .github/workflows/。
+# 说明与接线 TODO 见 .ai/ci/CI-GUIDE.md。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ai-config:
+    name: AI 配置同步门禁
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node .ai/sync.mjs --check
+
+  app-quality:
+    name: 应用构建与测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 构建（TODO：待技术栈定型后接线）
+        run: |
+          echo "TODO 构建：把 .ai/rules/project.md「常用命令 → 构建」的命令填到此处"
+          # 例：cd workspace/apps/<app> && npm ci && npm run build
+      - name: 测试（TODO：待技术栈定型后接线）
+        run: |
+          echo "TODO 测试：把 .ai/rules/project.md「常用命令 → 运行测试」的命令填到此处"
