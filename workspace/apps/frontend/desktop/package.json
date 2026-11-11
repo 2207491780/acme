@@ -1,0 +1,20 @@
+{
+  "name": "@acme/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ACME 多端前端交付台 PC 桌面端（Electron 套壳 React Web）",
+  "main": "src/main/index.js",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "node scripts/start.mjs",
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "check": "node --check src/main/index.js && node --check src/preload/index.cjs && node --check src/shared/security.js && node --check src/shared/app-protocol.js && node --check scripts/dev.mjs && node --check scripts/start.mjs"
+  },
+  "devDependencies": {
+    "electron": "^37.0.0"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

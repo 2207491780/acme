@@ -1,0 +1,23 @@
+{
+  "name": "@acme/frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.8.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev": "pnpm --filter @acme/web dev",
+    "desktop:dev": "pnpm --filter @acme/desktop dev",
+    "mobile:start": "pnpm --filter @acme/mobile start",
+    "ui:guide": "node scripts/build-style-guide.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

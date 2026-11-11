@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "ACME 交付台",
+    "slug": "acme-frontend-ops",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "acme",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "backgroundColor": "#14161a",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.acme.frontendops"
+    },
+    "android": {
+      "package": "com.acme.frontendops"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

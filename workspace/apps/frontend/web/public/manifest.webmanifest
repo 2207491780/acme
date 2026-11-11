@@ -1,0 +1,18 @@
+{
+  "name": "ACME 多端前端交付台",
+  "short_name": "ACME 交付台",
+  "description": "统一管理 Web、Electron 桌面端与移动端发布单。",
+  "start_url": "../index.html",
+  "scope": "../",
+  "display": "standalone",
+  "background_color": "#14161a",
+  "theme_color": "#14161a",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
