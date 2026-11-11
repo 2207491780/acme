@@ -57,44 +57,24 @@
 
 # 编码规范
 
-> 所有 AI 工具生成/修改代码时必须遵守。标注 TODO 的部分按团队实际约定补齐。
-
 ## 语言与格式
 
-- TODO：主语言及版本（例：TypeScript 5.x strict 模式）。
-- 统一使用项目的格式化与 lint 配置，禁止自行调整缩进/引号风格。
-- 文件编码 UTF-8（无 BOM），换行符 LF。
+- 应用业务使用 TypeScript strict；Electron 与工程脚本使用现有 ESM/CJS，不混用模块格式。
+- 沿用同目录的命名、缩进、引号和文件组织；UTF-8 无 BOM、LF 换行。
+- React 组件/类型用 PascalCase，函数/变量用 camelCase，常量用 UPPER_SNAKE_CASE；不要批量重命名既有文件。
+- 注释只解释非显然的原因；TODO 需标注负责人或 issue。
 
-## 命名约定
+## 边界与依赖
 
-| 对象 | 约定 | 示例 |
-|---|---|---|
-| 目录/文件 | TODO（kebab-case / snake_case） | `user-service` |
-| 变量/函数 | 小驼峰 | `getUserById` |
-| 类/类型 | 大驼峰 | `UserService` |
-| 常量 | 全大写下划线 | `MAX_RETRY` |
+- JSON 导入、浏览器存储等外部输入必须做运行时校验，不能用类型断言代替；失败不得覆盖原数据。
+- 异常必须明确处理；内存降级要告知用户未保存，不能只报告成功。
+- 新增依赖先说明理由并核对 `.ai/rules/project.md`，优先使用标准库与现有依赖。
 
-## 注释
+## 验证
 
-- 注释解释「为什么」，不解释「是什么」。
-- 公开 API 必须有文档注释；内部实现仅在逻辑不直观时注释。
-- TODO 注释必须带负责人或 issue 号：`// TODO(name): ...`。
-
-## 错误处理
-
-- 不允许吞异常：捕获后必须处理（日志/降级/向上抛）。
-- 错误信息面向使用者可读，不暴露内部实现细节。
-
-## 依赖管理
-
-- **新增依赖前必须说明理由**，禁止引入未在 `.ai/rules/project.md` 技术栈中登记的框架/库。
-- 优先使用语言标准库和现有依赖解决问题。
-
-## 测试要求
-
-- 新增/修改业务逻辑必须附带对应测试。
-- 测试命名表达意图：`should_<行为>_when_<条件>`。
-- 提交前必须跑通全量测试，禁止跳过失败的测试。
+- 行为修改必须附回归测试，覆盖失败分支；名称表达 `should_<行为>_when_<条件>`。
+- 运行受影响端的类型检查、测试和构建；UI 修改需浏览器/设备验证，未执行的检查必须明确说明。
+- 当前没有统一 lint 脚本，不得将类型检查或测试通过表述为 lint 通过；不得为过检查跳过失败用例。
 
 # Git 工作流
 
@@ -140,54 +120,23 @@
 
 # 项目上下文
 
-> 所有 AI 工具共享的项目背景说明。标注 TODO 的部分请在项目定型后补齐。
+## 当前实现
 
-## 项目简介
+ACME 是多端发布流程演示台，不是真实部署平台：发布单、审批、构建进度和产物均为本地模拟，没有后端鉴权或部署接口。Web 使用本地存储，移动端目前仅内存存储。
 
-TODO：一句话说清楚本项目解决什么问题、给谁用。
+- 工程根 `workspace/apps/frontend/`；`packages/core/` 为框架无关业务/令牌，`web/` 为 React UI，`desktop/` 复用 Web 产物，`mobile/` 为 React Native。
+- 实际栈：Node ≥22.13、pnpm 11.8、TypeScript 5、React 18、Vite 5、Ant Design 5、Zustand、Electron 37、Expo 52 / RN 0.76；测试为 Vitest 与 Node test。
+- 未接入 TanStack Query、antd-mobile、electron-vite，不能假定这些依赖存在。
+- 视觉事实源为 `packages/core/src/theme.ts`；UI 修改先读工程内 `UI-SPEC.md`，校验页用 `pnpm ui:guide` 生成，禁止手改生成页。
 
-## 技术栈
+## 关键回归
 
-| 层 | 选型 | 版本 | 备注 |
-|---|---|---|---|
-| 语言 | TODO | | |
-| 框架 | TODO | | |
-| 包管理 | TODO | | npm / pnpm / uv / cargo … |
-| 测试 | TODO | | |
-| 构建 / 运行 | TODO | | |
+外部数据加载/导入需验证实体、设置及关联；非法输入不得覆盖有效状态。删除撤销不能因 ID 复用丢记录，切换筛选不能误操作隐藏选项；发布目标变化不能沿用旧审批和产物。多窗口修改需检查存储冲突。
 
-## 目录结构
+## 命令与门禁
 
-TODO：项目骨架确定后在此登记，AI 会优先按此表导航，避免全库扫描。
+在工程根运行 `pnpm typecheck`、`pnpm test`、`pnpm build`；入口为 `pnpm dev`、`pnpm desktop:dev`、`pnpm mobile:start`。桌面额外运行 `pnpm --filter @acme/desktop check`。
 
-```text
-acme/
-├── .ai/          # AI 配置中心（唯一事实源，见 .ai/ARCHITECTURE.md）
-├── .ai-memory/   # 知识与记忆落盘（decisions / playbooks / drafts）
-├── .ai-tmp/      # AI 临时文件区（内容不入库）
-├── workspace/    # 实际工作目录（见 WORKSPACE.md）
-│   ├── apps/     #   应用代码（见 apps/APPS.md）
-│   └── env-stack/#   环境搭建（见 env-stack/ENV-STACK.md）
-└── docs/         # 项目文档
-```
+AI 修改运行 `node .ai/sync.mjs` 和 `node .ai/sync.mjs --check`。同步通过不代表钩子已启用；派生引擎回归测试在 `.ai/tests/`（CI ai-config 作业运行）。
 
-## 环境与 MCP 连接
-
-- 环境三态与 MCP 直连定义：`.ai/env/{dev,test,prod}.yaml`（dev/test 读写，**prod 只读**；Schema 与纪律见 `.ai/env/ENV-GUIDE.md`，严禁明文密钥）。
-- 环境搭建 `workspace/env-stack/`；应用代码 `workspace/apps/`。
-
-## 常用命令
-
-| 用途 | 命令 |
-|---|---|
-| 安装依赖 | TODO |
-| 本地运行 | TODO |
-| 运行测试 | TODO |
-| 构建 | TODO |
-| 代码检查 | TODO |
-
-## 术语表
-
-| 术语 | 含义 |
-|---|---|
-| TODO | |
+环境连接定义在 `.ai/env/`，搭建脚本在 `workspace/env-stack/`；prod 默认只读，禁止明文密钥。

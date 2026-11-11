@@ -21,9 +21,8 @@
  * 联动铁律（.ai/rules/ai-guidelines.md「AI 配置联动更新」）：
  *   修改 .ai/ 必须触发所有工具联动更新，禁止手改任何派生文件。
  */
-import { readFile, writeFile, mkdir, readdir, lstat, symlink, readlink, unlink, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join, relative } from 'node:path';
+import { readFile, writeFile, mkdir, mkdtemp, readdir, lstat, symlink, readlink, unlink, rmdir } from 'node:fs/promises';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -91,46 +90,109 @@ const norm = (s) => s.replace(/\r\n/g, '\n');
 /** 链接目标规范化：Windows 上 readlink 可能把正斜杠规范成反斜杠 */
 const normLink = (p) => p.split('\\').join('/');
 
-async function walk(dir) {
-  let entries = [];
+async function statIfExists(abs) {
+  try {
+    return await lstat(abs);
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+/** 逐级 lstat，不跟随源或目标的父路径链接；仅入口允许替换末级链接。 */
+async function inspectPath(abs, { directory = false, allowLink = false } = {}) {
+  const rel = relative(root, abs);
+  if (isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`)) {
+    throw new Error(`拒绝仓库外路径：${abs}`);
+  }
+  const parts = rel.split(sep).filter(Boolean);
+  let current = root;
+  for (let i = 0; i < parts.length; i++) {
+    current = join(current, parts[i]);
+    const st = await statIfExists(current);
+    if (!st) return null;
+    const leaf = i === parts.length - 1;
+    if (st.isSymbolicLink()) {
+      if (leaf && allowLink) return st;
+      throw new Error(`拒绝符号链接路径：${normLink(relative(root, current))}（访问 ${normLink(rel)}）`);
+    }
+    if (!leaf || directory) {
+      if (!st.isDirectory()) throw new Error(`路径不是目录：${normLink(relative(root, current))}`);
+    } else if (!st.isFile()) {
+      throw new Error(`拒绝非普通文件目标（目录不会删除）：${normLink(rel)}`);
+    }
+    if (leaf) return st;
+  }
+  return null;
+}
+
+async function walk(dir, { source = true } = {}) {
+  const st = await inspectPath(dir, { directory: true, allowLink: !source });
+  if (!st || st.isSymbolicLink()) return [];
+  let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
-  } catch {
-    return [];
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
   }
   const files = [];
   for (const e of entries) {
     const p = join(dir, e.name);
-    if (e.isDirectory()) files.push(...(await walk(p)));
-    else files.push(p);
+    if (e.isSymbolicLink()) {
+      if (source) throw new Error(`拒绝符号链接源：${normLink(relative(root, p))}`);
+      continue;
+    }
+    if (e.isDirectory()) files.push(...(await walk(p, { source })));
+    else if (e.isFile()) files.push(p);
   }
   return files;
 }
 
-// ---- 0. 探测当前环境是否支持符号链接（探针放在系统临时目录，不污染仓库） ----
+// ---- 0. 链接探针仅用于同步，且只在仓库 .ai-tmp/ 的独占临时目录内创建 ----
 async function canSymlink() {
-  const probe = join(tmpdir(), `acme-symlink-probe-${process.pid}`);
+  const temp = join(root, '.ai-tmp');
+  await inspectPath(temp, { directory: true });
+  await mkdir(temp, { recursive: true });
+  const probeDir = await mkdtemp(join(temp, 'sync-link-probe-'));
+  const probe = join(probeDir, 'link');
+  let created = false;
   try {
     await symlink('probe-target', probe);
-    await unlink(probe);
+    created = true;
     return true;
-  } catch {
-    await unlink(probe).catch(() => {});
-    return false;
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOSYS', 'ENOTSUP', 'EOPNOTSUPP'].includes(error.code)) return false;
+    throw error;
+  } finally {
+    if (created) await unlink(probe);
+    await rmdir(probeDir);
   }
 }
 /** 链接模式为可选（默认引用存根）：--links 或环境变量 AI_SYNC_LINK=1 时启用 */
 const USE_LINKS = process.argv.includes('--links') || process.env.AI_SYNC_LINK === '1';
-const SYMLINK_OK = USE_LINKS ? await canSymlink() : false;
 
 /** 期望集：根相对路径（正斜杠）→ 规范化内容 */
 const expected = new Map();
 /** 链接集：根相对路径 → { target, fallback }（symlink 可用时用链接，否则写 fallback 内容） */
 const links = new Map();
+/** 两类目标共用登记簿；所有平台均拒绝 Windows 下会重合的大小写变体。 */
+const destinations = new Map();
+function register(collection, rel, value, source) {
+  const key = normLink(relative(root, join(root, rel))).toLowerCase();
+  const previous = destinations.get(key);
+  if (previous) {
+    throw new Error(
+      `派生目标冲突：${previous.source} → ${previous.rel}；${source} → ${rel}（含大小写冲突）`
+    );
+  }
+  destinations.set(key, { rel, source });
+  collection.set(rel, value);
+}
 
 // ---- 1. 公共规范：拼接为唯一完整副本 .ai/RULES.md ----
 let body = '';
-for (const f of (await walk(join(AI, 'rules'))).sort()) {
+for (const f of (await walk(join(AI, 'rules'))).filter((f) => f.endsWith('.md')).sort()) {
   body += norm(await readFile(f, 'utf8')).trim() + '\n\n';
 }
 if (!body.trim()) {
@@ -139,7 +201,12 @@ if (!body.trim()) {
 }
 const combinedBanner =
   '<!-- ⚠️ 本文件由 .ai/sync.mjs 从 .ai/rules/*.md 自动拼接生成，请勿直接修改；修改请编辑 .ai/rules/ 下的源文件并重新运行脚本。 -->';
-expected.set('.ai/RULES.md', norm(`${combinedBanner}\n\n# ACME 项目规范\n\n${body.trim()}\n`));
+const combined = norm(`${combinedBanner}\n\n# ACME 项目规范\n\n${body.trim()}\n`);
+const ruleBytes = Buffer.byteLength(combined, 'utf8');
+if (ruleBytes > 8192) {
+  throw new Error(`.ai/rules/*.md → .ai/RULES.md 超出预算：${ruleBytes} bytes > 8192 bytes，未写入任何产物。`);
+}
+register(expected, '.ai/RULES.md', combined, '.ai/rules/*.md');
 
 // ---- 2. 根部入口：默认引用存根（Claude Code 的存根用 @import 自动内联全文） ----
 const stub = `本仓库所有 AI 规范统一维护于 \`.ai/\`。**开始任何任务前，必须先完整阅读 \`.ai/RULES.md\`** —— 它是公共规范（AI 协作准则、编码规范、Git 工作流、项目上下文）的唯一完整副本。
@@ -153,16 +220,17 @@ const stub = `本仓库所有 AI 规范统一维护于 \`.ai/\`。**开始任何
 
 for (const t of LINK_TARGETS) {
   const imp = t.claudeImport ? '@.ai/RULES.md\n\n' : '';
-  links.set(t.file, {
+  register(links, t.file, {
     target: LINK_TO,
     fallback: norm(`${banner(t.tool)}\n\n${imp}# ACME 项目规范（入口）\n\n${stub}\n`),
-  });
+  }, '.ai/rules/*.md（公共入口）');
 }
 
 // ---- 3. 需要专属格式的规则入口：生成存根 ----
 for (const t of STUB_TARGETS) {
   const front = t.frontmatter ? t.frontmatter.join('\n') + '\n\n' : '';
-  expected.set(t.file, norm(`${front}${banner(t.tool)}\n\n# ACME 项目规范（入口）\n\n${stub}\n`));
+  register(expected, t.file, norm(`${front}${banner(t.tool)}\n\n# ACME 项目规范（入口）\n\n${stub}\n`),
+    '.ai/rules/*.md（公共入口）');
 }
 
 // ---- 4. 分层 AGENTS.md：.ai/scopes/** → 仓库同路径 + 同级 CLAUDE.md ----
@@ -172,15 +240,15 @@ for (const f of await walk(SCOPES)) {
   if (rel === 'SCOPED-RULES.md') continue;
   let content = norm(await readFile(f, 'utf8'));
   if (rel.endsWith('.md')) content = content.trimEnd() + footer(`.ai/scopes/${rel}`);
-  expected.set(rel, content);
+  register(expected, rel, content, `.ai/scopes/${rel}`);
   if (/(^|\/)AGENTS\.md$/.test(rel)) {
     // 同级 CLAUDE.md：默认为 @ 导入存根（引用同目录 AGENTS.md）；--links 模式为符号链接
-    links.set(rel.replace(/AGENTS\.md$/, 'CLAUDE.md'), {
+    register(links, rel.replace(/AGENTS\.md$/, 'CLAUDE.md'), {
       target: 'AGENTS.md',
       fallback: norm(
         `@AGENTS.md\n\n本目录的目录级规范在同目录 \`AGENTS.md\`（唯一事实源：\`.ai/scopes/${rel}\`）。\n`
       ),
-    });
+    }, `.ai/scopes/${rel}（同级 CLAUDE.md 入口）`);
   }
 }
 
@@ -195,7 +263,7 @@ async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc 
     if (rel.endsWith('.md')) content = content.trimEnd() + footer(label);
     else if (/\.(ya?ml|toml)$/.test(rel))
       content = `# 派生自 ${label}（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs\n\n` + content;
-    expected.set(`${outRoot}/${rel}`, content);
+    register(expected, `${outRoot}/${rel}`, content, label);
   }
 }
 
@@ -212,16 +280,20 @@ for (const e of EXTRA) {
   await derive(join(AI, e.src), e.target, `.ai/${e.src}/`, { excludeDocs: ['CI-GUIDE.md'] });
 }
 
-// ---- 6. 写入 / 校验 ----
+// ---- 6. 写入 / 校验：全部登记和路径预检通过后才允许写入（包括探针） ----
+for (const rel of expected.keys()) await inspectPath(join(root, rel));
+for (const rel of links.keys()) await inspectPath(join(root, rel), { allowLink: true });
+const SYMLINK_OK = !CHECK && USE_LINKS ? await canSymlink() : false;
 let errors = 0;
 
 async function ensureContent(rel, want) {
   const abs = join(root, rel);
+  await inspectPath(abs);
   let cur = null;
   try {
     cur = norm(await readFile(abs, 'utf8'));
-  } catch {
-    // 不存在视为缺失
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
   }
   if (CHECK) {
     if (cur === null) {
@@ -242,12 +314,12 @@ async function ensureContent(rel, want) {
 
 for (const [rel, { target, fallback }] of links) {
   const abs = join(root, rel);
-  const st = await lstat(abs).catch(() => null);
+  const st = await inspectPath(abs, { allowLink: true });
 
   if (CHECK) {
     // 链接（目标正确）或降级内容（匹配）任一通过
     if (st?.isSymbolicLink()) {
-      const cur = normLink((await readlink(abs).catch(() => '')) ?? '');
+      const cur = normLink(await readlink(abs));
       if (cur === target) console.log(`✅ ${rel} → ${target}`);
       else {
         errors++;
@@ -260,26 +332,18 @@ for (const [rel, { target, fallback }] of links) {
   }
 
   if (USE_LINKS && SYMLINK_OK) {
-    const cur = st?.isSymbolicLink() ? normLink((await readlink(abs).catch(() => '')) ?? '') : null;
+    const cur = st?.isSymbolicLink() ? normLink(await readlink(abs)) : null;
     if (cur === target) {
       console.log(`🔗 ${rel} → ${target}（已存在）`);
     } else {
-      if (st) await rm(abs, { recursive: true, force: true });
+      if (st) await unlink(abs);
       await mkdir(dirname(abs), { recursive: true });
       await symlink(target, abs);
       console.log(`🔗 已链接 ${rel} → ${target}`);
     }
   } else {
     // 默认模式：写引用存根（同时会把已有的链接替换为存根，修复 git 检出损坏的链接文本）
-    let cur = null;
-    try {
-      cur = st?.isSymbolicLink() ? null : norm(await readFile(abs, 'utf8'));
-    } catch {
-      // 读不到按缺失处理
-    }
-    if (st?.isSymbolicLink() || cur !== fallback) {
-      if (st) await rm(abs, { recursive: true, force: true });
-    }
+    if (st?.isSymbolicLink()) await unlink(abs);
     await ensureContent(rel, fallback);
   }
 }
@@ -290,14 +354,15 @@ for (const [rel, want] of expected) {
 
 // ---- 7. 孤儿派生文件检测：工具目录中带派生标记、但已不在期望集内的残留 ----
 for (const t of TOOLS) {
-  for (const f of await walk(join(root, t.target))) {
+  for (const f of await walk(join(root, t.target), { source: false })) {
     const rel = relative(root, f).split('\\').join('/');
-    if (expected.has(rel)) continue;
+    if (destinations.has(rel.toLowerCase())) continue;
     let txt = '';
     try {
       txt = await readFile(f, 'utf8');
-    } catch {
-      continue; // 二进制等无法按文本读取的文件不检测
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
     }
     if (DERIVED_MARK.test(txt)) {
       errors++;

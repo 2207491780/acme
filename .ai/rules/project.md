@@ -1,53 +1,22 @@
 # 项目上下文
 
-> 所有 AI 工具共享的项目背景说明。标注 TODO 的部分请在项目定型后补齐。
+## 当前实现
 
-## 项目简介
+ACME 是多端发布流程演示台，不是真实部署平台：发布单、审批、构建进度和产物均为本地模拟，没有后端鉴权或部署接口。Web 使用本地存储，移动端目前仅内存存储。
 
-TODO：一句话说清楚本项目解决什么问题、给谁用。
+- 工程根 `workspace/apps/frontend/`；`packages/core/` 为框架无关业务/令牌，`web/` 为 React UI，`desktop/` 复用 Web 产物，`mobile/` 为 React Native。
+- 实际栈：Node ≥22.13、pnpm 11.8、TypeScript 5、React 18、Vite 5、Ant Design 5、Zustand、Electron 37、Expo 52 / RN 0.76；测试为 Vitest 与 Node test。
+- 未接入 TanStack Query、antd-mobile、electron-vite，不能假定这些依赖存在。
+- 视觉事实源为 `packages/core/src/theme.ts`；UI 修改先读工程内 `UI-SPEC.md`，校验页用 `pnpm ui:guide` 生成，禁止手改生成页。
 
-## 技术栈
+## 关键回归
 
-| 层 | 选型 | 版本 | 备注 |
-|---|---|---|---|
-| 语言 | TODO | | |
-| 框架 | TODO | | |
-| 包管理 | TODO | | npm / pnpm / uv / cargo … |
-| 测试 | TODO | | |
-| 构建 / 运行 | TODO | | |
+外部数据加载/导入需验证实体、设置及关联；非法输入不得覆盖有效状态。删除撤销不能因 ID 复用丢记录，切换筛选不能误操作隐藏选项；发布目标变化不能沿用旧审批和产物。多窗口修改需检查存储冲突。
 
-## 目录结构
+## 命令与门禁
 
-TODO：项目骨架确定后在此登记，AI 会优先按此表导航，避免全库扫描。
+在工程根运行 `pnpm typecheck`、`pnpm test`、`pnpm build`；入口为 `pnpm dev`、`pnpm desktop:dev`、`pnpm mobile:start`。桌面额外运行 `pnpm --filter @acme/desktop check`。
 
-```text
-acme/
-├── .ai/          # AI 配置中心（唯一事实源，见 .ai/ARCHITECTURE.md）
-├── .ai-memory/   # 知识与记忆落盘（decisions / playbooks / drafts）
-├── .ai-tmp/      # AI 临时文件区（内容不入库）
-├── workspace/    # 实际工作目录（见 WORKSPACE.md）
-│   ├── apps/     #   应用代码（见 apps/APPS.md）
-│   └── env-stack/#   环境搭建（见 env-stack/ENV-STACK.md）
-└── docs/         # 项目文档
-```
+AI 修改运行 `node .ai/sync.mjs` 和 `node .ai/sync.mjs --check`。同步通过不代表钩子已启用；派生引擎回归测试在 `.ai/tests/`（CI ai-config 作业运行）。
 
-## 环境与 MCP 连接
-
-- 环境三态与 MCP 直连定义：`.ai/env/{dev,test,prod}.yaml`（dev/test 读写，**prod 只读**；Schema 与纪律见 `.ai/env/ENV-GUIDE.md`，严禁明文密钥）。
-- 环境搭建 `workspace/env-stack/`；应用代码 `workspace/apps/`。
-
-## 常用命令
-
-| 用途 | 命令 |
-|---|---|
-| 安装依赖 | TODO |
-| 本地运行 | TODO |
-| 运行测试 | TODO |
-| 构建 | TODO |
-| 代码检查 | TODO |
-
-## 术语表
-
-| 术语 | 含义 |
-|---|---|
-| TODO | |
+环境连接定义在 `.ai/env/`，搭建脚本在 `workspace/env-stack/`；prod 默认只读，禁止明文密钥。

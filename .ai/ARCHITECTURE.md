@@ -23,6 +23,7 @@
 ├── tools/         # 各工具专属配置源（用法见 TOOL-SOURCES.md）
 ├── env/           # 环境与 MCP 连接定义 dev/test/prod（AI 按需读取，见 ENV-GUIDE.md）
 ├── ci/            # CI/CD 工作流源 → .github/workflows/（ci / cd / ai-rules-sync，见 CI-GUIDE.md）
+├── tests/         # 派生引擎回归测试：node --test ".ai/tests/*.test.mjs"（CI ai-config 作业运行）
 └── hooks/         # git 钩子（git config core.hooksPath .ai/hooks 直接指向，零拷贝）
 ```
 
@@ -90,7 +91,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 
 | 工作流 | 触发 | 职责 |
 |---|---|---|
-| `ci.yml` | push(main) / PR | 门禁：AI 配置同步校验 + 应用构建测试（待接线） |
+| `ci.yml` | push(main) / PR | 门禁：AI 配置同步校验 + 派生引擎回归测试（`.ai/tests/`）+ 应用类型检查/测试/构建 |
 | `cd.yml` | dispatch 选环境 / `v*` 标签 → prod | 构建 → `env-stack/scripts/deploy.sh` 部署 → 健康检查；prod 走 GitHub Environment 审批 |
 | `ai-rules-sync.yml` | 触及 AI 配置相关文件 | 联动防线·远端层 |
 
@@ -104,14 +105,12 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 
 ## MCP 服务器配置
 
-| 工具 | 源位置 | 派生目标 |
+| 层级 | 源位置 | 说明 |
 |---|---|---|
-| 环境级 MCP 端点（跨工具） | `.ai/env/{dev,test,prod}.yaml`（见 [ENV-GUIDE.md](env/ENV-GUIDE.md)） | AI 按需读取；各工具原生 MCP 配置由此适配 |
-| Claude Code | 根目录 `.mcp.json` | 例外：根级文件，暂手工维护 |
-| Cursor | `.ai/tools/cursor/mcp.json` | `.cursor/mcp.json` |
-| Gemini CLI | `.ai/tools/gemini/settings.json`（`mcpServers` 字段） | `.gemini/settings.json` |
+| 环境级端点（跨工具） | `.ai/env/{dev,test,prod}.yaml`（见 [ENV-GUIDE.md](env/ENV-GUIDE.md)） | 当前为空模板；AI 按需读取，各工具原生 MCP 配置由此适配 |
+| 工具级配置 | `.ai/tools/<工具>/`（按需新增，如 `cursor/mcp.json`、`gemini/settings.json`，镜像目标路径） | **当前未配置**任何工具级 MCP；需要时在此建源，经 `node .ai/sync.mjs` 派生到对应工具目录 |
+| Claude Code（如需） | 根目录 `.mcp.json` | 例外：根级文件，手工维护 |
 | ZCode | `.zcode/` 目录（工作区作用域） | ZCode 自管理 |
-| 其他 | 以官方文档为准 | — |
 
 ## 支持的厂商
 

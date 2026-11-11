@@ -6,7 +6,7 @@
 
 | 文件 | 触发 | 职责 |
 |---|---|---|
-| [ci.yml](ci.yml) | push(main) / PR | 门禁：① AI 配置同步校验（`node .ai/sync.mjs --check`）；② 应用构建与测试（TODO 待 `workspace/apps` 技术栈定型后接线） |
+| [ci.yml](ci.yml) | push(main) / PR | 门禁：① AI 配置同步校验（`node .ai/sync.mjs --check`）+ 派生引擎回归测试（`.ai/tests/`）；② `workspace/apps/frontend` 的类型检查 / 测试 / 桌面壳层语法检查 / 构建 |
 | [cd.yml](cd.yml) | 手动 dispatch（选 dev/test/prod）；`v*` 标签 → prod | 构建 → 调 `workspace/env-stack/scripts/deploy.sh` 部署 → `healthcheck.sh` 验证 |
 | [ai-rules-sync.yml](ai-rules-sync.yml) | 触及 AI 配置相关文件 | 联动防线·远端层（见 `.ai/ARCHITECTURE.md`） |
 
@@ -20,9 +20,9 @@
 - 命名 `<ENV>_<用途>`（如 `PROD_DEPLOY_TOKEN`、`TEST_MCP_TOKEN`），与 `.ai/env/*.yaml` 中的 `${VAR}` 名保持一致。
 - 严禁任何明文凭证进 yaml/脚本/仓库（`.ai/rules` 安全红线同样适用于本目录与派生产物）。
 
-## 接线 TODO（应用定型后）
+## 接线 TODO（部署链路）
 
-1. 把 `.ai/rules/project.md`「常用命令」的构建/测试命令填入 `ci.yml` 的两个 TODO 步骤。
+1. ~~把构建/测试命令填入 `ci.yml`~~（已完成：`app-quality` 作业接线 `workspace/apps/frontend` 的 pnpm 命令）。
 2. 实现 `env-stack/scripts/deploy.sh` 与 `healthcheck.sh`（当前为显式失败的占位，保证流水线不会"假绿"）。
 3. 在 GitHub 仓库 Settings → Environments 创建三环境并为 prod 配审批人。
 
