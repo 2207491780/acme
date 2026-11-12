@@ -22,6 +22,9 @@ public class AuthTokenProperties {
     /** C 端双令牌 TTL（consumer-auth-refresh-dataperm：默认 access 2h / refresh 14d，11.4）。 */
     private Consumer consumer = new Consumer();
 
+    /** B 端属性（图形验证码策略，login-guard-captcha）。 */
+    private Admin admin = new Admin();
+
     public String getHmacSecret() {
         return hmacSecret;
     }
@@ -52,6 +55,40 @@ public class AuthTokenProperties {
 
     public void setConsumer(Consumer consumer) {
         this.consumer = consumer;
+    }
+
+    public Admin getAdmin() {
+        return admin;
+    }
+
+    public void setAdmin(Admin admin) {
+        this.admin = admin;
+    }
+
+    /** B 端图形验证码策略。 */
+    public static class Admin {
+
+        /** 图形验证码有效期（秒，默认 300=5 分钟）。 */
+        private int captchaTtlSeconds = 300;
+
+        /** 图形验证码最大失败次数（达阈值作废需重取；默认 5）。 */
+        private int captchaMaxFailures = 5;
+
+        public int getCaptchaTtlSeconds() {
+            return captchaTtlSeconds;
+        }
+
+        public void setCaptchaTtlSeconds(int captchaTtlSeconds) {
+            this.captchaTtlSeconds = captchaTtlSeconds;
+        }
+
+        public int getCaptchaMaxFailures() {
+            return captchaMaxFailures;
+        }
+
+        public void setCaptchaMaxFailures(int captchaMaxFailures) {
+            this.captchaMaxFailures = captchaMaxFailures;
+        }
     }
 
     /** C 端令牌 TTL 与验证码策略。 */

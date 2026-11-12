@@ -31,7 +31,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 登录用例测试（FR-001/002；AC-006 登录分支矩阵：成功 / 统一失败 / 锁定 / 停用 / 互踢后旧令牌撤销 / Redis fail-open）。
+ * 登录用例测试（FR-001/002；AC-006 登录分支矩阵：验证码前置 / 成功 / 统一失败 / 锁定 / 停用 /
+ * 互踢后旧令牌撤销 / Redis fail-open）。
  */
 class LoginUseCaseTest {
 
@@ -42,6 +43,7 @@ class LoginUseCaseTest {
     private final LoginGuardRedis loginGuard = mock(LoginGuardRedis.class);
     private final SessionRedis sessionRedis = mock(SessionRedis.class);
     private final SessionRecorder sessionRecorder = mock(SessionRecorder.class);
+    private final ImageCaptchaUseCase imageCaptchaUseCase = mock(ImageCaptchaUseCase.class);
     private final org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder encoder =
             new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(10);
 
@@ -49,29 +51,50 @@ class LoginUseCaseTest {
 
     private final String passwordHash = encoder.encode("Correct@123");
 
+    /** 图形验证码通过（Mockito void 默认不抛即通过）。 */
+    private static final String CAPTCHA_ID = "captcha-id-1";
+    private static final String CAPTCHA_CODE = "a1b2";
+
     @BeforeEach
     void setUp() {
         AuthTokenProperties properties = new AuthTokenProperties();
         properties.setHmacSecret(SECRET);
         properties.setTtlSeconds(1800);
         useCase = new LoginUseCase(authProfileGateway, credentialRepository, loginGuard, sessionRedis,
-                sessionRecorder, new UserTokenIssuer(properties), encoder);
+                sessionRecorder, new UserTokenIssuer(properties), encoder, imageCaptchaUseCase);
     }
 
     private AuthProfileView profile(String status) {
         return new AuthProfileView("1001", "admin", "超级管理员", "default", status, Set.of("super_admin"));
     }
 
-    @Test
-    void successIssuesTokenAndRecordsSession() {
+    private void stubLoginSuccessPath() {
         when(authProfileGateway.findByUsername("admin")).thenReturn(profile("ENABLED"));
         when(credentialRepository.findByUserId(1001L)).thenReturn(new AuthCredential(1001L, "default", passwordHash));
         when(sessionRecorder.kickActiveSessions(1001L)).thenReturn(List.of());
-        AdminTokenIssued issued = useCase.login("admin", "Correct@123");
+    }
+
+    @Test
+    void imageCaptchaRejected401BeforeCredentialLookup() {
+        // 图形验证码前置（login-guard-captcha）：失败即拒，且不触发画像查询（防爆破前置）
+        doThrow(new BizException(AuthError.CAPTCHA_INVALID)).when(imageCaptchaUseCase)
+                .verify(CAPTCHA_ID, CAPTCHA_CODE);
+        assertThatThrownBy(() -> useCase.login("admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.CAPTCHA_INVALID.code()));
+        verify(authProfileGateway, never()).findByUsername(anyString());
+    }
+
+    @Test
+    void successIssuesTokenAndRecordsSession() {
+        stubLoginSuccessPath();
+        AdminTokenIssued issued = useCase.login("admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE);
         assertThat(issued.accessToken()).isNotBlank();
         assertThat(issued.tokenType()).isEqualTo("Bearer");
         assertThat(issued.userId()).isEqualTo(1001L);
         assertThat(issued.expiresAt()).isAfter(Instant.now());
+        verify(imageCaptchaUseCase).verify(CAPTCHA_ID, CAPTCHA_CODE);
         verify(sessionRecorder).record(anyString(), eq(1001L), eq("default"), eq("B"), any(Instant.class),
                 any(Instant.class));
         verify(sessionRedis).indexSession(eq(1001L), anyString(), anyLong());
@@ -80,10 +103,9 @@ class LoginUseCaseTest {
 
     @Test
     void wrongPasswordUnifiedLoginFailed() {
-        when(authProfileGateway.findByUsername("admin")).thenReturn(profile("ENABLED"));
-        when(credentialRepository.findByUserId(1001L)).thenReturn(new AuthCredential(1001L, "default", passwordHash));
+        stubLoginSuccessPath();
         when(loginGuard.recordFailure("admin")).thenReturn(false);
-        assertThatThrownBy(() -> useCase.login("admin", "Wrong@12345"))
+        assertThatThrownBy(() -> useCase.login("admin", "Wrong@12345", CAPTCHA_ID, CAPTCHA_CODE))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.LOGIN_FAILED.code()));
@@ -95,7 +117,7 @@ class LoginUseCaseTest {
         when(authProfileGateway.findByUsername("admin")).thenReturn(profile("ENABLED"));
         when(credentialRepository.findByUserId(1001L)).thenReturn(null);
         when(loginGuard.recordFailure("admin")).thenReturn(false);
-        assertThatThrownBy(() -> useCase.login("admin", "whatever1"))
+        assertThatThrownBy(() -> useCase.login("admin", "whatever1", CAPTCHA_ID, CAPTCHA_CODE))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.LOGIN_FAILED.code()));
@@ -104,7 +126,7 @@ class LoginUseCaseTest {
     @Test
     void lockedPrecheckRejected423() {
         when(loginGuard.isLocked("admin")).thenReturn(true);
-        assertThatThrownBy(() -> useCase.login("admin", "Correct@123"))
+        assertThatThrownBy(() -> useCase.login("admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.ACCOUNT_LOCKED.code()));
@@ -113,10 +135,9 @@ class LoginUseCaseTest {
 
     @Test
     void failureThresholdTriggersLock423() {
-        when(authProfileGateway.findByUsername("admin")).thenReturn(profile("ENABLED"));
-        when(credentialRepository.findByUserId(1001L)).thenReturn(new AuthCredential(1001L, "default", passwordHash));
+        stubLoginSuccessPath();
         when(loginGuard.recordFailure("admin")).thenReturn(true);
-        assertThatThrownBy(() -> useCase.login("admin", "Wrong@12345"))
+        assertThatThrownBy(() -> useCase.login("admin", "Wrong@12345", CAPTCHA_ID, CAPTCHA_CODE))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.ACCOUNT_LOCKED.code()));
@@ -125,7 +146,7 @@ class LoginUseCaseTest {
     @Test
     void disabledAccountRejected403() {
         when(authProfileGateway.findByUsername("admin")).thenReturn(profile("DISABLED"));
-        assertThatThrownBy(() -> useCase.login("admin", "Correct@123"))
+        assertThatThrownBy(() -> useCase.login("admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.ACCOUNT_DISABLED.code()));
@@ -133,11 +154,10 @@ class LoginUseCaseTest {
 
     @Test
     void kickPreviousSessionsAndRevokeOldTokens() {
-        when(authProfileGateway.findByUsername("admin")).thenReturn(profile("ENABLED"));
-        when(credentialRepository.findByUserId(1001L)).thenReturn(new AuthCredential(1001L, "default", passwordHash));
+        stubLoginSuccessPath();
         when(sessionRecorder.kickActiveSessions(1001L)).thenReturn(List.of(
                 new SessionRecorder.RevocableToken("old-jti", Instant.now().plusSeconds(600))));
-        AdminTokenIssued issued = useCase.login("admin", "Correct@123");
+        AdminTokenIssued issued = useCase.login("admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE);
         assertThat(issued.accessToken()).isNotBlank();
         verify(sessionRedis).revoke(eq("old-jti"), anyLong());
     }
@@ -145,12 +165,11 @@ class LoginUseCaseTest {
     @Test
     void kickRevokeFailureDoesNotBlockLogin() {
         // 互踢撤销集写入失败降级 WARN（fail-open，取舍 #7），登录仍成功
-        when(authProfileGateway.findByUsername("admin")).thenReturn(profile("ENABLED"));
-        when(credentialRepository.findByUserId(1001L)).thenReturn(new AuthCredential(1001L, "default", passwordHash));
+        stubLoginSuccessPath();
         when(sessionRecorder.kickActiveSessions(1001L)).thenReturn(List.of(
                 new SessionRecorder.RevocableToken("old-jti", Instant.now().plusSeconds(600))));
         doThrow(new SessionRedis.RedisKeyWriteFailedException("old-jti", null))
                 .when(sessionRedis).revoke(eq("old-jti"), anyLong());
-        assertThat(useCase.login("admin", "Correct@123").accessToken()).isNotBlank();
+        assertThat(useCase.login("admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE).accessToken()).isNotBlank();
     }
 }

@@ -80,6 +80,11 @@
             <groupId>com.acme</groupId>
             <artifactId>common-contract</artifactId>
         </dependency>
+        <!-- 图形验证码（login-guard-captcha）：Hutool 主流实现，版本经 acme-parent dependencyManagement 统一 -->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+        </dependency>
 
         <!-- Web 运行时（Boot 4 细粒度模块；p4 先例）：内嵌容器 spring-boot-tomcat（带 web-server 抽象——
             缺容器时应用降级非 Web 上下文，SCA 注册监听器解析 WebServerInitializedEvent 失败）

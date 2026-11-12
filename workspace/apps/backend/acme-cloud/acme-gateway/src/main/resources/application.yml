@@ -54,7 +54,8 @@ acme:
     auth:
       b:
         public-paths:
-          # 公开豁免最小集（FR-012）：仅登录端点；默认全部路由验签
+          # 公开豁免最小集（FR-012）：登录端点 + 图形验证码（login-guard-captcha）；默认全部路由验签
+          - /admin/v1/auth/captcha
           - /admin/v1/auth/tokens
       c:
         public-paths:

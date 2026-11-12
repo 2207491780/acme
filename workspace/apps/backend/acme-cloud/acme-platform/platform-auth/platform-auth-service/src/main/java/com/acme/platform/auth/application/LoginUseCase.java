@@ -37,6 +37,7 @@ public class LoginUseCase {
     private final SessionRecorder sessionRecorder;
     private final UserTokenIssuer tokenIssuer;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final ImageCaptchaUseCase imageCaptchaUseCase;
 
     public LoginUseCase(AuthProfileGateway authProfileGateway,
                         AuthCredentialRepository credentialRepository,
@@ -44,7 +45,8 @@ public class LoginUseCase {
                         SessionRedis sessionRedis,
                         SessionRecorder sessionRecorder,
                         UserTokenIssuer tokenIssuer,
-                        BCryptPasswordEncoder passwordEncoder) {
+                        BCryptPasswordEncoder passwordEncoder,
+                        ImageCaptchaUseCase imageCaptchaUseCase) {
         this.authProfileGateway = authProfileGateway;
         this.credentialRepository = credentialRepository;
         this.loginGuard = loginGuard;
@@ -52,32 +54,35 @@ public class LoginUseCase {
         this.sessionRecorder = sessionRecorder;
         this.tokenIssuer = tokenIssuer;
         this.passwordEncoder = passwordEncoder;
+        this.imageCaptchaUseCase = imageCaptchaUseCase;
     }
 
-    /** B 端账号密码登录（公开端点；单会话互踢 Q-003；统一失败提示 FR-005）。 */
-    public AdminTokenIssued login(String username, String password) {
+    /** B 端账号密码登录（公开端点；前置图形验证码一次性校验；单会话互踢 Q-003；统一失败提示 FR-005）。 */
+    public AdminTokenIssued login(String username, String password, String captchaId, String captchaCode) {
         String normalized = username == null ? "" : username.trim();
-        // 1. 锁定预检（Redis fail-open）
+        // 1. 图形验证码前置（一次性消费防刷，login-guard-captcha；错误区分 INVALID/EXPIRED）
+        imageCaptchaUseCase.verify(captchaId, captchaCode);
+        // 2. 锁定预检（Redis fail-open）
         if (loginGuard.isLocked(normalized)) {
             throw new BizException(AuthError.ACCOUNT_LOCKED);
         }
-        // 2. 画像查询（事务外远程调用，Q-D06/Q-D08；404 → 统一失败）
+        // 3. 画像查询（事务外远程调用，Q-D06/Q-D08；404 → 统一失败）
         AuthProfileView profile = authProfileGateway.findByUsername(normalized);
-        // 3. 账号状态
+        // 4. 账号状态
         if (EnableStatus.DISABLED.name().equals(profile.status())) {
             throw new BizException(AuthError.ACCOUNT_DISABLED);
         }
         Long userId = Long.parseLong(profile.userId());
-        // 4. 凭据校验（未设密码与密码错误统一失败，FR-005）
+        // 5. 凭据校验（未设密码与密码错误统一失败，FR-005）
         AuthCredential credential = credentialRepository.findByUserId(userId);
         if (credential == null || !passwordEncoder.matches(password, credential.getPasswordHash())) {
             boolean locked = loginGuard.recordFailure(normalized);
             throw new BizException(locked ? AuthError.ACCOUNT_LOCKED : AuthError.LOGIN_FAILED);
         }
         loginGuard.clearFailures(normalized);
-        // 5. 单会话互踢（DB 底账置 KICKED；撤销集写入 best-effort，Q-003）
+        // 6. 单会话互踢（DB 底账置 KICKED；撤销集写入 best-effort，Q-003）
         kickPreviousSessions(userId);
-        // 6. 签发（jti=会话 tokenId；claims 契约见 4.1）+ 会话底账 + 单会话索引
+        // 7. 签发（jti=会话 tokenId；claims 契约见 4.1）+ 会话底账 + 单会话索引
         UserTokenIssuer.IssuedToken issued = tokenIssuer.issue(userId, profile.tenantId(), profile.roles());
         sessionRecorder.record(issued.tokenId(), userId, profile.tenantId(), UserTokenIssuer.CHANNEL_B,
                 issued.issuedAt(), issued.expiresAt());
