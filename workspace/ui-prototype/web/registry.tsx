@@ -11,6 +11,7 @@ export interface ProtoEntry {
 }
 
 export const PROTO_DOMAINS = [
+  '认证域',
   '发布单域',
   '发布工程域',
   '流程配置域',
@@ -27,6 +28,8 @@ export const PROTO_DOMAINS = [
 ] as const;
 
 export const PROTO_REGISTRY: ProtoEntry[] = [
+  // 认证域 L
+  { id: 'login', title: '登录页', domain: '认证域', desc: '双端登录形态：品牌区 / 表单 / 验证码 / 四态走查（L1）', component: lazy(() => import('./pages/Login')) },
   // 发布单域 A
   { id: 'approval', title: '审批详情', domain: '发布单域', desc: '审批链、意见流与通过/驳回（A1）', component: lazy(() => import('./pages/ApprovalDetail')) },
   { id: 'build-log', title: '构建日志', domain: '发布单域', desc: '分阶段/分级过滤的日志视图（A2）', component: lazy(() => import('./pages/BuildLog')) },
