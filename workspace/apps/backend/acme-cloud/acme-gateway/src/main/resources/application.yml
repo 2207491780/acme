@@ -35,16 +35,6 @@ spring:
               uri: lb://platform-auth
               predicates:
                 - Path=/app/v1/auth/**
-            # business-content 增补路由（仅追加不改既有，11.1.4；business-api-integration G2.5）
-            # 路径族 /contents/**、/search/** 同时覆盖裸路径与子路径（Ant/PathPattern 语义，实现说明登记）
-            - id: business-content
-              uri: lb://business-content
-              predicates:
-                - Path=/admin/v1/contents/**,/admin/v1/categories
-            - id: business-content-app
-              uri: lb://business-content
-              predicates:
-                - Path=/app/v1/contents/**,/app/v1/feeds,/app/v1/hot-searches,/app/v1/search/**,/app/v1/categories
           # 跨域归网关统一处理（BR-011、8.9、AC-026）；origin 白名单经环境注入（11.1.1 生产形态），
           # 通配仅限开发默认，生产必须以 ACME_CORS_ALLOWED_ORIGINS 注入显式白名单
           globalcors:
@@ -72,12 +62,6 @@ acme:
           - /app/v1/auth/captcha
           - /app/v1/auth/tokens
           - /app/v1/auth/tokens/refresh
-          # C 端内容读豁免最小集（Q-12=A；仅 GET 路径，本服务这些路径仅暴露 GET；business-api-integration）
-          - /app/v1/feeds
-          - /app/v1/hot-searches
-          - /app/v1/contents/**
-          - /app/v1/search/**
-          - /app/v1/categories
     user-token:
       # 用户令牌密钥域（11.6.2 与内部令牌密钥域隔离；14.3.3 经环境注入；
       # 与 platform-auth acme.auth.token.hmac-secret 同值——auth 为签发方）

@@ -21,8 +21,7 @@
     </description>
 
     <modules>
-        <!-- business-api-integration G2.5 拆分评审通过（18.1.1 第 3 步登记）：内容域首个业务服务 -->
-        <module>business-content</module>
+        <!-- 业务域当前为空壳：business-content 已下线；新增业务域按「business-** 模块清单由本 POM 自管」追加 -->
     </modules>
 
     <build>

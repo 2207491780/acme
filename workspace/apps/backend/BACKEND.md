@@ -1,6 +1,6 @@
 # backend — 后端应用
 
-Java 25 + Spring Boot 4.1.1 多模块 Maven 后端工程，已落地平台服务、业务域与统一接入网关（非骨架）。
+Java 25 + Spring Boot 4.1.1 多模块 Maven 后端工程，已落地平台服务与统一接入网关（业务域聚合壳保留，暂无子域）。
 
 ## 职责
 
@@ -34,8 +34,7 @@ backend/
 │   │   ├── platform-auth/      # 认证授权
 │   │   ├── platform-system/    # 租户 / 用户 / 角色权限
 │   │   └── platform-infra/     # 基础设施（审计 / 存储 / 消息）
-│   ├── acme-business/      # 业务域
-│   │   └── business-content/   # 内容（api + service + Dockerfile）
+│   ├── acme-business/      # 业务域聚合（当前空壳，新增业务域按需追加）
 │   └── acme-gateway/       # 统一接入网关（WebFlux）
 ├── AGENTS.md / CLAUDE.md   # 后端补充约定（.ai/ 派生）
 └── BACKEND.md              # 本文件
@@ -75,7 +74,6 @@ MVN="C:/Program Files/Maven/apache-maven-my/bin/mvn.cmd"
 | platform-infra | 9880 | `PlatformInfraApplication` |
 | platform-system | 9881 | `PlatformSystemApplication` |
 | platform-auth | 9882 | `PlatformAuthApplication` |
-| business-content | 9883 | `BusinessContentApplication` |
 | acme-gateway | 9888 | `AcmeGatewayApplication` |
 
 ```bash

@@ -42,12 +42,12 @@ class GatewayRoutingConfigTest {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
         assertThat(routes).isNotNull();
         Set<String> ids = routes.stream().map(RouteDefinition::getId).collect(Collectors.toSet());
-        // 按能力域注册的六条路由（11.1.4 仅追加；Q-D07：sample 死路由已移除；
+        // 按能力域注册的四条路由（11.1.4 仅追加；Q-D07：sample 死路由已移除；
         // platform-infra 增补经 platform-infra-audit 拆分评审；
-        // platform-auth-app 为 C 端双端前缀路由，consumer-auth-refresh-dataperm）
-        // business-content / business-content-app 为内容域双端路由（business-api-integration G2.5）
+        // platform-auth-app 为 C 端双端前缀路由，consumer-auth-refresh-dataperm）；
+        // business-content / business-content-app 内容域双端路由已随业务域下线移除
         assertThat(ids).containsExactlyInAnyOrder("platform-auth", "platform-system", "platform-infra",
-                "platform-auth-app", "business-content", "business-content-app");
+                "platform-auth-app");
         RouteDefinition auth = routes.stream()
                 .filter(r -> r.getId().equals("platform-auth")).findFirst().orElseThrow();
         assertThat(auth.getUri().toString()).isEqualTo("lb://platform-auth");
@@ -57,23 +57,15 @@ class GatewayRoutingConfigTest {
         assertThat(infra.getUri().toString()).isEqualTo("lb://platform-infra");
         RouteDefinition authApp = routes.stream().filter(r -> r.getId().equals("platform-auth-app")).findFirst().orElseThrow();
         assertThat(authApp.getUri().toString()).isEqualTo("lb://platform-auth");
-        RouteDefinition content = routes.stream()
-                .filter(r -> r.getId().equals("business-content")).findFirst().orElseThrow();
-        assertThat(content.getUri().toString()).isEqualTo("lb://business-content");
-        RouteDefinition contentApp = routes.stream()
-                .filter(r -> r.getId().equals("business-content-app")).findFirst().orElseThrow();
-        assertThat(contentApp.getUri().toString()).isEqualTo("lb://business-content");
     }
 
     @Test
     void publicPathsAreMinimalExplicitList() {
-        // FR-012 最小化：B 端仅登录豁免；C 端为认证自证 + 内容读（Q-12=A）豁免（business-api-integration 追加）
+        // FR-012 最小化：B 端仅登录豁免；C 端仅认证自证豁免（内容读豁免随业务域下线移除）
         assertThat(gatewayProperties.getAuth().getB().getPublicPaths())
                 .containsExactly("/admin/v1/auth/tokens");
         assertThat(gatewayProperties.getAuth().getC().getPublicPaths()).containsExactly(
-                "/app/v1/auth/captcha", "/app/v1/auth/tokens", "/app/v1/auth/tokens/refresh",
-                "/app/v1/feeds", "/app/v1/hot-searches", "/app/v1/contents/**", "/app/v1/search/**",
-                "/app/v1/categories");
+                "/app/v1/auth/captcha", "/app/v1/auth/tokens", "/app/v1/auth/tokens/refresh");
     }
 
     @Test
