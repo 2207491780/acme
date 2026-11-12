@@ -11,7 +11,7 @@
 - `.ai/scopes/` 分层规则
 - `.ai/agents|skills|commands/` 跨工具公共池
 - `.ai/tools/<工具>/` 工具专属配置
-- `.ai/hooks/`、`.ai/ci/`、`.ai/sync.mjs`（钩子 / CI / 派生引擎）
+- `.ai/hooks/`、`.ai/ci/`、`.ai/sync.mjs`、`.ai/ai-coding-config.yml`（钩子 / CI / 派生引擎 / 引擎开关）
 
 ## 操作流程（五步，缺一不可）
 
@@ -33,6 +33,7 @@
 | 某工具私有配置（settings / 私有规则 / .cursorignore…） | `.ai/tools/<工具>/`（镜像目标路径） |
 | 新增兼容一个 AI 工具 | 流程见 `.ai/ARCHITECTURE.md`「新增一个 AI 工具的兼容」 |
 | git 钩子 / CI 工作流 | `.ai/hooks/` / `.ai/ci/`（CI 会自动派生到 `.github/workflows/`） |
+| 改引擎开关（入口形态 / 孤儿检测 / 预算） | `.ai/ai-coding-config.yml`（sync 读取；改后重派生 + 跑 `.ai/tests/`，见 ARCHITECTURE「行为/引擎开关」） |
 
 ## 红线
 
