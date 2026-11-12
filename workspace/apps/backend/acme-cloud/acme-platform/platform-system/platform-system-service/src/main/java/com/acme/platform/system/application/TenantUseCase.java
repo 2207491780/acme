@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+import java.util.List;
+
 /**
  * 租户管理用例（FR-006 Q-004，架构设计 5.1 租户行）：平台管理跨租户场景显式声明并纳入审计（12.4.2）；
  * 无删除能力——停用代替（FR-007）；默认租户不可停用（种子保护）。
@@ -46,6 +48,15 @@ public class TenantUseCase {
     public SysTenant get(Long tenantId) {
         return tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new BizException(SystemError.TENANT_NOT_FOUND));
+    }
+
+    /** 启用租户清单（登录页下拉数据源，login-tenant-select；平台级跨租户查询，显式旁路声明）。 */
+    @IgnoreTenant("login-tenant-directory")
+    public List<SysTenant> listEnabled() {
+        QueryWrapper wrapper = QueryWrapper.create()
+                .where(SysTenant::getStatus).eq(EnableStatus.ENABLED)
+                .orderBy(SysTenant::getTenantCode, true);
+        return tenantRepository.findAll(wrapper);
     }
 
     @Transactional

@@ -10,6 +10,7 @@ import io.jsonwebtoken.Jwts;
 import javax.crypto.SecretKey;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -45,6 +46,11 @@ public class UserTokenIssuer {
 
     /** 自校验结果载体（登出/刷新链路自校验：jti / tokenType / channel / exp）。 */
     public record VerifiedToken(String tokenId, String tokenType, String channel, Instant expiresAt) {
+    }
+
+    /** B 端访问令牌自续约校验载体（login-renew：携带重签所需的主体、claims 与端别/类型判定）。 */
+    public record VerifiedAccess(Long userId, String tenantId, Set<String> roles, String channel,
+                                 String tokenType, String tokenId, Instant expiresAt) {
     }
 
     /** 签发 B 端用户访问令牌（jti=会话 tokenId，UUID；短会话口径保持既有契约）。 */
@@ -86,6 +92,30 @@ public class UserTokenIssuer {
                     claims.get("tokenType", String.class),
                     claims.get("channel", String.class),
                     claims.getExpiration() == null ? null : claims.getExpiration().toInstant());
+        } catch (ExpiredJwtException ex) {
+            throw new com.acme.common.core.BizException(
+                    com.acme.framework.security.support.SecurityError.TOKEN_EXPIRED);
+        } catch (JwtException | IllegalArgumentException ex) {
+            throw new com.acme.common.core.BizException(
+                    com.acme.framework.security.support.SecurityError.UNAUTHORIZED);
+        }
+    }
+
+    /**
+     * B 端访问令牌验签并携带重签 claims（login-renew 自续约入口：sub/tenantId/roles 原样重签，
+     * 权限沿用既有口径——角色变更以下一次登录为准）。
+     */
+    public VerifiedAccess verifyAccess(String token) {
+        try {
+            Claims claims = Jwts.parser().verifyWith(key).requireIssuer(issuer).build()
+                    .parseSignedClaims(token).getPayload();
+            List<String> rawRoles = claims.get("roles", List.class);
+            Set<String> roles = rawRoles == null ? Set.of() : Set.copyOf(rawRoles);
+            return new VerifiedAccess(Long.parseLong(claims.getSubject()),
+                    claims.get("tenantId", String.class), roles,
+                    claims.get("channel", String.class),
+                    claims.get("tokenType", String.class),
+                    claims.getId(), claims.getExpiration() == null ? null : claims.getExpiration().toInstant());
         } catch (ExpiredJwtException ex) {
             throw new com.acme.common.core.BizException(
                     com.acme.framework.security.support.SecurityError.TOKEN_EXPIRED);

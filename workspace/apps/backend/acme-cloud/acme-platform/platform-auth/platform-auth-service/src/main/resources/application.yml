@@ -44,9 +44,10 @@ server:
 
 acme:
   security:
-    # 服务侧公开端点（FR-012 最小集：B 端图形验证码/登录 + C 端验证码/登录/刷新；与网关豁免清单一致）
+    # 服务侧公开端点（FR-012 最小集：B 端租户目录/图形验证码/登录 + C 端验证码/登录/刷新；与网关豁免清单一致）
     public-paths:
       - /admin/v1/auth/captcha
+      - /admin/v1/auth/tenants
       - /admin/v1/auth/tokens
       - /app/v1/auth/captcha
       - /app/v1/auth/tokens

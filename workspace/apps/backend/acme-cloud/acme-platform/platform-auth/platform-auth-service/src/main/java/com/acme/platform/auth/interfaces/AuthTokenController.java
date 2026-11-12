@@ -2,6 +2,7 @@ package com.acme.platform.auth.interfaces;
 
 import com.acme.platform.auth.api.AdminCaptchaResponse;
 import com.acme.platform.auth.api.AdminTokenIssued;
+import com.acme.platform.auth.application.AdminRenewUseCase;
 import com.acme.platform.auth.application.ImageCaptchaUseCase;
 import com.acme.platform.auth.application.LoginUseCase;
 import com.acme.platform.auth.application.LogoutUseCase;
@@ -26,12 +27,14 @@ public class AuthTokenController {
     private final LoginUseCase loginUseCase;
     private final LogoutUseCase logoutUseCase;
     private final ImageCaptchaUseCase imageCaptchaUseCase;
+    private final AdminRenewUseCase adminRenewUseCase;
 
     public AuthTokenController(LoginUseCase loginUseCase, LogoutUseCase logoutUseCase,
-                               ImageCaptchaUseCase imageCaptchaUseCase) {
+                               ImageCaptchaUseCase imageCaptchaUseCase, AdminRenewUseCase adminRenewUseCase) {
         this.loginUseCase = loginUseCase;
         this.logoutUseCase = logoutUseCase;
         this.imageCaptchaUseCase = imageCaptchaUseCase;
+        this.adminRenewUseCase = adminRenewUseCase;
     }
 
     /** 图形验证码（公开端点；Hutool LineCaptcha 4 位，captchaId 一次性消费，防登录爆破）。 */
@@ -40,11 +43,18 @@ public class AuthTokenController {
         return imageCaptchaUseCase.generate();
     }
 
-    /** 登录并签发 B 端访问令牌（公开端点；前置图形验证码一次性校验）。 */
+    /** 登录并签发 B 端访问令牌（公开端点；前置图形验证码一次性校验 + 租户一致性校验）。 */
     @PostMapping("/tokens")
     public AdminTokenIssued login(@Valid @RequestBody AdminLoginRequest request) {
-        return loginUseCase.login(request.username(), request.password(),
+        return loginUseCase.login(request.tenantCode(), request.username(), request.password(),
                 request.captchaId(), request.captchaCode());
+    }
+
+    /** 自续约（滑动会话，login-renew）：携带当前 Bearer 访问令牌换取同 claims 新令牌；
+     *  需认证端点（不进公开豁免）——令牌过期即 401 转登录页，前端在过期前 2 分钟自动调用。 */
+    @PostMapping("/tokens/refresh")
+    public AdminTokenIssued renew(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        return adminRenewUseCase.renew(stripBearer(authorization));
     }
 
     /** 登出（当前会话即刻失效；已失效令牌幂等成功，10.3.1）。 */
