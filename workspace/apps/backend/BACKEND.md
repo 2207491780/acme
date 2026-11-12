@@ -17,6 +17,9 @@ Java 25 + Spring Boot 4.1.1 多模块 Maven 后端工程，已落地平台服务
 | 网关 | Spring WebFlux（禁 Servlet） |
 | 构建 | Maven 多模块，`revision=1.0-SNAPSHOT` |
 
+> **部署红线**：主配置中的口令均为 `${ENV_VAR:本地默认}` 占位形态（如 `PG_PASSWORD`、`NACOS_PASSWORD`、`REDIS_PASSWORD`），
+> 本地默认值仅供 `env-stack/` 本地栈使用；**生产部署必须通过环境变量全部覆盖，禁止沿用任何默认值**。
+
 ## 目录结构
 
 ```text
