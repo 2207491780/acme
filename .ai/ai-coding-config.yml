@@ -1,0 +1,14 @@
+# AI-Coding 行为/引擎开关 —— 唯一事实源：.ai/ai-coding-config.yml
+# 由 .ai/sync.mjs 在派生/校验时读取（本文件是源，不派生；仿 .ai/env/）。改本文件后必须重跑 node .ai/sync.mjs。
+# 只门控「可选的派生引擎行为」；AI 协作红线与强制规范在 .ai/rules/，不可在此关闭。
+# 核心派生（rules/入口/scopes/pools/tools/ci）是「全工具联动」铁律的保证，始终开启，不设开关。
+# Schema 与取舍见 .ai/ARCHITECTURE.md「行为/引擎开关」与 .ai-memory/decisions/2026-11-12-06-ai-coding-config.md。
+version: 1
+engine:
+  # 根部/分层入口默认形态：stub（引用存根，默认）| symlink（符号链接，磁盘零拷贝）。
+  # CLI --links 或环境变量 AI_SYNC_LINK=1 优先于本值（强制 symlink）；无符号链接权限时自动降级为 stub。
+  entryMode: stub
+  # 是否在 sync/--check 扫描工具目录的孤儿派生文件（源已删、派生物残留）。关闭会削弱联动防线，默认开启。
+  orphanDetection: true
+  # .ai/RULES.md 拼接后的字节预算上限（正整数）。默认 8192（8KB），与 .ai/rules/ 规范一致。
+  rulesBudgetBytes: 8192

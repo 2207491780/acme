@@ -345,3 +345,100 @@ test('should_sync_real_links_and_check_without_probe_when_links_are_available', 
   assert.equal((await lstat(join(repo, 'AGENTS.md'))).isSymbolicLink(), false);
   succeeds(run(repo, ['--check']));
 });
+
+// ---- ai-coding-config.yml：引擎开关（缺省兼容 / entryMode / orphanDetection / 预算 / 非法配置） ----
+const CONFIG = '.ai/ai-coding-config.yml';
+
+test('should_use_stub_defaults_when_config_absent', async (t) => {
+  const { repo } = await fixture(t);
+  succeeds(run(repo));
+  assert.equal((await lstat(join(repo, 'AGENTS.md'))).isSymbolicLink(), false);
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_accept_config_with_comments_and_blank_lines', async (t) => {
+  const { repo } = await fixture(t);
+  await put(repo, CONFIG, '# header\nversion: 1\n\nengine:\n  entryMode: stub # inline\n  orphanDetection: true\n  rulesBudgetBytes: 8192\n');
+  succeeds(run(repo));
+  assert.equal((await lstat(join(repo, 'AGENTS.md'))).isSymbolicLink(), false);
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_honor_config_entryMode_symlink_when_links_available', async (t) => {
+  const { repo, outside } = await fixture(t);
+  await put(outside, 'target.md', '# Safe target\n');
+  if (!await makeLink(t, join(outside, 'target.md'), join(outside, 'probe.md'))) return;
+  await put(repo, CONFIG, 'version: 1\nengine:\n  entryMode: symlink\n');
+  succeeds(run(repo)); // 无 --links，AI_SYNC_LINK=0：配置即默认形态
+  assert.equal((await lstat(join(repo, 'AGENTS.md'))).isSymbolicLink(), true);
+  assert.equal((await readlink(join(repo, 'AGENTS.md'))).split('\\').join('/'), '.ai/RULES.md');
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_let_cli_links_override_config_entryMode_stub', async (t) => {
+  const { repo, outside } = await fixture(t);
+  await put(outside, 'target.md', '# Safe target\n');
+  if (!await makeLink(t, join(outside, 'target.md'), join(outside, 'probe.md'))) return;
+  await put(repo, CONFIG, 'version: 1\nengine:\n  entryMode: stub\n');
+  succeeds(run(repo, ['--links']));
+  assert.equal((await lstat(join(repo, 'AGENTS.md'))).isSymbolicLink(), true);
+  succeeds(run(repo, ['--check', '--links']));
+});
+
+test('should_fall_back_to_stub_when_config_symlink_but_links_unavailable', async (t) => {
+  const { repo } = await fixture(t);
+  await put(repo, CONFIG, 'version: 1\nengine:\n  entryMode: symlink\n');
+  const preload = `
+    import fs from 'node:fs/promises';
+    import { syncBuiltinESMExports } from 'node:module';
+    fs.symlink = async () => { throw Object.assign(new Error('fixture has no link privilege'), { code: 'EPERM' }); };
+    syncBuiltinESMExports();
+  `;
+  succeeds(run(repo, [], { preload }));
+  assert.equal((await lstat(join(repo, 'AGENTS.md'))).isSymbolicLink(), false);
+  assert.deepEqual(await readdir(join(repo, '.ai-tmp')), []);
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_flag_orphan_by_default_and_skip_when_orphanDetection_false', async (t) => {
+  const { repo } = await fixture(t);
+  succeeds(run(repo));
+  await put(repo, '.claude/agents/stale.md', '# Stale\n\n<!-- 派生自 .ai/agents/gone.md -->\n');
+  fails(run(repo, ['--check']), /孤儿派生文件/);
+  await put(repo, CONFIG, 'version: 1\nengine:\n  orphanDetection: false\n');
+  const ok = run(repo, ['--check']);
+  succeeds(ok);
+  assert.match(ok.stdout, /孤儿检测已关闭/);
+});
+
+test('should_enforce_custom_rulesBudgetBytes_from_config', async (t) => {
+  const { repo } = await fixture(t);
+  await put(repo, CONFIG, 'version: 1\nengine:\n  rulesBudgetBytes: 200\n');
+  const before = await snapshot(repo);
+  fails(run(repo), /bytes > 200 bytes/);
+  assert.deepEqual(await snapshot(repo), before);
+});
+
+const badConfigs = [
+  ['unknown_top_key', 'foo: 1\n', /未知顶层键/],
+  ['unknown_engine_key', 'engine:\n  bogus: true\n', /未知 engine 键/],
+  ['bad_entryMode', 'engine:\n  entryMode: nope\n', /entryMode 必须为/],
+  ['bad_orphan_type', 'engine:\n  orphanDetection: yes\n', /orphanDetection 必须为布尔/],
+  ['bad_budget_negative', 'engine:\n  rulesBudgetBytes: -5\n', /rulesBudgetBytes 必须为正整数/],
+  ['bad_budget_float', 'engine:\n  rulesBudgetBytes: 1.5\n', /rulesBudgetBytes 必须为正整数/],
+  ['bad_version', 'version: 2\n', /version 必须为 1/],
+  ['array_unsupported', 'engine:\n  - a\n', /不支持数组/],
+  ['tab_indent', 'engine:\n\tentryMode: stub\n', /不支持 Tab/],
+  ['engine_not_map', 'engine: stub\n', /engine 必须是映射/],
+];
+for (const [name, yaml, msg] of badConfigs) {
+  test(`should_reject_invalid_config_before_writing_when_${name}`, async (t) => {
+    const { repo } = await fixture(t);
+    await put(repo, CONFIG, yaml);
+    const before = await snapshot(repo);
+    for (const args of [[], ['--check']]) {
+      fails(run(repo, args), msg);
+      assert.deepEqual(await snapshot(repo), before);
+    }
+  });
+}

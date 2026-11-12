@@ -14,6 +14,7 @@
 ├── TUTORIAL.md    # 分工具教程（11 类工具的入口、冒烟测试、维护方式）
 ├── PROMPTS.md     # 提示词案例库（21 条让 AI 自维护的指令 + 验收核对单）
 ├── sync.mjs       # 派生引擎：node .ai/sync.mjs（--check 为校验模式）
+├── ai-coding-config.yml # 行为/引擎开关（源，sync 读取，不派生；见下「行为/引擎开关」）
 ├── RULES.md       # ⚙️ 生成：公共规范唯一完整副本（由 rules/ 按文件名排序拼接）
 ├── rules/         # 公共规范源（AI 协作准则 / 编码规范 / Git 工作流 / 项目上下文）
 ├── scopes/        # 分层 AGENTS.md 源 → 派生到仓库同路径（就近生效，见 SCOPED-RULES.md）
@@ -60,11 +61,25 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | 模式 | 触发方式 | 形态 | 说明 |
 |---|---|---|---|
 | **引用存根（默认）** | `node .ai/sync.mjs` | ~1KB 存根：必读指引 + 铁律节选，指向 `.ai/RULES.md` | 文件本身就是**肉眼可见的引用**，任何编辑器打开都不显示重复内容；Claude Code 经 `@.ai/RULES.md` 导入自动内联全文 |
-| 符号链接（可选） | `node .ai/sync.mjs --links` 或 `AI_SYNC_LINK=1` | 🔗 链接 → `.ai/RULES.md`（12 字节） | 磁盘零拷贝；但编辑器中会**显示为全文**（看似重复），且无 symlink 支持的机器上 git 会检出成损坏文本 |
+| 符号链接（可选） | `--links` / `AI_SYNC_LINK=1`，或配置 `entryMode: symlink` | 🔗 链接 → `.ai/RULES.md`（12 字节） | 磁盘零拷贝；但编辑器中会**显示为全文**（看似重复），且无 symlink 支持的机器上 git 会检出成损坏文本 |
 
 两种模式下 `--check` 均能通过（链接校验目标、存根校验内容）；从任一模式切换到另一模式，运行对应命令即可自动转换。
 
 > 取舍理由（为何默认存根、为何公共池拷贝派生等）见 [../.ai-memory/decisions/](../.ai-memory/decisions/ADR-GUIDE.md)——决策只增不改，新决策取代旧决策时在记录开头标注。
+
+## 行为/引擎开关（ai-coding-config.yml）
+
+[ai-coding-config.yml](ai-coding-config.yml) 是**可选派生引擎行为**的开关源（仿 [env/](env/ENV-GUIDE.md)：源、被 `sync.mjs` 读取、**不派生**）。改后必须重跑 `node .ai/sync.mjs`；钩子与 CI 调用同一脚本，自动生效（无需改工作流文件）。
+
+| 开关 | 取值 | 默认 | 作用 |
+|---|---|---|---|
+| `engine.entryMode` | `stub` \| `symlink` | `stub` | 根部/分层入口默认形态；CLI `--links` / `AI_SYNC_LINK=1` 优先（强制 symlink），无符号链接权限时自动降级 stub |
+| `engine.orphanDetection` | 布尔 | `true` | 是否在 sync/--check 扫描工具目录孤儿派生文件；关闭会削弱联动防线 |
+| `engine.rulesBudgetBytes` | 正整数 | `8192` | `RULES.md` 拼接后的字节预算上限 |
+
+- **缺省即现状**：文件缺失或键缺省时完全向后兼容（`.ai/tests/` 回归锁定）。
+- **严格校验**：未知键 / 错误类型 / 非法枚举 / 数组 / Tab 等在**写入前**报错；无外部依赖（内置极简 YAML 子集解析，仅两层标量映射 + 注释）。
+- **不设开关的部分**：核心派生（rules / 入口 / scopes / pools / tools / ci）是「全工具联动」铁律的保证，始终开启；AI 协作红线与强制规范在 `.ai/rules/`，**不可**在此关闭。取舍见 [../.ai-memory/decisions/2026-11-12-06-ai-coding-config.md](../.ai-memory/decisions/2026-11-12-06-ai-coding-config.md)。
 
 ## 过程性内容落盘（在 `.ai-memory/`，独立于本配置工程）
 

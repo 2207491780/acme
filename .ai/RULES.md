@@ -61,7 +61,8 @@
 
 - 应用业务使用 TypeScript strict；Electron 与工程脚本使用现有 ESM/CJS，不混用模块格式。
 - 沿用同目录的命名、缩进、引号和文件组织；UTF-8 无 BOM、LF 换行。
-- React 组件/类型用 PascalCase，函数/变量用 camelCase，常量用 UPPER_SNAKE_CASE；不要批量重命名既有文件。
+- React 组件/类型用 PascalCase，函数/变量用 camelCase，常量用 UPPER_SNAKE_CASE。
+- 文件/目录/包/文档命名见 `.ai-memory/playbooks/naming.md`（总览/架构 md 大写、内容源 kebab、Java 包全小写）；重命名须任务明确要求。
 - 注释只解释非显然的原因；TODO 需标注负责人或 issue。
 
 ## 边界与依赖
@@ -137,6 +138,6 @@ ACME 是多端发布流程演示台，不是真实部署平台：发布单、审
 
 在工程根运行 `pnpm typecheck`、`pnpm test`、`pnpm build`；入口为 `pnpm dev`、`pnpm desktop:dev`、`pnpm mobile:start`。桌面额外运行 `pnpm --filter @acme/desktop check`。
 
-AI 修改运行 `node .ai/sync.mjs` 和 `node .ai/sync.mjs --check`。同步通过不代表钩子已启用；派生引擎回归测试在 `.ai/tests/`（CI ai-config 作业运行）。
+AI 修改运行 `node .ai/sync.mjs` 和 `node .ai/sync.mjs --check`。同步通过不代表钩子已启用；派生引擎回归测试在 `.ai/tests/`（CI ai-config 作业运行）。引擎开关见 `.ai/ai-coding-config.yml`。
 
 环境连接定义在 `.ai/env/`，搭建脚本在 `workspace/env-stack/`；prod 默认只读，禁止明文密钥。

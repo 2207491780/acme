@@ -169,8 +169,85 @@ async function canSymlink() {
     await rmdir(probeDir);
   }
 }
-/** 链接模式为可选（默认引用存根）：--links 或环境变量 AI_SYNC_LINK=1 时启用 */
-const USE_LINKS = process.argv.includes('--links') || process.env.AI_SYNC_LINK === '1';
+// ---- 0b. 行为/引擎开关：.ai/ai-coding-config.yml（源，sync 读取，不派生；缺省即当前行为） ----
+const CONFIG_FILE = 'ai-coding-config.yml';
+const CONFIG_DEFAULTS = {
+  version: 1,
+  engine: { entryMode: 'stub', orphanDetection: true, rulesBudgetBytes: 8192 },
+};
+
+/** 极简 YAML 子集解析：仅两层标量映射 + 注释；拒绝数组/Tab/多行/锚点等未支持语法（无外部依赖）。 */
+function parseConfigYaml(text) {
+  const rootObj = {};
+  const stack = [{ indent: -1, obj: rootObj }];
+  for (const raw of text.split('\n')) {
+    if (!raw.trim() || raw.trimStart().startsWith('#')) continue;
+    if (raw.includes('\t')) throw new Error(`${CONFIG_FILE}：不支持 Tab 缩进`);
+    const hash = raw.indexOf(' #');
+    const line = (hash === -1 ? raw : raw.slice(0, hash)).trimEnd();
+    if (!line.trim()) continue;
+    const indent = line.length - line.trimStart().length;
+    const content = line.trim();
+    if (content === '-' || content.startsWith('- ')) throw new Error(`${CONFIG_FILE}：不支持数组（${content}）`);
+    const m = content.match(/^([A-Za-z0-9_-]+):(?:\s+(.*))?$/);
+    if (!m) throw new Error(`${CONFIG_FILE}：无法解析行「${raw.trim()}」`);
+    const val = m[2] === undefined ? '' : m[2].trim();
+    while (stack.length > 1 && indent <= stack[stack.length - 1].indent) stack.pop();
+    const parent = stack[stack.length - 1].obj;
+    if (val === '') {
+      const child = {};
+      parent[m[1]] = child;
+      stack.push({ indent, obj: child });
+    } else {
+      parent[m[1]] = parseConfigScalar(val, raw);
+    }
+  }
+  return rootObj;
+}
+
+function parseConfigScalar(v, raw) {
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  if (/^-?\d+$/.test(v)) return Number(v);
+  if (v.length >= 2 && ((v[0] === '"' && v.endsWith('"')) || (v[0] === "'" && v.endsWith("'")))) return v.slice(1, -1);
+  if (/^[|>&*!]/.test(v)) throw new Error(`${CONFIG_FILE}：不支持的 YAML 语法「${raw.trim()}」`);
+  return v;
+}
+
+/** 严格校验：未知键/错误类型/非法枚举一律报错，避免静默误配；与缺省合并。 */
+function validateConfig(parsed) {
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(`${CONFIG_FILE}：顶层必须是映射`);
+  const cfg = structuredClone(CONFIG_DEFAULTS);
+  for (const k of Object.keys(parsed)) {
+    if (k !== 'version' && k !== 'engine') throw new Error(`${CONFIG_FILE}：未知顶层键「${k}」`);
+  }
+  if ('version' in parsed && parsed.version !== 1) throw new Error(`${CONFIG_FILE}：version 必须为 1`);
+  if ('engine' in parsed) {
+    const e = parsed.engine;
+    if (e === null || typeof e !== 'object' || Array.isArray(e)) throw new Error(`${CONFIG_FILE}：engine 必须是映射`);
+    for (const [k, v] of Object.entries(e)) {
+      if (!(k in CONFIG_DEFAULTS.engine)) throw new Error(`${CONFIG_FILE}：未知 engine 键「${k}」`);
+      if (k === 'entryMode' && v !== 'stub' && v !== 'symlink') throw new Error(`${CONFIG_FILE}：entryMode 必须为 stub|symlink`);
+      if (k === 'orphanDetection' && typeof v !== 'boolean') throw new Error(`${CONFIG_FILE}：orphanDetection 必须为布尔`);
+      if (k === 'rulesBudgetBytes' && (!Number.isInteger(v) || v <= 0)) throw new Error(`${CONFIG_FILE}：rulesBudgetBytes 必须为正整数`);
+      cfg.engine[k] = v;
+    }
+  }
+  return cfg;
+}
+
+async function loadConfig() {
+  const p = join(AI, CONFIG_FILE);
+  const st = await inspectPath(p); // 缺失→null（用缺省）；符号链接/非普通文件→抛错（源安全）
+  if (!st) return structuredClone(CONFIG_DEFAULTS);
+  return validateConfig(parseConfigYaml(norm(await readFile(p, 'utf8'))));
+}
+
+const config = await loadConfig();
+const RULES_BUDGET = config.engine.rulesBudgetBytes;
+const LINK_FLAG = process.argv.includes('--links') || process.env.AI_SYNC_LINK === '1';
+/** 链接模式：CLI --links / AI_SYNC_LINK=1 优先；否则取配置 entryMode（缺省 stub）。 */
+const USE_LINKS = LINK_FLAG || config.engine.entryMode === 'symlink';
 
 /** 期望集：根相对路径（正斜杠）→ 规范化内容 */
 const expected = new Map();
@@ -203,8 +280,8 @@ const combinedBanner =
   '<!-- ⚠️ 本文件由 .ai/sync.mjs 从 .ai/rules/*.md 自动拼接生成，请勿直接修改；修改请编辑 .ai/rules/ 下的源文件并重新运行脚本。 -->';
 const combined = norm(`${combinedBanner}\n\n# ACME 项目规范\n\n${body.trim()}\n`);
 const ruleBytes = Buffer.byteLength(combined, 'utf8');
-if (ruleBytes > 8192) {
-  throw new Error(`.ai/rules/*.md → .ai/RULES.md 超出预算：${ruleBytes} bytes > 8192 bytes，未写入任何产物。`);
+if (ruleBytes > RULES_BUDGET) {
+  throw new Error(`.ai/rules/*.md → .ai/RULES.md 超出预算：${ruleBytes} bytes > ${RULES_BUDGET} bytes，未写入任何产物。`);
 }
 register(expected, '.ai/RULES.md', combined, '.ai/rules/*.md');
 
@@ -352,8 +429,8 @@ for (const [rel, want] of expected) {
   await ensureContent(rel, want);
 }
 
-// ---- 7. 孤儿派生文件检测：工具目录中带派生标记、但已不在期望集内的残留 ----
-for (const t of TOOLS) {
+// ---- 7. 孤儿派生文件检测：工具目录中带派生标记、但已不在期望集内的残留（可经 orphanDetection 关闭） ----
+if (config.engine.orphanDetection) for (const t of TOOLS) {
   for (const f of await walk(join(root, t.target), { source: false })) {
     const rel = relative(root, f).split('\\').join('/');
     if (destinations.has(rel.toLowerCase())) continue;
@@ -379,8 +456,8 @@ if (errors > 0) {
 }
 console.log(
   CHECK
-    ? `\n校验通过：${expected.size + links.size} 个派生文件/链接均与 .ai/ 同步，无孤儿残留。`
+    ? `\n校验通过：${expected.size + links.size} 个派生文件/链接均与 .ai/ 同步${config.engine.orphanDetection ? '，无孤儿残留' : '（孤儿检测已关闭）'}。`
     : `\n完成：${expected.size} 个文件已派生、${links.size} 个入口已处理（${
-        USE_LINKS && SYMLINK_OK ? '符号链接模式（--links）' : '引用存根模式（默认；--links 可切换为符号链接）'
+        USE_LINKS && SYMLINK_OK ? '符号链接模式（--links 或 entryMode=symlink）' : '引用存根模式（默认）'
       }）。`
 );

@@ -17,6 +17,6 @@ ACME 是多端发布流程演示台，不是真实部署平台：发布单、审
 
 在工程根运行 `pnpm typecheck`、`pnpm test`、`pnpm build`；入口为 `pnpm dev`、`pnpm desktop:dev`、`pnpm mobile:start`。桌面额外运行 `pnpm --filter @acme/desktop check`。
 
-AI 修改运行 `node .ai/sync.mjs` 和 `node .ai/sync.mjs --check`。同步通过不代表钩子已启用；派生引擎回归测试在 `.ai/tests/`（CI ai-config 作业运行）。
+AI 修改运行 `node .ai/sync.mjs` 和 `node .ai/sync.mjs --check`。同步通过不代表钩子已启用；派生引擎回归测试在 `.ai/tests/`（CI ai-config 作业运行）。引擎开关见 `.ai/ai-coding-config.yml`。
 
 环境连接定义在 `.ai/env/`，搭建脚本在 `workspace/env-stack/`；prod 默认只读，禁止明文密钥。
