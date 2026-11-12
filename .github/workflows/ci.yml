@@ -4,8 +4,8 @@ name: ci
 # 主门禁流水线 —— 源：.ai/ci/ci.yml（唯一事实源），由 .ai/sync.mjs 派生到 .github/workflows/。
 # 说明见 .ai/ci/CI-GUIDE.md。
 on:
+  # 全分支 push 触发：ai-config 门禁（轻量）前移到功能分支；app-quality 由作业级 if 限制在 main 直推与 PR
   push:
-    branches: [main]
   pull_request:
 
 concurrency:
@@ -31,6 +31,8 @@ jobs:
 
   app-quality:
     name: 应用构建与测试
+    # 重作业只在 main 直推与 PR 执行；功能分支 push 仅跑轻量 ai-config 门禁
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -6,7 +6,7 @@
 
 | 文件 | 触发 | 职责 |
 |---|---|---|
-| [ci.yml](ci.yml) | push(main) / PR | 门禁：① AI 配置同步校验（`node .ai/sync.mjs --check`）+ 派生引擎回归测试（`.ai/tests/`）；② `workspace/apps/frontend` 的类型检查 / 测试 / 桌面壳层语法检查 / 构建 |
+| [ci.yml](ci.yml) | push(全分支) / PR | 门禁：① AI 配置同步校验（`node .ai/sync.mjs --check`）+ 派生引擎回归测试（`.ai/tests/`），**全分支触发**；② `workspace/apps/frontend` 的类型检查 / 测试 / 桌面壳层语法检查 / 构建，**限 main 直推与 PR**（作业级 `if` 门控，重作业不拖慢功能分支） |
 | [cd.yml](cd.yml) | 手动 dispatch（选 dev/test/prod）；`v*` 标签 → prod | 构建 → 调 `workspace/env-stack/scripts/deploy.sh` 部署 → `healthcheck.sh` 验证 |
 | [ai-rules-sync.yml](ai-rules-sync.yml) | 触及 AI 配置相关文件 | 联动防线·远端层（见 `.ai/ARCHITECTURE.md`） |
 
@@ -29,3 +29,12 @@
 ## 修改纪律
 
 - 改本目录文件 = 改 AI-Coding 配置：改完必须 `node .ai/sync.mjs` 并通过 `--check`（提交钩子与 CI 双重拦截）。
+
+## 团队接入 checklist（平台侧人工操作）
+
+仓库内的规范与钩子只覆盖本机与 CI；以下在托管平台（Gitee/GitHub）后台完成，形成最后一道兜底：
+
+1. **`main` 分支保护**：禁直推（仅允许 PR 合并）、开启合并前 CI 检查（对应本文件 ci.yml 两个作业）、禁强推与删分支。
+2. **PR 审核**：至少 1 人批准方可合并（对应 `.ai/rules/git-workflow.md`「CR 未通过前不得合并」）。
+3. **成员本机初始化**：克隆后执行 `node .ai/hooks/enable.mjs` 启用本地钩子（pre-commit / commit-msg / pre-push）。
+4. **AI 工具协作**：AI 遵守 `.ai/rules/git-workflow.md`「AI 操作授权分级」；AI 参与的提交带 `Assisted-by: <工具名>` trailer，PR 描述注明 AI 改动。

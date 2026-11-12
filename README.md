@@ -50,7 +50,7 @@ acme/
 
 ```bash
 git clone <本模板> && cd acme
-git init && git config core.hooksPath .ai/hooks     # 一次性初始化
+git init && node .ai/hooks/enable.mjs               # 一次性初始化（启用 pre-commit / commit-msg / pre-push）
 # 修改任何 AI 配置：只改 .ai/ → node .ai/sync.mjs → 提交
 ```
 
