@@ -1,0 +1,19 @@
+# Ingress —— k3s 自带 Traefik；host 占位由 overlay 覆盖（dev: acme.dev.local）
+# 无 DNS 时本机验证：curl --resolve <host>:80 <服务器IP> 或 hosts 文件指向服务器 IP
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acme-web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: acme.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: acme-web
+                port:
+                  number: 80

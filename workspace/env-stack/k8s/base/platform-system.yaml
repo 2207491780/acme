@@ -1,0 +1,64 @@
+# platform-system-service（9881）—— 仅 PG（schema platform_system），不连 Redis
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-system
+  labels:
+    app: platform-system
+spec:
+  selector:
+    app: platform-system
+  ports:
+    - name: http
+      port: 9881
+      targetPort: 9881
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platform-system
+  template:
+    metadata:
+      labels:
+        app: platform-system
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth
+      containers:
+        - name: system
+          image: acme/platform-system
+          envFrom:
+            - configMapRef:
+                name: acme-app-config
+            - secretRef:
+                name: acme-app-secrets
+          ports:
+            - containerPort: 9881
+              name: http
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9881
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9881
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9881
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 160Mi
+            limits:
+              memory: 320Mi

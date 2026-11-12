@@ -1,0 +1,17 @@
+# dev Ingress host 覆盖（本机 hosts 文件把 acme.dev.local 指向服务器 IP 即可访问）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acme-web
+spec:
+  rules:
+    - host: acme.dev.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: acme-web
+                port:
+                  number: 80

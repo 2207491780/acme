@@ -1,0 +1,43 @@
+# Kustomize base —— 环境无关资源；环境差异走 overlays/{dev,test,prod}
+# 镜像名统一 acme/<服务>:latest 占位，由 deploy.sh `kustomize edit set image` 换成 ACR 实际地址。
+# 敏感值不入库：Secret `acme-app-secrets` 与 `acme-registry-auth` 由 deploy.sh 从服务器 .env 创建。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - postgres.yaml
+  - redis.yaml
+  - nacos.yaml
+  - gateway.yaml
+  - platform-auth.yaml
+  - platform-infra.yaml
+  - platform-system.yaml
+  - web.yaml
+  - ingress.yaml
+configMapGenerator:
+  - name: acme-app-config
+    literals:
+      - NACOS_ADDR=http://nacos:8848
+      - NACOS_USERNAME=nacos
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_DB=acme
+      - PG_USERNAME=acme
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # JVM 容器自适应：堆按容器限额的 70%，限 Metaspace 防 4G 机上超卖
+      - JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=70 -XX:MaxMetaspaceSize=96m
+      # actuator 探针组（liveness/readiness）：platform-*.yml 已显式开启，网关 yml 未配，统一经环境变量兜底
+      - MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED=true
+      # CORS 开发默认通配（网关 yml 语义）；prod overlay 必须覆盖为显式白名单
+      - ACME_CORS_ALLOWED_ORIGINS=*
+images:
+  - name: acme/gateway
+    newTag: latest
+  - name: acme/platform-auth
+    newTag: latest
+  - name: acme/platform-infra
+    newTag: latest
+  - name: acme/platform-system
+    newTag: latest
+  - name: acme/web
+    newTag: latest

@@ -1,0 +1,64 @@
+# acme-gateway（SCG WebFlux，9888）—— 全部配置经环境变量注入，密钥走 acme-app-secrets
+# 模板注释同 platform-*.yaml：探针依赖 actuator health groups（readiness 含 db/nacosDiscovery）
+apiVersion: v1
+kind: Service
+metadata:
+  name: acme-gateway
+  labels:
+    app: acme-gateway
+spec:
+  selector:
+    app: acme-gateway
+  ports:
+    - name: http
+      port: 9888
+      targetPort: 9888
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acme-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: acme-gateway
+  template:
+    metadata:
+      labels:
+        app: acme-gateway
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth
+      containers:
+        - name: gateway
+          image: acme/gateway
+          envFrom:
+            - configMapRef:
+                name: acme-app-config
+            - secretRef:
+                name: acme-app-secrets
+          ports:
+            - containerPort: 9888
+              name: http
+          # 网关未引 actuator（/actuator 404），探针退化为 TCP 口探活；
+          # 后续按依赖登记流程补 actuator 后可换回 httpGet
+          startupProbe:
+            tcpSocket:
+              port: 9888
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: 9888
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9888
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              memory: 384Mi
