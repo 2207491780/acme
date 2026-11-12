@@ -1,5 +1,7 @@
 # 派生自 .ai/ci/cd.yml（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs
 
+# 派生自 .ai/ci/cd.yml（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs
+
 name: cd
 # 部署流水线 —— 源：.ai/ci/cd.yml（唯一事实源），由 .ai/sync.mjs 派生到 .github/workflows/。
 # 触发：手动 dispatch（选 dev/test/prod，在含本文件的分支上触发）；打 v* 标签 → 自动部署 prod
