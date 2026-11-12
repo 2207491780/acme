@@ -7,10 +7,12 @@ import { palette, TONE_COLOR } from '../../theme';
 
 const MAX_ATTEMPTS = 5;
 
-/** L1 登录页（APP 形态）：品牌区 + 账号/密码 + 算术验证码 + 记住我；加载 / 错误 / 锁定 / 成功四态。
- *  交互仅本地生效；正式契约见 platform-auth /app/v1/auth/tokens（验证码 / 登录 / 刷新）。 */
+/** L1 登录页（APP 形态 · Acme SaaS 云平台 · 多租户）：租户代码前置 + 品牌区 + 算术验证码；
+ *  加载 / 错误（租户、口令、验证码）/ 锁定 / 成功四态。交互仅本地生效；
+ *  正式契约见 platform-auth /app/v1/auth/tokens（JWS claims 携带 tenantId）。 */
 export default function LoginScreen({ onBack }: { onBack: () => void }) {
   const apps = useStore((s) => s.state.apps);
+  const [tenant, setTenant] = useState('acme');
   const [account, setAccount] = useState('demo');
   const [password, setPassword] = useState('');
   const [answer, setAnswer] = useState('');
@@ -38,11 +40,15 @@ export default function LoginScreen({ onBack }: { onBack: () => void }) {
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
+      if (tenant === 'nope') {
+        fail(`租户「${tenant}」不存在`);
+        return;
+      }
       if (password === 'wrong') {
         fail('账号或密码不正确');
         return;
       }
-      showFlash(`原型演示：${account || 'demo'} 登录成功（本地生效，不落库；正式接 /app/v1/auth/tokens）`);
+      showFlash(`原型演示：租户 ${tenant || 'acme'} · ${account || 'demo'} 登录成功（claims.tenantId=${tenant || 'acme'}）`);
     }, 1000);
   };
 
@@ -50,14 +56,14 @@ export default function LoginScreen({ onBack }: { onBack: () => void }) {
     <ProtoShell
       title="登录页"
       domain="认证域 L1"
-      desc="品牌区 + 表单 + 算术验证码 + 记住我；四态走查（加载 / 错误 / 锁定 / 成功）。"
+      desc="Acme SaaS 云平台 · 多租户登录：租户代码 / 品牌区 / 表单 / 四态走查。"
       onBack={onBack}
       flash={flash}
     >
       <View style={styles.brand}>
-        <Text style={{ color: '#fff', fontSize: 26, fontWeight: '900' }}>⚡ ACME 交付台</Text>
-        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, letterSpacing: 2 }}>FRONTEND OPS · APP 形态</Text>
-        <Tag label={`${apps.length} 个应用在册（演示数据）`} color={TONE_COLOR.info} />
+        <Text style={{ color: '#fff', fontSize: 24, fontWeight: '900' }}>⚡ Acme SaaS 云平台</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, letterSpacing: 2 }}>MULTI-TENANT CLOUD · APP 形态</Text>
+        <Tag label={`租户 ${tenant || '未填'} · ${apps.length} 个应用在册（演示数据）`} color={TONE_COLOR.info} />
       </View>
       {error ? (
         <View style={[styles.banner, { borderColor: TONE_COLOR.danger }]}>
@@ -69,11 +75,20 @@ export default function LoginScreen({ onBack }: { onBack: () => void }) {
           <Text style={{ color: TONE_COLOR.warning, fontSize: 12 }}>演示锁定：连续失败达上限（正式实现为服务端 60s 冷却）</Text>
         </View>
       ) : null}
-      <Section title="登录（演示：密码输 wrong 体验失败态，其余密码 ≥ 6 位成功）">
+      <Section title="登录（演示：租户 nope / 密码 wrong 体验失败态，其余密码 ≥ 6 位成功）">
+        <TextInput
+          value={tenant}
+          onChangeText={setTenant}
+          placeholder="租户代码"
+          placeholderTextColor={palette.muted}
+          autoCapitalize="none"
+          accessibilityLabel="租户代码"
+          style={styles.input}
+        />
         <TextInput
           value={account}
           onChangeText={setAccount}
-          placeholder="账号 / 工号"
+          placeholder="账号（租户内唯一）"
           placeholderTextColor={palette.muted}
           autoCapitalize="none"
           accessibilityLabel="账号"
@@ -102,10 +117,10 @@ export default function LoginScreen({ onBack }: { onBack: () => void }) {
             style={[styles.input, { flex: 1, marginBottom: 0 }]}
           />
         </View>
-        <Muted>记住我（7 天免登录，演示） · 忘记密码 → 管理员重置</Muted>
+        <Muted>记住租户与账号（7 天，演示） · 忘记密码 → 租户管理员重置</Muted>
       </Section>
       <Button label={loading ? '验签中…' : '登录'} onPress={submit} disabled={locked || loading} />
-      <Muted style={{ textAlign: 'center' }}>公开豁免仅登录族端点；其余路由由网关强制验签（JWS HS256）</Muted>
+      <Muted style={{ textAlign: 'center' }}>JWS claims 携带 tenantId；数据 / 配置 / 配额按租户隔离</Muted>
     </ProtoShell>
   );
 }
