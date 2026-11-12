@@ -1,0 +1,16 @@
+# 派生自 .ai/ci/cd-probe.yml（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs
+
+name: cd-probe
+# 临时探针：诊断 cd.yml 未在 Actions 侧栏注册的问题；结论得出后即删
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: 探针
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "probe ok"

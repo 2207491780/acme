@@ -1,0 +1,14 @@
+name: cd-probe
+# 临时探针：诊断 cd.yml 未在 Actions 侧栏注册的问题；结论得出后即删
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: 探针
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "probe ok"
