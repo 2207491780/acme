@@ -10,5 +10,6 @@ engine:
   entryMode: stub
   # 是否在 sync/--check 扫描工具目录的孤儿派生文件（源已删、派生物残留）。关闭会削弱联动防线，默认开启。
   orphanDetection: true
-  # .ai/RULES.md 拼接后的字节预算上限（正整数）。默认 8192（8KB），与 .ai/rules/ 规范一致。
-  rulesBudgetBytes: 8192
+  # .ai/RULES.md 拼接后的字节预算上限（正整数）。默认 8192（8KB）；本项目实况放宽至 10KB（当前 8179 字节，
+  # 仅余 13 字节，任何规则修订必爆预算；取舍见 .ai-memory/decisions/2026-11-13-01-rules-budget.md）。
+  rulesBudgetBytes: 10240
