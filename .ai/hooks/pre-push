@@ -1,0 +1,20 @@
+#!/bin/sh
+# 推送防线：① refs/heads/main 受保护——直接推送/强推/删除一律拒绝 ② 更新既有远端提交时必须快进（拦截强推）。
+# 删除远端分支不在钩子层拦截，由 .ai/rules/git-workflow.md「AI 操作授权分级」约束。启用：node .ai/hooks/enable.mjs
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "推送被拒绝：main 受保护，只接受合并，禁止直接推送 / 强推 / 删除。"
+    status=1
+    continue
+  fi
+  # 更新既有远端提交（删除时 local_sha 为零值，跳过快进检查）
+  if [ "$remote_sha" != "$zero" ] && [ "$local_sha" != "$zero" ]; then
+    if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" >/dev/null 2>&1; then
+      echo "推送被拒绝：$remote_ref 非快进，会丢弃远端已有提交。请先拉取合并；确需重写历史请与团队沟通后人工执行。"
+      status=1
+    fi
+  fi
+done
+exit $status

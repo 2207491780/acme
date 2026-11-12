@@ -1,0 +1,19 @@
+#!/bin/sh
+# 提交信息校验（Conventional Commits）：type 白名单 / subject ≤50 字 / 结尾无句号。
+# Merge、Revert、fixup!、squash! 与 merge 进行中自动豁免。启用：node .ai/hooks/enable.mjs
+exec node -e '
+const fs = require("fs");
+const path = require("path");
+const gitDir = path.resolve(process.env.GIT_DIR || ".git");
+if (fs.existsSync(path.join(gitDir, "MERGE_HEAD"))) process.exit(0);
+const lines = fs.readFileSync(process.argv[1], "utf8").split(/\r?\n/);
+const subject = (lines[0] || "").trim();
+if (/^(fixup!|squash!|Merge |Revert )/.test(subject)) process.exit(0);
+const reject = (why) => { console.error("提交被拒绝：" + why); process.exit(1); };
+const m = subject.match(/^(feat|fix|docs|refactor|test|chore|perf)(\([^)]*\))?:\s(.+)$/);
+if (!m) reject(`首行须为 <type>(<scope>): <subject>，type 限 feat/fix/docs/refactor/test/chore/perf（实际：「${subject}」）`);
+const text = m[3].trim();
+if (text.length > 50) reject(`subject 超过 50 字（当前 ${text.length} 字）`);
+if (/[。.!！?？]$/.test(text)) reject("subject 结尾不加句号");
+process.exit(0);
+' "$1"

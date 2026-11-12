@@ -25,7 +25,7 @@
 ├── env/           # 环境与 MCP 连接定义 dev/test/prod（AI 按需读取，见 ENV-GUIDE.md）
 ├── ci/            # CI/CD 工作流源 → .github/workflows/（ci / cd / ai-rules-sync，见 CI-GUIDE.md）
 ├── tests/         # 派生引擎回归测试：node --test ".ai/tests/*.test.mjs"（CI ai-config 作业运行）
-└── hooks/         # git 钩子（git config core.hooksPath .ai/hooks 直接指向，零拷贝）
+└── hooks/         # git 钩子：pre-commit（AI 配置完整性）/ commit-msg（提交规范）/ pre-push（main 保护+强推拦截）；node .ai/hooks/enable.mjs 启用
 ```
 
 ## 使用流程（强制联动）
@@ -34,9 +34,9 @@
 
 ```bash
 # 一次性初始化
-git init && git config core.hooksPath .ai/hooks
+git init && node .ai/hooks/enable.mjs
 # Linux/macOS 协作者首次提交前确保钩子可执行位：
-# git add .ai/hooks/pre-commit && git update-index --chmod=+x .ai/hooks/pre-commit
+# git update-index --chmod=+x .ai/hooks/pre-commit .ai/hooks/commit-msg .ai/hooks/pre-push
 
 node .ai/sync.mjs          # 修改 .ai/ 后【必须】执行：一键派生到所有工具
 node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行）
@@ -99,7 +99,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | 防线 | 机制 | 失效后果 |
 |---|---|---|
 | 规则层 | 强制条款位于 `.ai/rules/ai-guidelines.md`，派生注入**所有**工具入口，AI 工具自身必须遵守 | — |
-| 本地层 | `.ai/hooks/pre-commit` 提交前运行 `--check`（含孤儿派生文件检测） | 不同步的提交被拒绝 |
+| 本地层 | `.ai/hooks/`：pre-commit 校验 AI 配置完整性；commit-msg 校验提交规范；pre-push 拦截直推 `main` 与强推 | 违规提交/推送被拒绝 |
 | 远端层 | `.ai/ci/` 派生出的 `.github/workflows/ai-rules-sync.yml` 在 push / PR 时校验 | 不同步的推送/合并被阻断 |
 
 ## CI/CD（工作流源在 [ci/CI-GUIDE.md](ci/CI-GUIDE.md)）

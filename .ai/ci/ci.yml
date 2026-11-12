@@ -1,9 +1,9 @@
 name: ci
 # 主门禁流水线 —— 源：.ai/ci/ci.yml（唯一事实源），由 .ai/sync.mjs 派生到 .github/workflows/。
-# 说明与接线 TODO 见 .ai/ci/CI-GUIDE.md。
+# 说明见 .ai/ci/CI-GUIDE.md。
 on:
+  # 全分支 push 触发：ai-config 门禁（轻量）前移到功能分支；app-quality 由作业级 if 限制在 main 直推与 PR
   push:
-    branches: [main]
   pull_request:
 
 concurrency:
@@ -23,19 +23,39 @@ jobs:
         with:
           node-version: 22
       - run: node .ai/sync.mjs --check
+      - name: 派生引擎回归测试
+        # 注意用 glob 形式：Windows/Node 24 下目录形式（node --test .ai/tests）会被当作入口模块而失败
+        run: node --test ".ai/tests/*.test.mjs"
 
   app-quality:
     name: 应用构建与测试
+    # 重作业只在 main 直推与 PR 执行；功能分支 push 仅跑轻量 ai-config 门禁
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: 构建（TODO：待技术栈定型后接线）
-        run: |
-          echo "TODO 构建：把 .ai/rules/project.md「常用命令 → 构建」的命令填到此处"
-          # 例：cd workspace/apps/<app> && npm ci && npm run build
-      - name: 测试（TODO：待技术栈定型后接线）
-        run: |
-          echo "TODO 测试：把 .ai/rules/project.md「常用命令 → 运行测试」的命令填到此处"
+      - uses: pnpm/action-setup@v4
+        with:
+          # 版本读自 packageManager 字段，避免双处维护
+          package_json_file: workspace/apps/frontend/package.json
+      - name: 安装依赖
+        working-directory: workspace/apps/frontend
+        env:
+          # CI 不启动 Electron 窗口，跳过二进制下载以加速安装
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: pnpm install --frozen-lockfile
+      - name: 类型检查
+        working-directory: workspace/apps/frontend
+        run: pnpm typecheck
+      - name: 测试
+        working-directory: workspace/apps/frontend
+        run: pnpm test
+      - name: 桌面壳层语法检查
+        working-directory: workspace/apps/frontend
+        run: pnpm --filter @acme/desktop check
+      - name: 构建
+        working-directory: workspace/apps/frontend
+        run: pnpm build
