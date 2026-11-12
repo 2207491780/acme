@@ -68,6 +68,8 @@ jobs:
     environment: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
     env:
       TARGET_ENV: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
+      # 与 build 作业一致：SHA 不可变 tag（上次漏配导致部署空跑，2026-11-13 实测）
+      IMAGE_TAG: ${{ github.event_name == 'push' && 'prod' || inputs.env }}-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - name: 配置部署 SSH
