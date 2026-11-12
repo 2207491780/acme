@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Badge, Button, Drawer, Grid, Input, Layout, Menu, Tooltip } from 'antd';
+import { Alert, Avatar, Badge, Button, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Tooltip } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import {
   AppstoreOutlined,
   DashboardOutlined,
+  DownOutlined,
+  LogoutOutlined,
   MenuFoldOutlined,
   MenuOutlined,
   MoonOutlined,
@@ -13,15 +15,20 @@ import {
   SunOutlined,
   ThunderboltOutlined,
   UnorderedListOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ACTIVE_STATUSES } from '@acme/core';
 import { useStore } from './store/useStore';
+import { useAuthStore } from './store/authStore';
+import { startAuthRenewal } from './api/client';
+import { authApi } from './api/auth';
 import { detectPlatform, download } from './utils/dom';
 import { Dashboard } from './pages/Dashboard';
 import { Releases } from './pages/Releases';
 import { Apps } from './pages/Apps';
 import { Settings } from './pages/Settings';
+import { LoginPage } from './pages/LoginPage';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
 import { SaveViewModal } from './components/SaveViewModal';
@@ -54,6 +61,30 @@ export function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const searchRef = useRef<InputRef>(null);
+
+  // 登录态（login-state / login-renew）：未登录渲染独立登录页；已登录进入控制台并启动滑动续约
+  const session = useAuthStore((s) => s.session);
+  useEffect(() => startAuthRenewal(), []);
+
+  const handleLogout = () => {
+    void authApi
+      .logout()
+      .catch(() => undefined) // 登出幂等：令牌已失效也清空本地会话
+      .finally(() => {
+        useAuthStore.getState().clear();
+        window.location.hash = '#/login';
+      });
+  };
+
+  const userMenuItems: MenuProps['items'] = [
+    { key: 'who', label: `${session?.nickname || session?.username}（租户 ${session?.tenantCode}）`, disabled: true },
+    { type: 'divider' },
+    { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
+  ];
+
+  if (!session) {
+    return <LoginPage />;
+  }
 
   const activeCount = releases.filter((r) => ACTIVE_STATUSES.includes(r.status)).length;
   const current = location.pathname === '/' ? 'dashboard' : location.pathname.slice(1);
@@ -203,6 +234,23 @@ export function App() {
                 aria-label="切换主题"
               />
             </Tooltip>
+            <Dropdown
+              menu={{
+                items: userMenuItems,
+                onClick: ({ key }) => {
+                  if (key === 'logout') {
+                    handleLogout();
+                  }
+                },
+              }}
+            >
+              <Button type="text" aria-label="打开用户菜单" style={{ paddingInline: 6 }}>
+                <Space size={6}>
+                  <Avatar size={26} style={{ background: 'var(--accent)' }} icon={<UserOutlined />} />
+                  {!isMobile && <DownOutlined style={{ fontSize: 10, color: 'var(--muted)' }} />}
+                </Space>
+              </Button>
+            </Dropdown>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal({ type: 'release', id: null })}>
               {!isMobile && '新建'}
             </Button>
