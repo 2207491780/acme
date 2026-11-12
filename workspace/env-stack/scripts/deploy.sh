@@ -23,7 +23,9 @@ REG_ENV_FILE="$ENV_DIR/registry.env"
 
 # registry.env 只取 REGISTRY/ACME_IMAGE_TAG，避免整文件被注入应用 Secret
 REGISTRY=$(grep -E '^REGISTRY=' "$REG_ENV_FILE" | head -1 | cut -d= -f2-)
-TAG=$(grep -E '^ACME_IMAGE_TAG=' "$REG_ENV_FILE" | head -1 | cut -d= -f2-)
+FILE_TAG=$(grep -E '^ACME_IMAGE_TAG=' "$REG_ENV_FILE" | head -1 | cut -d= -f2-)
+# tag 优先级：环境变量 ACME_IMAGE_TAG（CI 注入的 env-SHA 不可变 tag）> registry.env > <env>-latest
+TAG=${ACME_IMAGE_TAG:-$FILE_TAG}
 TAG=${TAG:-"$ENV-latest"}
 [ -n "$REGISTRY" ] || { echo "❌ registry.env 缺 REGISTRY" >&2; exit 1; }
 
