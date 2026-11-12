@@ -5,6 +5,7 @@ import com.acme.platform.auth.config.AuthTokenProperties;
 import com.acme.platform.auth.config.LoginGuardProperties;
 import com.acme.platform.system.api.AuthProfileClient;
 import com.acme.platform.system.api.AuthorizationClient;
+import com.acme.platform.system.api.TenantClient;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -18,7 +19,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
  * 服务间依赖仅 platform-system-api（auth → system 单向，4.4.2）。
  */
 @SpringBootApplication
-@EnableFeignClients(clients = {AuthProfileClient.class, AuthorizationClient.class})
+@EnableFeignClients(clients = {AuthProfileClient.class, AuthorizationClient.class, TenantClient.class})
 @EnableConfigurationProperties({AuthTokenProperties.class, LoginGuardProperties.class})
 public class PlatformAuthApplication {
 
