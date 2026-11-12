@@ -12,6 +12,8 @@
 .claude/settings.local.json
 AGENTS.local.md
 CLAUDE.local.md
+# ZCode 本地数据（工作流草稿、会话态等）
+.zcode/
 .ai-memory/drafts/*.local.md
 
 # --- AI 临时文件（内容不入库，仅说明文件 ABOUT.md 入库） ---
@@ -56,11 +58,15 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 *.lnk
+# Office 编辑锁文件（docs 文档被编辑时产生）
+~$*
 
 # --- 编辑器 / IDE ---
 .idea/
 .vscode/
 .vs/
+# IntelliJ 模块文件（散落在 .idea/ 之外）
+*.iml
 *.swp
 *.swo
 *~
@@ -142,6 +148,9 @@ lerna-debug.log*
 .vitepress/dist/
 storybook-static/
 .nyc_output/
+# Expo 开发缓存与旧版共享资源目录（mobile 启动/导出时生成）
+.expo/
+.expo-shared/
 
 # --- Python ---
 __pycache__/
@@ -182,6 +191,10 @@ replay_pid*
 .mvn/timing.properties
 # flatten-maven-plugin 生成的构建产物
 .flattened-pom.xml
+# maven-shade-plugin 重定位产物
+dependency-reduced-pom.xml
+# Kotlin 构建守护进程目录（RN/Gradle 构建生成）
+.kotlin/
 
 # --- Go ---
 *.test
@@ -294,4 +307,5 @@ terraform.rc
 
 # --- Docker ---
 docker-compose.override.yml
+docker-compose.override.yaml
 .docker/
