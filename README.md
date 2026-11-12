@@ -41,7 +41,8 @@ acme/
 ├── .github/                      # ⚙️ Copilot 指令存根 + CI（全部生成）
 ├── workspace/                    # ★ 实际工作目录（业务与运行环境收敛于此）
 │   ├── apps/                     #   应用代码（一目录一应用，约定见 workspace/apps/APPS.md）
-│   └── env-stack/                #   环境搭建（docker / scripts / config，见 workspace/env-stack/ENV-STACK.md）
+│   ├── env-stack/                #   环境搭建（docker / scripts / config，见 workspace/env-stack/ENV-STACK.md）
+│   └── ui-prototype/             #   UI 原型设计专区（与前端工程隔离，见 workspace/ui-prototype/UI-PROTOTYPE.md）
 └── docs/                         # 项目文档（设计/API 文档等，非 AI 配置）
 ```
 
