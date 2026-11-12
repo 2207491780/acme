@@ -1,15 +1,93 @@
 # 派生自 .ai/ci/cd.yml（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs
 
+# 派生自 .ai/ci/cd.yml（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs
+
 name: cd
-# 临时最小化诊断版本（诊断通过后恢复完整内容）
+# 部署流水线 —— 源：.ai/ci/cd.yml（唯一事实源），由 .ai/sync.mjs 派生到 .github/workflows/。
+# 触发：手动 dispatch（选 dev/test/prod，在含本文件的分支上触发）；打 v* 标签 → 自动部署 prod
+# （在 GitHub Environments 为 prod 配 required reviewers 人工审批）。
+# 链路：build 作业在云端 runner 构建五镜像并推 TCR（不占 4G 服务器构建资源，见 ADR 2026-11-13-06）；
+#       deploy 作业把 env-stack 同步到服务器后 SSH 执行 deploy.sh / healthcheck.sh。
+# Secrets 清单与平台接入步骤见 .ai/ci/CI-GUIDE.md。
 on:
   workflow_dispatch:
+    inputs:
+      env:
+        description: 目标环境
+        type: choice
+        options: [dev, test, prod]
+        default: dev
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  probe:
+  build:
+    name: 构建镜像（后端×4 + web）→ 推 TCR
     runs-on: ubuntu-latest
+    env:
+      TARGET_ENV: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
     steps:
-      - run: echo "cd minimal ok"
+      - uses: actions/checkout@v4
+      - name: 登录 TCR
+        run: echo "${{ secrets.TCR_PASSWORD }}" | docker login "${{ secrets.TCR_REGISTRY_HOST }}" -u "${{ secrets.TCR_USERNAME }}" --password-stdin
+      - name: 构建并推送后端服务镜像
+        working-directory: workspace/apps/backend
+        run: |
+          REG="${{ secrets.TCR_REGISTRY }}"
+          TAG="${TARGET_ENV}-latest"
+          # MODULE_PATH 为相对 acme-cloud/ 的 reactor 模块路径（上下文含 acme-parent 兄弟目录）
+          for m in "acme-gateway gateway" \
+                   "acme-platform/platform-auth/platform-auth-service platform-auth" \
+                   "acme-platform/platform-infra/platform-infra-service platform-infra" \
+                   "acme-platform/platform-system/platform-system-service platform-system"; do
+            set -- $m
+            echo ">>> build $2"
+            docker build --build-arg MODULE_PATH="$1" -t "$REG/$2:$TAG" .
+            docker push "$REG/$2:$TAG"
+          done
+      - name: 构建并推送 web 镜像
+        working-directory: workspace/apps/frontend
+        run: |
+          REG="${{ secrets.TCR_REGISTRY }}"
+          docker build -f Dockerfile.web -t "$REG/web:${TARGET_ENV}-latest" .
+          docker push "$REG/web:${TARGET_ENV}-latest"
+
+  deploy:
+    name: 部署 (${{ github.event_name == 'push' && 'prod' || inputs.env }})
+    needs: build
+    runs-on: ubuntu-latest
+    # GitHub Environment（需在仓库设置建 dev/test/prod；prod 配 required reviewers 人工审批）
+    environment: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
+    env:
+      TARGET_ENV: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 配置部署 SSH
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_acme_deploy
+          chmod 600 ~/.ssh/id_acme_deploy
+          # host key 预落 known_hosts，部署阶段免交互
+          ssh-keyscan -p "${{ secrets.DEPLOY_SSH_PORT }}" "${{ secrets.DEPLOY_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: 同步 env-stack 到服务器（服务器清单与仓库保持一致）
+        run: |
+          scp -i ~/.ssh/id_acme_deploy -P "${{ secrets.DEPLOY_SSH_PORT }}" -r \
+            workspace/env-stack \
+            "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}:/opt/acme/src/workspace/"
+      - name: 部署（env-stack 脚本，服务器端执行）
+        run: |
+          ssh -i ~/.ssh/id_acme_deploy -p "${{ secrets.DEPLOY_SSH_PORT }}" \
+            "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}" \
+            "bash /opt/acme/src/workspace/env-stack/scripts/deploy.sh $TARGET_ENV"
+      - name: 健康检查
+        run: |
+          ssh -i ~/.ssh/id_acme_deploy -p "${{ secrets.DEPLOY_SSH_PORT }}" \
+            "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}" \
+            "bash /opt/acme/src/workspace/env-stack/scripts/healthcheck.sh $TARGET_ENV"
