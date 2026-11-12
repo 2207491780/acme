@@ -53,49 +53,76 @@ jobs:
   app-quality:
     name: 应用构建与测试
     # 重作业只在 main 直推与 PR 执行；功能分支 push 仅跑轻量 ai-config 门禁。
-    # hashFiles 守卫：分支无前端工程（如 ai-coding-support）时自动跳过，避免引用缺失而红灯
-    if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && hashFiles('workspace/apps/frontend/pnpm-lock.yaml') != ''
+    # 注意：hashFiles 在 job 级 if 不可用（GitHub 限制，首跑实测），守卫下沉到 guard 步骤 + 各步骤级 if。
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: 前端工程存在性守卫
+        id: guard
+        run: |
+          if [ -f workspace/apps/frontend/pnpm-lock.yaml ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::分支无前端工程（如 ai-coding-support），本作业整体跳过"
+          fi
       - uses: actions/setup-node@v4
+        if: steps.guard.outputs.run == 'true'
         with:
           node-version: 22
       - uses: pnpm/action-setup@v4
+        if: steps.guard.outputs.run == 'true'
         with:
           # 版本读自 packageManager 字段，避免双处维护
           package_json_file: workspace/apps/frontend/package.json
       - name: 安装依赖
+        if: steps.guard.outputs.run == 'true'
         working-directory: workspace/apps/frontend
         env:
           # CI 不启动 Electron 窗口，跳过二进制下载以加速安装
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
         run: pnpm install --frozen-lockfile
       - name: 类型检查
+        if: steps.guard.outputs.run == 'true'
         working-directory: workspace/apps/frontend
         run: pnpm typecheck
       - name: 测试
+        if: steps.guard.outputs.run == 'true'
         working-directory: workspace/apps/frontend
         run: pnpm test
       - name: 桌面壳层语法检查
+        if: steps.guard.outputs.run == 'true'
         working-directory: workspace/apps/frontend
         run: pnpm --filter @acme/desktop check
       - name: 构建
+        if: steps.guard.outputs.run == 'true'
         working-directory: workspace/apps/frontend
         run: pnpm build
 
   backend-quality:
     name: 后端构建与测试
-    # 与 app-quality 同口径：限 main 直推与 PR；分支无后端工程时跳过。
+    # 与 app-quality 同口径：限 main 直推与 PR；分支无后端工程时守卫跳过。
     # PG 集成测试经 testcontainers 在 runner 的 Docker 中真实拉起容器（本机无 Docker 则跳过）
-    if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && hashFiles('workspace/apps/backend/acme-cloud/pom.xml') != ''
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: 后端工程存在性守卫
+        id: guard
+        run: |
+          if [ -f workspace/apps/backend/acme-cloud/pom.xml ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::分支无后端工程（如 ai-coding-support），本作业整体跳过"
+          fi
       - uses: actions/setup-java@v4
+        if: steps.guard.outputs.run == 'true'
         with:
           distribution: temurin
           java-version: 25
       - name: 构建与测试
+        if: steps.guard.outputs.run == 'true'
         working-directory: workspace/apps/backend/acme-cloud
         run: mvn -B test
