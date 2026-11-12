@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-platform</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>platform-infra</artifactId>
+    <packaging>pom</packaging>
+    <name>platform-infra</name>
+    <description>
+        基础设施域平台服务（platform-infra-audit 拆分评审结论，Backend.md 18.1.1 / 4.3.7）
+        - 能力域：infra（审计事件 MQ 消费落库 + B 端审计查询；基础设施表 DDL 模板维护；
+          短信运营域本期不做——framework 无短信通道模块，运营面无消费方）
+        - 结构：platform-infra-api（契约）+ platform-infra-service（实现与启动，5.3.2）
+        - 数据独占 schema：platform_infra（12.1.1）；消费去重走 Redis（12.3.2）
+        - 服务间依赖：仅 platform-system-api（权限判定，infra → system 单向，4.4.2；链深 3 压线，M-07）
+    </description>
+
+    <modules>
+        <module>platform-infra-api</module>
+        <module>platform-infra-service</module>
+    </modules>
+
+</project>

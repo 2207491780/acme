@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-framework</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>framework-feign</artifactId>
+    <packaging>jar</packaging>
+    <name>framework-feign</name>
+    <description>
+        内部调用模块（Modules.md 3.1，第 4 层）：超时、幂等重试、熔断降级（裸 resilience4j，取舍 #9/Q-D004）、
+        错误解码 BizException、内部令牌注入、上下文头注入、trace 透传集成接线；四包形态与开关见 Modules.md 3.5
+    </description>
+
+    <dependencies>
+        <!-- Modules.md 3.1 直接依赖 core、trace、security、contract（第 4 层依赖第 3 层，BR-001，v1.7 登记） -->
+        <!-- 实引用直接声明（Modules.md 2.2.3） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-trace</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-contract</artifactId>
+        </dependency>
+
+        <!-- feign-core 仅调用接缝（M-11 允许语境；调用契约声明面）；OpenFeign 装配由使用方引入 -->
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-core</artifactId>
+        </dependency>
+        <!-- 熔断裸 resilience4j（Q-D004，与 gateway RateLimiters 先例一致） -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-circuitbreaker</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- 测试域（framework-core 先例） -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

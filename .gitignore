@@ -180,6 +180,8 @@ hs_err_pid*
 replay_pid*
 *.hprof
 .mvn/timing.properties
+# flatten-maven-plugin 生成的构建产物
+.flattened-pom.xml
 
 # --- Go ---
 *.test

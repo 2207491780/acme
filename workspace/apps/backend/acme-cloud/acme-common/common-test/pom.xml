@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-common</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>common-test</artifactId>
+    <packaging>jar</packaging>
+    <name>common-test</name>
+    <description>
+        测试基类、fixture 构造器、Testcontainers 封装（Modules.md 2.1，按需）
+        - 测试栈以 compile 依赖落于本模块（Q-012 结论：Backend.md 7.1.2 括注「（common-test）」即测试域唯一载体）；
+          消费方以 test scope 引入 common-test，生产打包不带入
+    </description>
+
+    <dependencies>
+        <!-- 依赖=pom 实际引用（本次重构定稿）：允许依赖上界见 Modules.md 2.1，未用不声明 -->
+        <!-- BaseTest 业务异常断言引用 core（ErrorCode/BizException，DP-014 定稿） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+        <!-- Q-012：测试栈 compile 依赖仅限本模块（BR-023 测试域口径），生产打包不带入 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

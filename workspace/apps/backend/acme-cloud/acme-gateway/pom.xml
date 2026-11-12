@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>acme-gateway</artifactId>
+    <packaging>jar</packaging>
+    <name>acme-gateway</name>
+    <description>
+        Acme Cloud 统一接入网关
+        - 定位：B/C 双端统一入口（路由、验签、限流、灰度、访问日志，第 11 章）
+        - 部署单元：固定 1（4.2④）
+        - 约束：不得承载业务逻辑、不得直连数据库、不得做数据聚合（M-09）
+    </description>
+
+    <dependencies>
+        <!-- 网关鉴权相关 framework（5.2）：framework-gateway（WebFlux 过滤链）+ trace 透传 -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-gateway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-trace</artifactId>
+        </dependency>
+        <!-- WebFlux 运行时（网关应用形态；禁 Servlet——Modules.md 4.2、BR-004） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+        <!-- lb 路由解析（Q-D03 解释适用：服务于 11.1.1 路由职责的中间件客户端，登记架构设计第 10 章 #2） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <!-- Nacos 服务发现（lb:// 目标实例来源，FR-010 / 18.1.1 第 6 步；Q-D03 同口径登记） -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <!-- 用户令牌撤销集直查（Q-D02：每请求一查即时失效；Q-D03 同口径登记） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+
+        <!-- 测试域 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- 5.2 / M-09：网关仅允许 common-* 与鉴权相关 framework，禁止服务模块 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-gateway-deps</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <exclude>com.acme:platform-*</exclude>
+                                        <exclude>com.acme:business-*</exclude>
+                                        <exclude>com.acme:*-service</exclude>
+                                    </excludes>
+                                    <message>网关不得依赖任何服务模块，仅允许 common-* 与鉴权相关 framework（5.2、M-09）</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

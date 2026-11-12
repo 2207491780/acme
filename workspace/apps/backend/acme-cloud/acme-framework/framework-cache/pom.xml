@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-framework</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>framework-cache</artifactId>
+    <packaging>jar</packaging>
+    <name>framework-cache</name>
+    <description>
+        二级缓存模块（Modules.md 3.1）：Caffeine L1 + Redis L2、写时删 L2 并广播清 L1（Redis Pub/Sub）、
+        防击穿、key 规范；四包形态与开关见 Modules.md 3.5
+    </description>
+
+    <dependencies>
+        <!-- Modules.md 3.1 直接依赖 core、serialization（第 3 层，v1.7 登记）；值序列化复用 common-serialization Json（架构设计 6.1） -->
+        <!-- 实引用直接声明（Modules.md 2.2.3） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-serialization</artifactId>
+        </dependency>
+
+        <!-- Modules.md 3.5 依赖粒度：Boot 4 细粒度模块（BR-021） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <!-- L1（架构设计 2.4 技术栈基线 Caffeine；版本随 Boot BOM） -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- 测试域（framework-core 先例） -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

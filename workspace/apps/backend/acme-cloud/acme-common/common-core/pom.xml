@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-common</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>common-core</artifactId>
+    <packaging>jar</packaging>
+    <name>common-core</name>
+    <description>
+        跨服务最小契约基元：Result、ErrorCode、BizException、Assert、Money、Clock、通用枚举（Modules.md 2.1；Backend.md 7.1.1；分页基元收敛 common-contract）
+    </description>
+
+    <dependencies>
+        <!-- 依赖=pom 实际引用（本次重构定稿）：允许依赖上界见 Modules.md 2.1，未用不声明 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Modules.md 2.2.1 / BR-001：core 禁止依赖 contract（方向性禁令机器化，架构设计 2.3） -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-core-direction</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <exclude>com.acme:common-contract</exclude>
+                                    </excludes>
+                                    <message>common-core 不得依赖 common-contract（Modules.md 2.2.1、BR-001）</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
