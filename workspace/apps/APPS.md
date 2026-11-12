@@ -7,7 +7,7 @@
 ```text
 apps/
 ├── APPS.md          # 本文件：apps 层的约定说明与应用清单
-├── backend/         # 后端服务（技术栈待确定）
+├── backend/         # 后端服务（Java 多模块 Maven 工程）
 ├── frontend/        # 前端多端工程：web / desktop(Electron) / mobile
 ├── <app>/           # 一个可独立运行/部署的应用
 │   ├── <APP>.md     # 该应用的职责、启动方式、依赖说明（目录名大写，如 WEB-CONSOLE.md）
@@ -26,7 +26,7 @@ apps/
 
 | 应用 | 职责 | 说明 | 当前状态 |
 |---|---|---|---|
-| [`backend/`](backend/BACKEND.md) | 后端服务 | [BACKEND.md](backend/BACKEND.md) | 空骨架，技术栈待确定 |
+| [`backend/`](backend/BACKEND.md) | 后端服务 | [BACKEND.md](backend/BACKEND.md) | 已落地 Java 多模块工程（平台服务 / 业务域 / 统一网关） |
 | [`frontend/`](frontend/FRONTEND.md) | 前端多端工程：Web、Electron PC、移动端 | [FRONTEND.md](frontend/FRONTEND.md) | 已实现可运行的多端交付台（React + Vite + Ant Design / Electron / React Native + Expo，共享 `@acme/core`） |
 
-`backend/` 仍为空骨架，技术栈待确定。`frontend/` 为 pnpm monorepo，已可运行：在 `frontend/` 执行 `pnpm install` 后，Web 端 `pnpm dev`，桌面端 `pnpm desktop:dev`，移动端 `pnpm mobile:start`（需模拟器或 Expo Go 设备）。多端视觉一致性由 `@acme/core` 设计令牌单一事实源保证，实施契约见 [`frontend/UI-SPEC.md`](frontend/UI-SPEC.md)，跨端校验页 `pnpm ui:guide`。详见各子工程说明。
+`backend/` 已落地 Java 多模块 Maven 工程（`acme-cloud/` 下构建测试，详见 [BACKEND.md](backend/BACKEND.md)）。`frontend/` 为 pnpm monorepo，已可运行：在 `frontend/` 执行 `pnpm install` 后，Web 端 `pnpm dev`，桌面端 `pnpm desktop:dev`，移动端 `pnpm mobile:start`（需模拟器或 Expo Go 设备）。多端视觉一致性由 `@acme/core` 设计令牌单一事实源保证，实施契约见 [`frontend/UI-SPEC.md`](frontend/UI-SPEC.md)，跨端校验页 `pnpm ui:guide`。详见各子工程说明。
