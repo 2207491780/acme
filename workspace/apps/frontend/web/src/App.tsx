@@ -21,6 +21,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { ACTIVE_STATUSES } from '@acme/core';
 import { useStore } from './store/useStore';
 import { useAuthStore } from './store/authStore';
+import { useMeStore } from './store/meStore';
 import { startAuthRenewal } from './api/client';
 import { authApi } from './api/auth';
 import { detectPlatform, download } from './utils/dom';
@@ -66,18 +67,35 @@ export function App() {
   const session = useAuthStore((s) => s.session);
   useEffect(() => startAuthRenewal(), []);
 
+  // 会话恢复校验（p1-me-sync）：进入应用即拉取服务端画像（me 401 由 client 续约/清会话处理）
+  useEffect(() => {
+    if (session) {
+      void useMeStore.getState().load();
+    } else {
+      useMeStore.getState().clear();
+    }
+  }, [session]);
+
   const handleLogout = () => {
     void authApi
       .logout()
       .catch(() => undefined) // 登出幂等：令牌已失效也清空本地会话
       .finally(() => {
         useAuthStore.getState().clear();
+        useMeStore.getState().clear();
         window.location.hash = '#/login';
       });
   };
 
+  const me = useMeStore((s) => s.me);
+  const displayName = me?.user.nickname || me?.user.username || session?.nickname || session?.username || '';
   const userMenuItems: MenuProps['items'] = [
-    { key: 'who', label: `${session?.nickname || session?.username}（租户 ${session?.tenantCode}）`, disabled: true },
+    { key: 'who', label: `${displayName}（租户 ${session?.tenantCode}）`, disabled: true },
+    {
+      key: 'roles',
+      label: `角色：${me?.roles.join('、') || '加载中…'}`,
+      disabled: true,
+    },
     { type: 'divider' },
     { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
   ];
