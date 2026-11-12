@@ -15,8 +15,11 @@
    `.ai-tmp/` 按工作树隔离；**在任务结束前不要切回主工作树的分支**。
 3. 需要跑前端时在工作树内 `cd workspace/apps/frontend && pnpm install`（pnpm 共享 store，安装快）；
    后端在 `acme-cloud/` 下 `mvn test`（本地 `.m2` 共享）。
-4. 完成后在主工作树合并或推送该分支；清理：`node .ai/worktree.mjs remove feat/<issue>-<简述>`；
-   删除分支按「AI 操作授权分级」取得指令。
+4. **合流三步（本地开发 → 合并 → 推送）**：① 回主工作树（`acme-foundation`）合并该分支（优先快进，
+   无法快进用合并提交说明理由）；② 合并后先验证（`node .ai/sync.mjs --check` / 受影响端测试 / 构建）
+   再推送 `acme-foundation`；③ 清理：`node .ai/worktree.mjs remove feat/<issue>-<简述>`，删除分支按
+   「AI 操作授权分级」取得指令。功能分支默认留在本地，需要远端存档时按需指令推送。
+   AI 配置变更在合并推送后按镜像口径 cherry-pick 到 `ai-coding-support`。
 
 ## 约束
 
