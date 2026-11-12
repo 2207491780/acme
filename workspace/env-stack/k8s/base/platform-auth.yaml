@@ -1,0 +1,64 @@
+# platform-auth-service（9882）—— PG schema platform_auth + Redis（验证码/防爆破）
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-auth
+  labels:
+    app: platform-auth
+spec:
+  selector:
+    app: platform-auth
+  ports:
+    - name: http
+      port: 9882
+      targetPort: 9882
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platform-auth
+  template:
+    metadata:
+      labels:
+        app: platform-auth
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth
+      containers:
+        - name: auth
+          image: acme/platform-auth
+          envFrom:
+            - configMapRef:
+                name: acme-app-config
+            - secretRef:
+                name: acme-app-secrets
+          ports:
+            - containerPort: 9882
+              name: http
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9882
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9882
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9882
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              memory: 384Mi

@@ -1,0 +1,12 @@
+# test overlay —— 按需部署（与 dev 抢 4G 内存，部署前建议先停掉 dev：
+# kubectl scale deployment --all --replicas=0 -n acme-dev）
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: acme-test
+resources:
+  - ../../base
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: acme
+      acme.io/env: test
+    includeSelectors: false

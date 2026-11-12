@@ -1,0 +1,97 @@
+# PostgreSQL —— 单实例演示规模（无主从）；schema 由 init 脚本预建，业务表由各服务 Flyway 自迁移
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+data:
+  init-schemas.sql: |
+    -- Flyway 以 currentSchema 连入，预建三能力域 schema（IF NOT EXISTS 幂等）
+    CREATE SCHEMA IF NOT EXISTS platform_auth;
+    CREATE SCHEMA IF NOT EXISTS platform_infra;
+    CREATE SCHEMA IF NOT EXISTS platform_system;
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: pg
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth # 官方镜像不经过该 secret，统一注入以兼容私有 mirror 场景
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args:
+            - -c
+            - shared_buffers=64MB
+            - -c
+            - max_connections=60
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef: { name: acme-app-config, key: PG_USERNAME }
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef: { name: acme-app-config, key: PG_DB }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: acme-app-secrets, key: PG_PASSWORD }
+          ports:
+            - containerPort: 5432
+              name: pg
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: [sh, -c, pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [sh, -c, pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: init
+          configMap:
+            name: postgres-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 2Gi

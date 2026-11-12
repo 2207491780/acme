@@ -1,0 +1,65 @@
+# platform-infra-service（9880）—— PG schema platform_infra + Redis（幂等/锁）
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-infra
+  labels:
+    app: platform-infra
+spec:
+  selector:
+    app: platform-infra
+  ports:
+    - name: http
+      port: 9880
+      targetPort: 9880
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platform-infra
+  template:
+    metadata:
+      labels:
+        app: platform-infra
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth
+      containers:
+        - name: infra
+          image: acme/platform-infra
+          envFrom:
+            - configMapRef:
+                name: acme-app-config
+            - secretRef:
+                name: acme-app-secrets
+          ports:
+            - containerPort: 9880
+              name: http
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9880
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9880
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9880
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              # 320Mi 时实测贴线（316Mi）导致 OOM 重启，扩到 384Mi
+              memory: 384Mi

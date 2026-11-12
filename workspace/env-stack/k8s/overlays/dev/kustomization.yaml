@@ -1,0 +1,17 @@
+# dev overlay —— 服务器常驻环境（4G 单机同一时间只跑一个环境，见决策 2026-11-13-06）
+# 镜像 tag 由 deploy.sh `kustomize edit set image` 写入（默认 dev-latest）
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: acme-dev
+resources:
+  - ../../base
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: acme
+      acme.io/env: dev
+    includeSelectors: false
+patches:
+  - path: ingress-host.yaml
+    target:
+      kind: Ingress
+      name: acme-web

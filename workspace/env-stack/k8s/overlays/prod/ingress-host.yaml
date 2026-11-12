@@ -1,0 +1,17 @@
+# prod Ingress host 覆盖（域名上线时替换为真实域名）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acme-web
+spec:
+  rules:
+    - host: acme.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: acme-web
+                port:
+                  number: 80
