@@ -29,10 +29,34 @@ jobs:
         # 注意用 glob 形式：Windows/Node 24 下目录形式（node --test .ai/tests）会被当作入口模块而失败
         run: node --test ".ai/tests/*.test.mjs"
 
+  mirror-sync:
+    name: AI 配置镜像一致性
+    # 仅两条策略分支触发：AI 路径必须与对方分支逐字节一致，差异 = 有变更未镜像（人工 cherry-pick/对齐后重推）
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/acme-foundation' || github.ref == 'refs/heads/ai-coding-support')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 校验 AI 路径两分支一致
+        run: |
+          git diff --stat origin/ai-coding-support origin/acme-foundation -- \
+            .ai .ai-memory .github .claude .cursor .gemini .iflow .trae .qoder \
+            AGENTS.md CLAUDE.md GEMINI.md CODEBUDDY.md .gitignore \
+            ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md'
+          git diff --exit-code origin/ai-coding-support origin/acme-foundation -- \
+            .ai .ai-memory .github .claude .cursor .gemini .iflow .trae .qoder \
+            AGENTS.md CLAUDE.md GEMINI.md CODEBUDDY.md .gitignore \
+            ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md' || {
+            echo "::error::AI 配置在两分支间存在差异——请把未镜像的一方对齐到另一方后重推。"
+            exit 1
+          }
+
   app-quality:
     name: 应用构建与测试
-    # 重作业只在 main 直推与 PR 执行；功能分支 push 仅跑轻量 ai-config 门禁
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    # 重作业只在 main 直推与 PR 执行；功能分支 push 仅跑轻量 ai-config 门禁。
+    # hashFiles 守卫：分支无前端工程（如 ai-coding-support）时自动跳过，避免引用缺失而红灯
+    if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && hashFiles('workspace/apps/frontend/pnpm-lock.yaml') != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,3 +85,19 @@ jobs:
       - name: 构建
         working-directory: workspace/apps/frontend
         run: pnpm build
+
+  backend-quality:
+    name: 后端构建与测试
+    # 与 app-quality 同口径：限 main 直推与 PR；分支无后端工程时跳过。
+    # PG 集成测试经 testcontainers 在 runner 的 Docker 中真实拉起容器（本机无 Docker 则跳过）
+    if: (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && hashFiles('workspace/apps/backend/acme-cloud/pom.xml') != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - name: 构建与测试
+        working-directory: workspace/apps/backend/acme-cloud
+        run: mvn -B test

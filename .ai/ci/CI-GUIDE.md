@@ -6,7 +6,7 @@
 
 | 文件 | 触发 | 职责 |
 |---|---|---|
-| [ci.yml](ci.yml) | push(全分支) / PR | 门禁：① AI 配置同步校验（`node .ai/sync.mjs --check`）+ 派生引擎回归测试（`.ai/tests/`），**全分支触发**；② `workspace/apps/frontend` 的类型检查 / 测试 / 桌面壳层语法检查 / 构建，**限 main 直推与 PR**（作业级 `if` 门控，重作业不拖慢功能分支） |
+| [ci.yml](ci.yml) | push(全分支) / PR | 门禁：① AI 配置同步校验（`node .ai/sync.mjs --check`）+ 派生引擎回归测试（`.ai/tests/`），**全分支触发**；② **镜像一致性**（仅两条策略分支）：AI 路径在 `acme-foundation` ↔ `ai-coding-support` 必须逐字节一致；③ `workspace/apps/frontend` 的类型检查 / 测试 / 桌面壳层语法检查 / 构建，**限 main 直推与 PR**，且分支无前端工程时自动跳过（`hashFiles` 守卫）；④ `workspace/apps/backend` 的 `mvn test`（Java 25，PG 集成测试走 testcontainers），同口径门控 |
 | [cd.yml](cd.yml) | 手动 dispatch（选 dev/test/prod）；`v*` 标签 → prod | 构建 → 调 `workspace/env-stack/scripts/deploy.sh` 部署 → `healthcheck.sh` 验证 |
 | [ai-rules-sync.yml](ai-rules-sync.yml) | 触及 AI 配置相关文件 | 联动防线·远端层（见 `.ai/ARCHITECTURE.md`） |
 
