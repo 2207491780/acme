@@ -10,7 +10,7 @@ Expo SDK 52（expo ~52.0.49 / react 18.3.1 / react-native 0.76.9）+ Zustand 5 +
 
 ```text
 mobile/
-├── mobile.md
+├── MOBILE.md
 ├── app.json                # Expo 配置（深色、scheme acme、newArchEnabled）
 ├── index.ts                # registerRootComponent(App)
 ├── App.tsx                 # 头部 + 自定义底部 Tab 导航 + 构建 TICK 循环

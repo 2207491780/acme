@@ -1,6 +1,6 @@
 # desktop — PC 桌面端
 
-基于 Electron 的 PC 桌面应用，套壳 Web 端实现界面。主进程负责窗口管理、受控预加载桥接、安全 IPC 与自定义生产协议；界面与业务统一来自 [`../web/`](../web/web.md) 的 React 产物，不维护第二套页面源码。
+基于 Electron 的 PC 桌面应用，套壳 Web 端实现界面。主进程负责窗口管理、受控预加载桥接、安全 IPC 与自定义生产协议；界面与业务统一来自 [`../web/`](../web/WEB.md) 的 React 产物，不维护第二套页面源码。
 
 ## 技术栈
 
@@ -10,7 +10,7 @@ Electron ^37（开发依赖）；主进程为 ES Module，预加载为 CommonJS�
 
 ```text
 desktop/
-├── desktop.md
+├── DESKTOP.md
 ├── package.json            # @acme/desktop，main = src/main/index.js
 ├── src/
 │   ├── main/index.js       # 窗口、单实例锁、IPC、导航/开窗拦截、生产协议注册

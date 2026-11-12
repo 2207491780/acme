@@ -7,15 +7,15 @@
 | 子工程 | 目录 | 形态 | 说明 |
 |---|---|---|---|
 | 共享层 | [`packages/core/`](packages/core) | 框架无关 TS | 类型 / 常量 / 工具 / 种子 / reducer / 选择器 / **设计令牌**，三端唯一业务与视觉来源 |
-| Web 端 | [`web/`](web/web.md) | React SPA | 页面与 UI 唯一来源（React + Vite + Ant Design + Zustand） |
-| PC 端 | [`desktop/`](desktop/desktop.md) | Electron 桌面应用 | 套壳 Web 产物，不维护第二套页面源码 |
-| 移动端 | [`mobile/`](mobile/mobile.md) | React Native + Expo | 共享 `@acme/core`，Ant Design 风格的原生组件 |
+| Web 端 | [`web/`](web/WEB.md) | React SPA | 页面与 UI 唯一来源（React + Vite + Ant Design + Zustand） |
+| PC 端 | [`desktop/`](desktop/DESKTOP.md) | Electron 桌面应用 | 套壳 Web 产物，不维护第二套页面源码 |
+| 移动端 | [`mobile/`](mobile/MOBILE.md) | React Native + Expo | 共享 `@acme/core`，Ant Design 风格的原生组件 |
 
 ## 目录结构
 
 ```text
 frontend/
-├── frontend.md
+├── FRONTEND.md
 ├── UI-SPEC.md              # 面向 AI 的多端一致 UI 实施契约（令牌/组件/布局/无障碍）
 ├── package.json            # @acme/frontend，workspace 根脚本
 ├── pnpm-workspace.yaml     # packages/* + web + desktop + mobile

@@ -10,7 +10,7 @@ React 18 + Vite 5 + React Router 6（HashRouter SPA）+ Ant Design 5 + Zustand 5
 
 ```text
 web/
-├── web.md
+├── WEB.md
 ├── index.html              # Vite 入口外壳
 ├── package.json            # @acme/web
 ├── vite.config.ts          # @acme/core → ../packages/core/src 别名
