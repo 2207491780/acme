@@ -33,6 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TARGET_ENV: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
+      # 不可变 tag（env-SHA，运行时截取前 7 位）：可变 tag（<env>-latest）会让 k8s 因 spec 未变
+      # 跳过滚动更新、节点以 IfNotPresent 命中旧缓存，CI 构建"绿而不达"（2026-11-13 实测）
+      IMAGE_TAG: ${{ github.event_name == 'push' && 'prod' || inputs.env }}-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - name: 登录 TCR
@@ -41,7 +44,7 @@ jobs:
         working-directory: workspace/apps/backend
         run: |
           REG="${{ secrets.TCR_REGISTRY }}"
-          TAG="${TARGET_ENV}-latest"
+          TAG="${IMAGE_TAG::7}"
           # MODULE_PATH 为相对 acme-cloud/ 的 reactor 模块路径（上下文含 acme-parent 兄弟目录）
           for m in "acme-gateway gateway" \
                    "acme-platform/platform-auth/platform-auth-service platform-auth" \
@@ -56,8 +59,8 @@ jobs:
         working-directory: workspace/apps/frontend
         run: |
           REG="${{ secrets.TCR_REGISTRY }}"
-          docker build -f Dockerfile.web -t "$REG/web:${TARGET_ENV}-latest" .
-          docker push "$REG/web:${TARGET_ENV}-latest"
+          docker build -f Dockerfile.web -t "$REG/web:${IMAGE_TAG::7}" .
+          docker push "$REG/web:${IMAGE_TAG::7}"
 
   deploy:
     name: 部署 (${{ github.event_name == 'push' && 'prod' || inputs.env }})
@@ -83,9 +86,11 @@ jobs:
             "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}:/opt/acme/src/workspace/"
       - name: 部署（env-stack 脚本，服务器端执行）
         run: |
+          # 与 build 同 tag（同一 commit SHA）；deploy.sh 以环境变量 ACME_IMAGE_TAG 为最高优先级
+          TAG="${IMAGE_TAG::7}"
           ssh -i ~/.ssh/id_acme_deploy -p "${{ secrets.DEPLOY_SSH_PORT }}" \
             "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}" \
-            "bash /opt/acme/src/workspace/env-stack/scripts/deploy.sh $TARGET_ENV"
+            "ACME_IMAGE_TAG=$TAG bash /opt/acme/src/workspace/env-stack/scripts/deploy.sh $TARGET_ENV"
       - name: 健康检查
         run: |
           ssh -i ~/.ssh/id_acme_deploy -p "${{ secrets.DEPLOY_SSH_PORT }}" \
