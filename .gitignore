@@ -1,27 +1,311 @@
+# ============================================================
+#  ACME 项目 .gitignore —— 通用多语言开发忽略规则
+#  重要约定：
+#   · .ai/ 是 AI 配置唯一事实源，其派生产物（.claude/ .cursor/ .gemini/
+#     .iflow/ .trae/ .qoder/ .github/ 等）需要入库，切勿整体忽略。
+#   · .ai-tmp/ 内容不入库，仅保留说明文件 ABOUT.md。
+#   · 安全红线：密钥 / 凭证 / .env 一律不入库（公开模板用 .env.example）。
+#   · 需要入库却被忽略的文件，用 git add -f 强制添加。
+# ============================================================
+
 # --- AI 工具个人本地配置（不入库，见各工具 README） ---
 .claude/settings.local.json
 AGENTS.local.md
 CLAUDE.local.md
+# ZCode 本地数据（工作流草稿、会话态等）
+.zcode/
 .ai-memory/drafts/*.local.md
 
 # --- AI 临时文件（内容不入库，仅说明文件 ABOUT.md 入库） ---
 .ai-tmp/*
 !.ai-tmp/ABOUT.md
 
-# --- 密钥与环境 ---
+# --- 密钥 / 凭证 / 环境变量（安全红线，严禁入库） ---
 .env
 .env.*
+!.env.example
+!.env.template
+!.env.sample
+!.env.dist
 *.pem
 *.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.ppk
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+.netrc
+.git-credentials
+.pypirc
+secrets/
+*.secret
+*.secrets
 
-# --- 依赖与构建产物 ---
-node_modules/
-dist/
-build/
-coverage/
-
-# --- 操作系统 / 编辑器杂项 ---
+# --- 操作系统 ---
 .DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+# Office 编辑锁文件（docs 文档被编辑时产生）
+~$*
+
+# --- 编辑器 / IDE ---
 .idea/
 .vscode/
+.vs/
+# IntelliJ 模块文件（散落在 .idea/ 之外）
+*.iml
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+.history/
+
+# --- 通用依赖 / 构建产物 / 缓存 ---
+node_modules/
+jspm_packages/
+bower_components/
+vendor/
+dist/
+build/
+out/
+target/
+bin/
+obj/
+coverage/
+.cache/
+.temp/
+.tmp/
+*.tsbuildinfo
+
+# --- 日志 / 临时 / 备份 ---
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+
+# --- 编译产物 / 二进制 ---
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.exe~
+*.app
+*.class
+*.dSYM/
+*.pdb
+*.idb
+*.gch
+*.pch
+*.d
+
+# --- Node.js / 前端 ---
+.npm/
+.yarn/
+.pnp.*
+.pnpm-store/
+.eslintcache
+.stylelintcache
+.next/
+.nuxt/
+.output/
+.vite/
+.turbo/
+.parcel-cache/
+.svelte-kit/
+.docusaurus/
+.vitepress/cache/
+.vitepress/dist/
+storybook-static/
+.nyc_output/
+# Expo 开发缓存与旧版共享资源目录（mobile 启动/导出时生成）
+.expo/
+.expo-shared/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+*.egg
+.eggs/
+develop-eggs/
+sdist/
+wheels/
+.installed.cfg
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+.ipynb_checkpoints/
+pip-log.txt
+pip-delete-this-directory.txt
+celerybeat-schedule
+
+# --- Java / Kotlin / JVM ---
+.gradle/
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+*.hprof
+.mvn/timing.properties
+# flatten-maven-plugin 生成的构建产物
+.flattened-pom.xml
+# maven-shade-plugin 重定位产物
+dependency-reduced-pom.xml
+# Kotlin 构建守护进程目录（RN/Gradle 构建生成）
+.kotlin/
+
+# --- Go ---
+*.test
+coverage.out
+go.work.sum
+
+# --- Rust ---
+**/*.rs.bk
+
+# --- C / C++ / CMake ---
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CMakeUserPresets.json
+autom4te.cache/
+config.log
+config.status
+
+# --- .NET / C# ---
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bld/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+# 仅忽略根目录 NuGet packages/；monorepo 的 workspace/**/packages/ 是源码，必须入库
+/packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.svclog
+
+# --- Ruby ---
+*.gem
+*.rbc
+.bundle/
+.yardoc/
+_yardoc/
+
+# --- PHP ---
+composer.phar
+.phpunit.result.cache
+.phpunit.cache/
+.php-cs-fixer.cache
+
+# --- Dart / Flutter ---
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# --- Swift / iOS / macOS ---
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+Pods/
+.build/
+.swiftpm/
+Carthage/Build/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# --- Android ---
+*.apk
+*.aab
+*.ap_
+*.dex
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# --- 数据库 / 本地数据 ---
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.mdb
+*.accdb
+*.mdf
+*.ldf
+
+# --- Terraform / IaC ---
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# --- Docker ---
+docker-compose.override.yml
+docker-compose.override.yaml
+.docker/
