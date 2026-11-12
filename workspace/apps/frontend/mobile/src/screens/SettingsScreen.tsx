@@ -3,6 +3,8 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { ReactNode } from 'react';
 import type { Accent } from '@acme/core';
 import { useStore } from '../store/useStore';
+import { useAuthStore } from '../store/authStore';
+import { authApi } from '../api/auth';
 import { useAccent } from '../hooks';
 import { Card, Screen, Title, Eyebrow, Muted, Tag, Button } from '../components/ui';
 import { ACCENTS, ACCENT_ORDER, TONE_COLOR, palette, onAccent } from '../theme';
@@ -42,7 +44,20 @@ export function SettingsScreen() {
   const state = useStore((s) => s.state);
   const dispatch = useStore((s) => s.dispatch);
   const resetData = useStore((s) => s.resetData);
+  const session = useAuthStore((s) => s.session);
+  const clearSession = useAuthStore((s) => s.clear);
   const accent = useAccent();
+  const [logoutFlash, setLogoutFlash] = useState<string | null>(null);
+
+  const handleLogout = () => {
+    authApi
+      .logout()
+      .catch(() => undefined) // 登出幂等：令牌已失效也清空本地会话回登录屏
+      .finally(() => {
+        clearSession();
+        setLogoutFlash('已退出登录');
+      });
+  };
   const [flash, setFlash] = useState<string | null>(null);
 
   useEffect(() => {
@@ -133,6 +148,18 @@ export function SettingsScreen() {
         />
         {flash ? <Text style={[styles.flash, { color: TONE_COLOR.success }]}>{flash}</Text> : null}
         <Muted style={{ fontSize: 12 }}>导出 / 导入将在接入 expo-file-system 后启用。</Muted>
+      </Card>
+
+      <Card>
+        <Text style={styles.cardTitle}>登录信息</Text>
+        <SettingRow
+          label={`已登录：${session?.phone ?? '未登录'}`}
+          desc="双令牌经安全存储持久化；access 过期前自动刷新轮换"
+          control={
+            <Button small variant="danger" label="退出登录" onPress={handleLogout} />
+          }
+        />
+        {logoutFlash ? <Text style={[styles.flash, { color: TONE_COLOR.success }]}>{logoutFlash}</Text> : null}
       </Card>
 
       <Card>

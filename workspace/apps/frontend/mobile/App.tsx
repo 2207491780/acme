@@ -3,6 +3,8 @@ import type { ComponentType } from 'react';
 import { SafeAreaView, StatusBar, View, Text, Pressable, Platform, StyleSheet } from 'react-native';
 import { ACTIVE_STATUSES } from '@acme/core';
 import { useStore } from './src/store/useStore';
+import { useAuthStore } from './src/store/authStore';
+import { startAuthRenewal } from './src/api/client';
 import { useAccent } from './src/hooks';
 import { palette, onAccent } from './src/theme';
 import type { TabKey } from './src/nav';
@@ -10,6 +12,7 @@ import { DashboardScreen } from './src/screens/DashboardScreen';
 import { ReleasesScreen } from './src/screens/ReleasesScreen';
 import { AppsScreen } from './src/screens/AppsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
 import { BrandMark, IconDashboard, IconReleases, IconApps, IconSettings } from './src/components/icons';
 
 const TABS: { key: TabKey; label: string; Icon: ComponentType<{ color: string; size?: number }> }[] = [
@@ -27,12 +30,49 @@ export default function App() {
     (s) => s.state.releases.filter((r) => ACTIVE_STATUSES.includes(r.status)).length,
   );
   const accent = useAccent();
+  // 登录态（login-app）：启动恢复安全存储会话 + 续约守护循环；未登录渲染登录屏
+  const session = useAuthStore((s) => s.session);
+  const hydrated = useAuthStore((s) => s.hydrated);
+  const hydrate = useAuthStore((s) => s.hydrate);
+
+  useEffect(() => {
+    void hydrate();
+    const stopRenewal = startAuthRenewal();
+    return stopRenewal;
+  }, [hydrate]);
 
   useEffect(() => {
     if (!motion) return;
     const timer = setInterval(() => dispatch({ type: 'TICK' }), 1200);
     return () => clearInterval(timer);
   }, [dispatch, motion]);
+
+  if (!hydrated) {
+    return (
+      <SafeAreaView style={styles.root}>
+        <StatusBar barStyle="light-content" backgroundColor={palette.bg} />
+        <View style={[styles.root, styles.center]}>
+          <Text style={{ color: palette.muted, fontSize: 13 }}>会话恢复中…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!session) {
+    return (
+      <SafeAreaView style={styles.root}>
+        <StatusBar barStyle="light-content" backgroundColor={palette.bg} />
+        <View style={styles.header}>
+          <BrandMark color={accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.brand}>Acme SaaS 云平台</Text>
+            <Text style={styles.brandSub}>MULTI-TENANT CLOUD · APP</Text>
+          </View>
+        </View>
+        <LoginScreen />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.root}>
@@ -84,6 +124,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bg,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
+  center: { alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

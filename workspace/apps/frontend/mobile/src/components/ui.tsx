@@ -29,11 +29,13 @@ export function Button({
   onPress,
   variant = 'primary',
   small,
+  disabled,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'ghost' | 'danger';
   small?: boolean;
+  disabled?: boolean;
 }) {
   const accent = useAccent();
   const onAccent = useOnAccent();
@@ -43,11 +45,14 @@ export function Button({
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
+      accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [
         styles.btn,
         small && styles.btnSmall,
         { backgroundColor: bg, borderColor: border },
-        pressed && { opacity: 0.65 },
+        pressed && !disabled && { opacity: 0.65 },
+        disabled && { opacity: 0.4 },
       ]}
     >
       <Text style={[styles.btnText, { color: fg }, small && { fontSize: 12 }]}>{label}</Text>
