@@ -35,6 +35,9 @@ importers:
       expo-font:
         specifier: 13.0.4
         version: 13.0.4(expo@52.0.49(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(react-native@0.76.9(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1))(react@18.3.1)
+      expo-secure-store:
+        specifier: ~14.0.1
+        version: 14.0.1(expo@52.0.49(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(react-native@0.76.9(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1))
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -2324,6 +2327,11 @@ packages:
 
   expo-modules-core@2.2.3:
     resolution: {integrity: sha512-01QqZzpP/wWlxnNly4G06MsOBUTbMDj02DQigZoXfDh80vd/rk3/uVXqnZgOdLSggTs6DnvOgAUy0H2q30XdUg==}
+
+  expo-secure-store@14.0.1:
+    resolution: {integrity: sha512-QUS+j4+UG4jRQalgnpmTvvrFnMVLqPiUZRzYPnG3+JrZ5kwVW2w6YS3WWerPoR7C6g3y/a2htRxRSylsDs+TaQ==}
+    peerDependencies:
+      expo: '*'
 
   expo@52.0.49:
     resolution: {integrity: sha512-ge3gUnuyGEePWWKzPY7TQ7FsvtFTdmsdYDHeBVUjMr9KIoQig/gf8A03oH26p3UtTL6sUJcyOIg9vwIHGNPSUw==}
@@ -7207,6 +7215,10 @@ snapshots:
   expo-modules-core@2.2.3:
     dependencies:
       invariant: 2.2.4
+
+  expo-secure-store@14.0.1(expo@52.0.49(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(react-native@0.76.9(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)):
+    dependencies:
+      expo: 52.0.49(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(react-native@0.76.9(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1)
 
   expo@52.0.49(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(react-native@0.76.9(@babel/core@7.29.13)(@babel/preset-env@7.29.7(@babel/core@7.29.13))(@types/react@18.3.31)(react@18.3.1))(react@18.3.1):
     dependencies:
