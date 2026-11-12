@@ -6,9 +6,9 @@
 ## 准备工作（一次性）
 
 ```bash
-git init && git config core.hooksPath .ai/hooks
+git init && node .ai/hooks/enable.mjs   # 启用 pre-commit / commit-msg / pre-push 并自检
 # Linux/macOS 协作者首次提交前，给钩子加可执行位：
-git add .ai/hooks/pre-commit && git update-index --chmod=+x .ai/hooks/pre-commit
+git update-index --chmod=+x .ai/hooks/pre-commit .ai/hooks/commit-msg .ai/hooks/pre-push
 ```
 
 ## 通用四步流程（所有案例共用）

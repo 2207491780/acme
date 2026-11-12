@@ -90,6 +90,10 @@
 | `fix/<issue>-<简述>` | 缺陷修复 |
 | `ai-coding-support` | AI 配置镜像分支：`.ai/`、`.ai-memory/` 等支撑变更同步落地 |
 
+并行开发（git worktree）：每个 AI 会话用独立工作树，经 `node .ai/worktree.mjs add <分支名>` 创建
+（落 `.worktrees/`，基点为当前 HEAD）；同一分支不得同时检出于两个工作树；收尾 `node .ai/worktree.mjs remove`。
+流程见 `.ai-memory/playbooks/parallel-dev.md`。
+
 ## 提交信息规范（Conventional Commits）
 
 ```text
