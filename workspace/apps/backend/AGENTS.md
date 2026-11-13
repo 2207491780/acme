@@ -15,6 +15,13 @@ acme-common 公共池、acme-framework 框架层、acme-platform 平台服务、
   （`"C:\Program Files\Maven\apache-maven-my\bin\mvn.cmd"`）。
 - **本地调试环境**：后端连接的运行环境按根配置 `.ai/ai-coding-config.yml` 的 `environment.file` 所指 `.ai/env/` 定义：
   `local.yaml`=本地中间件（PG/Redis/Nacos）；`cloud-*.yaml`=云端 k3s 环境中间件。
+- **本地启动必注入变量**（2026-11-14 起无仓库默认值，缺任一即启动失败，属预期 fail-fast）：
+  双 HMAC 密钥域 `ACME_USER_TOKEN_HMAC_SECRET`（auth↔gateway 同值）与 `ACME_SECURITY_TOKEN_HMAC_SECRET`
+  （gateway↔三服务同值；两域必须不同值，≥32 字节，`openssl rand -hex 32`）；platform-auth 种子密码 3 键
+  `ACME_SEED_SUPERADMIN_PASSWORD` / `ACME_SEED_DEMO_ADMIN_PASSWORD` / `ACME_SEED_DEMO_OPERATOR_PASSWORD`
+  （每次启动需可解析，仅首次建库生成凭据，改环境变量不改已有密码）。云端联调经 `dev-tunnel.sh` 导出
+  （含种子键，集群 Secret 缺键时跳过）；纯本地用 IDE 运行配置 / 终端 export / `.ai-tmp/` 下私有 env 文件，
+  真实值不入库。
 - 模块结构：`*-api` 对外契约、`*-service` 实现与部署单元；分层 common→framework→platform→business→gateway。
   总览见同目录 `BACKEND.md`，命名见 `.ai-memory/playbooks/naming.md`。
 

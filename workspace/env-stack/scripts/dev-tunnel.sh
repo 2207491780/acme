@@ -46,8 +46,10 @@ fi
 
 echo "▶ 拉取云端 $NS 凭证（本地启动服务前 export）："
 $SSH_CMD "$RUSER@$HOST" "
-for k in PG_PASSWORD REDIS_PASSWORD NACOS_PASSWORD ACME_USER_TOKEN_HMAC_SECRET ACME_SECURITY_TOKEN_HMAC_SECRET; do
+for k in PG_PASSWORD REDIS_PASSWORD NACOS_PASSWORD ACME_USER_TOKEN_HMAC_SECRET ACME_SECURITY_TOKEN_HMAC_SECRET \
+         ACME_SEED_SUPERADMIN_PASSWORD ACME_SEED_DEMO_ADMIN_PASSWORD ACME_SEED_DEMO_OPERATOR_PASSWORD; do
   v=\$(kubectl -n $NS get secret acme-app-secrets -o jsonpath=\"{.data.\$k}\" | base64 -d)
+  [ -n \"\$v\" ] || continue  # 集群 Secret 缺该键（旧版 app.env 未登记）时跳过，不导出空值
   printf 'export %s=\"%s\"\n' \"\$k\" \"\$v\"
 done"
 

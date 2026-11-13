@@ -40,6 +40,11 @@ mkdir -p /opt/acme/dev
 # 注意权限：chmod 600 /opt/acme/dev/*.env
 ```
 
+> ⚠️ **既有服务器迁移项（2026-11-14）**：app.example.env 新增 3 个种子密码键
+> （`ACME_SEED_SUPERADMIN_PASSWORD` / `ACME_SEED_DEMO_ADMIN_PASSWORD` / `ACME_SEED_DEMO_OPERATOR_PASSWORD`），
+> 且服务镜像已无仓库内默认值——**旧 app.env 须补齐这 3 键后才能部署新镜像**，否则 platform-auth 启动即失败。
+> 值只影响首次建库；已有库的登录密码不随该值变化（改密走接口）。
+
 ## 5. 服务器取代码
 
 ```sh
