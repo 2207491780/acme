@@ -22,16 +22,7 @@
 
 ## AI 配置联动更新（强制）
 
-修改 AI Coding 相关内容时，**必须触发所有工具联动更新**，保证任何工具读到的规范颗粒度一致：
-
-1. 所有 AI 配置的唯一事实源是 `.ai/`（公共规范 `.ai/rules/`、共享能力池 `.ai/agents|skills|commands/`、工具专属配置 `.ai/tools/<工具>/`），**禁止**直接修改任何工具目录下的派生文件（如 `CLAUDE.md`、`.cursor/rules/project.mdc`、`.claude/` 内的生成内容）。
-2. 每次修改后**必须立即**运行 `node .ai/sync.mjs`，把变更派生到所有工具目录，再提交。
-3. 提交前自检：`node .ai/sync.mjs --check` 必须通过；不同步的提交会被 pre-commit 钩子与 CI 拒绝。
-4. **禁止只同步部分工具**：要么全部联动更新，要么不提交。
-
-## AI 配置修改任务
-
-凡任务涉及增删改 AI-Coding 配置（公共规范、分层规则、agents/skills/commands 公共池、工具专属配置、钩子、CI、派生引擎）：先完整阅读 `.ai-memory/playbooks/ai-config.md`，严格按其五步流程执行（定位意图 → 只改源 → `node .ai/sync.mjs` 派生 → `--check` 校验 → 汇报）。支持子代理/技能的工具，可直接调用 `ai-config-editor`（子代理）或 `ai-config`（技能）。
+所有 AI 配置唯一事实源是 `.ai/`（规范 `rules/`、公共池 `agents|skills|commands/`、工具专属 `tools/<工具>/`、钩子/CI/引擎）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完**必须立即** `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（pre-commit 与 CI 强制拒绝不同步）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行（定位意图→只改源→派生→校验→汇报）；支持的工具可调 `ai-config-editor` 子代理 / `ai-config` 技能。
 
 ## 过程性内容落盘
 
@@ -41,7 +32,7 @@
 - **高频操作步骤**（怎么做）→ `.ai-memory/` 新增手册，并在规则中挂触发条款。
 - **必须遵守的约束** → `.ai/rules/`。
 - **工作记忆**（进行中事项、踩坑速记、待沉淀结论）→ `.ai-memory/drafts/`（草稿区，随时改写；个人草稿用 `*.local.md` 不入库；成熟的结论提炼进 decisions/playbooks/rules 后删除草稿）。
-- 预算：`.ai/RULES.md`（全部规范拼接后）≤ 8KB；超限时细节移入 playbooks/decisions，规则只留一句结论加路径。
+- 预算：`.ai/RULES.md` 拼接后字节上限见 `.ai/ai-coding-config.yml`（`rulesBudgetBytes`）；超限时细节移入 playbooks/decisions，规则只留一句结论加路径。
 
 ## 产出要求
 
@@ -147,12 +138,12 @@ AI 配置变更同步镜像 `ai-coding-support`。功能分支默认留本地，
 
 ## 当前实现
 
-ACME 是多端发布流程演示台，不是真实部署平台：发布单、审批、构建进度和产物均为本地模拟，没有后端鉴权或部署接口。Web 使用本地存储，移动端目前仅内存存储。
+ACME 是全栈应用（非纯本地演示）：前端多端 monorepo + Java 后端 + k8s 部署栈，经 CI/CD 真实部署。各端技术栈/命令/约定以分层 `AGENTS.md`（frontend/backend/ui-prototype）及同目录总览（FRONTEND/BACKEND/UI-PROTOTYPE.md）为准。
 
-- 工程根 `workspace/apps/frontend/`；`packages/core/` 为框架无关业务/令牌，`web/` 为 React UI，`desktop/` 复用 Web 产物，`mobile/` 为 React Native。
-- 实际栈：Node ≥22.13、pnpm 11.8、TypeScript 5、React 18、Vite 5、Ant Design 5、Zustand、Electron 37、Expo 52 / RN 0.76；测试为 Vitest 与 Node test。
-- 未接入 TanStack Query、antd-mobile、electron-vite，不能假定这些依赖存在。
-- 视觉事实源为 `packages/core/src/theme.ts`；UI 修改先读工程内 `UI-SPEC.md`，校验页用 `pnpm ui:guide` 生成，禁止手改生成页。
+- 前端 `workspace/apps/frontend/`：pnpm monorepo（Node≥22.13、pnpm11.8、TS5、React18、Vite5、AntD5、Zustand、Electron37、Expo52/RN0.76；Vitest/node:test）；`packages/core` 框架无关业务+令牌、`web` React UI、`desktop` 套壳 Web 产物、`mobile` RN 原生；已接后端 API（auth/admin/audit）。未接入 TanStack Query/antd-mobile/electron-vite，勿假定存在。
+- 后端 `workspace/apps/backend/`：Java25 + Spring Boot4.1 多模块 Maven（`acme-parent` + `acme-cloud`：common→framework→platform→business→gateway，`*-api` 契约 / `*-service` 实现）。
+- 部署 `workspace/env-stack/`：docker/k8s(base+overlays) + `scripts/deploy.sh`；CD 构建五镜像推 TCR、SSH 部署、prod 人工审批。
+- 视觉事实源 `packages/core/src/theme.ts`；改 UI 先读工程内 `UI-SPEC.md`，校验页 `pnpm ui:guide` 生成，禁手改。
 
 ## 关键回归
 
@@ -160,8 +151,7 @@ ACME 是多端发布流程演示台，不是真实部署平台：发布单、审
 
 ## 命令与门禁
 
-在工程根运行 `pnpm typecheck`、`pnpm test`、`pnpm build`；入口为 `pnpm dev`、`pnpm desktop:dev`、`pnpm mobile:start`。桌面额外运行 `pnpm --filter @acme/desktop check`。
-
-AI 修改运行 `node .ai/sync.mjs` 和 `node .ai/sync.mjs --check`。同步通过不代表钩子已启用；派生引擎回归测试在 `.ai/tests/`（CI ai-config 作业运行）。引擎开关见 `.ai/ai-coding-config.yml`。
-
-环境连接定义在 `.ai/env/`，搭建脚本在 `workspace/env-stack/`；prod 默认只读，禁止明文密钥。
+- 前端（`frontend/`，pnpm）：`typecheck`/`test`/`build`；入口 `dev`/`desktop:dev`/`mobile:start`；桌面额外 `--filter @acme/desktop check`。
+- 后端（`acme-cloud/`）：`mvn test`；Maven 不在 PATH、PG 集成测试需 Docker（详见 backend 分层规则）。
+- AI 配置：`node .ai/sync.mjs` 派生 + `--check` 校验；引擎回归 `.ai/tests/`（CI ai-config 作业）；开关 `.ai/ai-coding-config.yml`；同步通过≠钩子已启用。
+- 环境连接 `.ai/env/`、搭建脚本 `workspace/env-stack/`；prod 默认只读，禁明文密钥。

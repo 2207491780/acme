@@ -1,12 +1,9 @@
-# 债务：RULES.md 超预算（待瘦身）
+# 债务（已解决）：RULES.md 预算口径与瘦身
 
-- 2026-11-13 实测：`.ai/RULES.md` 拼接后 **10,024 字节 > 8,192（8KB）红线**（多个会话累积，
-  非单一任务引入）。
-- 后果：规则内无法再挂任何触发条款（如对话式 CD 的触发入口已因此改放
-  `.ai-memory/playbooks/conversational-cd.md`，仅靠会话主动读取发现）。
-- 瘦身方向（独立任务，需完整 ai-config 五步流程）：
-  1. 「AI 配置联动更新」与「AI 配置修改任务」两段有重叠，可合并为一句结论 + 指向
-     `.ai-memory/playbooks/ai-config.md`；
-  2. Git 工作流的提交粒度/CR 细节可下沉 playbooks；
-  3. 项目上下文的命令清单与 RUNBOOK/AGENTS 分层规则重复部分可去重。
-- 完成标准：`wc -c .ai/RULES.md` ≤ 8192，且 sync --check 与 `.ai/tests/` 全绿。
+- 背景：多会话累积致 RULES.md 膨胀；上限已由 ADR `2026-11-13-01-rules-budget.md` 从 8KB 放宽至 10KB（`rulesBudgetBytes: 10240`）。本草稿旧版误以 8192 为红线，已纠正。
+- 本次处理（2026-11-13，fix/ai-config-context-budget）：
+  1. 合并 `ai-guidelines.md`「AI 配置联动更新」+「AI 配置修改任务」为一段结论 + playbook 指针（红线全保留）；
+  2. `project.md` 刷新为全栈实况并与分层规则去重；
+  3. 陈旧「≤8KB」口径统一改为指向引擎开关（`ai-guidelines.md` / `ai-coding-config.yml` 注释）。
+- 现状：RULES.md 拼接后 < 10240B；字节/余量以 `node .ai/sync.mjs --check` 实测为准，不再硬编码免再漂移。
+- 后续：若再逼近上限，优先继续瘦身（Git 提交粒度/CR 细节下沉 playbooks）而非再放宽。
