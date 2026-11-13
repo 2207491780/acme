@@ -29,12 +29,13 @@
 
 ## .ai 配置体系
 
-1. **根部入口孤儿检测**（sync.mjs 孤儿扫描仅覆盖 TOOLS 目录，根部 AGENTS.md/CLAUDE.md 等删源后残留不报错）
-   与 **scopes 静默覆盖警示**（SCOPED-RULES.md 补一句「路径即仓库路径，勿与既有非派生文件重名」）——引擎改动 + 测试，独立任务。
-2. commit-msg 不校验 `Assisted-by` trailer（规则要求与机械校验不一致）：二选一收口（加校验或规则注明无机器校验）。
-3. pre-push 零值 SHA 硬编码 40 位（SHA-256 仓库下删除检测失效）：仓库切 sha256 时一并处理。
-4. mirror-sync 作业对「对端分支不存在」报 git diff 128 笼统失败：首次接线期提示优化。
-5. playbooks/parallel-dev.md 与 ADR 03 对「pre-commit 暂存清单口径」的两处表述与实现不一致（P3-10）：文档口径统一。
+> 2026-11-14 全面审查（台账见 `ai-coding-audit-2026-11-14.md`，决策见 ADR 2026-11-14-21/22/23/24）已解决 1、2、5：
+
+1. ~~根部入口孤儿检测与 scopes 覆盖警示~~ ✅ 已解决：孤儿扫描扩展到根部（非递归）与 scopes 同级目录（新增 2 用例，顺带修复 inspectPath 根路径返回 null）；SCOPED-RULES.md 已补「路径即仓库路径」覆盖警示。
+2. ~~commit-msg 不校验 `Assisted-by` trailer~~ ✅ 已收口：规则注明「暂无机器校验，PR 描述审查把关」（git-workflow.md）。
+3. pre-push 零值 SHA 硬编码 40 位（SHA-256 仓库下删除检测失效）：仓库切 sha256 时一并处理。**仍遗留**。
+4. mirror-sync 作业对「对端分支不存在」报 git diff 128 笼统失败：首次接线期提示优化。**仍遗留**。
+5. ~~parallel-dev.md 与 ADR 03 的暂存清单口径不一致~~ ✅ 已解决：pre-commit 清单补 `.ai-memory` 与镜像/CI 三层统一（ADR-22 以新记录修正 ADR-03 表述）。
 
 ## ui-prototype（归档区）
 

@@ -44,7 +44,7 @@ backend/
 
 ## 构建与测试
 
-Maven 不在 PATH，用绝对路径调用；构建/测试在 `acme-cloud/` 下执行：
+Maven 不在 PATH，用绝对路径调用（口径源见 [`.ai-memory/playbooks/flex-test-assembly.md`](../../../.ai-memory/playbooks/flex-test-assembly.md)「构建与运行」）；构建/测试在 `acme-cloud/` 下执行：
 
 ```bash
 cd workspace/apps/backend/acme-cloud

@@ -102,6 +102,19 @@ test('should_exempt_when_merge_is_in_progress', async (t) => {
   assert.equal(r.status, 0, r.stderr);
 });
 
+// ---- pre-commit ----
+
+test('should_cover_ai_memory_in_precommit_staging_list_consistent_with_mirror', async (t) => {
+  // 口径统一回归（ADR 2026-11-14-22）：pre-commit 暂存清单必须与 mirror-check/CI mirror-sync 同含 .ai-memory；
+  // iFlow 已裁撤（ADR 2026-11-14-21），清单不得再含 .iflow。
+  const source = await readFile(join(HOOKS, 'pre-commit'), 'utf8');
+  const listBlock = source.split('\n').filter((l) => l.startsWith('set -- ') || l.startsWith('  AGENTS.md') || l.startsWith("  ':(glob)"));
+  assert.ok(listBlock.length >= 2, 'pre-commit 应包含 set -- 暂存清单（含续行）');
+  const list = listBlock.join('\n');
+  assert.match(list, /\.ai-memory/, '暂存清单应包含 .ai-memory（与镜像口径一致）');
+  assert.doesNotMatch(list, /\.iflow/, '暂存清单不应包含已裁撤的 .iflow');
+});
+
 // ---- pre-push ----
 
 test('should_reject_when_push_target_is_main', async (t) => {

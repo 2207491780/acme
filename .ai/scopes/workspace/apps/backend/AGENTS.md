@@ -11,8 +11,8 @@ acme-common 公共池、acme-framework 框架层、acme-platform 平台服务、
 - 仓储实现继承 `FlexRepositorySupport`；删除统一经 `FlexDeletes`（绑定表物理删除走旁路）。
 - 计数用独立无排序 QueryWrapper（`selectCountByQuery` 不剥离 ORDER BY；分页用 `paginate`）。
 - PG 集成测试无 Docker 自动跳过——跳过不等于验证，合并前必须在有 Docker 环境跑过。
-- 构建与全量测试：`acme-cloud/` 下 `mvn test`；Maven 不在 PATH
-  （`"C:\Program Files\Maven\apache-maven-my\bin\mvn.cmd"`）。
+- 构建与全量测试：`acme-cloud/` 下 `mvn test`；Maven 不在 PATH（完整路径唯一口径见
+  `.ai-memory/playbooks/flex-test-assembly.md`「构建与运行」）。
 - **本地调试环境**：后端连接的运行环境按根配置 `.ai/ai-coding-config.yml` 的 `environment.file` 所指 `.ai/env/` 定义：
   `local.yaml`=本地中间件（PG/Redis/Nacos）；`cloud-*.yaml`=云端 k3s 环境中间件。
 - **本地启动必注入变量**（2026-11-14 起无仓库默认值，缺任一即启动失败，属预期 fail-fast）：

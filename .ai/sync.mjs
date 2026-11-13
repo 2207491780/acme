@@ -56,11 +56,12 @@ const STUB_TARGETS = [
   },
 ];
 
-/** 跨工具公共池：.ai/<src>/** → 各工具目录（doc 仅作源目录说明，不派生） */
+/** 跨工具公共池：.ai/<src>/** → 各工具目录（doc 仅作源目录说明，不派生）。
+ *  targets 项为字符串或 { dir, transform }：transform 在派生 .md 时做目标工具的格式适配。 */
 const POOLS = [
-  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', '.iflow/agents', '.gemini/agents'] },
-  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills', '.iflow/workflows'] },
-  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands', '.iflow/commands'] },
+  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }] },
+  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills'] },
+  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands'] },
 ];
 
 /** 工具专属配置：.ai/tools/<key>/** → <target>/**（doc 派生为工具目录内的说明文件） */
@@ -68,7 +69,6 @@ const TOOLS = [
   { key: 'claude', doc: 'CLAUDE-CODE.md', target: '.claude' },
   { key: 'cursor', doc: 'CURSOR.md', target: '.cursor' },
   { key: 'gemini', doc: 'GEMINI-CLI.md', target: '.gemini' },
-  { key: 'iflow', doc: 'IFLOW-CLI.md', target: '.iflow' },
   { key: 'trae', doc: 'TRAE.md', target: '.trae' },
   { key: 'qoder', doc: 'QODER.md', target: '.qoder' },
   { key: 'github', doc: 'GITHUB-CONFIG.md', target: '.github' },
@@ -113,6 +113,13 @@ async function inspectPath(abs, { directory = false, allowLink = false } = {}) {
     throw new Error(`拒绝仓库外路径：${abs}`);
   }
   const parts = rel.split(sep).filter(Boolean);
+  if (parts.length === 0) {
+    // 仓库根本身：逐级循环不执行会返回 null，这里显式校验（孤儿检测的非递归根扫描依赖它）
+    const st = await statIfExists(abs);
+    if (!st || st.isSymbolicLink()) return null;
+    if (!st.isDirectory()) throw new Error(`路径不是目录：.`);
+    return st;
+  }
   let current = root;
   for (let i = 0; i < parts.length; i++) {
     current = join(current, parts[i]);
@@ -133,7 +140,7 @@ async function inspectPath(abs, { directory = false, allowLink = false } = {}) {
   return null;
 }
 
-async function walk(dir, { source = true } = {}) {
+async function walk(dir, { source = true, shallow = false } = {}) {
   const st = await inspectPath(dir, { directory: true, allowLink: !source });
   if (!st || st.isSymbolicLink()) return [];
   let entries;
@@ -150,8 +157,10 @@ async function walk(dir, { source = true } = {}) {
       if (source) throw new Error(`拒绝符号链接源：${normLink(relative(root, p))}`);
       continue;
     }
-    if (e.isDirectory()) files.push(...(await walk(p, { source })));
-    else if (e.isFile()) files.push(p);
+    if (e.isDirectory()) {
+      if (shallow) continue;
+      files.push(...(await walk(p, { source, shallow })));
+    } else if (e.isFile()) files.push(p);
   }
   return files;
 }
@@ -259,7 +268,15 @@ async function loadConfig() {
   const p = join(AI, CONFIG_FILE);
   const st = await inspectPath(p); // 缺失→null（用缺省）；符号链接/非普通文件→抛错（源安全）
   if (!st) return structuredClone(CONFIG_DEFAULTS);
-  return validateConfig(parseConfigYaml(norm(await readFile(p, 'utf8'))));
+  const cfg = validateConfig(parseConfigYaml(norm(await readFile(p, 'utf8'))));
+  // 折中存在性校验（审查 2026-11-14）：真实仓库必有 .ai/env/，目录在位时校验指针指向的文件存在，
+  // 拼写错误当场报错而非调试任务当天才暴露；fixture 最小仓库无 env 目录，跳过（fixture 兼容性不变）。
+  if (await inspectPath(join(AI, 'env'), { directory: true })) {
+    if (!(await inspectPath(join(AI, 'env', cfg.environment.file)))) {
+      throw new Error(`${CONFIG_FILE}：environment.file 指向的 ${cfg.environment.file} 不在 .ai/env/ 下`);
+    }
+  }
+  return cfg;
 }
 
 const config = await loadConfig();
@@ -357,13 +374,41 @@ for (const f of await walk(SCOPES)) {
 }
 
 // ---- 5. 公共池、工具专属、其他目标（逐文件派生） ----
-async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc = null }) {
+/** Gemini CLI 内置工具名映射：公共池 frontmatter 统一用 Claude Code 工具名（单一源），
+ *  派生到 .gemini/agents 时转 Gemini 内置名（ADR 2026-11-14-24）；仅作用于 frontmatter，正文不动。 */
+const GEMINI_TOOL_MAP = {
+  Read: 'read_file',
+  Write: 'write_file',
+  Edit: 'replace',
+  Grep: 'grep_search',
+  Glob: 'glob',
+  Bash: 'run_shell_command',
+};
+function transformGeminiAgent(content) {
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return content;
+  const front = m[1]
+    .replace(
+      /^tools:\s*\[([^\]]*)\]\s*$/m,
+      (_, list) =>
+        `tools: [${list
+          .split(',')
+          .map((s) => s.trim())
+          .map((n) => GEMINI_TOOL_MAP[n] || n)
+          .join(', ')}]`,
+    )
+    .replace(/^model:\s*inherit\s*$/m, '');
+  return `${content.slice(0, m.index)}---${front.replace(/\n+$/, '\n')}---${content.slice(m.index + m[0].length)}`;
+}
+
+async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc = null, transform = null }) {
   for (const f of await walk(srcDir)) {
     const rel = relative(srcDir, f).split('\\').join('/');
     if (excludeDocs.includes(rel)) continue;
     const label = `${srcLabel}${rel}`;
     let content = norm(await readFile(f, 'utf8'));
     if (placardDoc && rel === placardDoc) content = PLACARD_HEAD + content;
+    if (transform && rel.endsWith('.md')) content = transform(content);
     if (rel.endsWith('.md')) content = content.trimEnd() + footer(label);
     else if (/\.(ya?ml|toml)$/.test(rel))
       content = `# 派生自 ${label}（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs\n\n` + content;
@@ -373,7 +418,8 @@ async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc 
 
 for (const p of POOLS) {
   for (const t of p.targets) {
-    await derive(join(AI, p.src), t, `.ai/${p.src}/`, { excludeDocs: [p.doc] });
+    const { dir, transform } = typeof t === 'string' ? { dir: t, transform: null } : t;
+    await derive(join(AI, p.src), dir, `.ai/${p.src}/`, { excludeDocs: [p.doc], transform });
   }
 }
 for (const t of TOOLS) {
@@ -463,21 +509,31 @@ for (const [rel, want] of expected) {
   await ensureContent(rel, want);
 }
 
-// ---- 7. 孤儿派生文件检测：工具目录中带派生标记、但已不在期望集内的残留（可经 orphanDetection 关闭） ----
-if (config.engine.orphanDetection) for (const t of TOOLS) {
-  for (const f of await walk(join(root, t.target), { source: false })) {
-    const rel = relative(root, f).split('\\').join('/');
-    if (destinations.has(rel.toLowerCase())) continue;
-    let txt = '';
-    try {
-      txt = await readFile(f, 'utf8');
-    } catch (error) {
-      if (error.code === 'ENOENT') continue;
-      throw error;
-    }
-    if (DERIVED_MARK.test(txt)) {
-      errors++;
-      console.error(`❌ 孤儿派生文件 ${rel}（源已删除？请手动移除）`);
+// ---- 7. 孤儿派生文件检测：带派生标记、但已不在期望集内的残留（可经 orphanDetection 关闭） ----
+// 扫描范围：TOOLS 目标目录（递归）+ scopes 派生目标的同级目录（非递归，防误扫用户文件）
+// + 仓库根（非递归，覆盖根部入口残留）；只报带派生标记的文件，不影响用户自建内容。
+if (config.engine.orphanDetection) {
+  const scanDirs = new Map(); // dir → shallow?
+  for (const t of TOOLS) scanDirs.set(join(root, t.target), false);
+  for (const { rel, source } of destinations.values()) {
+    if (source.startsWith('.ai/scopes/')) scanDirs.set(dirname(join(root, rel)), true);
+  }
+  scanDirs.set(root, true);
+  for (const [dir, shallow] of scanDirs) {
+    for (const f of await walk(dir, { source: false, shallow })) {
+      const rel = relative(root, f).split('\\').join('/');
+      if (destinations.has(rel.toLowerCase())) continue;
+      let txt = '';
+      try {
+        txt = await readFile(f, 'utf8');
+      } catch (error) {
+        if (error.code === 'ENOENT') continue;
+        throw error;
+      }
+      if (DERIVED_MARK.test(txt)) {
+        errors++;
+        console.error(`❌ 孤儿派生文件 ${rel}（源已删除？请手动移除）`);
+      }
     }
   }
 }

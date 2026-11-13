@@ -12,7 +12,6 @@ const AI_PATHS = [
   '.claude',
   '.cursor',
   '.gemini',
-  '.iflow',
   '.trae',
   '.qoder',
   '.gitignore',

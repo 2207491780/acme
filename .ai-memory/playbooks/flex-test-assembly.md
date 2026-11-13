@@ -33,6 +33,8 @@
 
 ## 构建与运行
 
+> 本节是 Maven 路径的唯一口径源（审查 2026-11-14 收敛：散文引用一律指向此处；子代理委派单与可执行脚本块因自包含原则例外保留字面量）。
+
 - Maven 不在 PATH：`"C:\Program Files\Maven\apache-maven-my\bin\mvn.cmd"`；JDK 25（JAVA_HOME 已设）。
 - 全量测试：`workspace/apps/backend/acme-cloud/` 下 `mvn test`（容器镜像 postgres:17-alpine / redis:7.4-alpine 需本地可拉取或已缓存）。
 - 单模块快速验证：`mvn -pl <模块相对路径> test`（依赖已安装时免 `-am`）。

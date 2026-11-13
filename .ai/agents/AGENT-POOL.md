@@ -4,7 +4,7 @@
 
 ## 文件格式
 
-一个 md 文件 = 一个 agent，统一采用 Claude Code 兼容的 frontmatter（`.claude/agents/`、`.iflow/agents/`、`.gemini/agents/` 均兼容或可简单转换）：
+一个 md 文件 = 一个 agent，统一采用 Claude Code 兼容的 frontmatter（`.claude/agents/`、`.gemini/agents/` 均兼容或可简单转换）。Gemini 的工具名体系不同：引擎派生到 `.gemini/agents/` 时自动把 frontmatter 的 `tools` 映射为 Gemini 内置名（Read→read_file、Bash→run_shell_command 等）并移除 `model: inherit`（Gemini 缺省即继承，见 ADR 2026-11-14-24），池内源文件无需关心目标差异：
 
 ```markdown
 ---

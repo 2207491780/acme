@@ -18,17 +18,11 @@
 
 ## AI 配置联动更新（强制）
 
-所有 AI 配置唯一事实源是 `.ai/`（规范 `rules/`、公共池 `agents|skills|commands/`、工具专属 `tools/<工具>/`、钩子/CI/引擎）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完必须 `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（钩子与 CI 强制拒绝）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行（定位意图→只改源→派生→校验→汇报）。
+所有 AI 配置唯一事实源是 `.ai/`（范围见 `.ai-memory/playbooks/ai-config.md`）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完必须 `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（钩子与 CI 强制拒绝）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行。
 
 ## 过程性内容落盘
 
-会话中形成的重要结论**必须落盘**，不能只留在对话里（模型可见 ⟺ 已落盘）：
-
-- **取舍与决策**（为什么）→ `.ai-memory/decisions/` 新增 ADR（三段式：背景/决定/被否的选项；**只增不改**，推翻旧决策用新记录标注取代；细节见 `ADR-GUIDE.md`）。
-- **高频操作步骤**（怎么做）→ `.ai-memory/playbooks/` 新增手册，并在规则中挂触发条款。
-- **必须遵守的约束** → `.ai/rules/`。
-- **工作记忆**（进行中事项、踩坑速记、待沉淀结论）→ `.ai-memory/drafts/`（随时改写；个人草稿 `*.local.md` 不入库；成熟结论提炼进 decisions/playbooks/rules 后删除草稿）。
-- 预算：`.ai/RULES.md` 拼接后字节上限见 `.ai/ai-coding-config.yml`（`rulesBudgetBytes`）；超限时细节移入 playbooks/decisions，规则只留一句结论加路径。
+会话中形成的重要结论**必须落盘**，不能只留在对话里（模型可见 ⟺ 已落盘）。按内容分流：取舍与决策 → `.ai-memory/decisions/`（ADR，只增不改）；操作步骤 → `.ai-memory/playbooks/`（并在规则挂触发条款）；约束 → `.ai/rules/`；工作记忆 → `.ai-memory/drafts/`（随时改写，成熟后提炼并删除）。格式、三段式与预算（`rulesBudgetBytes`）见 `.ai-memory/KNOWLEDGE.md` 与 `.ai/ai-coding-config.yml`；超限时细节移入手册/决策，规则只留结论加路径。
 
 ## 产出要求
 
@@ -36,8 +30,4 @@
 2. 涉及业务逻辑的改动必须附测试，并在提交前运行全量测试。
 3. 修完自检： lint / 类型检查 / 测试 三者通过才算完成。
 4. 如实汇报结果：测试失败就报告失败，不掩饰、不跳过。
-
-## 会话留痕
-
-- 长任务定期总结进度到对话中，便于用户随时接管。
-- 完成任务时给出：改动文件清单 + 验证结果 + 遗留事项。
+5. 长任务定期总结进度到对话中，便于用户随时接管；完成时给出改动文件清单 + 验证结果 + 遗留事项。

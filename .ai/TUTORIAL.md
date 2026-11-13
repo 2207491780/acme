@@ -41,8 +41,8 @@
 
 ## 5. Gemini CLI / Antigravity（Google）
 
-- **读什么**：根 `GEMINI.md`（引用存根）→ `.ai/RULES.md`；`.gemini/agents/` 下有派生子代理。
-- **冒烟**：问通用测试句；子代理列表应含 `ai-config-editor`。
+- **读什么**：根 `GEMINI.md`（引用存根）→ `.ai/RULES.md`；`.gemini/agents/` 下有派生子代理（引擎派生时自动把 frontmatter 工具名映射为 Gemini 内置名，见 ADR 2026-11-14-24）。
+- **冒烟**：问通用测试句；子代理列表应含 `ai-config-editor`（Gemini CLI ≥ v0.24 支持 `.gemini/agents/`）。
 - **维护配置**：说意图（可点名 `ai-config-editor`）。
 - **注意**：Gemini 的自定义命令是 **TOML**——斜杠命令需在 `.ai/tools/gemini/commands/` 手工建 TOML 版（见 GUIDE 案例 5）。
 
@@ -71,13 +71,7 @@
 - **冒烟**：问通用测试句。
 - **维护配置**：说意图 + 点名手册。MCP 配置在 `.zcode/` 目录（ZCode 自管理）。
 
-## 10. iFlow CLI（心流）
-
-- **读什么**：根 `AGENTS.md` 与 `CLAUDE.md` 双入口（内容一致，任一读取方式都覆盖）；`.iflow/` 下有派生的 `agents/`、`commands/`、`workflows/`（承接技能）。
-- **冒烟**：问通用测试句；`/` 命令列表应含派生的命令。
-- **维护配置**：直接说意图，可点名 `ai-config-editor` 子代理。
-
-## 11. AGENTS.md 标准族（零配置接入）
+## 10. AGENTS.md 标准族（零配置接入）
 
 **Amp、Goose、OpenCode、Zed、Kimi Code、Amazon Q、Junie CLI、Jules 等云端/开源 Agent**：
 
@@ -92,7 +86,6 @@
 | 工具 | 入口 | 有子代理 | 有技能 | 维护提示词要加「按手册执行」？ |
 |---|---|---|---|---|
 | Claude Code | `CLAUDE.md` + `.claude/` | ✅ | ✅ | 不必（自动） |
-| iFlow CLI | 双入口 + `.iflow/` | ✅ | ✅(workflow) | 不必 |
 | Gemini CLI | `GEMINI.md` + `.gemini/` | ✅ | — | 可省 |
 | Codex / Cursor / Copilot / Trae / Qoder / ZCode / CodeBuddy / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
 
