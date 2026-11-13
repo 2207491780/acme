@@ -440,6 +440,23 @@ test('should_inject_team_leader_trigger_per_mode_into_entry_stubs', async (t) =>
   succeeds(run(repo, ['--check']));
 });
 
+test('should_treat_missing_local_only_target_as_ok_in_check_but_mismatch_as_fail', async (t) => {
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/tools/zcode/ZCODE.md', '# ZCode dir\n');
+  await put(repo, '.ai/tools/zcode/agents/helper.md', '# Helper stub\n');
+  succeeds(run(repo)); // sync：写本机 .zcode
+  succeeds(run(repo, ['--check']));
+  await rm(join(repo, '.zcode'), { recursive: true }); // 模拟全新检出/CI：本机目标缺失
+  const ok = run(repo, ['--check']);
+  succeeds(ok);
+  assert.match(ok.stdout, /跳过校验/);
+  succeeds(run(repo)); // sync 照常重建本机目标
+  succeeds(run(repo, ['--check']));
+  // 存在但内容不一致 → 仍判错（localOnly 只豁免缺失，不豁免漂移）
+  await put(repo, '.zcode/agents/helper.md', '# drifted\n');
+  fails(run(repo, ['--check']), /与 \.ai\/ 不同步/);
+});
+
 test('should_accept_environment_file_pointer_when_valid_yaml_name', async (t) => {
   const { repo } = await fixture(t);
   for (const yaml of [
