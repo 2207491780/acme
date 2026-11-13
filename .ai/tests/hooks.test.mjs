@@ -190,22 +190,48 @@ async function makeMirrorHistory(repo, g, { diverge }) {
     g(['add', '.ai']);
     g(['commit', '-q', '-m', 'chore: ai b']);
   }
+  const support = g(['rev-parse', 'HEAD']).stdout.trim();
   g(['checkout', '-q', 'main']);
-  return { acme };
+  return { acme, support };
 }
+
+test('should_reject_when_only_one_strategy_branch_pushed', async (t) => {
+  // review 修复回归：本地已镜像但只推一条策略分支 → 本地预检必过而远端对端未更新（CI mirror-sync 红灯）
+  const { repo, g } = await makeRepo(t);
+  const { acme } = await makeMirrorHistory(repo, g, { diverge: false });
+  const r = prePush(repo, `refs/heads/acme-foundation ${acme} refs/heads/acme-foundation ${ZERO}\n`);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /同一条命令/);
+});
+
+test('should_reject_when_only_support_branch_pushed', async (t) => {
+  const { repo, g } = await makeRepo(t);
+  const { acme } = await makeMirrorHistory(repo, g, { diverge: false });
+  const r = prePush(repo, `refs/heads/ai-coding-support ${acme} refs/heads/ai-coding-support ${ZERO}\n`);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /同一条命令/);
+});
 
 test('should_reject_policy_push_when_ai_config_mirror_differs', async (t) => {
   const { repo, g } = await makeRepo(t);
-  const { acme } = await makeMirrorHistory(repo, g, { diverge: true });
-  const r = prePush(repo, `refs/heads/acme-foundation ${acme} refs/heads/acme-foundation ${ZERO}\n`);
+  const { acme, support } = await makeMirrorHistory(repo, g, { diverge: true });
+  const input = [
+    `refs/heads/acme-foundation ${acme} refs/heads/acme-foundation ${ZERO}`,
+    `refs/heads/ai-coding-support ${support} refs/heads/ai-coding-support ${ZERO}`,
+  ].join('\n') + '\n';
+  const r = prePush(repo, input);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /镜像/);
 });
 
 test('should_pass_policy_push_when_ai_config_mirror_matches', async (t) => {
   const { repo, g } = await makeRepo(t);
-  const { acme } = await makeMirrorHistory(repo, g, { diverge: false });
-  const r = prePush(repo, `refs/heads/acme-foundation ${acme} refs/heads/acme-foundation ${ZERO}\n`);
+  const { acme, support } = await makeMirrorHistory(repo, g, { diverge: false });
+  const input = [
+    `refs/heads/acme-foundation ${acme} refs/heads/acme-foundation ${ZERO}`,
+    `refs/heads/ai-coding-support ${support} refs/heads/ai-coding-support ${ZERO}`,
+  ].join('\n') + '\n';
+  const r = prePush(repo, input);
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
