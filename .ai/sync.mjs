@@ -72,6 +72,8 @@ const TOOLS = [
   { key: 'trae', doc: 'TRAE.md', target: '.trae' },
   { key: 'qoder', doc: 'QODER.md', target: '.qoder' },
   { key: 'github', doc: 'GITHUB-CONFIG.md', target: '.github' },
+  // ZCode 的 agents/commands 引用存根（正文指针指向 .ai/ 公共池源）；.zcode/ 本身 git 忽略，仅本机生效
+  { key: 'zcode', doc: 'ZCODE.md', target: '.zcode' },
 ];
 
 /** 其他派生目标：.ai 内的源 → 仓库固定路径（GitHub Actions 只认 .github/workflows/） */
@@ -173,7 +175,7 @@ async function canSymlink() {
 const CONFIG_FILE = 'ai-coding-config.yml';
 const CONFIG_DEFAULTS = {
   version: 1,
-  engine: { entryMode: 'stub', orphanDetection: true, rulesBudgetBytes: 8192 },
+  engine: { entryMode: 'stub', orphanDetection: true, rulesBudgetBytes: 8192, teamLeader: 'never' },
   environment: { file: 'local.yaml' },
 };
 
@@ -231,6 +233,7 @@ function validateConfig(parsed) {
       if (k === 'entryMode' && v !== 'stub' && v !== 'symlink') throw new Error(`${CONFIG_FILE}：entryMode 必须为 stub|symlink`);
       if (k === 'orphanDetection' && typeof v !== 'boolean') throw new Error(`${CONFIG_FILE}：orphanDetection 必须为布尔`);
       if (k === 'rulesBudgetBytes' && (!Number.isInteger(v) || v <= 0)) throw new Error(`${CONFIG_FILE}：rulesBudgetBytes 必须为正整数`);
+      if (k === 'teamLeader' && v !== 'auto' && v !== 'always' && v !== 'never') throw new Error(`${CONFIG_FILE}：teamLeader 必须为 auto|always|never`);
       cfg.engine[k] = v;
     }
   }
@@ -306,18 +309,26 @@ const stub = `本仓库所有 AI 规范统一维护于 \`.ai/\`。**开始任何
 3. 未读 \`.ai/RULES.md\` 前，不得开始任何编码任务。
 4. 凡修改 AI-Coding 配置（规范 / 分层规则 / 公共池 / 工具配置 / 钩子 / CI）：先读 \`.ai-memory/playbooks/ai-config.md\`，按其五步流程执行。`;
 
+/** team-leader 多代理流程触发段：按 engine.teamLeader 档位注入所有入口存根（存根不占 RULES.md 预算；档位语义见 ARCHITECTURE「行为/引擎开关」）。 */
+const TEAM_LEADER_TRIGGER = {
+  auto: '5. 多代理流程开关（engine.teamLeader: auto）：功能开发类任务应按 team-leader 四阶段契约流程执行——入口 `.ai/skills/team-leader/SKILL.md`，手册 `.ai-memory/playbooks/multi-agent.md`，命令 `/req`。',
+  always: '5. 多代理流程开关（engine.teamLeader: always）：凡会产生业务代码的开发任务，一律按 team-leader 四阶段契约流程执行——入口 `.ai/skills/team-leader/SKILL.md`，手册 `.ai-memory/playbooks/multi-agent.md`，命令 `/req`。',
+  never: '5. 多代理流程开关（engine.teamLeader: never）：team-leader 四阶段契约流程已停用，开发任务按常规方式执行，勿主动调用该流程。',
+};
+const entryStub = `${stub}\n${TEAM_LEADER_TRIGGER[config.engine.teamLeader]}`;
+
 for (const t of LINK_TARGETS) {
   const imp = t.claudeImport ? '@.ai/RULES.md\n\n' : '';
   register(links, t.file, {
     target: LINK_TO,
-    fallback: norm(`${banner(t.tool)}\n\n${imp}# ACME 项目规范（入口）\n\n${stub}\n`),
+    fallback: norm(`${banner(t.tool)}\n\n${imp}# ACME 项目规范（入口）\n\n${entryStub}\n`),
   }, '.ai/rules/*.md（公共入口）');
 }
 
 // ---- 3. 需要专属格式的规则入口：生成存根 ----
 for (const t of STUB_TARGETS) {
   const front = t.frontmatter ? t.frontmatter.join('\n') + '\n\n' : '';
-  register(expected, t.file, norm(`${front}${banner(t.tool)}\n\n# ACME 项目规范（入口）\n\n${stub}\n`),
+  register(expected, t.file, norm(`${front}${banner(t.tool)}\n\n# ACME 项目规范（入口）\n\n${entryStub}\n`),
     '.ai/rules/*.md（公共入口）');
 }
 
