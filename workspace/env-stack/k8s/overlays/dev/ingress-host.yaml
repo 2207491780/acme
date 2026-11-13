@@ -1,11 +1,12 @@
-# dev Ingress host 覆盖（本机 hosts 文件把 acme.dev.local 指向服务器 IP 即可访问）
+# dev Ingress host —— 真域名 + Cloudflare 边缘 HTTPS（橙云代理 + SSL 模式 Flexible）
+# CF A 记录: www.acmecloud.cc.cd → 124.223.118.235；源站仅暴露 HTTP:80（Traefik hostPort）
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: acme-web
 spec:
   rules:
-    - host: acme.dev.local
+    - host: www.acmecloud.cc.cd
       http:
         paths:
           - path: /

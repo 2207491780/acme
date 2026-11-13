@@ -14,7 +14,7 @@ configMapGenerator:
   - name: acme-app-config
     behavior: merge
     literals:
-      - ACME_CORS_ALLOWED_ORIGINS=https://acme.example.com
+      - ACME_CORS_ALLOWED_ORIGINS=https://www.acmecloud.cc.cd
 patches:
   - path: ingress-host.yaml
     target:
