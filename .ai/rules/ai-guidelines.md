@@ -18,7 +18,7 @@
 
 ## AI 配置联动更新（强制）
 
-所有 AI 配置唯一事实源是 `.ai/`（规范 `rules/`、公共池 `agents|skills|commands/`、工具专属 `tools/<工具>/`、钩子/CI/引擎）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完**必须立即** `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（pre-commit 与 CI 强制拒绝不同步）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行（定位意图→只改源→派生→校验→汇报）；支持的工具可调 `ai-config-editor` 子代理 / `ai-config` 技能。
+所有 AI 配置唯一事实源是 `.ai/`（规范 `rules/`、公共池 `agents|skills|commands/`、工具专属 `tools/<工具>/`、钩子/CI/引擎）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完**必须立即** `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（钩子与 CI 强制拒绝）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行（定位意图→只改源→派生→校验→汇报）；支持的工具可调 `ai-config-editor` 子代理 / `ai-config` 技能。
 
 ## 过程性内容落盘
 

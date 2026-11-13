@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 本地 AI 并行开发工作树管理：node .ai/worktree.mjs add|remove|list
+// 本地 AI 开发工作树管理：node .ai/worktree.mjs add|remove|list
 // 口径见 .ai-memory/playbooks/parallel-dev.md；同一分支不得在两个工作树同时检出。
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
