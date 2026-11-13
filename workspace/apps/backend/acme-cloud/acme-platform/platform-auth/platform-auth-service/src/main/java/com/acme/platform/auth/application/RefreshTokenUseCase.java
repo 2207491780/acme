@@ -63,7 +63,11 @@ public class RefreshTokenUseCase {
         sessionRecorder.rotateByRefreshToken(verified.tokenId(), access.tokenId(), refresh.tokenId(),
                 refresh.expiresAt());
         revokeWithRemainingTtl(verified.tokenId(), verified.expiresAt());
-        revokeWithRemainingTtl(session.getTokenId(), null);
+        // 旧 access jti 的确切过期时间未入会话底账（会话行以 refresh TTL 为生命周期），
+        // 按配置的 access TTL 整段撤销——保证旧 access 令牌在其可能的全部剩余生命期内被网关拒绝
+        // （review 修复：此前撤销 TTL 仅 1 秒，旧令牌在剩余有效期内仍可用）
+        revokeWithRemainingTtl(session.getTokenId(),
+                Instant.now().plusSeconds(consumerProperties.getAccessTtlSeconds()));
         return new AppTokenIssued(access.token(), refresh.token(),
                 access.expiresAt(), refresh.expiresAt(), session.getUserId(), null);
     }

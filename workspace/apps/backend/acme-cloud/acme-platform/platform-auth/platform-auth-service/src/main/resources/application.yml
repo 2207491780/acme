@@ -26,8 +26,9 @@ spring:
     schemas: platform_auth
     placeholders:
       # 超管种子密码（Q-D05：Flyway placeholder 环境注入，pgcrypto BCrypt 散列，明文不落仓库；
-      # 开发默认值仅本地；生产必须以 ACME_SEED_SUPERADMIN_PASSWORD 注入）
-      seedSuperadminPassword: "${ACME_SEED_SUPERADMIN_PASSWORD:Admin@123456}"
+      # 无仓库内缺省值——与演示账号密码同口径，未注入即启动失败。本地开发：
+      # export ACME_SEED_SUPERADMIN_PASSWORD=<本地值>；部署环境经 app.env 注入）
+      seedSuperadminPassword: "${ACME_SEED_SUPERADMIN_PASSWORD}"
       # B 端演示账号种子密码（business-api-integration，架构设计 3.7）：无仓库内缺省值（密码不落仓库，
       # 14.3.3），联调/生产经部署环境注入 ACME_SEED_DEMO_ADMIN_PASSWORD / ACME_SEED_DEMO_OPERATOR_PASSWORD
       seedDemoAdminPassword: "${ACME_SEED_DEMO_ADMIN_PASSWORD}"
@@ -55,12 +56,13 @@ acme:
       # 探针与指标面（14.2.1/14.2.2）：kubelet / 监控直连服务端口，网关不路由故无对外暴露
       - /actuator/**
     token:
-      # 内部令牌校验密钥域（与网关签发同源；14.3.3 经环境注入）
-      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}
+      # 内部令牌校验密钥域（与网关签发同源；14.3.3 经环境注入、不落仓库默认值——未注入即启动失败）
+      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET}
   auth:
     token:
-      # 用户令牌签发密钥（与网关 acme.gateway.user-token.hmac-secret 同值——auth 为签发方；14.3.3）
-      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}
+      # 用户令牌签发密钥（与网关 acme.gateway.user-token.hmac-secret 同值——auth 为签发方；
+      # 14.3.3 经环境注入、不落仓库默认值——未注入即启动失败）
+      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET}
       issuer: acme-auth
       ttl-seconds: 1800
       # C 端双令牌（11.4：access 2h / refresh 14d，一次性轮换）
