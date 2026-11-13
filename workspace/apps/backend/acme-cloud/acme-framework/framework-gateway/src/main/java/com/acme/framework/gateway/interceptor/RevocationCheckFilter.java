@@ -41,21 +41,26 @@ public final class RevocationCheckFilter implements GlobalFilter, Ordered {
         if (claims == null || !config.isEnabled()) {
             return chain.filter(exchange);
         }
-        return Mono.fromCallable(() -> checker.isRevoked(claims.tokenId()))
-                .subscribeOn(Schedulers.boundedElastic())
+        // 撤销判定与下游转发分两段（review 修复）：异常兜底只覆盖 checker 调用本身，
+        // 不得覆盖 chain.filter——否则 FAIL_OPEN 下游失败会二次转发（POST 重复副作用），
+        // FAIL_CLOSE 下游业务错误会被伪装成 401。
+        return checkRevocation(claims)
                 .flatMap(revoked -> revoked
                         ? Mono.error(new GatewayRejectedException(GatewayError.AUTH_FAILED))
-                        : chain.filter(exchange))
+                        : chain.filter(exchange));
+    }
+
+    /** 撤销判定单段（异常按 FAIL_OPEN / FAIL_CLOSE 收敛为放行或拒绝）。 */
+    private Mono<Boolean> checkRevocation(UserTokenClaims claims) {
+        return Mono.fromCallable(() -> checker.isRevoked(claims.tokenId()))
+                .subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(ex -> {
-                    if (ex instanceof GatewayRejectedException rejected) {
-                        return Mono.error(rejected);
-                    }
                     if (config.getOnError() == RateLimitOnError.FAIL_CLOSE) {
                         log.warn("用户令牌撤销检查失败，FAIL_CLOSED 拒绝：tokenId={}", claims.tokenId());
                         return Mono.error(new GatewayRejectedException(GatewayError.AUTH_FAILED));
                     }
                     log.warn("用户令牌撤销检查失败，FAIL_OPEN 放行：tokenId={}", claims.tokenId());
-                    return chain.filter(exchange);
+                    return Mono.just(Boolean.FALSE);
                 });
     }
 

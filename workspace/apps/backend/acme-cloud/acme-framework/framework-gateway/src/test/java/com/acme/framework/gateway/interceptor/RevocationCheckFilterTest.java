@@ -103,6 +103,22 @@ class RevocationCheckFilterTest {
     }
 
     @Test
+    void downstreamErrorPropagatesWithSingleForwardOnFailOpen() {
+        // review 修复 P1 回归：异常兜底只覆盖撤销判定——下游业务错误原样传播、
+        // 不得二次调用 chain.filter（POST 重复副作用）
+        RevocationCheckFilter filter = filter(tokenId -> false);
+        AtomicInteger forwarded = new AtomicInteger();
+        GatewayFilterChain failingChain = ex -> {
+            forwarded.incrementAndGet();
+            return Mono.error(new IllegalStateException("downstream boom"));
+        };
+        assertThatThrownBy(() -> filter.filter(exchangeWithClaims(claims("jti-1")), failingChain).block())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("downstream boom");
+        assertThat(forwarded.get()).isEqualTo(1);
+    }
+
+    @Test
     void disabledSwitchSkipsCheck() {
         properties.getRevocation().setEnabled(false);
         RevocationCheckFilter filter = filter(tokenId -> true);

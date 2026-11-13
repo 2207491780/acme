@@ -6,6 +6,13 @@
 spring:
   application:
     name: acme-gateway
+  data:
+    redis:
+      # 撤销集直查（review 修复：此前未配置 Redis 连接，撤销检查恒异常，
+      # 即时失效特性被 FAIL_OPEN 静默架空；连接失败仍按 FAIL_OPEN 放行）
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:acme_local_redis_2026}
   cloud:
     nacos:
       server-addr: ${NACOS_ADDR:127.0.0.1:8848}
@@ -66,9 +73,9 @@ acme:
           - /app/v1/auth/tokens
           - /app/v1/auth/tokens/refresh
     user-token:
-      # 用户令牌密钥域（11.6.2 与内部令牌密钥域隔离；14.3.3 经环境注入；
-      # 与 platform-auth acme.auth.token.hmac-secret 同值——auth 为签发方）
-      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}
+      # 用户令牌密钥域（11.6.2 与内部令牌密钥域隔离；14.3.3 经环境注入、不落仓库默认值——
+      # 未注入即启动失败（TokenKeys 空密钥显式失败）；与 platform-auth acme.auth.token.hmac-secret 同值——auth 为签发方）
+      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET}
       issuer: acme-auth
     revocation:
       # 撤销检查异常兜底（Q-D02 子项：默认 FAIL_OPEN 可用性优先，可切 FAIL_CLOSE）
@@ -84,5 +91,5 @@ acme:
         quota-per-minute: 60
   security:
     token:
-      # 内部令牌密钥域：与下游校验同源（7.7；14.3.3 经环境注入）；与用户令牌密钥域隔离（11.6.2）
-      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}
+      # 内部令牌密钥域：与下游校验同源（7.7；14.3.3 经环境注入、不落仓库默认值）；与用户令牌密钥域隔离（11.6.2）
+      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET}
