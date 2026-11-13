@@ -1,7 +1,7 @@
 # 前端全栈敲定：React + Ant Design + React Native（取代 vanilla 方案）
 
 日期：2026-11-11
-取代：`2026-11-11-01-frontend-stack.md`
+取代：`2026-11-11-01-frontend-stack.md`（原记录已按 2026-11-13-15 删除，vanilla 方案要点见下方背景）
 
 ## 背景
 

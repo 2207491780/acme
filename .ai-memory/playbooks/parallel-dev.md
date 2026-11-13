@@ -10,20 +10,20 @@
 
 ## 步骤
 
-1. 主工作树（通常停在 `acme-foundation`）执行：`node .ai/worktree.mjs add feat/<issue>-<简述>`
+1. 主工作树（通常停在 `acme-foundation`）执行：`node .ai/worktree.mjs add feat/<简述>`
 2. AI 进入 `.worktrees/<分支>/` 工作：根与分层 AGENTS.md 随检出自带生效；钩子经共享配置自动生效；
    `.ai-tmp/` 按工作树隔离；**在任务结束前不要切回主工作树的分支**。
 3. 需要跑前端时在工作树内 `cd workspace/apps/frontend && pnpm install`（pnpm 共享 store，安装快）；
    后端在 `acme-cloud/` 下 `mvn test`（本地 `.m2` 共享）。
 4. **合流三步（本地开发 → 合并 → 推送）**：① 回主工作树（`acme-foundation`）合并该分支（优先快进，
-   无法快进用合并提交说明理由）；② 合并后先验证（`node .ai/sync.mjs --check` / 受影响端测试 / 构建）
-   再推送 `acme-foundation`；③ 清理：`node .ai/worktree.mjs remove feat/<issue>-<简述>`，删除分支按
-   「AI 操作授权分级」取得指令。功能分支默认留在本地，需要远端存档时按需指令推送。
-   AI 配置变更在合并推送后对齐到 `ai-coding-support`（cherry-pick 或按路径 checkout 均可，
-   CI mirror-sync 要求两分支 AI 路径逐字节一致；对齐后先 `git diff --exit-code` 预检再推）。
-   **⚠️ 双分支必须一条命令同时推送**：`git push origin acme-foundation ai-coding-support`（双远端
-   场景下即同时命中 Gitee+GitHub）。分先后推会让 mirror-sync 门禁在窗口期内读到不一致的两分支
-   而误报红灯（2026-11-13 实测）；万一误报，两分支对齐后 re-run 该作业即可。
+   无法快进用合并提交说明理由）；② 合并后先验证（`node .ai/sync.mjs --check` / 受影响端测试 / 构建）；
+   ③ 推送前把 AI 配置对齐到 `ai-coding-support`（cherry-pick 或按路径 checkout 均可），并用**同一条命令**
+   推两分支：`git push origin acme-foundation ai-coding-support`（双远端即同时命中 Gitee+GitHub）。
+   pre-push 会用 `.ai/hooks/mirror-check.mjs` 预检两分支 AI 路径逐字节一致，不一致直接拒推；
+   分先后推会让 mirror-sync 在窗口期内误报红灯（2026-11-13 实测），真误报则对齐后 re-run 该作业。
+   功能分支**默认不推远端**（pre-push 拒绝 `feat/*`、`fix/*`；确需远端存档用 `ACME_ALLOW_BRANCH_PUSH=1`
+   显式豁免，删除远端任务分支不受限）；收尾 `node .ai/worktree.mjs remove feat/<简述>`，
+   删分支按「AI 操作授权分级」取得指令。
 
 ## 约束
 

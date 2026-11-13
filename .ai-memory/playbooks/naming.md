@@ -18,7 +18,7 @@
 | 内容源（规范/手册/决策/代理/技能正文，面向 AI 消费或拼接） | **lowercase-kebab** | `coding-standards.md`、`ai-config.md`、`flex-test-assembly.md`、`ai-config-editor.md` |
 
 - **目录总览/说明文档 = 目录名的大写形式**（kebab 目录 → UPPER-KEBAB.md）：`workspace/`→`WORKSPACE.md`、`apps/`→`APPS.md`、`env-stack/`→`ENV-STACK.md`、`backend/`→`BACKEND.md`、`web-console/`→`WEB-CONSOLE.md`。每个应用目录放一份，写清「做什么 / 怎么跑 / 依赖什么」。
-- **决策记录（ADR）** = `YYYY-MM-DD-NN-<slug>.md`（NN 当日序号，slug 用 kebab）；三段式背景/决定/被否的选项，只增不改。
+- **决策记录（ADR）** = `YYYY-MM-DD-NN-<slug>.md`（NN 当日序号，slug 用 kebab）；格式与纪律见 `../decisions/ADR-GUIDE.md`。
 - **手册/规范源** = 语义 kebab 小写（`naming.md`、`ai-config.md`）；新增手册在 `PLAYBOOK-GUIDE.md` 登记，并在 `.ai/rules/` 挂触发条款。
 - 技能正文固定 `SKILL.md`（框架要求，豁免）；代理文件 = 代理名 kebab（`ai-config-editor.md`）。
 

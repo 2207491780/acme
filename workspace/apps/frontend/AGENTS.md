@@ -15,7 +15,7 @@ TypeScript 5 / React 18 多端 pnpm monorepo（Node ≥22.13、pnpm 11.8）：`p
 - **测试与门禁**（相对 `frontend/`，用 pnpm）：core/web/mobile 用 Vitest、desktop 用 node:test；
   门禁 `pnpm typecheck`、`pnpm test`、`pnpm build`，桌面额外 `pnpm --filter @acme/desktop check`；
   入口 `pnpm dev`（Web）/ `pnpm desktop:dev` / `pnpm mobile:start`。
-- 技术栈取舍见 `.ai-memory/decisions/2026-11-11-01-frontend-stack.md`、`2026-11-11-02-frontend-react-stack.md`、
+- 技术栈取舍见 `.ai-memory/decisions/2026-11-11-02-frontend-react-stack.md`、
   `2026-11-12-01-mobile-ui-native-rn.md`；命名见 `.ai-memory/playbooks/naming.md`；总览见同目录 `FRONTEND.md`。
 
 <!-- 派生自 .ai/scopes/workspace/apps/frontend/AGENTS.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->

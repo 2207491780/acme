@@ -28,7 +28,7 @@
 
 会话中形成的重要结论**必须落盘**，不能只留在对话里（模型可见 ⟺ 已落盘）：
 
-- **取舍与决策**（为什么）→ `.ai-memory/` 新增记录（三段式：背景/决定/被否的选项；**只增不改**，推翻旧决策用新记录标注取代）。
+- **取舍与决策**（为什么）→ `.ai-memory/` 新增记录（三段式：背景/决定/被否的选项；**只增不改**，推翻旧决策用新记录标注取代；整体失效记录可删，见 `.ai-memory/decisions/ADR-GUIDE.md`）。
 - **高频操作步骤**（怎么做）→ `.ai-memory/` 新增手册，并在规则中挂触发条款。
 - **必须遵守的约束** → `.ai/rules/`。
 - **工作记忆**（进行中事项、踩坑速记、待沉淀结论）→ `.ai-memory/drafts/`（草稿区，随时改写；个人草稿用 `*.local.md` 不入库；成熟的结论提炼进 decisions/playbooks/rules 后删除草稿）。
@@ -76,14 +76,13 @@
 
 | 分支 | 用途 |
 |---|---|
-| `main` | 受保护，始终可发布；只接受合并，不直接推送 |
-| `feat/<issue>-<简述>` | 功能开发 |
-| `fix/<issue>-<简述>` | 缺陷修复 |
+| `acme-foundation` | 受保护主线，始终可发布；只接受合流，不在其上直接开发提交 |
+| `main` | 历史初始化分支，已归档；不可推送 / 删除 |
+| `feat/<简述>` / `fix/<简述>` | 功能开发 / 缺陷修复；默认只留本地 |
 | `ai-coding-support` | AI 配置镜像分支：`.ai/`、`.ai-memory/` 等支撑变更同步落地 |
 
-并行开发（git worktree）：每个 AI 会话用独立工作树，经 `node .ai/worktree.mjs add <分支名>` 创建
-（落 `.worktrees/`，基点为当前 HEAD）；同一分支不得同时检出于两个工作树；收尾 `node .ai/worktree.mjs remove`。
-流程见 `.ai-memory/playbooks/parallel-dev.md`。
+并行开发用独立工作树：`node .ai/worktree.mjs add <分支名>`（落 `.worktrees/`，基点当前 HEAD），同一分支
+不得双检，收尾 `worktree.mjs remove`；流程见 `.ai-memory/playbooks/parallel-dev.md`。
 
 ## 提交信息规范（Conventional Commits）
 
@@ -130,9 +129,10 @@ AI 工具执行 Git 操作按三档授权，越档视为违规；授权随用户
 
 ## 开发合流流程（本地开发 → 合并 → 推送）
 
-禁止直接在主线 `acme-foundation` 开发提交，一律三步：① 在 `feat/`、`fix/` 分支或独立工作树内开发自检；
-② 回主工作树合并（优先快进），合并后先验证（`sync --check`/测试/构建）；③ 验证通过再推送，
-AI 配置变更同步镜像 `ai-coding-support`。功能分支默认留本地，推远端与删分支按授权分级。
+禁止在主线 `acme-foundation` 直接提交，三步：① 在 `feat/`、`fix/` 分支或工作树内开发自检；
+② 回主工作树合并（优先快进）并验证（`sync --check`/测试/构建）；③ 推送前读 `parallel-dev.md`：
+两策略分支必须同一条命令推送（pre-push 预检镜像一致性），AI 配置同步镜像 `ai-coding-support`；
+feat/fix 默认不推远端（钩子拒绝，豁免见手册）。推远端与删分支按授权分级。
 
 # 项目上下文
 
