@@ -4,10 +4,11 @@
 
 | 手册 | 用途 | 触发方式 |
 |---|---|---|
-| [ai-config.md](ai-config.md) | 修改本仓库任何 AI-Coding 配置的标准流程 | 规则条款（`.ai/rules/ai-guidelines.md`「AI 配置修改任务」）；Claude Code / iFlow / Gemini 可直接调用 `ai-config-editor` 子代理或 `ai-config` 技能 |
+| [ai-config.md](ai-config.md) | 修改本仓库任何 AI-Coding 配置的标准流程 | 规则条款（`.ai/rules/ai-guidelines.md`「AI 配置联动更新（强制）」）；Claude Code / iFlow / Gemini 可直接调用 `ai-config-editor` 子代理或 `ai-config` 技能 |
 | [flex-test-assembly.md](flex-test-assembly.md) | 后端新增服务/仓储与集成测试的装配口径（MyBatis-Flex） | 分层规则（`.ai/scopes/workspace/apps/backend/AGENTS.md`，就近生效） |
 | [naming.md](naming.md) | 文件/文件夹/包/标识符的统一命名格式（含豁免清单与大小写红线） | 规则条款（`.ai/rules/coding-standards.md`「语言与格式」） |
 | [parallel-dev.md](parallel-dev.md) | 本地多 AI 并行开发（git worktree）标准流程与约束 | 规则条款（`.ai/rules/git-workflow.md`「分支模型」） |
+| [conversational-cd.md](conversational-cd.md) | 会话内部署/回滚：触发 GitHub CD → 轮询 → 服务器核验 | 规则条款（`.ai/rules/project.md`「命令与门禁」部署行） |
 
 ## 说明
 
