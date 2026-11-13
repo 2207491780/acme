@@ -27,18 +27,41 @@ export function storageFor(remember: boolean): Storage {
   return remember ? window.localStorage : window.sessionStorage;
 }
 
-function load(): { session: AuthSession | null; remember: boolean } {
+/** 会话恢复运行时校验（review 修复）：持久化数据来自外部存储，不得用类型断言信任；
+ * 任一字段缺失/类型不符即拒绝恢复，避免损坏数据产生 NaN 过期时间与无意义的续约循环。 */
+function isValidSession(value: unknown): value is AuthSession {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const s = value as Partial<AuthSession>;
+  return (
+    typeof s.accessToken === 'string' &&
+    s.accessToken.length > 0 &&
+    typeof s.expiresAtMs === 'number' &&
+    Number.isFinite(s.expiresAtMs) &&
+    s.expiresAtMs > 0 &&
+    typeof s.userId === 'number' &&
+    Number.isFinite(s.userId) &&
+    typeof s.username === 'string' &&
+    s.username.length > 0 &&
+    (s.nickname === null || typeof s.nickname === 'string') &&
+    typeof s.tenantCode === 'string' &&
+    s.tenantCode.length > 0
+  );
+}
+
+export function load(): { session: AuthSession | null; remember: boolean } {
   try {
     const remember = window.localStorage.getItem(REMEMBER_KEY) === '1';
     const raw = storageFor(remember).getItem(KEY);
     if (!raw) {
       return { session: null, remember: false };
     }
-    const session = JSON.parse(raw) as AuthSession;
-    if (!session?.accessToken) {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isValidSession(parsed)) {
       return { session: null, remember: false };
     }
-    return { session, remember };
+    return { session: parsed, remember };
   } catch {
     // 持久化数据损坏按未登录处理（不阻塞应用）
     return { session: null, remember: false };

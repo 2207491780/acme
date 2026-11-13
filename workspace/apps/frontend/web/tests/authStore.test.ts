@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isExpiringSoon, useAuthStore } from '../src/store/authStore';
+import { isExpiringSoon, load, useAuthStore } from '../src/store/authStore';
 
 /** 会话存储与续约判定（login-state / login-renew）。 */
 describe('authStore', () => {
@@ -62,5 +62,39 @@ describe('authStore', () => {
     expect(isExpiringSoon(later)).toBe(false);
     expect(isExpiringSoon(null)).toBe(true);
     expect(isExpiringSoon(later, 0)).toBe(false);
+  });
+
+  it('should_restore_valid_session_from_localStorage', () => {
+    useAuthStore.getState().setSession(session(), true);
+    // 模拟应用重启：清内存态后从持久化恢复
+    useAuthStore.setState({ session: null, remember: false });
+    const restored = load();
+    expect(restored.session?.accessToken).toBe('token-1');
+    expect(restored.remember).toBe(true);
+  });
+
+  it('should_reject_restore_when_expiresAtMs_missing', () => {
+    const { expiresAtMs: _omit, ...rest } = session();
+    window.localStorage.setItem('acme.auth.session.v1', JSON.stringify(rest));
+    window.localStorage.setItem('acme.auth.remember.v1', '1');
+    const restored = load();
+    expect(restored.session).toBeNull();
+    expect(restored.remember).toBe(false);
+  });
+
+  it('should_reject_restore_when_field_type_mismatch', () => {
+    const broken = { ...session(), userId: 'not-a-number' };
+    window.localStorage.setItem('acme.auth.session.v1', JSON.stringify(broken));
+    expect(load().session).toBeNull();
+  });
+
+  it('should_reject_restore_when_payload_not_object', () => {
+    window.localStorage.setItem('acme.auth.session.v1', JSON.stringify('garbage'));
+    expect(load().session).toBeNull();
+  });
+
+  it('should_reject_restore_when_json_malformed', () => {
+    window.localStorage.setItem('acme.auth.session.v1', '{oops');
+    expect(load().session).toBeNull();
   });
 });
