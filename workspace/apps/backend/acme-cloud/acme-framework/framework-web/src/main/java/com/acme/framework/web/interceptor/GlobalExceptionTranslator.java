@@ -1,5 +1,6 @@
 package com.acme.framework.web.interceptor;
 
+import com.acme.common.contract.InvalidRequestException;
 import com.acme.common.context.LocaleContext;
 import com.acme.common.core.BizException;
 import com.acme.common.core.CommonError;
@@ -99,6 +100,17 @@ public class GlobalExceptionTranslator {
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
             MissingServletRequestParameterException.class})
     public ResponseEntity<Result<Object>> handleBadRequest(Exception ex) {
+        try {
+            return ResponseEntity.status(WebError.BAD_REQUEST.httpStatus())
+                    .body(Result.fail(WebError.BAD_REQUEST));
+        } catch (RuntimeException mapEx) {
+            return fallback(mapEx);
+        }
+    }
+
+    /** 协议基元参数越界（review 修复）：分页等 contract 类型入参不合法 → 400，不再落 500。 */
+    @ExceptionHandler(InvalidRequestException.class)
+    public ResponseEntity<Result<Object>> handleInvalidRequest(InvalidRequestException ex) {
         try {
             return ResponseEntity.status(WebError.BAD_REQUEST.httpStatus())
                     .body(Result.fail(WebError.BAD_REQUEST));

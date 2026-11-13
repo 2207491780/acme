@@ -30,6 +30,14 @@ class DataPermissionAspectTest {
         }
     }
 
+    /** 类级标注目标（review 修复回归：类级 @DataPermission 此前被 pointcut 静默忽略）。 */
+    @DataPermission("class.level.read")
+    static class ClassAnnotatedTarget {
+        public String read() {
+            return "ok";
+        }
+    }
+
     @Configuration(proxyBeanMethods = false)
     @EnableAspectJAutoProxy(proxyTargetClass = true)
     static class AspectConfig {
@@ -85,6 +93,11 @@ class DataPermissionAspectTest {
         ProtectedTarget protectedTarget() {
             return new ProtectedTarget();
         }
+
+        @Bean
+        ClassAnnotatedTarget classAnnotatedTarget() {
+            return new ClassAnnotatedTarget();
+        }
     }
 
     @Configuration(proxyBeanMethods = false)
@@ -133,6 +146,19 @@ class DataPermissionAspectTest {
             assertThatThrownBy(() -> context.getBean(ProtectedTarget.class).read())
                     .isInstanceOf(BizException.class)
                     .hasFieldOrPropertyWithValue("errorCode", SecurityError.DATA_PERMISSION_DENIED);
+        }
+    }
+
+    @Test
+    void classLevelAnnotationIsIntercepted() {
+        // review 修复回归：类级 @DataPermission 与方法级同效（deny 评估器 → 403）
+        UserContext.bind(new UserContext("u-1", Set.of()));
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(DenyConfig.class)) {
+            assertThatThrownBy(() -> context.getBean(ClassAnnotatedTarget.class).read())
+                    .isInstanceOf(BizException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", SecurityError.DATA_PERMISSION_DENIED);
+        } finally {
+            UserContext.clear();
         }
     }
 }

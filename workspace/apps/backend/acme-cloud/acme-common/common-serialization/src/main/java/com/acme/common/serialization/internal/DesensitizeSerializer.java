@@ -68,7 +68,8 @@ public final class DesensitizeSerializer extends ValueSerializer<Object> {
     /** 保留首尾两端、中间替换为固定掩码段（不暴露原文长度）。 */
     private static String maskEnds(String raw, int keepHead, int keepTail, String middle, int minLength, String failureHint) {
         if (raw == null || raw.length() < minLength) {
-            throw new IllegalArgumentException(failureHint + "，无法掩码：" + raw);
+            // 失败消息不携带原文（review 修复：原文经异常进 ERROR 日志即泄露），仅暴露长度元数据
+            throw new IllegalArgumentException(failureHint + "，无法掩码（长度=" + lengthOf(raw) + "）");
         }
         return raw.substring(0, keepHead) + middle + raw.substring(raw.length() - keepTail);
     }
@@ -76,7 +77,7 @@ public final class DesensitizeSerializer extends ValueSerializer<Object> {
     /** 仅保留尾部若干位，前缀替换为固定掩码段。 */
     private static String maskTail(String raw, int keepTail, int minLength, String failureHint) {
         if (raw == null || raw.length() < minLength) {
-            throw new IllegalArgumentException(failureHint + "，无法掩码：" + raw);
+            throw new IllegalArgumentException(failureHint + "，无法掩码（长度=" + lengthOf(raw) + "）");
         }
         return MASK_SEGMENT + raw.substring(raw.length() - keepTail);
     }
@@ -88,7 +89,7 @@ public final class DesensitizeSerializer extends ValueSerializer<Object> {
         }
         int at = raw.indexOf('@');
         if (at <= 0 || at == raw.length() - 1) {
-            throw new IllegalArgumentException("邮箱格式不符，无法掩码：" + raw);
+            throw new IllegalArgumentException("邮箱格式不符，无法掩码（长度=" + lengthOf(raw) + "）");
         }
         return raw.charAt(0) + MASK_SEGMENT + raw.substring(at);
     }
@@ -96,8 +97,12 @@ public final class DesensitizeSerializer extends ValueSerializer<Object> {
     /** 保留首字符（姓），其余逐字替换为星号。 */
     private static String maskChineseName(String raw) {
         if (raw == null || raw.length() < 2) {
-            throw new IllegalArgumentException("中文姓名长度不足，无法掩码：" + raw);
+            throw new IllegalArgumentException("中文姓名长度不足，无法掩码（长度=" + lengthOf(raw) + "）");
         }
         return raw.charAt(0) + "*".repeat(raw.length() - 1);
+    }
+
+    private static String lengthOf(String raw) {
+        return raw == null ? "null" : String.valueOf(raw.length());
     }
 }

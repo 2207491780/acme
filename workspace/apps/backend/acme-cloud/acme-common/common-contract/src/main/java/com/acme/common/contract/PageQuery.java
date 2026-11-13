@@ -3,6 +3,8 @@ package com.acme.common.contract;
 /**
  * 分页查询协议基元（FR-023；Modules.md 2.1 推荐 record）：服务内与跨服务统一分页请求类型。
  * 缺省归一为首页与默认页大小；越界显式失败，不静默纠正。
+ * 越界抛 {@link InvalidRequestException}（由 framework-web 映射为 HTTP 400）——不再抛裸
+ * IllegalArgumentException，避免客户端误传被全局兜底映射成 500（review 修复）。
  *
  * @implNote 暂缓 DP-008：分页参数与业务查询对象的组合方式随首个使用方补全。
  */
@@ -22,13 +24,13 @@ public record PageQuery(Integer page, Integer size) {
             size = DEFAULT_SIZE;
         }
         if (page < 1) {
-            throw new IllegalArgumentException("page 必须 ≥ 1");
+            throw new InvalidRequestException("page 必须 ≥ 1");
         }
         if (size < 1) {
-            throw new IllegalArgumentException("size 必须 ≥ 1");
+            throw new InvalidRequestException("size 必须 ≥ 1");
         }
         if (size > MAX_SIZE) {
-            throw new IllegalArgumentException("size 超出上界 " + MAX_SIZE);
+            throw new InvalidRequestException("size 超出上界 " + MAX_SIZE);
         }
     }
 

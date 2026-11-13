@@ -35,8 +35,8 @@ acme:
     public-paths:
       - /actuator/**
     token:
-      # 内部令牌校验密钥域（与网关签发同源；14.3.3 经环境注入）
-      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET:a8f3c2b19d4e7a6f0c5b8d3e9f2a7b4c6d8e1f3a5c7b9d1e2f4a6c8b0d2e4f6a}
+      # 内部令牌校验密钥域（与网关签发同源；14.3.3 经环境注入、不落仓库默认值——未注入即启动失败）
+      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET}
   i18n:
     # zh/en 双语（NFR-007）：框架汇总资源 + 本服务资源（消息键=错误码，8.2）
     basenames: i18n/acme-messages,i18n/platform-system-messages

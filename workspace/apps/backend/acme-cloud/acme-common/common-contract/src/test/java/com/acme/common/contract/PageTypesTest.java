@@ -22,10 +22,11 @@ class PageTypesTest {
     }
 
     @Test
-    void queryRejectsIllegalBounds() {
-        assertThrows(IllegalArgumentException.class, () -> new PageQuery(0, 10));
-        assertThrows(IllegalArgumentException.class, () -> new PageQuery(1, 0));
-        assertThrows(IllegalArgumentException.class, () -> new PageQuery(1, PageQuery.MAX_SIZE + 1));
+    void queryRejectsIllegalBoundsAsInvalidRequest() {
+        // review 修复回归：越界抛 InvalidRequestException（framework-web 映射 HTTP 400），客户端误传不再落 500
+        assertThrows(InvalidRequestException.class, () -> new PageQuery(0, 10));
+        assertThrows(InvalidRequestException.class, () -> new PageQuery(1, 0));
+        assertThrows(InvalidRequestException.class, () -> new PageQuery(1, PageQuery.MAX_SIZE + 1));
     }
 
     @Test
