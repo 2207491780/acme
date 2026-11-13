@@ -53,7 +53,7 @@
 | 1 三向一致 | 前端调用路径 = 后端 Controller 路径 = `acme-gateway/application.yml` 路由 | 三向一致 |
 | 2 AC 覆盖率 | 对照 tester 映射核对 | 每条 AC ≥1 用例 |
 | 3 契约机器层 | `node .ai/skills/team-leader/scripts/check-contract.mjs contracts/{REQ-ID}.md` | `[GATE]` PASS |
-| 4 本地测试 | frontend：`pnpm typecheck && pnpm test && pnpm build`（+`pnpm --filter @acme/desktop check`）；backend：`acme-cloud/` 下 `mvn test`（完整路径 `"C:\Program Files\Maven\apache-maven-my\bin\mvn.cmd"`） | 全过；skip 逐条归因 |
+| 4 本地测试 | frontend：`pnpm typecheck && pnpm test && pnpm build`（+`pnpm --filter @acme/desktop check`）；backend：`acme-cloud/` 下 `mvn test`（Maven 不在 PATH，完整路径见 `flex-test-assembly.md`「构建与运行」） | 全过；skip 逐条归因 |
 | 5 跨需求冲突 | 扫描 `contracts/*.md` 的 `apis` 与 `migrations`（并行需求不得冲突） | 无冲突 |
 
 - PG/Redis 集成测试用 Testcontainers 自起容器，**跳过≠验证**：合并前必须在有 Docker 的环境跑过（既有规则，SKIP 不豁免此项）。

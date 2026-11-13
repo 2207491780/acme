@@ -81,7 +81,7 @@ model: inherit
 输出：按严重度排序的问题清单，每条含文件:行号与修复建议。
 ```
 
-跑通用流程后派生到 `.claude/agents/`、`.iflow/agents/`、`.gemini/agents/`。
+跑通用流程后派生到 `.claude/agents/`、`.gemini/agents/`。
 
 **使用**：Claude Code 会按 description 自动委派；也可显式说「用 code-reviewer 审一下这次改动」。只给单一工具用时，改放 `.ai/tools/<工具>/agents/` 即可。
 
@@ -107,7 +107,7 @@ description: 发版前检查清单。执行发版或版本号变更任务时应�
 4. 打 tag 并推送
 ```
 
-跑通用流程后派生到 `.claude/skills/release-checklist/`（Claude Code 技能）与 `.iflow/workflows/release-checklist/`（iFlow workflow）。
+跑通用流程后派生到 `.claude/skills/release-checklist/`（Claude Code 技能）。
 
 ## 案例 5：新增斜杠命令
 
@@ -124,7 +124,7 @@ allowed-tools: [Bash(npm:*), Bash(scp:*)]
 按顺序执行：1) 运行全量测试；2) 构建 $ARGUMENTS 指定的目标；3) 部署到测试环境并汇报结果。
 ```
 
-跑通用流程后派生到 `.claude/commands/`、`.iflow/commands/`。
+跑通用流程后派生到 `.claude/commands/`。
 
 **Gemini 补充**（命令是 TOML 格式，需在工具专属源手工建一份）`.ai/tools/gemini/commands/deploy.toml`：
 
@@ -187,7 +187,7 @@ alwaysApply: false
 
 对所有工具直接下自然语言指令即可，**说意图、不说文件**：
 
-- **Claude Code / iFlow / Gemini**：「把分支模型改成 trunk-based」——自动触发 `ai-config` 技能 / `ai-config-editor` 子代理；
+- **Claude Code / Gemini**：「把分支模型改成 trunk-based」——自动触发 `ai-config` 技能 / `ai-config-editor` 子代理；
 - **Cursor / Trae / Qoder / ZCode / Codex 等**：「按 `.ai-memory/playbooks/ai-config.md` 的流程，给编码规范的命名约定表加 Go 后端例外」。
 
 AI 工具会自动执行五步：读手册 → 只改 `.ai/` 源 → `node .ai/sync.mjs` → `--check` 校验 → 汇报「源改动 + 派生变化 + 校验输出」。
@@ -210,7 +210,7 @@ AI 工具会自动执行五步：读手册 → 只改 `.ai/` 源 → `node .ai/s
 | 症状 | 原因 | 处理 |
 |---|---|---|
 | `git commit` 被拒绝 | `.ai/` 改动未派生 | `node .ai/sync.mjs` 后重新 `git add -A` 提交 |
-| CI（ai-rules-sync）红灯 | 同上（远端防线） | 本地跑同步后重新推送 |
+| CI（ai-config 作业）红灯 | 同上（远端防线） | 本地跑同步后重新推送 |
 | 提示「❌ xxx 与 .ai/ 不同步」 | 有人手改了派生文件 | `node .ai/sync.mjs` 覆盖修复（手改内容请移植回 `.ai/` 源） |
 | 提示「孤儿派生文件」 | `.ai/` 里的源被删了，派生物残留 | 按提示路径手动删除残留文件 |
 | 入口文件变成一行路径文本 | 无 symlink 支持的机器检出链接损坏（`--links` 模式） | `node .ai/sync.mjs` 自动修复为存根 |

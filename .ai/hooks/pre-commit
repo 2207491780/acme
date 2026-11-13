@@ -12,7 +12,9 @@ node .ai/sync.mjs --check || {
 }
 
 # 工作区同步不能证明暂存区同步；相关文件须完整暂存，禁止半份配置进入提交。
-set -- .ai .github .claude .cursor .gemini .iflow .trae .qoder .gitignore \
+# 暂存清单与 .ai/hooks/mirror-check.mjs 的 AI_PATHS、CI mirror-sync 作业保持同口径（含 .ai-memory，
+# 见 ADR 2026-11-14-22；iFlow 已裁撤，见 ADR 2026-11-14-21）。
+set -- .ai .ai-memory .github .claude .cursor .gemini .trae .qoder .gitignore \
   AGENTS.md CLAUDE.md GEMINI.md CODEBUDDY.md \
   ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md'
 if ! git diff --quiet -- "$@"; then

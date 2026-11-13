@@ -22,17 +22,11 @@
 
 ## AI 配置联动更新（强制）
 
-所有 AI 配置唯一事实源是 `.ai/`（规范 `rules/`、公共池 `agents|skills|commands/`、工具专属 `tools/<工具>/`、钩子/CI/引擎）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完必须 `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（钩子与 CI 强制拒绝）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行（定位意图→只改源→派生→校验→汇报）。
+所有 AI 配置唯一事实源是 `.ai/`（范围见 `.ai-memory/playbooks/ai-config.md`）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完必须 `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（钩子与 CI 强制拒绝）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行。
 
 ## 过程性内容落盘
 
-会话中形成的重要结论**必须落盘**，不能只留在对话里（模型可见 ⟺ 已落盘）：
-
-- **取舍与决策**（为什么）→ `.ai-memory/decisions/` 新增 ADR（三段式：背景/决定/被否的选项；**只增不改**，推翻旧决策用新记录标注取代；细节见 `ADR-GUIDE.md`）。
-- **高频操作步骤**（怎么做）→ `.ai-memory/playbooks/` 新增手册，并在规则中挂触发条款。
-- **必须遵守的约束** → `.ai/rules/`。
-- **工作记忆**（进行中事项、踩坑速记、待沉淀结论）→ `.ai-memory/drafts/`（随时改写；个人草稿 `*.local.md` 不入库；成熟结论提炼进 decisions/playbooks/rules 后删除草稿）。
-- 预算：`.ai/RULES.md` 拼接后字节上限见 `.ai/ai-coding-config.yml`（`rulesBudgetBytes`）；超限时细节移入 playbooks/decisions，规则只留一句结论加路径。
+会话中形成的重要结论**必须落盘**，不能只留在对话里（模型可见 ⟺ 已落盘）。按内容分流：取舍与决策 → `.ai-memory/decisions/`（ADR，只增不改）；操作步骤 → `.ai-memory/playbooks/`（并在规则挂触发条款）；约束 → `.ai/rules/`；工作记忆 → `.ai-memory/drafts/`（随时改写，成熟后提炼并删除）。格式、三段式与预算（`rulesBudgetBytes`）见 `.ai-memory/KNOWLEDGE.md` 与 `.ai/ai-coding-config.yml`；超限时细节移入手册/决策，规则只留结论加路径。
 
 ## 产出要求
 
@@ -40,11 +34,7 @@
 2. 涉及业务逻辑的改动必须附测试，并在提交前运行全量测试。
 3. 修完自检： lint / 类型检查 / 测试 三者通过才算完成。
 4. 如实汇报结果：测试失败就报告失败，不掩饰、不跳过。
-
-## 会话留痕
-
-- 长任务定期总结进度到对话中，便于用户随时接管。
-- 完成任务时给出：改动文件清单 + 验证结果 + 遗留事项。
+5. 长任务定期总结进度到对话中，便于用户随时接管；完成时给出改动文件清单 + 验证结果 + 遗留事项。
 
 # 编码规范
 
@@ -53,7 +43,7 @@
 - 应用业务使用 TypeScript strict；Electron 与工程脚本使用现有 ESM/CJS，不混用模块格式。
 - 沿用同目录的命名、缩进、引号和文件组织；UTF-8 无 BOM、LF 换行。
 - React 组件/类型用 PascalCase，函数/变量用 camelCase，常量用 UPPER_SNAKE_CASE。
-- 文件/目录/包/文档命名见 `.ai-memory/playbooks/naming.md`（总览/架构 md 大写、内容源 kebab、Java 包全小写）；重命名须任务明确要求。
+- 文件/目录/包/文档命名见 `.ai-memory/playbooks/naming.md`；重命名须任务明确要求。
 - 注释只解释非显然的原因；TODO 需标注负责人或 issue。
 
 ## 边界与依赖
@@ -94,25 +84,13 @@
 
 - type 限定：`feat` / `fix` / `docs` / `refactor` / `test` / `chore` / `perf`
 - subject 用中文或英文祈使句，不超过 50 字，结尾不加句号
-- 示例：`feat(auth): 增加手机号验证码登录`
-
-## 提交粒度
-
-- 一次提交只做一件事；生成代码与格式化调整分开提交。
-- 禁止提交与本次任务无关的文件。
+- 一次提交只做一件事；生成代码与格式化调整分开提交；禁止提交与本次任务无关的文件
 
 ## 代码评审（CR/PR）
 
 - PR 描述包含：改动目的、影响范围、自测方式。
 - AI 生成的改动必须在 PR 描述中注明。
 - CR 未通过前不得合并。
-
-## 禁止事项
-
-- ❌ 强推（force push）到共享分支
-- ❌ 提交密钥、证书、`.env` 等敏感文件
-- ❌ rebase / reset 已推送他人的提交
-- ❌ 提交未联动同步的 AI 配置改动（修改 `.ai/` 后必须先运行 `node .ai/sync.mjs`，见 `.ai/rules/ai-guidelines.md` 的「AI 配置联动更新」）
 
 ## AI 操作授权分级
 
@@ -125,14 +103,11 @@ AI 工具执行 Git 操作按三档授权，越档视为违规；授权随用户
 | 禁止 | 强推任意分支、rebase/reset 已推送的他人提交、`--no-verify` 绕钩子、直推 `main`、删共享远端分支、绕过钩子/CI 门禁 | 即使被指示也先说明风险，等待二次确认 |
 
 - push 前核对目标分支：目标不是当前任务分支时停下确认，防止误推 `main`。
-- AI 参与的提交在信息正文尾部加 trailer `Assisted-by: <工具名>`（如 `Assisted-by: ZCode`）；PR 描述仍须注明 AI 改动。
+- AI 参与的提交在信息正文尾部加 trailer `Assisted-by: <工具名>`（如 `Assisted-by: ZCode`；暂无机器校验，PR 描述审查把关）；PR 描述仍须注明 AI 改动。
 
 ## 开发合流流程（本地开发 → 合并 → 推送）
 
-禁止在主线 `acme-foundation` 直接提交，三步：① 在工作树内的 `feat/`、`fix/` 分支开发自检；
-② 回主工作树合并（优先快进）并验证（`sync --check`/测试/构建）；③ 推送前读 `parallel-dev.md`：
-两策略分支必须同一条命令推送（pre-push 预检镜像一致性），AI 配置同步镜像 `ai-coding-support`；
-feat/fix 默认不推远端（钩子拒绝，豁免见手册）。推远端与删分支按授权分级。
+禁止在主线 `acme-foundation` 直接提交：工作树内 `feat/`、`fix/` 分支开发自检 → 回主工作树合并（优先快进）并验证（`sync --check`/测试/构建）→ 推送：AI 配置镜像 `ai-coding-support` 与主线必须同一条命令推送（pre-push 预检），feat/fix 默认不推远端（钩子拒绝）。完整三步与豁免见 `.ai-memory/playbooks/parallel-dev.md`；推远端与删分支按授权分级。
 
 # 项目上下文
 

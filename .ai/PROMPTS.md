@@ -18,7 +18,7 @@
 
 > 「<做什么>」。按 `.ai-memory/playbooks/ai-config.md` 的流程执行。
 
-Claude Code / iFlow / Gemini 有原生子代理与技能，后半句可省（自动接管）：
+Claude Code / Gemini 有原生子代理与技能，后半句可省（自动接管）：
 
 > 用 ai-config-editor：<做什么>。
 
@@ -55,8 +55,8 @@ Claude Code / iFlow / Gemini 有原生子代理与技能，后半句可省（自
 
 | # | 提示词 | 预期 AI 行为 |
 |---|---|---|
-| 8 | 加一个 code-reviewer 子代理：专职评审，关注正确性、边界、测试覆盖，输出按严重度排序 | 新建 `.ai/agents/code-reviewer.md`（标准 frontmatter）→ 派生到 `.claude/.iflow/.gemini` 三处 |
-| 9 | 做一个 release-checklist 技能：对齐 CHANGELOG、全量测试、打 tag | 新建 `.ai/skills/release-checklist/SKILL.md` → 派生到 Claude 技能与 iFlow workflow |
+| 8 | 加一个 code-reviewer 子代理：专职评审，关注正确性、边界、测试覆盖，输出按严重度排序 | 新建 `.ai/agents/code-reviewer.md`（标准 frontmatter）→ 派生到 `.claude/`、`.gemini/` 两处 |
+| 9 | 做一个 release-checklist 技能：对齐 CHANGELOG、全量测试、打 tag | 新建 `.ai/skills/release-checklist/SKILL.md` → 派生到 Claude 技能目录 |
 | 10 | 加 /deploy 命令：先测试、再构建 $ARGUMENTS 目标、部署测试环境；Gemini 也要能用 | 新建 `.ai/commands/deploy.md` **并主动补** `.ai/tools/gemini/commands/deploy.toml`（TOML 转换是 playbook 已知事项） |
 | 11 | Cursor 里改 SVG 总是破坏主题色，加一条只在触及 SVG 时生效的规则 | 新建 `.ai/tools/cursor/rules/svg.mdc`（`globs: "**/*.svg"`） |
 
@@ -97,7 +97,7 @@ Claude Code / iFlow / Gemini 有原生子代理与技能，后半句可省（自
 | 工具 | 建议提示方式 |
 |---|---|
 | Claude Code | 直接说意图；复杂任务可「用 ai-config-editor 子代理」或「用 ai-config 技能」 |
-| iFlow CLI / Gemini CLI | 直接说意图；可显式点名子代理 |
+| Gemini CLI | 直接说意图；可显式点名子代理 |
 | Cursor / Trae / Qoder / ZCode / Codex / Copilot / CodeBuddy | 意图后补一句「按 `.ai-memory/playbooks/ai-config.md` 的流程执行」更稳（这些工具只有规则触发，无原生子代理/技能） |
 
 ## 防偷懒核对单（用户侧验收）

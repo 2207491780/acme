@@ -52,8 +52,7 @@ jobs:
           done
       - name: 构建并推送 web 镜像
         working-directory: workspace/apps/frontend
-        env:
-          TARGET_ENV: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
+        # TARGET_ENV 取作业级 env（build 作业已定义），无需步骤级重复
         run: |
           REG="${{ secrets.TCR_REGISTRY }}"
           docker build -f Dockerfile.web -t "$REG/web:${TARGET_ENV}-${GITHUB_SHA:0:7}" .

@@ -55,7 +55,7 @@
 ## 6. 脚本 / 配置 / 资源文件
 
 - 脚本 = lowercase-kebab `.mjs`/`.sh`：`sync.mjs`、`build-style-guide.mjs`、`deploy.sh`；脚本测试 = `<subject>.test.mjs`。
-- 配置 = lowercase-kebab `.yml`/`.yaml`：`ci.yml`、`ai-rules-sync.yml`、`cloud-dev.yaml`。
+- 配置 = lowercase-kebab `.yml`/`.yaml`：`ci.yml`、`cd.yml`、`cloud-dev.yaml`。
 - **SQL 迁移** = Flyway `V<版本>__<snake_描述>.sql`（`V1__init_schema.sql`）；测试建表 `schema.sql`、DDL 模板按表名 snake（`shedlock_locks.sql`）。
 - **i18n 资源束** = `i18n/<模块>-messages_<lang>.properties`（ResourceBundle 约定，locale 后缀用下划线 `_en`/`_zh`）。
 - **Spring 自动装配** = `org.springframework.boot.autoconfigure.AutoConfiguration.imports`、`spring.factories`（框架固定名）。
@@ -64,7 +64,7 @@
 ## 7. 豁免清单（名字由派生引擎/工具/框架固定，禁改）
 
 - **派生入口**：根 `AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`CODEBUDDY.md`、`.ai/RULES.md`、`.qoder/rules/project_rules.md`、`.trae/rules/project_rules.md`、`.cursor/rules/project.mdc`、`.github/copilot-instructions.md`（名字由 `.ai/sync.mjs` 与工具约定决定，snake/kebab 不算违规）。
-- **工具目录**：`.claude`/`.cursor`/`.gemini`/`.iflow`/`.qoder`/`.trae`/`.github`/`.idea`。
+- **工具目录**：`.claude`/`.cursor`/`.gemini`/`.qoder`/`.trae`/`.github`/`.idea`。
 - **体系目录**：`.ai`/`.ai-memory`/`.ai-tmp`。
 - **Java/构建**：`META-INF`、`src/main/java`、`src/test/resources`、`target`、`pom.xml`、`.flattened-pom.xml`（flatten 插件生成）。
 - **前端/Node**：`node_modules`、`dist`、`vite.config.ts`、`package.json`、`pnpm-*.yaml`。

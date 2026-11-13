@@ -41,11 +41,11 @@ jobs:
       - name: 校验 AI 路径两分支一致
         run: |
           git diff --stat origin/ai-coding-support origin/acme-foundation -- \
-            .ai .ai-memory .github .claude .cursor .gemini .iflow .trae .qoder \
+            .ai .ai-memory .github .claude .cursor .gemini .trae .qoder \
             AGENTS.md CLAUDE.md GEMINI.md CODEBUDDY.md .gitignore \
             ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md'
           git diff --exit-code origin/ai-coding-support origin/acme-foundation -- \
-            .ai .ai-memory .github .claude .cursor .gemini .iflow .trae .qoder \
+            .ai .ai-memory .github .claude .cursor .gemini .trae .qoder \
             AGENTS.md CLAUDE.md GEMINI.md CODEBUDDY.md .gitignore \
             ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md' || {
             echo "::error::AI 配置在两分支间存在差异——请把未镜像的一方对齐到另一方后重推。"

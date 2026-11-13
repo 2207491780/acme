@@ -411,6 +411,42 @@ test('should_flag_orphan_by_default_and_skip_when_orphanDetection_false', async 
   assert.match(ok.stdout, /孤儿检测已关闭/);
 });
 
+test('should_map_claude_tool_names_for_gemini_agents_on_derive', async (t) => {
+  // Gemini 子代理适配（ADR 2026-11-14-24）：派生到 .gemini/agents 时 frontmatter 工具名映射为 Gemini 内置名，
+  // model: inherit 移除（Gemini 缺省即继承）；Claude 目标保持原样；正文不受映射影响。
+  const { repo } = await fixture(t);
+  await put(
+    repo,
+    '.ai/agents/helper.md',
+    '---\nname: helper\ndescription: d\ntools: [Read, Write, Edit, Grep, Glob, Bash]\nmodel: inherit\n---\n\nBody mentions Read and Grep words.\n',
+  );
+  succeeds(run(repo));
+  const gemini = await readFile(join(repo, '.gemini/agents/helper.md'), 'utf8');
+  assert.match(gemini, /tools: \[read_file, write_file, replace, grep_search, glob, run_shell_command\]/);
+  assert.doesNotMatch(gemini, /^model:/m);
+  assert.match(gemini, /Body mentions Read and Grep words\./);
+  const claude = await readFile(join(repo, '.claude/agents/helper.md'), 'utf8');
+  assert.match(claude, /tools: \[Read, Write, Edit, Grep, Glob, Bash\]/);
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_flag_orphan_derived_files_beyond_tool_dirs', async (t) => {
+  // 孤儿检测扩展（审查 2026-11-14）：除 TOOLS 目录外，根部入口与 scopes 派生同级目录的残留也要报。
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/scopes/project/AGENTS.md', '# Project scope\n');
+  succeeds(run(repo));
+  // 仓库根：带派生标记的未知残留（非递归扫描，子目录不受影响）
+  await put(repo, 'STALE.md', '# leftover\n\n<!-- 派生自 .ai/agents/gone.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->\n');
+  fails(run(repo, ['--check']), /孤儿派生文件 STALE\.md/);
+  await rm(join(repo, 'STALE.md'));
+  // scopes 派生目标的同级目录：带派生标记的残留；无标记的用户文件不受影响
+  await put(repo, 'project/STALE.md', '# leftover\n\n<!-- 派生自 .ai/scopes/project/GONE.md -->\n');
+  await put(repo, 'project/notes.md', '# user notes, no derived mark\n');
+  fails(run(repo, ['--check']), /孤儿派生文件 project\/STALE\.md/);
+  await rm(join(repo, 'project/STALE.md'));
+  succeeds(run(repo, ['--check']));
+});
+
 test('should_enforce_custom_rulesBudgetBytes_from_config', async (t) => {
   const { repo } = await fixture(t);
   await put(repo, CONFIG, 'version: 1\nengine:\n  rulesBudgetBytes: 200\n');
@@ -468,6 +504,22 @@ test('should_accept_environment_file_pointer_when_valid_yaml_name', async (t) =>
     succeeds(run(repo));
     succeeds(run(repo, ['--check']));
   }
+});
+
+test('should_verify_environment_file_exists_when_env_dir_present', async (t) => {
+  // 存在性折中校验（审查 2026-11-14）：.ai/env/ 目录在位时，指针指向不存在的文件必须在写入前报错；
+  // 目录缺失（fixture 最小仓库）维持原兼容行为。
+  const { repo } = await fixture(t);
+  await mkdir(join(repo, '.ai/env'), { recursive: true });
+  await put(repo, '.ai/env/local.yaml', 'env: local\n');
+  await put(repo, CONFIG, 'environment:\n  file: local.yaml\n');
+  succeeds(run(repo));
+  succeeds(run(repo, ['--check']));
+  await put(repo, CONFIG, 'environment:\n  file: cloud-dev.yaml\n');
+  const before = await snapshot(repo);
+  fails(run(repo), /不在 \.ai\/env\/ 下/);
+  fails(run(repo, ['--check']), /不在 \.ai\/env\/ 下/);
+  assert.deepEqual(await snapshot(repo), before);
 });
 
 const badConfigs = [

@@ -8,7 +8,8 @@
 |---|---|---|
 | [ci.yml](ci.yml) | push(全分支) / PR | 门禁：① AI 配置同步校验（`node .ai/sync.mjs --check`）+ 派生引擎回归测试（`.ai/tests/`），**全分支触发**；② **镜像一致性**（仅两条策略分支）：AI 路径在 `acme-foundation` ↔ `ai-coding-support` 必须逐字节一致（pre-push 已做本地预检，CI 兜底）；③ `workspace/apps/frontend` 的类型检查 / 测试 / 桌面壳层语法检查 / 构建，**限主线 `acme-foundation` 直推与 PR**，且分支无前端工程时自动跳过（`hashFiles` 守卫）；④ `workspace/apps/backend` 的 `mvn test`（Java 25，PG 集成测试走 testcontainers），同口径门控 |
 | [cd.yml](cd.yml) | 手动 dispatch（选 dev/test/prod）；`v*` 标签 → prod | ① build：云端 runner 构建五镜像（后端×4 + web）并推 TCR（不占 4G 服务器构建资源）；② deploy：scp 同步 `workspace/env-stack` 到服务器 → SSH 执行 `deploy.sh` → `healthcheck.sh` 验证（非零退出阻断） |
-| [ai-rules-sync.yml](ai-rules-sync.yml) | 触及 AI 配置相关文件 | 联动防线·远端层（见 `.ai/ARCHITECTURE.md`） |
+
+> 原独立的 `ai-rules-sync.yml` 已裁撤（ADR 2026-11-14-23）：其校验职责被 ci.yml 的 ai-config 作业完全覆盖（同校验 + 引擎回归测试，且全分支触发）。
 
 ## 环境与发布
 

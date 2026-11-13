@@ -5,7 +5,7 @@
 - 应用业务使用 TypeScript strict；Electron 与工程脚本使用现有 ESM/CJS，不混用模块格式。
 - 沿用同目录的命名、缩进、引号和文件组织；UTF-8 无 BOM、LF 换行。
 - React 组件/类型用 PascalCase，函数/变量用 camelCase，常量用 UPPER_SNAKE_CASE。
-- 文件/目录/包/文档命名见 `.ai-memory/playbooks/naming.md`（总览/架构 md 大写、内容源 kebab、Java 包全小写）；重命名须任务明确要求。
+- 文件/目录/包/文档命名见 `.ai-memory/playbooks/naming.md`；重命名须任务明确要求。
 - 注释只解释非显然的原因；TODO 需标注负责人或 issue。
 
 ## 边界与依赖

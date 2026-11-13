@@ -51,9 +51,9 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | `.ai/RULES.md` | 根部 `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` / `CODEBUDDY.md` | 引用存根（默认）；`--links` 可选符号链接 |
 | 同上（存根形态） | `.cursor/rules/project.mdc`、`.trae/rules/project_rules.md`、`.qoder/rules/project_rules.md`、`.github/copilot-instructions.md` | frontmatter 存根（Cursor/Qoder 需 `alwaysApply`；Copilot 规避长度限制） |
 | `.ai/scopes/**` | 仓库同路径 `AGENTS.md` + 同级 `CLAUDE.md`（默认 `@` 导入存根；`--links` 模式为链接） | 副本 + 引用 |
-| `.ai/agents/` | `.claude/agents/`、`.iflow/agents/`、`.gemini/agents/` | 拷贝派生 |
-| `.ai/skills/` | `.claude/skills/`、`.iflow/workflows/` | 拷贝派生 |
-| `.ai/commands/` | `.claude/commands/`、`.iflow/commands/` | 拷贝派生 |
+| `.ai/agents/` | `.claude/agents/`、`.gemini/agents/` | 拷贝派生 |
+| `.ai/skills/` | `.claude/skills/` | 拷贝派生 |
+| `.ai/commands/` | `.claude/commands/` | 拷贝派生 |
 | `.ai/tools/<工具>/**` | 对应工具目录 | 拷贝派生（目录说明文件如 `CLAUDE-CODE.md` 自动前置「生成产物」标头） |
 | `.ai/ci/**` | `.github/workflows/` | 拷贝派生 |
 
@@ -108,7 +108,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 |---|---|---|
 | 规则层 | 强制条款位于 `.ai/rules/ai-guidelines.md`，派生注入**所有**工具入口，AI 工具自身必须遵守 | — |
 | 本地层 | `.ai/hooks/`：pre-commit 校验 AI 配置完整性；commit-msg 校验提交规范；pre-push 拦截直推 `main`、拦截 `feat/*`/`fix/*` 上远端、推策略分支前预检镜像一致性（`mirror-check.mjs`） | 违规提交/推送被拒绝 |
-| 远端层 | `.ai/ci/` 派生出的 `.github/workflows/ai-rules-sync.yml` 在 push / PR 时校验 | 不同步的推送/合并被阻断 |
+| 远端层 | `.ai/ci/` 派生出的 `.github/workflows/ci.yml` 的 **ai-config 作业**在全分支 push / PR 时校验（含引擎回归测试） | 不同步的推送/合并被阻断 |
 
 ## CI/CD（工作流源在 [ci/CI-GUIDE.md](ci/CI-GUIDE.md)）
 
@@ -116,7 +116,6 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 |---|---|---|
 | `ci.yml` | 全分支 push / PR | 门禁：AI 配置同步校验 + 派生引擎回归测试（`.ai/tests/`，全分支）；应用质量作业仅主线 `acme-foundation` 直推与 PR；mirror-sync 校验两策略分支 AI 路径一致 |
 | `cd.yml` | dispatch 选环境 / `v*` 标签 → prod | 构建 → `env-stack/scripts/deploy.sh` 部署 → 健康检查；prod 走 GitHub Environment 审批 |
-| `ai-rules-sync.yml` | 触及 AI 配置相关文件 | 联动防线·远端层 |
 
 ## 新增一个 AI 工具的兼容
 
