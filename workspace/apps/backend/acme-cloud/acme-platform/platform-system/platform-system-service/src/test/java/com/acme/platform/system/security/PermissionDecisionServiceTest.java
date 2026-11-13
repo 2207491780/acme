@@ -41,7 +41,26 @@ class PermissionDecisionServiceTest {
     }
 
     @Test
-    void superAdminShortCircuits() {
+    void forgedSuperAdminRoleCodeWithoutBindingDenied() {
+        // review 修复 P0 回归：claims 中的 "super_admin" 只是查询键而非信任锚——
+        // 租户内自建同名角色无权限点绑定，必须走 DB 判定拒绝
+        when(roleRepository.findByRoleCodeInAndStatus(Set.of("super_admin"), EnableStatus.ENABLED))
+                .thenReturn(List.of());
+        assertThat(service.hasAnyPermission(Set.of("super_admin"), "system:user:create")).isFalse();
+    }
+
+    @Test
+    void superAdminAllowedViaSeedPermissionBindings() {
+        // 种子对内置 super_admin 全量绑定权限点（V2/V3/V4），移除字符串短路后能力不回退
+        when(roleRepository.findByRoleCodeInAndStatus(Set.of("super_admin"), EnableStatus.ENABLED))
+                .thenReturn(List.of(role(1L, "super_admin")));
+        when(rolePermissionRepository.findByRoleIdIn(List.of(1L)))
+                .thenReturn(List.of(new SysRolePermission(1L, 21L)));
+        SysPermission permission = new SysPermission("system:user:create", "创建用户",
+                com.acme.platform.system.api.PermissionType.API, "POST", "/admin/v1/system/users");
+        setPermissionId(permission, 21L);
+        when(permissionRepository.findByIdInAndStatus(anyCollection(), any()))
+                .thenReturn(List.of(permission));
         assertThat(service.hasAnyPermission(Set.of("super_admin"), "system:user:create")).isTrue();
     }
 

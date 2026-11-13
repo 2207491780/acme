@@ -34,6 +34,12 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     /** 内置角色不允许调整父角色。 */
     ROLE_REPARENT_DENIED(SystemErrorCodes.ROLE_REPARENT_DENIED, "内置角色不允许调整上级角色", 409),
 
+    /** 角色编码为平台保留编码（super_admin / tenant_admin，任何租户不得自建）。 */
+    ROLE_CODE_RESERVED(SystemErrorCodes.ROLE_CODE_RESERVED, "该角色编码为平台保留编码，不允许使用", 409),
+
+    /** 非内置角色绑定平台保留域权限点被拒绝。 */
+    ROLE_GRANT_RESERVED(SystemErrorCodes.ROLE_GRANT_RESERVED, "平台保留域权限点不允许授予非内置角色", 409),
+
     /** 权限点不存在。 */
     PERMISSION_NOT_FOUND(SystemErrorCodes.PERMISSION_NOT_FOUND, "权限点不存在", 404),
 

@@ -17,13 +17,15 @@ import java.util.Set;
 
 /**
  * 权限判定服务（架构设计 5.2 核心逻辑，AC-009 越权拒绝）：
- * 角色编码集（令牌 claims）→ 本租户启用角色 → 角色绑定权限点 → 编码对照；
- * 内置超管 super_admin 短路放行（种子绑定全量权限点，二者等价双保险）。
+ * 角色编码集（令牌 claims）→ 本租户启用角色 → 角色绑定权限点 → 编码对照。
+ * 角色编码仅为查询键、不是信任锚：不做任何编码短路放行——超管能力来自种子
+ * 对内置 super_admin 角色的全量权限点绑定（V2/V3/V4），伪造同名编码的角色
+ * 无绑定即无权限（review 修复 P0：原字符串短路可被租户自建同名角色利用提权）。
  */
 @Component
 public class PermissionDecisionService {
 
-    /** 内置超管角色编码（仅存在于种子数据，代码仅引用常量判定，8.2.1）。 */
+    /** 内置超管角色编码（保留编码：种子专用 + RoleUseCase 保留码校验引用，8.2.1）。 */
     public static final String SUPER_ADMIN_ROLE = "super_admin";
 
     private final SysRoleRepository roleRepository;
@@ -42,9 +44,6 @@ public class PermissionDecisionService {
     public boolean hasAnyPermission(Set<String> roleCodes, String permissionCode) {
         if (roleCodes == null || roleCodes.isEmpty() || permissionCode == null || permissionCode.isBlank()) {
             return false;
-        }
-        if (roleCodes.contains(SUPER_ADMIN_ROLE)) {
-            return true;
         }
         Set<Long> permissionIds = resolvePermissionIds(roleCodes);
         if (permissionIds.isEmpty()) {
@@ -67,11 +66,6 @@ public class PermissionDecisionService {
     public Set<String> permissionCodesOfRoles(Set<String> roleCodes) {
         if (roleCodes == null || roleCodes.isEmpty()) {
             return Collections.emptySet();
-        }
-        if (roleCodes.contains(SUPER_ADMIN_ROLE)) {
-            return permissionRepository.findByStatus(EnableStatus.ENABLED).stream()
-                    .map(permission -> permission.getPermissionCode())
-                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         }
         Set<Long> permissionIds = resolvePermissionIds(roleCodes);
         if (permissionIds.isEmpty()) {

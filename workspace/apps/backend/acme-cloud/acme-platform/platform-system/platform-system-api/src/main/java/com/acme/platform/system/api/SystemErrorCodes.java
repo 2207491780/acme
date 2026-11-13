@@ -31,6 +31,12 @@ public final class SystemErrorCodes {
     /** 内置角色不允许调整父角色（409）。 */
     public static final String ROLE_REPARENT_DENIED = "platform-system-02-0005";
 
+    /** 角色编码为平台保留编码，任何租户不得自建（409）。 */
+    public static final String ROLE_CODE_RESERVED = "platform-system-02-0006";
+
+    /** 非内置角色不得绑定平台保留域权限点（409）。 */
+    public static final String ROLE_GRANT_RESERVED = "platform-system-02-0007";
+
     /** 权限点不存在（404）。 */
     public static final String PERMISSION_NOT_FOUND = "platform-system-03-0001";
 

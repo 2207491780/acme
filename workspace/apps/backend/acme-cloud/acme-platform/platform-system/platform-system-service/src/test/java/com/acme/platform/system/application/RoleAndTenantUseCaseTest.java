@@ -8,6 +8,7 @@ import com.acme.platform.system.api.dto.AdminRoleCreate;
 import com.acme.platform.system.api.dto.AdminRoleUpdate;
 import com.acme.platform.system.api.dto.AdminTenantCreate;
 import com.acme.platform.system.domain.SysMenu;
+import com.acme.platform.system.domain.SysPermission;
 import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysRoleMenu;
 import com.acme.platform.system.domain.SysTenant;
@@ -91,6 +92,57 @@ class RoleAndTenantUseCaseTest {
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(SystemError.ROLE_NOT_FOUND.code()));
+    }
+
+    @Test
+    void createRoleWithReservedCodeRejected() {
+        // review 修复 P0 回归：保留编码任何租户不得自建（防伪造 claims 提权）
+        SysRoleRepository roleRepository = mock(SysRoleRepository.class);
+        RoleUseCase useCase = roleUseCase(roleRepository);
+        for (String reserved : RoleUseCase.RESERVED_ROLE_CODES) {
+            assertThatThrownBy(() -> useCase.create(new AdminRoleCreate(null, reserved, "伪超管", null)))
+                    .as("保留编码 %s 应被拒绝", reserved)
+                    .isInstanceOf(BizException.class)
+                    .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                            .isEqualTo(SystemError.ROLE_CODE_RESERVED.code()));
+        }
+        verify(roleRepository, never()).save(any());
+    }
+
+    @Test
+    void bindPermissionsReservedDomainRejectedForNonBuiltIn() {
+        // review 修复 P2 回归：保留域（system:tenant:* / infra:audit:*）不得经授权面绕过
+        SysRoleRepository roleRepository = mock(SysRoleRepository.class);
+        SysPermissionRepository permissionRepository = mock(SysPermissionRepository.class);
+        SysRolePermissionRepository rolePermissionRepository = mock(SysRolePermissionRepository.class);
+        RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
+                rolePermissionRepository, mock(SysRoleMenuRepository.class),
+                permissionRepository, mock(SysMenuRepository.class));
+        when(roleRepository.findById(2L)).thenReturn(Optional.of(role(2L, 0L, "ops", false)));
+        when(permissionRepository.findAllById(java.util.Set.of(32L)))
+                .thenReturn(List.of(permission(32L, "system:tenant:create")));
+
+        assertThatThrownBy(() -> useCase.bindPermissions(2L, List.of(32L)))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(SystemError.ROLE_GRANT_RESERVED.code()));
+        verify(rolePermissionRepository, never()).deleteByRoleId(any());
+    }
+
+    @Test
+    void bindPermissionsReservedDomainAllowedForBuiltIn() {
+        SysRoleRepository roleRepository = mock(SysRoleRepository.class);
+        SysPermissionRepository permissionRepository = mock(SysPermissionRepository.class);
+        SysRolePermissionRepository rolePermissionRepository = mock(SysRolePermissionRepository.class);
+        RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
+                rolePermissionRepository, mock(SysRoleMenuRepository.class),
+                permissionRepository, mock(SysMenuRepository.class));
+        when(roleRepository.findById(1L)).thenReturn(Optional.of(role(1L, 0L, "super_admin", true)));
+        when(permissionRepository.findAllById(java.util.Set.of(32L)))
+                .thenReturn(List.of(permission(32L, "system:tenant:create")));
+
+        useCase.bindPermissions(1L, List.of(32L));
+        verify(rolePermissionRepository).deleteByRoleId(1L);
     }
 
     @Test
@@ -196,6 +248,13 @@ class RoleAndTenantUseCaseTest {
         SysMenu menu = new SysMenu(parentId, name, type, null, null, null, 0, true, null);
         setId(menu, id);
         return menu;
+    }
+
+    private static SysPermission permission(Long id, String code) {
+        SysPermission permission = new SysPermission(code, code,
+                com.acme.platform.system.api.PermissionType.API, "POST", "/x");
+        setId(permission, id);
+        return permission;
     }
 
     private static void setId(Object entity, Long id) {

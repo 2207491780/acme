@@ -8,6 +8,7 @@ import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.dto.AdminRoleCreate;
 import com.acme.platform.system.api.dto.AdminRoleUpdate;
+import com.acme.platform.system.domain.SysPermission;
 import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysRoleMenu;
 import com.acme.platform.system.domain.SysRolePermission;
@@ -35,6 +36,15 @@ import java.util.Set;
 @Service
 public class RoleUseCase {
 
+    /**
+     * 平台保留角色编码（任何租户不得经 create() 自建，review 修复 P0）：
+     * 权限判定以角色编码查询 DB 绑定，但伪造的编码不得占用——super_admin 为内置超管、
+     * tenant_admin 为租户开通初始化专用；二者只允许系统路径创建。
+     */
+    public static final Set<String> RESERVED_ROLE_CODES = Set.of(
+            com.acme.platform.system.security.PermissionDecisionService.SUPER_ADMIN_ROLE,
+            TenantInitUseCase.TENANT_ADMIN_ROLE);
+
     private final SysRoleRepository roleRepository;
     private final SysUserRoleRepository userRoleRepository;
     private final SysRolePermissionRepository rolePermissionRepository;
@@ -54,9 +64,12 @@ public class RoleUseCase {
         this.menuRepository = menuRepository;
     }
 
-    /** 创建角色（(tenant_id, role_code) 唯一；parentId 缺省为根角色，父角色须存在）。 */
+    /** 创建角色（(tenant_id, role_code) 唯一；parentId 缺省为根角色，父角色须存在；保留编码拒绝）。 */
     @Transactional
     public SysRole create(AdminRoleCreate request) {
+        if (RESERVED_ROLE_CODES.contains(request.roleCode())) {
+            throw new BizException(SystemError.ROLE_CODE_RESERVED);
+        }
         if (roleRepository.existsByRoleCode(request.roleCode())) {
             throw new BizException(SystemError.ROLE_CODE_DUPLICATED);
         }
@@ -164,15 +177,29 @@ public class RoleUseCase {
         return roleMenuRepository.findByRoleId(roleId).stream().map(SysRoleMenu::getMenuId).toList();
     }
 
-    /** 权限点绑定整体替换（角色须存在；权限点全集校验存在）。 */
+    /** 权限点绑定整体替换（角色须存在；权限点全集校验存在；非内置角色拒绝平台保留域，review 修复）。 */
     @Transactional
     public void bindPermissions(Long roleId, List<Long> permissionIds) {
-        get(roleId);
+        SysRole role = get(roleId);
         Set<Long> distinct = new LinkedHashSet<>(permissionIds == null ? List.of() : permissionIds);
-        if (!distinct.isEmpty() && permissionRepository.findAllById(distinct).size() != distinct.size()) {
-            throw new BizException(SystemError.PERMISSION_NOT_FOUND);
+        if (!distinct.isEmpty()) {
+            List<SysPermission> permissions = permissionRepository.findAllById(distinct);
+            if (permissions.size() != distinct.size()) {
+                throw new BizException(SystemError.PERMISSION_NOT_FOUND);
+            }
+            // 保留域守卫：租户开通时 tenant_admin 即不获得保留域，授权面不得绕过（review 修复）
+            if (!Boolean.TRUE.equals(role.getBuiltIn())
+                    && permissions.stream().anyMatch(RoleUseCase::reservedPermissionCode)) {
+                throw new BizException(SystemError.ROLE_GRANT_RESERVED);
+            }
         }
         replaceRolePermissions(roleId, distinct);
+    }
+
+    /** 平台保留权限域判定（口径与租户开通默认授权一致）。 */
+    static boolean reservedPermissionCode(SysPermission permission) {
+        return TenantInitUseCase.RESERVED_PERMISSION_PREFIXES.stream()
+                .anyMatch(permission.getPermissionCode()::startsWith);
     }
 
     /** 菜单绑定整体替换（自动补全父链；缺失菜单 → 404）。 */
