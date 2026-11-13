@@ -1,5 +1,5 @@
 import { seedState } from './seed';
-import { parseState } from './parse-state';
+import { parseState, isQuery, isAppPatch } from './parse-state';
 import { uid, clamp, isVersion, statusLabel } from './utils';
 import { STORAGE_KEY, ENVS, STATUSES } from './constants';
 import type {
@@ -203,7 +203,8 @@ export function reduce(
     }
     case 'SAVE_VIEW': {
       const name = String(action.name || '').trim();
-      if (!name) return state;
+      // query 与 IMPORT 同一校验标准（review 修复）：非法 query 不入库，避免污染持久化数据
+      if (!name || !isQuery(action.query)) return state;
       s.savedViews.push({ id: uid('view'), name: name.slice(0, 20), query: structuredClone(action.query) });
       pushActivity(s, `保存视图「${name}」`, 'info', now);
       return s;
@@ -219,6 +220,8 @@ export function reduce(
     case 'UPDATE_APP': {
       const app = s.apps.find((a) => a.id === action.id);
       if (!app) return state;
+      // patch 运行时校验（review 修复）：字段白名单 + 枚举校验，与 IMPORT 同一标准
+      if (!isAppPatch(action.patch)) return state;
       Object.assign(app, action.patch);
       pushActivity(s, `${app.name} 信息已更新`, 'info', now);
       return s;

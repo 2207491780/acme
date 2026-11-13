@@ -60,6 +60,28 @@ function isApp(value: unknown): value is App {
     && isString(value.description);
 }
 
+/** UPDATE_APP 局部补丁校验（review 修复）：仅允许已知字段且逐字段类型/枚举合规；
+ * 未知字段（含 id）一律拒绝，避免外部输入绕过 IMPORT 的校验标准直接入库。 */
+export function isAppPatch(value: unknown): value is Partial<App> {
+  if (!isRecord(value)) return false;
+  return Object.entries(value).every(([key, v]) => {
+    switch (key) {
+      case 'name':
+      case 'path':
+      case 'version':
+      case 'owner':
+      case 'description':
+        return isString(v);
+      case 'platform':
+        return isOneOf(v, PLATFORMS);
+      case 'health':
+        return isOneOf(v, ['healthy', 'warning', 'critical']);
+      default:
+        return false;
+    }
+  });
+}
+
 function isArtifact(value: unknown): value is Artifact {
   return isRecord(value) && isString(value.name) && isString(value.size);
 }
@@ -87,7 +109,8 @@ function isRelease(value: unknown): value is Release {
     && isDate(value.updatedAt);
 }
 
-function isQuery(value: unknown): value is Query {
+/** Query 运行时校验（导出供 SAVE_VIEW 等入口复用，与 IMPORT 同一标准）。 */
+export function isQuery(value: unknown): value is Query {
   return isRecord(value)
     && isString(value.search)
     && (value.platform === 'all' || isOneOf(value.platform, PLATFORMS))

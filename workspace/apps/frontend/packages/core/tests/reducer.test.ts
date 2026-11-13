@@ -245,6 +245,40 @@ describe('reducer', () => {
     expect(deleted.savedViews.some((v) => v.id === view.id)).toBe(false);
   });
 
+  it('should_reject_save_view_when_query_fails_runtime_validation', () => {
+    const state = seedState(now);
+    const invalidQuery = { search: 'x', platform: 'web', status: 'all', env: 'prod' }; // 缺 sort
+    const next = reduce(state, { type: 'SAVE_VIEW', name: '坏视图', query: invalidQuery }, now);
+    expect(next).toBe(state);
+    expect(next.savedViews).toHaveLength(state.savedViews.length);
+  });
+
+  it('should_reject_update_app_when_patch_contains_unknown_field', () => {
+    const state = seedState(now);
+    const target = state.apps[0];
+    const next = reduce(state, { type: 'UPDATE_APP', id: target.id, patch: { id: 'hacked' } }, now);
+    expect(next).toBe(state);
+    expect(next.apps[0].id).toBe(target.id);
+  });
+
+  it('should_reject_update_app_when_health_not_in_enum', () => {
+    const state = seedState(now);
+    const target = state.apps[0];
+    const next = reduce(state, { type: 'UPDATE_APP', id: target.id, patch: { health: 'perfect' } }, now);
+    expect(next).toBe(state);
+    expect(next.apps[0].health).toBe(target.health);
+  });
+
+  it('should_apply_update_app_when_patch_valid', () => {
+    const state = seedState(now);
+    const target = state.apps[0];
+    const next = reduce(state, { type: 'UPDATE_APP', id: target.id, patch: { name: '改名后', owner: '新负责人' } }, now);
+    expect(next).not.toBe(state);
+    expect(next.apps[0].name).toBe('改名后');
+    expect(next.apps[0].owner).toBe('新负责人');
+    expect(next.apps[0].health).toBe(target.health);
+  });
+
   it('should_compute_metrics_when_releases_change', () => {
     const state = seedState(now);
     const m = metrics(state);
