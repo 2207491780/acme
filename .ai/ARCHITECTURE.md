@@ -66,7 +66,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 
 两种模式下 `--check` 均能通过（链接校验目标、存根校验内容）；从任一模式切换到另一模式，运行对应命令即可自动转换。
 
-> 取舍理由（为何默认存根、为何公共池拷贝派生等）见 [../.ai-memory/decisions/](../.ai-memory/decisions/ADR-GUIDE.md)——决策只增不改，新决策取代旧决策时在记录开头标注。
+> 取舍理由（为何默认存根、为何公共池拷贝派生等）见 [../.ai-memory/decisions/](../.ai-memory/decisions/ADR-GUIDE.md)——决策只增不改（整体失效记录可删），新决策取代旧决策时在记录开头标注。
 
 ## 行为/引擎开关（ai-coding-config.yml）
 
@@ -96,7 +96,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 |---|---|
 | 必须遵守的约束（是什么） | `.ai/rules/`（拼接进所有工具入口） |
 | 操作步骤（怎么做） | `.ai-memory/playbooks/` |
-| 取舍与决策（为什么） | `.ai-memory/decisions/`（ADR，只增不改） |
+| 取舍与决策（为什么） | `.ai-memory/decisions/`（ADR，只增不改；整体失效可删） |
 | 工作记忆（进行中/踩坑/待沉淀） | `.ai-memory/drafts/`（草稿区，随时改写） |
 
 强制条款见 `.ai/rules/ai-guidelines.md`「过程性内容落盘」（RULES.md 字节预算见 `ai-coding-config.yml` 的 `rulesBudgetBytes`）。

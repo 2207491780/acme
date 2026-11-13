@@ -4,7 +4,7 @@
 
 | 层 | 位置 | 性质 |
 |---|---|---|
-| 定稿决策（为什么） | [decisions/](decisions/ADR-GUIDE.md) | ADR 三段式，**只增不改** |
+| 定稿决策（为什么） | [decisions/](decisions/ADR-GUIDE.md) | ADR 三段式，**只增不改**（整体失效记录可删，见 ADR-GUIDE） |
 | 操作手册（怎么做） | [playbooks/](playbooks/PLAYBOOK-GUIDE.md) | 按需读取 |
 | 工作记忆（草稿） | [drafts/](drafts/DRAFTS-GUIDE.md) | 随时改写；`*.local.md` 个人草稿不入库 |
 
