@@ -1,7 +1,7 @@
 # AI 配置修改操作手册（ai-config）
 
 > 供所有 AI Coding 工具执行「修改 AI 配置」类任务时使用。
-> 触发入口：`.ai/rules/ai-guidelines.md`「AI 配置修改任务」（全部工具）；`ai-config-editor` 子代理 / `ai-config` 技能（支持的工具有效）。
+> 触发入口：`.ai/rules/ai-guidelines.md`「AI 配置联动更新（强制）」（全部工具）；`ai-config-editor` 子代理 / `ai-config` 技能（支持的工具有效）。
 
 ## 适用范围
 

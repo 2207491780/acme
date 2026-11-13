@@ -1,6 +1,6 @@
 ---
 name: ai-config
-description: 修改本仓库 AI-Coding 配置（.ai/ 下的公共规范、分层规则、agents/skills/commands 公共池、工具专属配置、钩子、CI）时使用。五步流程：定位源 → 只改源 → node .ai/sync.mjs 派生 → --check 校验 → 汇报。
+description: 修改本仓库 AI-Coding 配置（.ai/ 下的公共规范、分层规则、agents/skills/commands 公共池、工具专属配置、钩子、CI）时使用。五步流程：定位意图 → 只改源 → node .ai/sync.mjs 派生 → --check 校验 → 汇报。
 ---
 
 # AI 配置修改（ai-config）

@@ -55,7 +55,7 @@
 ## 6. 脚本 / 配置 / 资源文件
 
 - 脚本 = lowercase-kebab `.mjs`/`.sh`：`sync.mjs`、`build-style-guide.mjs`、`deploy.sh`；脚本测试 = `<subject>.test.mjs`。
-- 配置 = lowercase-kebab `.yml`/`.yaml`：`ci.yml`、`ai-rules-sync.yml`、`dev.yaml`。
+- 配置 = lowercase-kebab `.yml`/`.yaml`：`ci.yml`、`ai-rules-sync.yml`、`cloud-dev.yaml`。
 - **SQL 迁移** = Flyway `V<版本>__<snake_描述>.sql`（`V1__init_schema.sql`）；测试建表 `schema.sql`、DDL 模板按表名 snake（`shedlock_locks.sql`）。
 - **i18n 资源束** = `i18n/<模块>-messages_<lang>.properties`（ResourceBundle 约定，locale 后缀用下划线 `_en`/`_zh`）。
 - **Spring 自动装配** = `org.springframework.boot.autoconfigure.AutoConfiguration.imports`、`spring.factories`（框架固定名）。
@@ -75,4 +75,4 @@
 
 - 新增名字前对照本手册选格式；重命名既有文件须任务明确要求，大小写变更用 `git mv` 两步法。
 - 改名后同步更新所有引用（链接/导入/配置）；**ADR 历史记录与 IDE 状态（`.idea/`）不改**。
-- 触及 `.ai/` 源后跑 `node .ai/sync.mjs` + `--check`（拼接后 `RULES.md` ≤ 8KB）。
+- 触及 `.ai/` 源后跑 `node .ai/sync.mjs` + `--check`（拼接后 `RULES.md` 字节预算见 `.ai/ai-coding-config.yml`）。
