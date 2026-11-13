@@ -72,9 +72,14 @@ const TOOLS = [
   { key: 'trae', doc: 'TRAE.md', target: '.trae' },
   { key: 'qoder', doc: 'QODER.md', target: '.qoder' },
   { key: 'github', doc: 'GITHUB-CONFIG.md', target: '.github' },
-  // ZCode 的 agents/commands 引用存根（正文指针指向 .ai/ 公共池源）；.zcode/ 本身 git 忽略，仅本机生效
-  { key: 'zcode', doc: 'ZCODE.md', target: '.zcode' },
+  // ZCode 的 agents/commands 引用存根（正文指针指向 .ai/ 公共池源）；.zcode/ 本身 git 忽略、不入库，
+  // 故标记 localOnly：--check 对缺失不判错（全新检出/CI 无该目录），存在必须一致（防漂移）。
+  { key: 'zcode', doc: 'ZCODE.md', target: '.zcode', localOnly: true },
 ];
+
+/** 本机派生目标（git 忽略、不入库）前缀：--check 缺失不判错；sync 时照常写本机。 */
+const LOCAL_ONLY_PREFIXES = TOOLS.filter((t) => t.localOnly).map((t) => `${t.target}/`);
+const isLocalOnly = (rel) => LOCAL_ONLY_PREFIXES.some((p) => rel.startsWith(p));
 
 /** 其他派生目标：.ai 内的源 → 仓库固定路径（GitHub Actions 只认 .github/workflows/） */
 const EXTRA = [{ src: 'ci', target: '.github/workflows' }];
@@ -384,6 +389,7 @@ for (const rel of expected.keys()) await inspectPath(join(root, rel));
 for (const rel of links.keys()) await inspectPath(join(root, rel), { allowLink: true });
 const SYMLINK_OK = !CHECK && USE_LINKS ? await canSymlink() : false;
 let errors = 0;
+let skippedLocalOnly = 0;
 
 async function ensureContent(rel, want) {
   const abs = join(root, rel);
@@ -396,6 +402,12 @@ async function ensureContent(rel, want) {
   }
   if (CHECK) {
     if (cur === null) {
+      if (isLocalOnly(rel)) {
+        // 本机派生目标不入库：全新检出/CI 必然缺失，缺失不判错（sync 时照常写本机）
+        skippedLocalOnly++;
+        console.log(`⏭️ ${rel}（本机派生目标缺失，跳过校验）`);
+        return;
+      }
       errors++;
       console.error(`❌ 缺失 ${rel}`);
     } else if (cur !== want) {
@@ -478,7 +490,9 @@ if (errors > 0) {
 }
 console.log(
   CHECK
-    ? `\n校验通过：${expected.size + links.size} 个派生文件/链接均与 .ai/ 同步${config.engine.orphanDetection ? '，无孤儿残留' : '（孤儿检测已关闭）'}。`
+    ? `\n校验通过：${expected.size + links.size} 个派生文件/链接均与 .ai/ 同步${
+        skippedLocalOnly ? `（其中本机未派生跳过 ${skippedLocalOnly} 项）` : ''
+      }${config.engine.orphanDetection ? '，无孤儿残留' : '（孤儿检测已关闭）'}。`
     : `\n完成：${expected.size} 个文件已派生、${links.size} 个入口已处理（${
         USE_LINKS && SYMLINK_OK ? '符号链接模式（--links 或 entryMode=symlink）' : '引用存根模式（默认）'
       }）。`
