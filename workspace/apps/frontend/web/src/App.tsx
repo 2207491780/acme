@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Avatar, Badge, Button, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Tooltip } from 'antd';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Alert, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Tooltip } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import {
+  ApartmentOutlined,
   AppstoreOutlined,
   DashboardOutlined,
   DownOutlined,
@@ -29,6 +30,8 @@ import { Dashboard } from './pages/Dashboard';
 import { Releases } from './pages/Releases';
 import { Apps } from './pages/Apps';
 import { Settings } from './pages/Settings';
+import { TenantsPage } from './pages/TenantsPage';
+import { UsersPage } from './pages/UsersPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
@@ -37,10 +40,33 @@ import { AppFormModal } from './components/AppFormModal';
 
 const { Sider, Header, Content } = Layout;
 
-const NAV = [
+/** 页面级权限门禁（p2-admin）：画像未加载放行占位（避免闪烁），已加载缺权限码 → 403 提示。 */
+function PermissionGate({ permission, children }: { permission: string; children: ReactNode }) {
+  const me = useMeStore((s) => s.me);
+  if (!me) {
+    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)' }}>权限信息加载中…</div>;
+  }
+  if (!me.permissions.includes(permission)) {
+    return (
+      <Card>
+        <Alert
+          type="warning"
+          showIcon
+          message="无访问权限"
+          description={`缺少权限码 ${permission}，请联系租户管理员为当前账号分配对应角色。`}
+        />
+      </Card>
+    );
+  }
+  return <>{children}</>;
+}
+
+const NAV: { key: string; path: string; icon: ReactNode; label: string; permission?: string }[] = [
   { key: 'dashboard', path: '/', icon: <DashboardOutlined />, label: '概览' },
   { key: 'releases', path: '/releases', icon: <UnorderedListOutlined />, label: '发布单' },
   { key: 'apps', path: '/apps', icon: <AppstoreOutlined />, label: '应用结构' },
+  { key: 'tenants', path: '/tenants', icon: <ApartmentOutlined />, label: '租户管理', permission: 'TENANT_LIST' },
+  { key: 'users', path: '/users', icon: <UserOutlined />, label: '用户管理', permission: 'USER_LIST' },
   { key: 'settings', path: '/settings', icon: <SettingOutlined />, label: '设置' },
 ];
 
@@ -143,7 +169,9 @@ export function App() {
     if (location.pathname !== '/releases') navigate('/releases');
   };
 
-  const menuItems: MenuProps['items'] = NAV.map((n) => ({
+  // 导航按权限过滤（p2-admin）：me 未加载时先全部隐藏，加载后按权限码展示（fail-closed）
+  const permittedNav = NAV.filter((n) => !n.permission || (me?.permissions.includes(n.permission) ?? false));
+  const menuItems: MenuProps['items'] = permittedNav.map((n) => ({
     key: n.key,
     icon: n.icon,
     label:
@@ -174,7 +202,7 @@ export function App() {
         mode="inline"
         selectedKeys={[current]}
         items={menuItems}
-        onClick={({ key }) => go(NAV.find((n) => n.key === key)?.path || '/')}
+        onClick={({ key }) => go(permittedNav.find((n) => n.key === key)?.path || '/')}
         style={{ border: 'none', padding: '0 8px' }}
       />
       {expanded && (
@@ -291,6 +319,22 @@ export function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/releases" element={<Releases />} />
               <Route path="/apps" element={<Apps />} />
+              <Route
+                path="/tenants"
+                element={(
+                  <PermissionGate permission="TENANT_LIST">
+                    <TenantsPage />
+                  </PermissionGate>
+                )}
+              />
+              <Route
+                path="/users"
+                element={(
+                  <PermissionGate permission="USER_LIST">
+                    <UsersPage />
+                  </PermissionGate>
+                )}
+              />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -300,7 +344,7 @@ export function App() {
 
       {isMobile && (
         <nav className="mobile-nav" aria-label="移动导航">
-          {NAV.map((n) => (
+          {permittedNav.map((n) => (
             <button key={n.key} className={current === n.key ? 'active' : ''} onClick={() => go(n.path)}>
               {n.icon}
               <span>{n.label}</span>

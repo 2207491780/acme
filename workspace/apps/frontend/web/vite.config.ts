@@ -28,12 +28,15 @@ export default defineConfig({
       '@acme/core': fileURLToPath(new URL('../packages/core/src/index.ts', import.meta.url)),
     },
   },
-  // /admin 代理到本地网关（9888）：同源请求规避 CSP connect-src 'self' 与开发态 CORS；
+  // /admin 代理到网关：目标经 WEB_API_TARGET 注入（缺省本地 9888；远程联调设
+  // WEB_API_TARGET=http://acme.dev.local），同源请求规避 CSP connect-src 'self' 与开发态 CORS；
   // 路由为 Hash 形态（#/...），代理前缀不与 SPA 路由冲突
   server: {
     port: 5173,
     strictPort: true,
-    proxy: { '/admin': { target: 'http://localhost:9888', changeOrigin: true } },
+    proxy: {
+      '/admin': { target: process.env.WEB_API_TARGET ?? 'http://localhost:9888', changeOrigin: true },
+    },
   },
   preview: { port: 4173, strictPort: true },
   build: {
