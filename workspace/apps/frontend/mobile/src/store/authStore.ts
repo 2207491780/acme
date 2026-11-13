@@ -29,6 +29,31 @@ interface AuthStore {
 
 const KEY = 'acme.auth.session.v1';
 
+/** 会话恢复运行时校验（review 修复）：持久化数据不得用类型断言信任，
+ * 任一字段缺失/类型不符即拒绝恢复，避免损坏数据产生 NaN 过期时间与注定失败的轮换调用。 */
+function isValidSession(value: unknown): value is AuthSession {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const s = value as Partial<AuthSession>;
+  return (
+    typeof s.accessToken === 'string' &&
+    s.accessToken.length > 0 &&
+    typeof s.refreshToken === 'string' &&
+    s.refreshToken.length > 0 &&
+    typeof s.accessExpiresAtMs === 'number' &&
+    Number.isFinite(s.accessExpiresAtMs) &&
+    s.accessExpiresAtMs > 0 &&
+    typeof s.refreshExpiresAtMs === 'number' &&
+    Number.isFinite(s.refreshExpiresAtMs) &&
+    s.refreshExpiresAtMs > 0 &&
+    typeof s.userId === 'number' &&
+    Number.isFinite(s.userId) &&
+    typeof s.phone === 'string' &&
+    s.phone.length > 0
+  );
+}
+
 export const useAuthStore = create<AuthStore>()((set, get) => ({
   session: null,
   hydrated: false,
@@ -37,8 +62,8 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
     let session: AuthSession | null = null;
     if (raw) {
       try {
-        const parsed = JSON.parse(raw) as AuthSession;
-        if (parsed?.accessToken && parsed?.refreshToken) {
+        const parsed: unknown = JSON.parse(raw);
+        if (isValidSession(parsed)) {
           session = parsed;
         }
       } catch {

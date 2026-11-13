@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// 原生模块在 Node/vitest 下不可解析与加载：以内存桩替代（secureStore 封装自带内存兜底）
+// 原生模块在 Node/vitest 下不可解析与加载：以可读写内存桩替代（hydrate 测试需注入持久化数据）
+const secureMem = vi.hoisted(() => new Map<string, string>());
 vi.mock('expo-secure-store', () => ({
-  getItemAsync: vi.fn(async () => null),
-  setItemAsync: vi.fn(async () => undefined),
-  deleteItemAsync: vi.fn(async () => undefined),
+  getItemAsync: vi.fn(async (key: string) => secureMem.get(key) ?? null),
+  setItemAsync: vi.fn(async (key: string, value: string) => {
+    secureMem.set(key, value);
+  }),
+  deleteItemAsync: vi.fn(async (key: string) => {
+    secureMem.delete(key);
+  }),
 }));
 
 import { useAuthStore } from '../src/store/authStore';
@@ -101,5 +106,48 @@ describe('mobile auth', () => {
     expect(isExpiringSoon({ accessExpiresAtMs: Date.now() + 60_000 })).toBe(true);
     expect(isExpiringSoon({ accessExpiresAtMs: Date.now() + 1_800_000 })).toBe(false);
     expect(isExpiringSoon({ accessExpiresAtMs: Date.now() + 1_800_000 }, 0)).toBe(false);
+  });
+
+  it('should_reject_hydrate_when_persisted_field_missing', async () => {
+    // 模拟安全存储中的损坏会话：缺 accessExpiresAtMs
+    const { accessExpiresAtMs: _omit, ...broken } = {
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      accessExpiresAtMs: Date.now() + 1_800_000,
+      refreshExpiresAtMs: Date.now() + 12_096_000_000,
+      userId: 7,
+      phone: '13800138000',
+    };
+    secureMem.set('acme.auth.session.v1', JSON.stringify(broken));
+    await useAuthStore.getState().hydrate();
+    expect(useAuthStore.getState().session).toBeNull();
+    expect(useAuthStore.getState().hydrated).toBe(true);
+  });
+
+  it('should_hydrate_valid_session_from_secure_store', async () => {
+    const valid = {
+      accessToken: 'access-1',
+      refreshToken: 'refresh-1',
+      accessExpiresAtMs: Date.now() + 1_800_000,
+      refreshExpiresAtMs: Date.now() + 12_096_000_000,
+      userId: 7,
+      phone: '13800138000',
+    };
+    secureMem.set('acme.auth.session.v1', JSON.stringify(valid));
+    await useAuthStore.getState().hydrate();
+    expect(useAuthStore.getState().session?.accessToken).toBe('access-1');
+  });
+
+  it('should_skip_refresh_when_refresh_token_locally_expired', async () => {
+    seedSession('expired');
+    const expired = useAuthStore.getState().session;
+    useAuthStore.getState().setSession({ ...expired!, refreshExpiresAtMs: Date.now() - 1_000 });
+    const fetchMock = vi.fn(async () => unauthorized());
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(apiFetch<unknown>('/app/v1/auth/tokens/current', { method: 'DELETE' }))
+      .rejects.toMatchObject({ code: 'AUTH_REQUIRED' });
+    // 仅原请求 1 次；刷新令牌本地已过期 → 不发起轮换调用，直接清会话
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().session).toBeNull();
   });
 });

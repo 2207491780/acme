@@ -31,6 +31,10 @@ function refreshOnce(): Promise<boolean> {
       if (!session) {
         return false;
       }
+      // 刷新令牌本地已过期时不必发起注定失败的轮换（review 修复：此前 refreshExpiresAtMs 从不检查）
+      if (!Number.isFinite(session.refreshExpiresAtMs) || session.refreshExpiresAtMs <= Date.now()) {
+        return false;
+      }
       const res = await fetch(`${API_BASE}/app/v1/auth/tokens/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
