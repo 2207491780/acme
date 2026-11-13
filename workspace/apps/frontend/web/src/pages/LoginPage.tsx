@@ -118,15 +118,15 @@ export function LoginPage() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        background: 'var(--bg, #0d1117)',
+        background: 'var(--bg-0)',
       }}
     >
       <div style={{ width: '100%', maxWidth: 960 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-          <ThunderboltOutlined style={{ fontSize: 26, color: 'var(--accent, #14b8a6)' }} />
+          <ThunderboltOutlined style={{ fontSize: 26, color: 'var(--accent)' }} />
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text, #e6edf3)' }}>Acme SaaS 云平台</div>
-            <div style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted, #8b949e)' }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Acme SaaS 云平台</div>
+            <div style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)' }}>
               MULTI-TENANT CLOUD · 多租户发布流程云平台
             </div>
           </div>
@@ -143,7 +143,7 @@ export function LoginPage() {
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'space-between',
-              background: 'linear-gradient(160deg, var(--accent, #14b8a6) 0%, #0b3d33 72%)',
+              background: 'linear-gradient(160deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 38%, var(--bg-0)) 72%)',
             }}
           >
             <div style={{ display: 'grid', gap: 14 }}>
