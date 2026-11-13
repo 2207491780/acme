@@ -169,11 +169,12 @@ async function canSymlink() {
     await rmdir(probeDir);
   }
 }
-// ---- 0b. 行为/引擎开关：.ai/ai-coding-config.yml（源，sync 读取，不派生；缺省即当前行为） ----
+// ---- 0b. 行为/引擎开关 + 环境上下文：.ai/ai-coding-config.yml（源，sync 读取，不派生；缺省即当前行为） ----
 const CONFIG_FILE = 'ai-coding-config.yml';
 const CONFIG_DEFAULTS = {
   version: 1,
   engine: { entryMode: 'stub', orphanDetection: true, rulesBudgetBytes: 8192 },
+  environment: { file: 'local.yaml' },
 };
 
 /** 极简 YAML 子集解析：仅两层标量映射 + 注释；拒绝数组/Tab/多行/锚点等未支持语法（无外部依赖）。 */
@@ -219,7 +220,7 @@ function validateConfig(parsed) {
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(`${CONFIG_FILE}：顶层必须是映射`);
   const cfg = structuredClone(CONFIG_DEFAULTS);
   for (const k of Object.keys(parsed)) {
-    if (k !== 'version' && k !== 'engine') throw new Error(`${CONFIG_FILE}：未知顶层键「${k}」`);
+    if (k !== 'version' && k !== 'engine' && k !== 'environment') throw new Error(`${CONFIG_FILE}：未知顶层键「${k}」`);
   }
   if ('version' in parsed && parsed.version !== 1) throw new Error(`${CONFIG_FILE}：version 必须为 1`);
   if ('engine' in parsed) {
@@ -231,6 +232,16 @@ function validateConfig(parsed) {
       if (k === 'orphanDetection' && typeof v !== 'boolean') throw new Error(`${CONFIG_FILE}：orphanDetection 必须为布尔`);
       if (k === 'rulesBudgetBytes' && (!Number.isInteger(v) || v <= 0)) throw new Error(`${CONFIG_FILE}：rulesBudgetBytes 必须为正整数`);
       cfg.engine[k] = v;
+    }
+  }
+  // environment 是当前运行环境定义文件的指针：引擎只校验 schema 不消费（AI 读所指 .ai/env/ 文件）；不查文件存在性（fixture 为最小仓库）。
+  if ('environment' in parsed) {
+    const env = parsed.environment;
+    if (env === null || typeof env !== 'object' || Array.isArray(env)) throw new Error(`${CONFIG_FILE}：environment 必须是映射`);
+    for (const [k, v] of Object.entries(env)) {
+      if (!(k in CONFIG_DEFAULTS.environment)) throw new Error(`${CONFIG_FILE}：未知 environment 键「${k}」`);
+      if (k === 'file' && (typeof v !== 'string' || !/^[a-z0-9-]+\.yaml$/.test(v))) throw new Error(`${CONFIG_FILE}：file 必须为 .ai/env/ 下的 .yaml 文件名（小写字母/数字/连字符）`);
+      cfg.environment[k] = v;
     }
   }
   return cfg;

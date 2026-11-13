@@ -1,0 +1,12 @@
+# 本地运行环境与 MCP 连接定义 —— 唯一事实源：.ai/env/local.yaml（Schema 与纪律见 ENV-GUIDE.md）
+# 敏感值用 ${VAR} 引用本地环境变量，严禁明文。
+env: local
+description: 本地运行环境（中间件 PG/Redis/Nacos 本地运行：Docker 或本机进程），允许读写。
+mcp:
+  servers: [] # TODO 按需登记，示例：
+  # - name: local-db
+  #   transport: stdio
+  #   command: [npx, -y, @modelcontextprotocol/server-postgres]
+  #   env:
+  #     DATABASE_URL: ${LOCAL_DATABASE_URL}
+notes: 本地调试的保守缺省环境；PG 集成测试需 Docker（见 backend 分层规则）。

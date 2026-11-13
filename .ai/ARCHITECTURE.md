@@ -15,7 +15,7 @@
 ├── PROMPTS.md     # 提示词案例库（21 条让 AI 自维护的指令 + 验收核对单）
 ├── sync.mjs       # 派生引擎：node .ai/sync.mjs（--check 为校验模式）
 ├── worktree.mjs   # 并行开发工作树管理：node .ai/worktree.mjs add|remove|list（口径见 playbooks/parallel-dev.md）
-├── ai-coding-config.yml # 行为/引擎开关（源，sync 读取，不派生；见下「行为/引擎开关」）
+├── ai-coding-config.yml # 行为/引擎开关 + 环境上下文（源，sync 读取，不派生；见下「行为/引擎开关」）
 ├── RULES.md       # ⚙️ 生成：公共规范唯一完整副本（由 rules/ 按文件名排序拼接）
 ├── rules/         # 公共规范源（AI 协作准则 / 编码规范 / Git 工作流 / 项目上下文）
 ├── scopes/        # 分层 AGENTS.md 源 → 派生到仓库同路径（就近生效，见 SCOPED-RULES.md）
@@ -70,7 +70,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 
 ## 行为/引擎开关（ai-coding-config.yml）
 
-[ai-coding-config.yml](ai-coding-config.yml) 是**可选派生引擎行为**的开关源（仿 [env/](env/ENV-GUIDE.md)：源、被 `sync.mjs` 读取、**不派生**）。改后必须重跑 `node .ai/sync.mjs`；钩子与 CI 调用同一脚本，自动生效（无需改工作流文件）。
+[ai-coding-config.yml](ai-coding-config.yml) 是**可选派生引擎行为**的开关源（仿 [env/](env/ENV-GUIDE.md)：源、被 `sync.mjs` 读取、**不派生**），另含 `environment` 环境上下文段（当前运行环境定义文件的指针，AI 调试前读取所指 `.ai/env/` 定义；引擎只校验不消费）。改后必须重跑 `node .ai/sync.mjs`；钩子与 CI 调用同一脚本，自动生效（无需改工作流文件）。
 
 | 开关 | 取值 | 默认 | 作用 |
 |---|---|---|---|
@@ -78,9 +78,15 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | `engine.orphanDetection` | 布尔 | `true` | 是否在 sync/--check 扫描工具目录孤儿派生文件；关闭会削弱联动防线 |
 | `engine.rulesBudgetBytes` | 正整数 | `8192` | `RULES.md` 拼接后的字节预算上限 |
 
+**环境上下文（`environment.*`）**——不是引擎开关，是当前运行环境定义文件的指针；AI 在调试任务前读取所指 `.ai/env/` 定义，切换环境时改本文件并重跑 sync：
+
+| 键 | 取值 | 默认 | 作用 |
+|---|---|---|---|
+| `environment.file` | `.ai/env/` 下的 `.yaml` 文件名 | `local.yaml` | 当前运行环境（本地调试时后端连接的环境）：`local.yaml`=本地中间件（PG/Redis/Nacos）；`cloud-*.yaml`=云端 k3s 环境（命名与权限见 [ENV-GUIDE](env/ENV-GUIDE.md)） |
+
 - **缺省即现状**：文件缺失或键缺省时完全向后兼容（`.ai/tests/` 回归锁定）。
 - **严格校验**：未知键 / 错误类型 / 非法枚举 / 数组 / Tab 等在**写入前**报错；无外部依赖（内置极简 YAML 子集解析，仅两层标量映射 + 注释）。
-- **不设开关的部分**：核心派生（rules / 入口 / scopes / pools / tools / ci）是「全工具联动」铁律的保证，始终开启；AI 协作红线与强制规范在 `.ai/rules/`，**不可**在此关闭。取舍见 [../.ai-memory/decisions/2026-11-12-06-ai-coding-config.md](../.ai-memory/decisions/2026-11-12-06-ai-coding-config.md)。
+- **不设开关的部分**：核心派生（rules / 入口 / scopes / pools / tools / ci）是「全工具联动」铁律的保证，始终开启；AI 协作红线与强制规范在 `.ai/rules/`，**不可**在此关闭。取舍见 [../.ai-memory/decisions/2026-11-12-06-ai-coding-config.md](../.ai-memory/decisions/2026-11-12-06-ai-coding-config.md)；environment 段扩展见 [../.ai-memory/decisions/2026-11-13-09-env-debug-target-config.md](../.ai-memory/decisions/2026-11-13-09-env-debug-target-config.md)，语义修正见 [../.ai-memory/decisions/2026-11-13-10-env-debug-backend-semantics.md](../.ai-memory/decisions/2026-11-13-10-env-debug-backend-semantics.md)，简化为 file 指针见 [../.ai-memory/decisions/2026-11-13-11-env-file-pointer.md](../.ai-memory/decisions/2026-11-13-11-env-file-pointer.md)。
 
 ## 过程性内容落盘（在 `.ai-memory/`，独立于本配置工程）
 
@@ -123,7 +129,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 
 | 层级 | 源位置 | 说明 |
 |---|---|---|
-| 环境级端点（跨工具） | `.ai/env/{dev,test,prod}.yaml`（见 [ENV-GUIDE.md](env/ENV-GUIDE.md)） | 当前为空模板；AI 按需读取，各工具原生 MCP 配置由此适配 |
+| 环境级端点（跨工具） | `.ai/env/{local,cloud-dev,cloud-test,cloud-prod}.yaml`（见 [ENV-GUIDE.md](env/ENV-GUIDE.md)） | 当前为空模板；AI 按需读取，各工具原生 MCP 配置由此适配 |
 | 工具级配置 | `.ai/tools/<工具>/`（按需新增，如 `cursor/mcp.json`、`gemini/settings.json`，镜像目标路径） | **当前未配置**任何工具级 MCP；需要时在此建源，经 `node .ai/sync.mjs` 派生到对应工具目录 |
 | Claude Code（如需） | 根目录 `.mcp.json` | 例外：根级文件，手工维护 |
 | ZCode | `.zcode/` 目录（工作区作用域） | ZCode 自管理 |

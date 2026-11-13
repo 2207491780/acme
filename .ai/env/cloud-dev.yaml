@@ -1,0 +1,20 @@
+# 云端开发环境（k3s dev）运行环境与 MCP 连接定义 —— 唯一事实源：.ai/env/cloud-dev.yaml（Schema 与纪律见 ENV-GUIDE.md）
+# 敏感值用 ${VAR} 引用本地环境变量，严禁明文。
+env: dev
+description: 云端 k3s dev 环境（命名空间 acme-dev，中间件 PG/Redis/Nacos 在集群内），允许读写。
+mcp:
+  servers:
+    - name: dev-db
+      transport: stdio
+      command: [npx, -y, @modelcontextprotocol/server-postgres]
+      env:
+        # PG_PASSWORD 由 dev-tunnel.sh 打印的 export 行注入（先建隧道再启 MCP）
+        DATABASE_URL: postgresql://acme:${PG_PASSWORD}@127.0.0.1:15432/acme
+notes: |
+  本地调试通道：用户在本机终端执行 sh workspace/env-stack/scripts/dev-tunnel.sh dev
+  （前置 export ACME_SRV_HOST=<服务器地址>，详见 env-stack/RUNBOOK.md §8.5）；
+  脚本打印云端凭证 export 行并建立回环映射：15432→PG、16379→Redis、18848→Nacos HTTP、
+  19848→Nacos gRPC、19888→网关；Ctrl-C 拆除，down 子命令清理服务器侧残留。
+  本地后端经 PG_HOST/PG_PORT/REDIS_HOST/REDIS_PORT/NACOS_ADDR 指向回环端口启动（示例见脚本输出）。
+  注意：本地服务会以同名注册进云端 Nacos，网关 lb 可能路由到本地实例（调试期预期行为）；
+  凭证输出属敏感信息，不得经 AI 工具运行或转录（安全红线）；prod 禁用隧道（脚本代码级拦截）。
