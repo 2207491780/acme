@@ -75,8 +75,7 @@ sh scripts/healthcheck.sh dev   # Pod Ready + web 探活
 kubectl -n acme-dev get pods    # 人工复核
 ```
 
-线上访问：浏览器直接打开 **`https://www.acmecloud.cc.cd`**（Cloudflare 橙云代理提供边缘
-HTTPS；DNS：CF A 记录 `www` → 服务器 IP，SSL/TLS 模式 Flexible，源站仅暴露 HTTP:80）。
+本机访问：hosts 文件加 `<服务器IP> acme.dev.local`，浏览器打开 `http://acme.dev.local`
 （登录走网关 `/admin/v1/auth/tokens`，演示凭证见后端 `V4__seed_demo_credentials.sql`）。
 
 ## 8. 4G 日常运维要点
@@ -87,18 +86,6 @@ HTTPS；DNS：CF A 记录 `www` → 服务器 IP，SSL/TLS 模式 Flexible，源
 - **释放内存**：`kubectl -n acme-dev scale deployment --all --replicas=0`
 - **探针 404**：若 actuator health groups 未暴露，把 deployment 探针 path 换成 `/actuator/health`
 - **回滚**：改 registry.env 的 `ACME_IMAGE_TAG` 后重跑 deploy.sh，或 `kubectl rollout undo`
-
-## 8.5 本地联调云端环境（dev-tunnel）
-
-`sh scripts/dev-tunnel.sh dev` 一条命令建立本地 ↔ 云端隧道（PG/Redis/Nacos/网关映射到本机
-回环，并打印云端凭证的 export 行），Ctrl-C 拆除；`down` 子命令清理服务器侧残留。
-适用场景：本地 IDE 断点调试后端、直连云端数据与中间件——避免在 4G 服务器上跑开发进程。
-
-- **后端**：export 凭证后 `PG_HOST=127.0.0.1 PG_PORT=15432 REDIS_HOST=127.0.0.1 REDIS_PORT=16379 NACOS_ADDR=http://127.0.0.1:18848 mvn ... spring-boot:run`（完整示例见脚本输出）
-- **前端**：`WEB_API_TARGET=http://127.0.0.1:19888 pnpm dev`（vite 已预留该代理变量；也可直指公网域名）
-- 服务器侧监听 27xxx 高位端口，与 seed-nacos/部署并发互不干扰
-- 本地服务会以同名注册进云端 Nacos（dev 允许读写；网关 lb 可能路由到本地实例，属调试期预期行为）
-- **prod 禁用**（只读红线，见 .ai/rules 安全约束）
 
 ## 9. 与 CD 流水线衔接（已接线）
 

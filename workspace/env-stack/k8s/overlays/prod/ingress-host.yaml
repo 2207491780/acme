@@ -5,7 +5,7 @@ metadata:
   name: acme-web
 spec:
   rules:
-    - host: prod.acmecloud.cc.cd
+    - host: acme.example.com
       http:
         paths:
           - path: /
