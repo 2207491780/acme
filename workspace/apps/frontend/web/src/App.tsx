@@ -4,16 +4,20 @@ import type { InputRef, MenuProps } from 'antd';
 import {
   ApartmentOutlined,
   AppstoreOutlined,
+  BookOutlined,
   DashboardOutlined,
   DownOutlined,
+  FileSearchOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuOutlined,
   MoonOutlined,
   PlusOutlined,
+  SafetyCertificateOutlined,
   SearchOutlined,
   SettingOutlined,
   SunOutlined,
+  TeamOutlined,
   ThunderboltOutlined,
   UnorderedListOutlined,
   UserOutlined,
@@ -32,6 +36,11 @@ import { Apps } from './pages/Apps';
 import { Settings } from './pages/Settings';
 import { TenantsPage } from './pages/TenantsPage';
 import { UsersPage } from './pages/UsersPage';
+import { RolesPage } from './pages/RolesPage';
+import { PermissionsPage } from './pages/PermissionsPage';
+import { MenusPage } from './pages/MenusPage';
+import { DictsPage } from './pages/DictsPage';
+import { AuditPage } from './pages/AuditPage';
 import { LoginPage } from './pages/LoginPage';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
@@ -67,6 +76,11 @@ const NAV: { key: string; path: string; icon: ReactNode; label: string; permissi
   { key: 'apps', path: '/apps', icon: <AppstoreOutlined />, label: '应用结构' },
   { key: 'tenants', path: '/tenants', icon: <ApartmentOutlined />, label: '租户管理', permission: 'TENANT_LIST' },
   { key: 'users', path: '/users', icon: <UserOutlined />, label: '用户管理', permission: 'USER_LIST' },
+  { key: 'roles', path: '/roles', icon: <TeamOutlined />, label: '角色管理', permission: 'system:role:list' },
+  { key: 'permissions', path: '/permissions', icon: <SafetyCertificateOutlined />, label: '权限管理', permission: 'system:permission:list' },
+  { key: 'menus', path: '/menus', icon: <MenuOutlined />, label: '菜单管理', permission: 'system:menu:list' },
+  { key: 'dicts', path: '/dicts', icon: <BookOutlined />, label: '字典管理', permission: 'system:dict:list' },
+  { key: 'audit', path: '/audit', icon: <FileSearchOutlined />, label: '审计事件', permission: 'infra:audit:list' },
   { key: 'settings', path: '/settings', icon: <SettingOutlined />, label: '设置' },
 ];
 
@@ -332,6 +346,46 @@ export function App() {
                 element={(
                   <PermissionGate permission="USER_LIST">
                     <UsersPage />
+                  </PermissionGate>
+                )}
+              />
+              <Route
+                path="/roles"
+                element={(
+                  <PermissionGate permission="system:role:list">
+                    <RolesPage />
+                  </PermissionGate>
+                )}
+              />
+              <Route
+                path="/permissions"
+                element={(
+                  <PermissionGate permission="system:permission:list">
+                    <PermissionsPage />
+                  </PermissionGate>
+                )}
+              />
+              <Route
+                path="/menus"
+                element={(
+                  <PermissionGate permission="system:menu:list">
+                    <MenusPage />
+                  </PermissionGate>
+                )}
+              />
+              <Route
+                path="/dicts"
+                element={(
+                  <PermissionGate permission="system:dict:list">
+                    <DictsPage />
+                  </PermissionGate>
+                )}
+              />
+              <Route
+                path="/audit"
+                element={(
+                  <PermissionGate permission="infra:audit:list">
+                    <AuditPage />
                   </PermissionGate>
                 )}
               />
