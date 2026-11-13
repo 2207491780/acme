@@ -59,7 +59,7 @@
 
 仓库内的规范与钩子只覆盖本机与 CI；以下在托管平台（Gitee/GitHub）后台完成，形成最后一道兜底：
 
-1. **`main` 分支保护**：禁直推（仅允许 PR 合并）、开启合并前 CI 检查（对应本文件 ci.yml 两个作业）、禁强推与删分支。
+1. **`acme-foundation` 分支保护**（受保护主线，`main` 为历史归档分支）：禁直推（仅允许 PR / 快进合流）、开启合并前 CI 检查（对应本文件 ci.yml 两个作业）、禁强推与删分支。
 2. **PR 审核**：至少 1 人批准方可合并（对应 `.ai/rules/git-workflow.md`「CR 未通过前不得合并」）。
 3. **成员本机初始化**：克隆后执行 `node .ai/hooks/enable.mjs` 启用本地钩子（pre-commit / commit-msg / pre-push）。
 4. **AI 工具协作**：AI 遵守 `.ai/rules/git-workflow.md`「AI 操作授权分级」；AI 参与的提交带 `Assisted-by: <工具名>` trailer，PR 描述注明 AI 改动。

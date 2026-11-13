@@ -48,6 +48,17 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 done
 
+# 单分支推送缺口（review 修复）：本地已镜像时只推一条策略分支也能过本地预检（对侧回退本地 HEAD），
+# 但远端对端未更新 → CI mirror-sync 必红。两条策略分支必须用同一条命令推送（删除已在上方拒绝）。
+if [ "$status" -eq 0 ]; then
+  if { [ -n "$main_sha" ] && [ -z "$support_sha" ]; } || { [ -z "$main_sha" ] && [ -n "$support_sha" ]; }; then
+    echo "推送被拒绝：只推送了一条策略分支（另一条不在本次推送中）。"
+    echo "两条策略分支必须同一条命令推送，否则远端对端未更新、CI mirror-sync 判红："
+    echo "  git push origin acme-foundation ai-coding-support"
+    status=1
+  fi
+fi
+
 # 策略分支推送前预检镜像一致性（与 CI mirror-sync 同口径）：任一侧为空则回退到本地分支 HEAD
 if [ "$status" -eq 0 ] && { [ -n "$main_sha" ] || [ -n "$support_sha" ]; }; then
   hookdir=$(cd "$(dirname "$0")" && pwd) || exit 1
