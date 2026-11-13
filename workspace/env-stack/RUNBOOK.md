@@ -75,7 +75,8 @@ sh scripts/healthcheck.sh dev   # Pod Ready + web 探活
 kubectl -n acme-dev get pods    # 人工复核
 ```
 
-本机访问：hosts 文件加 `<服务器IP> acme.dev.local`，浏览器打开 `http://acme.dev.local`
+线上访问：浏览器直接打开 **`https://www.acmecloud.cc.cd`**（Cloudflare 橙云代理提供边缘
+HTTPS；DNS：CF A 记录 `www` → 服务器 IP，SSL/TLS 模式 Flexible，源站仅暴露 HTTP:80）。
 （登录走网关 `/admin/v1/auth/tokens`，演示凭证见后端 `V4__seed_demo_credentials.sql`）。
 
 ## 8. 4G 日常运维要点
