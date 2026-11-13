@@ -49,10 +49,32 @@ import { AppFormModal } from './components/AppFormModal';
 
 const { Sider, Header, Content } = Layout;
 
-/** 页面级权限门禁（p2-admin）：画像未加载放行占位（避免闪烁），已加载缺权限码 → 403 提示。 */
+/**
+ * 页面级权限门禁（p2-admin）：画像未加载放行占位（避免闪烁），已加载缺权限码 → 403 提示。
+ * 加载失败进入错误态并给出重试入口（review 修复：此前失败后所有权限页永远停留在“加载中”）。
+ */
 function PermissionGate({ permission, children }: { permission: string; children: ReactNode }) {
   const me = useMeStore((s) => s.me);
+  const loading = useMeStore((s) => s.loading);
+  const error = useMeStore((s) => s.error);
   if (!me) {
+    if (error && !loading) {
+      return (
+        <Card>
+          <Alert
+            type="error"
+            showIcon
+            message="权限信息加载失败"
+            description={`${error}。权限入口暂不可用，请重试或刷新页面。`}
+            action={
+              <Button size="small" onClick={() => void useMeStore.getState().load()}>
+                重试
+              </Button>
+            }
+          />
+        </Card>
+      );
+    }
     return <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)' }}>权限信息加载中…</div>;
   }
   if (!me.permissions.includes(permission)) {
@@ -105,16 +127,44 @@ export function App() {
 
   // 登录态（login-state / login-renew）：未登录渲染独立登录页；已登录进入控制台并启动滑动续约
   const session = useAuthStore((s) => s.session);
+  const isAuthed = session !== null;
   useEffect(() => startAuthRenewal(), []);
 
-  // 会话恢复校验（p1-me-sync）：进入应用即拉取服务端画像（me 401 由 client 续约/清会话处理）
+  // 会话恢复校验（p1-me-sync）：进入应用即拉取服务端画像（me 401 由 client 续约/清会话处理）。
+  // 依赖收敛为 isAuthed：滑动续约会整体替换 session 对象，以 session 为依赖会导致每次续约重复拉取 me。
   useEffect(() => {
-    if (session) {
+    if (isAuthed) {
       void useMeStore.getState().load();
     } else {
       useMeStore.getState().clear();
     }
-  }, [session]);
+  }, [isAuthed]);
+
+  // 主题/时钟/快捷键副作用必须无条件注册：hooks 不得位于下方条件 return（if (!session)）之后，
+  // 否则登录/登出切换时 hook 数量变化将触发 React "Rendered more/fewer hooks" 崩溃（review 修复 P0）。
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = settings.theme;
+    root.dataset.accent = settings.accent;
+    root.dataset.density = settings.density;
+    root.dataset.motion = String(settings.motion);
+  }, [settings]);
+
+  useEffect(() => {
+    const timer = setInterval(() => dispatch({ type: 'TICK' }), 1200);
+    return () => clearInterval(timer);
+  }, [dispatch]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleLogout = () => {
     void authApi
@@ -148,30 +198,6 @@ export function App() {
   const current = location.pathname === '/' ? 'dashboard' : location.pathname.slice(1);
   const platform = detectPlatform();
   const runtimeLabel = platform === 'desktop' ? 'Electron 桌面端' : platform === 'mobile' ? '移动端' : 'Web 端';
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.theme = settings.theme;
-    root.dataset.accent = settings.accent;
-    root.dataset.density = settings.density;
-    root.dataset.motion = String(settings.motion);
-  }, [settings]);
-
-  useEffect(() => {
-    const timer = setInterval(() => dispatch({ type: 'TICK' }), 1200);
-    return () => clearInterval(timer);
-  }, [dispatch]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   const go = (path: string) => {
     navigate(path);
