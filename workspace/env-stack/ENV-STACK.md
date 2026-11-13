@@ -22,7 +22,8 @@ pnpm/Maven workspace 对齐）。
 
 - 环境三态对齐 `.ai/env/cloud-{dev,test,prod}.yaml`（`env` 字段仍为 dev/test/prod）：本目录负责**搭**，`.ai/env/` 负责**连**（MCP）与运行环境定义。
 - 部署契约：`cd.yml` → `scripts/deploy.sh <env>` → `kubectl apply -k k8s/overlays/<env>` →
-  `scripts/healthcheck.sh <env>`；镜像地址由 deploy.sh 经 `kustomize edit set image` 注入。
+  `scripts/healthcheck.sh <env>`；镜像地址由 deploy.sh 在临时目录向 overlay kustomization 追加 `images` 段注入
+  （kubectl 内置 kustomize 渲染，不依赖独立 kustomize 二进制、不弄脏仓库文件）。
 - 真实凭证不入库：模板一律占位；服务器侧放 `/opt/acme/<env>/{app.env,registry.env}`，
   由 deploy.sh 注入为集群 Secret（`acme-app-secrets` / `acme-registry-auth`）。
 - 4G 单机资源纪律：全部工作负载设内存 limit；**同一时间只常驻一个环境**（见 RUNBOOK 第 8 节）。

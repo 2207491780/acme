@@ -1,5 +1,5 @@
 # dev overlay —— 服务器常驻环境（4G 单机同一时间只跑一个环境，见决策 2026-11-13-06）
-# 镜像 tag 由 deploy.sh `kustomize edit set image` 写入（默认 dev-latest）
+# 镜像 tag 由 deploy.sh 向本文件副本追加 images 段写入（CI 注入 env-SHA 不可变 tag；本地手动默认 dev-latest）
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: acme-dev

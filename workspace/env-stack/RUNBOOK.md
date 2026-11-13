@@ -44,7 +44,7 @@ mkdir -p /opt/acme/dev
 
 ```sh
 mkdir -p /opt/acme/src && cd /opt/acme/src
-git clone <仓库地址> && git checkout feat/k8s-runtime-env   # 后续切 main
+git clone <仓库地址> && git checkout acme-foundation   # 受保护主线（main 为历史归档分支，不使用）
 ```
 
 ## 6. 构建并推送镜像（开发机执行，服务器不构建）
