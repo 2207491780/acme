@@ -87,6 +87,21 @@ kubectl -n acme-dev get pods    # 人工复核
 - **探针 404**：若 actuator health groups 未暴露，把 deployment 探针 path 换成 `/actuator/health`
 - **回滚**：改 registry.env 的 `ACME_IMAGE_TAG` 后重跑 deploy.sh，或 `kubectl rollout undo`
 
+## 8.5 本地联调云端环境（dev-tunnel）
+
+`sh scripts/dev-tunnel.sh dev` 一条命令建立本地 ↔ 云端隧道（PG/Redis/Nacos/网关映射到本机
+回环，并打印云端凭证的 export 行），Ctrl-C/断连自动拆除（远端 trap 清理）；`down` 子命令按
+PID 文件 + 端口监听扫杀服务器侧残留（兜底异常断连）。
+适用场景：本地 IDE 断点调试后端、直连云端数据与中间件——避免在 4G 服务器上跑开发进程。
+当前运行环境声明见 `.ai/ai-coding-config.yml` 的 `environment.file`（指向 `.ai/env/cloud-dev.yaml`）。
+
+- **前置**⭐：`export ACME_SRV_HOST=<服务器IP>`（必填，脚本无缺省值）；可选 `ACME_SRV_PORT`(22) / `ACME_SRV_USER`(ubuntu) / `ACME_SRV_KEY`(~/.ssh/acme_srv_deploy)
+- **后端**：export 凭证后 `PG_HOST=127.0.0.1 PG_PORT=15432 REDIS_HOST=127.0.0.1 REDIS_PORT=16379 NACOS_ADDR=http://127.0.0.1:18848 mvn ... spring-boot:run`（完整示例见脚本输出）
+- **前端**：`WEB_API_TARGET=http://127.0.0.1:19888 pnpm dev`（vite 已预留该代理变量；也可直指公网域名）
+- 服务器侧监听 27xxx 高位端口（仅绑 127.0.0.1），与 seed-nacos/部署并发互不干扰
+- 本地服务会以同名注册进云端 Nacos（dev 允许读写；网关 lb 可能路由到本地实例，属调试期预期行为）
+- **prod 禁用**（只读红线，脚本代码级拦截）；**凭证输出由用户终端承接，不得经 AI 工具运行或转录**
+
 ## 9. 与 CD 流水线衔接（已接线）
 
 `cd.yml` 已实现完整链路：build 作业在 GitHub 云端 runner 构建五镜像并推 TCR（不占服务器资源），
