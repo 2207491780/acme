@@ -12,14 +12,17 @@ export default function OrchestrationScreen({ onBack }: { onBack: () => void }) 
   const nodes = useMemo(() => orchestrationGraph(state), [state]);
   const { order, cycles } = useMemo(() => topoSort(nodes), [nodes]);
   const byId = new Map(nodes.map((n) => [n.releaseId, n]));
+  // 按依赖层级分批（review 修复：原 findIndex 回调未接收批次序号，谓词与批次无关）：
+  // 第 i 批 = 依赖已全部在更早批次落位的节点
   const batches: typeof nodes[] = [];
   const placed = new Set<string>();
-  for (const id of order) {
-    const node = byId.get(id)!;
-    const batch = batches.findIndex(() => node.dependsOn.every((d) => placed.has(d)));
-    if (batch >= 0) batches[batch].push(node);
-    else batches.push([node]);
-    placed.add(id);
+  let remaining = order.map((id) => byId.get(id)!);
+  while (remaining.length > 0) {
+    const ready = remaining.filter((n) => n.dependsOn.every((d) => placed.has(d)));
+    if (!ready.length) break; // 拓扑序下不会发生；防御异常数据成环
+    batches.push(ready);
+    for (const n of ready) placed.add(n.releaseId);
+    remaining = remaining.filter((n) => !ready.includes(n));
   }
 
   return (

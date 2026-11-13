@@ -6,7 +6,7 @@ import { Button, Muted, Tag } from '../../components/ui';
 import { Kpi, KpiRow, MonoText, ProtoAvatar, ProtoShell, Section, ToneDot } from './kit';
 import { palette, TONE_COLOR } from '../../theme';
 
-const DECISION_COLOR = { approved: '#6fa287', rejected: '#c47b7b', pending: '#8b929e' } as const;
+const DECISION_COLOR = { approved: TONE_COLOR.success, rejected: TONE_COLOR.danger, pending: TONE_COLOR.muted } as const;
 
 /** U2 用户详情（APP 形态）：档案 + 负责发布单 + 审批记录 + 留痕。 */
 export default function UserDetailScreen({ onBack, memberName }: { onBack: () => void; memberName: string }) {

@@ -4,7 +4,7 @@ import { Modal, Pressable, Text, View, StyleSheet } from 'react-native';
 import { useStore } from '../../store/useStore';
 import { Button, Muted, Tag } from '../../components/ui';
 import { useAccent } from '../../hooks';
-import { palette } from '../../theme';
+import { palette, TONE_COLOR } from '../../theme';
 import { useFlash } from './kit';
 import ApprovalScreen from './ApprovalScreen';
 import BuildLogScreen from './BuildLogScreen';
@@ -131,7 +131,7 @@ export default function ProtoNavigator({ onClose }: { onClose: () => void }) {
           <Text style={{ color: accent, fontSize: 13, fontWeight: '700' }}>✕ 退出原型</Text>
         </Pressable>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <Tag label="原型预览" color="#cfa14f" />
+          <Tag label="原型预览" color={TONE_COLOR.warning} />
           <Button label="快捷操作" variant="ghost" small onPress={() => setQuickOpen(true)} />
         </View>
       </View>

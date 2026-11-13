@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button, Card, Descriptions, Space, Tag, Typography } from 'antd';
 import {
   ArrowRightOutlined,
@@ -19,9 +19,11 @@ const { Text } = Typography;
 
 /** A3 发布单详情全屏页：比正式抽屉更完整的信息架构（产物/关联/风险/回滚入口）。 */
 export default function ReleaseDetail() {
+  const [searchParams] = useSearchParams();
   const releases = useStore((s) => s.state.releases);
-  const release = releases[0];
-  const app = useStore((s) => s.state.apps.find((a) => a.id === releases[0]?.appId));
+  // 深链 ?release=<id>（U2/U3/X1/MyDesk）定位目标发布单；直访无参数回退第一条（review 修复：此前恒显第一条）
+  const release = releases.find((r) => r.id === searchParams.get('release')) ?? releases[0];
+  const app = useStore((s) => s.state.apps.find((a) => a.id === release?.appId));
   const related = releases.filter((r) => r.appId === release?.appId && r.id !== release?.id).slice(0, 4);
 
   if (!release) return <EmptyState title="暂无发布单" />;

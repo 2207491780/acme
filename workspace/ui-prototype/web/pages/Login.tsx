@@ -127,7 +127,7 @@ export default function Login() {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            background: 'linear-gradient(160deg, var(--accent, #14b8a6) 0%, #0b3d33 72%)',
+            background: 'linear-gradient(160deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 38%, var(--bg-0)) 72%)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

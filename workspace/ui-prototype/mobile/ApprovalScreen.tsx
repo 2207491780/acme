@@ -10,12 +10,12 @@ import {
 import { useStore } from '../../store/useStore';
 import { Button, Tag } from '../../components/ui';
 import { Chip, MonoText, ProtoShell, Section, useFlash } from './kit';
-import { palette } from '../../theme';
+import { palette, TONE_COLOR } from '../../theme';
 
 const DECISION_LABEL: Record<ApprovalStage['decision'], { color: string; label: string }> = {
-  approved: { color: '#6fa287', label: '已通过' },
-  rejected: { color: '#c47b7b', label: '已驳回' },
-  pending: { color: '#8b929e', label: '待审批' },
+  approved: { color: TONE_COLOR.success, label: '已通过' },
+  rejected: { color: TONE_COLOR.danger, label: '已驳回' },
+  pending: { color: TONE_COLOR.muted, label: '待审批' },
 };
 
 /** A1 审批详情（APP 形态）：审批链 + 意见 + 通过/驳回（原型仅本地生效）。 */

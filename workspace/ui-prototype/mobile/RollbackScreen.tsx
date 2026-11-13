@@ -6,7 +6,11 @@ import { Button, Muted, Tag } from '../../components/ui';
 import { Chip, MonoText, ProtoShell, Section, useFlash } from './kit';
 import { palette, TONE_COLOR } from '../../theme';
 
-const RISK_COLOR: Record<RollbackOption['risk'], string> = { low: '#6fa287', medium: '#cfa14f', high: '#c47b7b' };
+const RISK_COLOR: Record<RollbackOption['risk'], string> = {
+  low: TONE_COLOR.success,
+  medium: TONE_COLOR.warning,
+  high: TONE_COLOR.danger,
+};
 const CHECKLIST = ['已冻结当前发布窗口', '已确认产物与数据快照可追溯', '高风险操作已双人复核'];
 
 /** A5 回滚向导（APP 形态）：选发布 → 选版本 → 安全确认 → 执行（仅本地生效）。 */

@@ -4,7 +4,7 @@ import { buildNodes, NODE_STATUS_META, type NodeStatus, type Tone } from '@acme/
 import { useStore } from '../../store/useStore';
 import { Button, Muted } from '../../components/ui';
 import { Kpi, KpiRow, MonoText, ProtoShell, Section, useFlash } from './kit';
-import { palette, TONE_COLOR } from '../../theme';
+import { palette, TONE_COLOR, ACCENTS } from '../../theme';
 
 const STATUS_ORDER: NodeStatus[] = ['building', 'healthy', 'idle', 'error'];
 const STATUS_TONE: Record<NodeStatus, Tone> = {
@@ -57,7 +57,7 @@ export default function NodeWallScreen({ onBack }: { onBack: () => void }) {
                 height: 64,
                 borderRadius: 10,
                 borderWidth: selectedId === n.id ? 2 : 1,
-                borderColor: selectedId === n.id ? '#5aa7a0' : palette.border,
+                borderColor: selectedId === n.id ? ACCENTS.cyan : palette.border,
                 backgroundColor: `${TONE_COLOR[STATUS_TONE[n.status]]}33`,
                 alignItems: 'center',
                 justifyContent: 'center',

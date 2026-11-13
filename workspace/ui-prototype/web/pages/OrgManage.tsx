@@ -111,13 +111,19 @@ export default function OrgManage() {
                   </Space.Compact>
                   <Popconfirm
                     title="确认删除该节点？"
-                    description={selected.children?.length ? '该节点包含子节点，将一并移除。' : '叶子节点将直接移除。'}
+                    description="叶子节点将直接移除；含子节点的分组不可直接删。"
                     okText="删除"
                     cancelText="取消"
                     okButtonProps={{ danger: true }}
                     onConfirm={() => {
                       if (selectedKey === 'org-acme') {
                         message.error('根节点不可删除');
+                        return;
+                      }
+                      // W3 纪律（ADR-07）：含子节点的分组不可直接删（先清空），与 APP 端同口径
+                      // （review 修复：此前 web 端递归删除整棵子树，两端行为相反）
+                      if (selected.children?.length) {
+                        message.error('该节点包含子节点，需先清空后再删除（W3 纪律）');
                         return;
                       }
                       setTree((cur) => removeNode(cur, selectedKey));

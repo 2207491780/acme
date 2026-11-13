@@ -4,7 +4,7 @@ import { releaseFunnel } from '@acme/core';
 import { useStore } from '../../store/useStore';
 import { Muted } from '../../components/ui';
 import { Kpi, KpiRow, MonoText, ProtoShell, Section } from './kit';
-import { palette, TONE_COLOR } from '../../theme';
+import { palette, TONE_COLOR, ACCENTS } from '../../theme';
 
 /** V3 发布漏斗（APP 形态）：居中递减条 + 相邻转化率。 */
 export default function FunnelScreen({ onBack }: { onBack: () => void }) {
@@ -41,7 +41,7 @@ export default function FunnelScreen({ onBack }: { onBack: () => void }) {
                   borderWidth: 1,
                   borderColor: palette.border,
                   borderTopWidth: i === 0 ? 3 : 1,
-                  borderTopColor: i === 0 ? '#5aa7a0' : palette.border,
+                  borderTopColor: i === 0 ? ACCENTS.cyan : palette.border,
                   borderRadius: 10,
                   backgroundColor: palette.elevated,
                   paddingVertical: 8,

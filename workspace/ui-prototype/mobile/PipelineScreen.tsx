@@ -4,11 +4,11 @@ import { pipelineChain, statusLabel, type PipelineStageView } from '@acme/core';
 import { useStore } from '../../store/useStore';
 import { Muted, Tag } from '../../components/ui';
 import { Chip, MonoText, ProtoShell, Section } from './kit';
-import { palette, TONE_COLOR } from '../../theme';
+import { palette, TONE_COLOR, ACCENTS } from '../../theme';
 
 const STAGE_COLOR: Record<PipelineStageView['state'], string> = {
   done: TONE_COLOR.success,
-  active: '#5aa7a0',
+  active: ACCENTS.cyan,
   pending: palette.muted,
   failed: TONE_COLOR.danger,
 };
