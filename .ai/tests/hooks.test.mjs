@@ -32,7 +32,12 @@ async function makeRepo(t, { withHooks = false } = {}) {
 }
 
 const commitMsg = (repo, msgFile) => spawnSync('sh', [join(HOOKS, 'commit-msg'), msgFile], { cwd: repo, encoding: 'utf8' });
-const prePush = (repo, input) => spawnSync('sh', [join(HOOKS, 'pre-push')], { cwd: repo, encoding: 'utf8', input });
+const prePush = (repo, input, env) => spawnSync('sh', [join(HOOKS, 'pre-push')], {
+  cwd: repo,
+  encoding: 'utf8',
+  input,
+  env: env ? { ...process.env, ...env } : process.env,
+});
 
 async function writeMsg(repo, subject) {
   const file = join(repo, `msg-${Math.random().toString(36).slice(2)}.txt`);
@@ -104,7 +109,7 @@ test('should_reject_when_push_target_is_main', async (t) => {
   const { forward } = await prepareHistory(repo, g);
   const r = prePush(repo, `refs/heads/main ${forward} refs/heads/main ${ZERO}\n`);
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /main 受保护/);
+  assert.match(r.stdout, /main 已归档/);
 });
 
 test('should_reject_when_deleting_main', async (t) => {
@@ -144,6 +149,63 @@ test('should_pass_when_deleting_remote_feature_branch', async (t) => {
   const { repo, g } = await makeRepo(t);
   const { base } = await prepareHistory(repo, g);
   const r = prePush(repo, `(delete) ${ZERO} refs/heads/feat/1-old ${base}\n`);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test('should_reject_when_creating_remote_feature_branch', async (t) => {
+  const { repo, g } = await makeRepo(t);
+  const { forward } = await prepareHistory(repo, g);
+  const r = prePush(repo, `refs/heads/feat/1-new ${forward} refs/heads/feat/1-new ${ZERO}\n`);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /只留本地/);
+});
+
+test('should_allow_feature_branch_push_when_explicitly_allowed', async (t) => {
+  const { repo, g } = await makeRepo(t);
+  const { forward } = await prepareHistory(repo, g);
+  const r = prePush(repo, `refs/heads/fix/1-new ${forward} refs/heads/fix/1-new ${ZERO}\n`, {
+    ACME_ALLOW_BRANCH_PUSH: '1',
+  });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+test('should_reject_when_deleting_policy_branch', async (t) => {
+  const { repo, g } = await makeRepo(t);
+  const { base } = await prepareHistory(repo, g);
+  const r = prePush(repo, `(delete) ${ZERO} refs/heads/ai-coding-support ${base}\n`);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /不允许删除/);
+});
+
+// 在 sandbox 内造出两条策略分支，diverge=true 时让 ai-coding-support 的 AI 路径与主线不同。
+async function makeMirrorHistory(repo, g, { diverge }) {
+  await mkdir(join(repo, '.ai/rules'), { recursive: true });
+  await writeFile(join(repo, '.ai/rules/sample.md'), 'A\n', 'utf8');
+  g(['add', '.ai']);
+  g(['commit', '-q', '-m', 'chore: ai a']);
+  const acme = g(['rev-parse', 'HEAD']).stdout.trim();
+  g(['checkout', '-q', '-b', 'ai-coding-support']);
+  if (diverge) {
+    await writeFile(join(repo, '.ai/rules/sample.md'), 'B\n', 'utf8');
+    g(['add', '.ai']);
+    g(['commit', '-q', '-m', 'chore: ai b']);
+  }
+  g(['checkout', '-q', 'main']);
+  return { acme };
+}
+
+test('should_reject_policy_push_when_ai_config_mirror_differs', async (t) => {
+  const { repo, g } = await makeRepo(t);
+  const { acme } = await makeMirrorHistory(repo, g, { diverge: true });
+  const r = prePush(repo, `refs/heads/acme-foundation ${acme} refs/heads/acme-foundation ${ZERO}\n`);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /镜像/);
+});
+
+test('should_pass_policy_push_when_ai_config_mirror_matches', async (t) => {
+  const { repo, g } = await makeRepo(t);
+  const { acme } = await makeMirrorHistory(repo, g, { diverge: false });
+  const r = prePush(repo, `refs/heads/acme-foundation ${acme} refs/heads/acme-foundation ${ZERO}\n`);
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 

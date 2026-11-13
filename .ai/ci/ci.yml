@@ -2,7 +2,7 @@ name: ci
 # 主门禁流水线 —— 源：.ai/ci/ci.yml（唯一事实源），由 .ai/sync.mjs 派生到 .github/workflows/。
 # 说明见 .ai/ci/CI-GUIDE.md。
 on:
-  # 全分支 push 触发：ai-config 门禁（轻量）前移到功能分支；app-quality 由作业级 if 限制在 main 直推与 PR
+  # 全分支 push 触发：ai-config 门禁（轻量）前移到功能分支；app-quality 由作业级 if 限制在主线直推与 PR
   push:
   pull_request:
 
@@ -52,9 +52,9 @@ jobs:
 
   app-quality:
     name: 应用构建与测试
-    # 重作业只在 main 直推与 PR 执行；功能分支 push 仅跑轻量 ai-config 门禁。
+    # 重作业只在主线 acme-foundation 直推与 PR 执行；功能分支 push 仅跑轻量 ai-config 门禁。
     # 注意：hashFiles 在 job 级 if 不可用（GitHub 限制，首跑实测），守卫下沉到 guard 步骤 + 各步骤级 if。
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/acme-foundation'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -102,9 +102,9 @@ jobs:
 
   backend-quality:
     name: 后端构建与测试
-    # 与 app-quality 同口径：限 main 直推与 PR；分支无后端工程时守卫跳过。
+    # 与 app-quality 同口径：限主线 acme-foundation 直推与 PR；分支无后端工程时守卫跳过。
     # PG 集成测试经 testcontainers 在 runner 的 Docker 中真实拉起容器（本机无 Docker 则跳过）
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/acme-foundation'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

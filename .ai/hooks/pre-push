@@ -1,13 +1,43 @@
 #!/bin/sh
-# 推送防线：① refs/heads/main 受保护——直接推送/强推/删除一律拒绝 ② 更新既有远端提交时必须快进（拦截强推）。
-# 删除远端分支不在钩子层拦截，由 .ai/rules/git-workflow.md「AI 操作授权分级」约束。启用：node .ai/hooks/enable.mjs
+# 推送防线：
+#   ① refs/heads/main 归档只读——推送/强推/删除一律拒绝；
+#   ② feat/*、fix/* 默认只留本地——创建/更新一律拒绝，需 ACME_ALLOW_BRANCH_PUSH=1 显式豁免（删除不拦）；
+#   ③ 两条策略分支（acme-foundation / ai-coding-support）AI 路径必须一致——推前本地预检，防 mirror-sync 事后红灯；
+#   ④ 策略分支不允许删除；更新既有远端提交必须快进（拦截强推）。
+# 口径见 .ai/rules/git-workflow.md 与 .ai-memory/playbooks/parallel-dev.md。启用：node .ai/hooks/enable.mjs
 zero=0000000000000000000000000000000000000000
 status=0
+main_sha=''
+support_sha=''
 while read -r local_ref local_sha remote_ref remote_sha; do
-  if [ "$remote_ref" = "refs/heads/main" ]; then
-    echo "推送被拒绝：main 受保护，只接受合并，禁止直接推送 / 强推 / 删除。"
-    status=1
-    continue
+  case "$remote_ref" in
+    refs/heads/main)
+      echo "推送被拒绝：main 已归档为只读历史分支，禁止推送 / 强推 / 删除。"
+      status=1
+      continue
+      ;;
+    refs/heads/feat/*|refs/heads/fix/*)
+      if [ "$local_sha" != "$zero" ] && [ "${ACME_ALLOW_BRANCH_PUSH:-0}" != "1" ]; then
+        echo "推送被拒绝：$remote_ref 是任务分支，默认只留本地；确需远端存档请显式 ACME_ALLOW_BRANCH_PUSH=1 再推。"
+        status=1
+        continue
+      fi
+      ;;
+    refs/heads/acme-foundation)
+      main_sha=$local_sha
+      ;;
+    refs/heads/ai-coding-support)
+      support_sha=$local_sha
+      ;;
+  esac
+  if [ "$local_sha" = "$zero" ]; then
+    case "$remote_ref" in
+      refs/heads/acme-foundation|refs/heads/ai-coding-support)
+        echo "推送被拒绝：策略分支 $remote_ref 不允许删除。"
+        status=1
+        continue
+        ;;
+    esac
   fi
   # 更新既有远端提交（删除时 local_sha 为零值，跳过快进检查）
   if [ "$remote_sha" != "$zero" ] && [ "$local_sha" != "$zero" ]; then
@@ -17,4 +47,16 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     fi
   fi
 done
+
+# 策略分支推送前预检镜像一致性（与 CI mirror-sync 同口径）：任一侧为空则回退到本地分支 HEAD
+if [ "$status" -eq 0 ] && { [ -n "$main_sha" ] || [ -n "$support_sha" ]; }; then
+  hookdir=$(cd "$(dirname "$0")" && pwd) || exit 1
+  if command -v node >/dev/null 2>&1; then
+    node "$hookdir/mirror-check.mjs" "$main_sha" "$support_sha" || status=1
+  else
+    echo "推送被拒绝：未检测到 Node，无法预检 AI 配置镜像一致性。"
+    status=1
+  fi
+fi
+
 exit $status

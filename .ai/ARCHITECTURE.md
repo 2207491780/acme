@@ -25,8 +25,8 @@
 ├── tools/         # 各工具专属配置源（用法见 TOOL-SOURCES.md）
 ├── env/           # 运行环境与 MCP 连接定义 local/cloud-dev/cloud-test/cloud-prod（AI 按需读取，见 ENV-GUIDE.md）
 ├── ci/            # CI/CD 工作流源 → .github/workflows/（ci / cd / ai-rules-sync，见 CI-GUIDE.md）
-├── tests/         # 回归测试（引擎 / 钩子 / 工作树）：node --test ".ai/tests/*.test.mjs"（CI ai-config 作业运行）
-└── hooks/         # git 钩子：pre-commit（AI 配置完整性）/ commit-msg（提交规范）/ pre-push（main 保护+强推拦截）；node .ai/hooks/enable.mjs 启用
+├── tests/         # 回归测试（引擎 / 钩子 / 镜像预检 / 工作树）：node --test ".ai/tests/*.test.mjs"（CI ai-config 作业运行）
+└── hooks/         # git 钩子：pre-commit（AI 配置完整性）/ commit-msg（提交规范）/ pre-push（main 保护、任务分支不推远端、镜像预检、强推拦截）+ mirror-check.mjs；node .ai/hooks/enable.mjs 启用
 ```
 
 ## 使用流程（强制联动）
@@ -106,14 +106,14 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | 防线 | 机制 | 失效后果 |
 |---|---|---|
 | 规则层 | 强制条款位于 `.ai/rules/ai-guidelines.md`，派生注入**所有**工具入口，AI 工具自身必须遵守 | — |
-| 本地层 | `.ai/hooks/`：pre-commit 校验 AI 配置完整性；commit-msg 校验提交规范；pre-push 拦截直推 `main` 与强推 | 违规提交/推送被拒绝 |
+| 本地层 | `.ai/hooks/`：pre-commit 校验 AI 配置完整性；commit-msg 校验提交规范；pre-push 拦截直推 `main`、拦截 `feat/*`/`fix/*` 上远端、推策略分支前预检镜像一致性（`mirror-check.mjs`） | 违规提交/推送被拒绝 |
 | 远端层 | `.ai/ci/` 派生出的 `.github/workflows/ai-rules-sync.yml` 在 push / PR 时校验 | 不同步的推送/合并被阻断 |
 
 ## CI/CD（工作流源在 [ci/CI-GUIDE.md](ci/CI-GUIDE.md)）
 
 | 工作流 | 触发 | 职责 |
 |---|---|---|
-| `ci.yml` | 全分支 push / PR | 门禁：AI 配置同步校验 + 派生引擎回归测试（`.ai/tests/`，全分支）；应用质量作业仅 main 直推与 PR；mirror-sync 校验两策略分支 AI 路径一致 |
+| `ci.yml` | 全分支 push / PR | 门禁：AI 配置同步校验 + 派生引擎回归测试（`.ai/tests/`，全分支）；应用质量作业仅主线 `acme-foundation` 直推与 PR；mirror-sync 校验两策略分支 AI 路径一致 |
 | `cd.yml` | dispatch 选环境 / `v*` 标签 → prod | 构建 → `env-stack/scripts/deploy.sh` 部署 → 健康检查；prod 走 GitHub Environment 审批 |
 | `ai-rules-sync.yml` | 触及 AI 配置相关文件 | 联动防线·远端层 |
 
