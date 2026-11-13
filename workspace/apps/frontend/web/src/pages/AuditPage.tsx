@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, DatePicker, Form, Input, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined } from '@ant-design/icons';
@@ -28,7 +28,10 @@ export function AuditPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [form] = Form.useForm<AuditFilters>();
 
+  // 列表请求竞态防护：过期响应按序号丢弃（review 修复）
+  const reloadSeq = useRef(0);
   const reload = useCallback((targetPage = page) => {
+    const seq = ++reloadSeq.current;
     setLoading(true);
     setLoadError(null);
     auditApi.events(targetPage, size, {
@@ -39,13 +42,17 @@ export function AuditPage() {
       to: filters.range?.[1]?.toISOString(),
     })
       .then((result) => {
+        if (seq !== reloadSeq.current) return;
         setRecords(result.records);
         setTotal(Number(result.total));
       })
       .catch((ex: unknown) => {
+        if (seq !== reloadSeq.current) return;
         setLoadError(ex instanceof ApiError ? ex.message : '审计事件加载失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (seq === reloadSeq.current) setLoading(false);
+      });
   }, [page, size, filters]);
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tree, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -44,11 +44,15 @@ export function RolesPage() {
   const [grantedIds, setGrantedIds] = useState<string[]>([]);
   const [grantLoading, setGrantLoading] = useState(false);
 
+  // 列表请求竞态防护：过期响应按序号丢弃（review 修复）
+  const reloadSeq = useRef(0);
   const reload = useCallback((targetPage = page) => {
+    const seq = ++reloadSeq.current;
     setLoading(true);
     setLoadError(null);
     systemApi.roleList(targetPage, size, keyword || undefined)
       .then((result) => {
+        if (seq !== reloadSeq.current) return;
         setRecords(result.records);
         if (result.records.length === 0 && targetPage > 1 && Number(result.total) > 0) {
           setPage(targetPage - 1);
@@ -57,9 +61,12 @@ export function RolesPage() {
         setTotal(Number(result.total));
       })
       .catch((ex: unknown) => {
+        if (seq !== reloadSeq.current) return;
         setLoadError(ex instanceof ApiError ? ex.message : '角色清单加载失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (seq === reloadSeq.current) setLoading(false);
+      });
   }, [page, size, keyword, queryVersion]);
 
   useEffect(() => {

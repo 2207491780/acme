@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -41,18 +41,25 @@ export function PermissionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<PermissionFormValues>();
 
+  // 列表请求竞态防护：过期响应按序号丢弃（review 修复）
+  const reloadSeq = useRef(0);
   const reload = useCallback((targetPage = page) => {
+    const seq = ++reloadSeq.current;
     setLoading(true);
     setLoadError(null);
     systemApi.permissionList(targetPage, size)
       .then((result) => {
+        if (seq !== reloadSeq.current) return;
         setRecords(result.records);
         setTotal(Number(result.total));
       })
       .catch((ex: unknown) => {
+        if (seq !== reloadSeq.current) return;
         setLoadError(ex instanceof ApiError ? ex.message : '权限点清单加载失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (seq === reloadSeq.current) setLoading(false);
+      });
   }, [page, size]);
 
   useEffect(() => {

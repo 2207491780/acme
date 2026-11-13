@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -37,11 +37,15 @@ export function TenantsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<TenantFormValues>();
 
+  // 列表请求竞态防护：过期响应按序号丢弃（review 修复）
+  const reloadSeq = useRef(0);
   const reload = useCallback((targetPage = page) => {
+    const seq = ++reloadSeq.current;
     setLoading(true);
     setLoadError(null);
     systemApi.tenantList(targetPage, size, keyword || undefined)
       .then((result) => {
+        if (seq !== reloadSeq.current) return;
         setRecords(result.records);
         // 后端已翻到空页而总数仍有数据时回退一页（典型并发删除场景）
         if (result.records.length === 0 && targetPage > 1 && result.total > 0) {
@@ -51,9 +55,12 @@ export function TenantsPage() {
         setTotal(Number(result.total));
       })
       .catch((ex: unknown) => {
+        if (seq !== reloadSeq.current) return;
         setLoadError(ex instanceof ApiError ? ex.message : '租户清单加载失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (seq === reloadSeq.current) setLoading(false);
+      });
   }, [page, size, keyword, queryVersion]);
 
   useEffect(() => {
