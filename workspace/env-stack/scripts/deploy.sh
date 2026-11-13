@@ -1,6 +1,6 @@
 #!/bin/sh
 # 用法：deploy.sh <dev|test|prod> —— 部署目标环境到 k3s（在服务器上或有 kubectl 的机器执行）。
-# 由 cd.yml 调用，也可本地手动执行。环境三态与 .ai/env/<env>.yaml 对齐；凭证一律经环境变量注入。
+# 由 cd.yml 调用，也可本地手动执行。环境三态与 .ai/env/cloud-<env>.yaml 对齐；凭证一律经环境变量注入。
 #
 # 前置：
 #   1. kubectl 已连目标集群（k3s 服务器上 ~/.kube/config 就位即可）

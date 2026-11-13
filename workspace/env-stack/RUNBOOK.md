@@ -1,6 +1,6 @@
 # RUNBOOK —— 云服务器（k3s 单机 · 4C4G）从零到部署
 
-> 对应决策 `.ai-memory/decisions/2026-11-13-06-k8s-k3s-single-node.md`：k3s 单机、ACR 镜像仓库、
+> 对应决策 `.ai-memory/decisions/2026-11-13-06-k8s-k3s-single-node.md`：k3s 单机、TCR 镜像仓库、
 > 4G 内存同一时间只常驻一个环境、服务器不做构建。按顺序执行，⭐ 为人工在控制台/服务器操作。
 
 ## 0. 服务器侧一次性和安全
@@ -25,12 +25,12 @@ echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> ~/.bashrc   # 或 alias ku
 
 不需要——`deploy.sh` 用 kubectl 内置 kustomize（临时目录注入镜像地址），零额外二进制。
 
-## 3. 开通阿里云 ACR 个人版 ⭐
+## 3. 开通腾讯云 TCR 个人版 ⭐
 
-1. ACR 控制台 → 个人实例 → 创建**命名空间**（下称 `acme-ns`）
+1. TCR 控制台 → 个人版 → 创建**命名空间**（下称 `acme-ns`）
 2. 建五个**私有**仓库：`gateway`、`platform-auth`、`platform-infra`、`platform-system`、`web`
 3. 访问凭证 → 固定密码（记入 registry.env）
-4. REGISTRY 地址形如 `registry.cn-<region>.aliyuncs.com/acme-ns`
+4. REGISTRY 地址形如 `ccr.ccs.tencentyun.com/acme-ns`
 
 ## 4. 服务器凭证文件 ⭐
 

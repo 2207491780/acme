@@ -20,7 +20,7 @@ pnpm/Maven workspace 对齐）。
 
 ## 约定
 
-- 环境三态对齐 `.ai/env/{dev,test,prod}.yaml`：本目录负责**搭**，`.ai/env/` 负责**连**（MCP）。
+- 环境三态对齐 `.ai/env/cloud-{dev,test,prod}.yaml`（`env` 字段仍为 dev/test/prod）：本目录负责**搭**，`.ai/env/` 负责**连**（MCP）与运行环境定义。
 - 部署契约：`cd.yml` → `scripts/deploy.sh <env>` → `kubectl apply -k k8s/overlays/<env>` →
   `scripts/healthcheck.sh <env>`；镜像地址由 deploy.sh 经 `kustomize edit set image` 注入。
 - 真实凭证不入库：模板一律占位；服务器侧放 `/opt/acme/<env>/{app.env,registry.env}`，
