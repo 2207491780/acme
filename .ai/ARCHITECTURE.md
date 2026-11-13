@@ -77,6 +77,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | `engine.entryMode` | `stub` \| `symlink` | `stub` | 根部/分层入口默认形态；CLI `--links` / `AI_SYNC_LINK=1` 优先（强制 symlink），无符号链接权限时自动降级 stub |
 | `engine.orphanDetection` | 布尔 | `true` | 是否在 sync/--check 扫描工具目录孤儿派生文件；关闭会削弱联动防线 |
 | `engine.rulesBudgetBytes` | 正整数 | `8192` | `RULES.md` 拼接后的字节预算上限 |
+| `engine.teamLeader` | `auto` \| `always` \| `never` | `never` | team-leader 多代理契约开发流程触发开关：auto=功能开发类任务自动触发；always=所有开发任务一律执行；never=停用。取值由引擎注入所有入口存根触发段（不占 RULES.md 预算）；流程源 `skills/team-leader/` + `.ai-memory/playbooks/multi-agent.md`（取舍见 ADR 2026-11-14-19） |
 
 **环境上下文（`environment.*`）**——不是引擎开关，是当前运行环境定义文件的指针；AI 在调试任务前读取所指 `.ai/env/` 定义，切换环境时改本文件并重跑 sync：
 
@@ -132,7 +133,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | 环境级端点（跨工具） | `.ai/env/{local,cloud-dev,cloud-test,cloud-prod}.yaml`（见 [ENV-GUIDE.md](env/ENV-GUIDE.md)） | cloud-dev 已登记 dev-db MCP，其余为空模板；AI 按需读取，各工具原生 MCP 配置由此适配 |
 | 工具级配置 | `.ai/tools/<工具>/`（按需新增，如 `cursor/mcp.json`、`gemini/settings.json`，镜像目标路径） | **当前未配置**任何工具级 MCP；需要时在此建源，经 `node .ai/sync.mjs` 派生到对应工具目录 |
 | Claude Code（如需） | 根目录 `.mcp.json` | 例外：根级文件，手工维护 |
-| ZCode | `.zcode/` 目录（工作区作用域） | ZCode 自管理 |
+| ZCode | `.zcode/` 目录（工作区作用域） | agents/commands 为 `.ai/tools/zcode/` 派生的**引用存根**（正文指针指向 `.ai/` 公共池源；git 忽略、本机生效）；其余 ZCode 自管理 |
 
 ## 支持的厂商
 

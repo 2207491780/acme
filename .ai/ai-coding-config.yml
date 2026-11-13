@@ -14,6 +14,10 @@ engine:
   # .ai/RULES.md 拼接后的字节预算上限（正整数）。默认 8192（8KB）；本项目放宽至 10KB（取舍见
   # .ai-memory/decisions/2026-11-13-01-rules-budget.md）。当前字节/余量以 node .ai/sync.mjs --check 实测为准。
   rulesBudgetBytes: 10240
+  # team-leader 多代理契约开发流程的触发开关：auto（功能开发类任务自动触发）| always（所有开发任务一律走流程）| never（停用）。
+  # 取值由 sync.mjs 注入所有入口存根触发段（不占 RULES.md 预算）；流程源见 .ai/skills/team-leader/ 与 .ai-memory/playbooks/multi-agent.md。
+  # 取舍见 .ai-memory/decisions/2026-11-14-19-multi-agent-contract-workflow.md。
+  teamLeader: auto
 environment:
   # 当前运行环境的定义文件（.ai/env/ 下的文件名，见名知意：local=本地中间件，cloud-*=云端 k3s）。
   # 本地调试（前后端在本地运行）时，后端连接该文件定义的运行环境；切换环境改此值并重跑 sync。

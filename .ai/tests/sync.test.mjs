@@ -419,6 +419,27 @@ test('should_enforce_custom_rulesBudgetBytes_from_config', async (t) => {
   assert.deepEqual(await snapshot(repo), before);
 });
 
+test('should_inject_team_leader_trigger_per_mode_into_entry_stubs', async (t) => {
+  const { repo } = await fixture(t);
+  const cases = [
+    ['engine:\n  teamLeader: auto\n', /teamLeader: auto）：功能开发类任务应按 team-leader/],
+    ['engine:\n  teamLeader: always\n', /teamLeader: always）：凡会产生业务代码的开发任务，一律按 team-leader/],
+    ['engine:\n  teamLeader: never\n', /teamLeader: never）：team-leader 四阶段契约流程已停用/],
+  ];
+  for (const [yaml, re] of cases) {
+    await put(repo, CONFIG, yaml);
+    succeeds(run(repo));
+    assert.match(await readFile(join(repo, 'AGENTS.md'), 'utf8'), re);
+    assert.match(await readFile(join(repo, '.cursor/rules/project.mdc'), 'utf8'), re);
+    succeeds(run(repo, ['--check']));
+  }
+  // 缺省（配置缺失）= never：入口存根明示流程停用，向后兼容既有行为
+  await rm(join(repo, CONFIG));
+  succeeds(run(repo));
+  assert.match(await readFile(join(repo, 'AGENTS.md'), 'utf8'), /team-leader 四阶段契约流程已停用/);
+  succeeds(run(repo, ['--check']));
+});
+
 test('should_accept_environment_file_pointer_when_valid_yaml_name', async (t) => {
   const { repo } = await fixture(t);
   for (const yaml of [
@@ -439,6 +460,7 @@ const badConfigs = [
   ['bad_orphan_type', 'engine:\n  orphanDetection: yes\n', /orphanDetection 必须为布尔/],
   ['bad_budget_negative', 'engine:\n  rulesBudgetBytes: -5\n', /rulesBudgetBytes 必须为正整数/],
   ['bad_budget_float', 'engine:\n  rulesBudgetBytes: 1.5\n', /rulesBudgetBytes 必须为正整数/],
+  ['bad_team_leader', 'engine:\n  teamLeader: maybe\n', /teamLeader 必须为/],
   ['bad_version', 'version: 2\n', /version 必须为 1/],
   ['array_unsupported', 'engine:\n  - a\n', /不支持数组/],
   ['tab_indent', 'engine:\n\tentryMode: stub\n', /不支持 Tab/],
