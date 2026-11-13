@@ -88,6 +88,18 @@ HTTPS；DNS：CF A 记录 `www` → 服务器 IP，SSL/TLS 模式 Flexible，源
 - **探针 404**：若 actuator health groups 未暴露，把 deployment 探针 path 换成 `/actuator/health`
 - **回滚**：改 registry.env 的 `ACME_IMAGE_TAG` 后重跑 deploy.sh，或 `kubectl rollout undo`
 
+## 8.5 本地联调云端环境（dev-tunnel）
+
+`sh scripts/dev-tunnel.sh dev` 一条命令建立本地 ↔ 云端隧道（PG/Redis/Nacos/网关映射到本机
+回环，并打印云端凭证的 export 行），Ctrl-C 拆除；`down` 子命令清理服务器侧残留。
+适用场景：本地 IDE 断点调试后端、直连云端数据与中间件——避免在 4G 服务器上跑开发进程。
+
+- **后端**：export 凭证后 `PG_HOST=127.0.0.1 PG_PORT=15432 REDIS_HOST=127.0.0.1 REDIS_PORT=16379 NACOS_ADDR=http://127.0.0.1:18848 mvn ... spring-boot:run`（完整示例见脚本输出）
+- **前端**：`WEB_API_TARGET=http://127.0.0.1:19888 pnpm dev`（vite 已预留该代理变量；也可直指公网域名）
+- 服务器侧监听 27xxx 高位端口，与 seed-nacos/部署并发互不干扰
+- 本地服务会以同名注册进云端 Nacos（dev 允许读写；网关 lb 可能路由到本地实例，属调试期预期行为）
+- **prod 禁用**（只读红线，见 .ai/rules 安全约束）
+
 ## 9. 与 CD 流水线衔接（已接线）
 
 `cd.yml` 已实现完整链路：build 作业在 GitHub 云端 runner 构建五镜像并推 TCR（不占服务器资源），
