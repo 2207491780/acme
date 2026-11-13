@@ -14,7 +14,7 @@
 ├── TUTORIAL.md    # 分工具教程（11 类工具的入口、冒烟测试、维护方式）
 ├── PROMPTS.md     # 提示词案例库（21 条让 AI 自维护的指令 + 验收核对单）
 ├── sync.mjs       # 派生引擎：node .ai/sync.mjs（--check 为校验模式）
-├── worktree.mjs   # 并行开发工作树管理：node .ai/worktree.mjs add|remove|list（口径见 playbooks/parallel-dev.md）
+├── worktree.mjs   # 开发工作树管理：node .ai/worktree.mjs add|remove|list（口径见 playbooks/parallel-dev.md）
 ├── ai-coding-config.yml # 行为/引擎开关 + 环境上下文（源，sync 读取，不派生；见下「行为/引擎开关」）
 ├── RULES.md       # ⚙️ 生成：公共规范唯一完整副本（由 rules/ 按文件名排序拼接）
 ├── rules/         # 公共规范源（AI 协作准则 / 编码规范 / Git 工作流 / 项目上下文）

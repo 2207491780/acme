@@ -22,7 +22,7 @@
 
 ## AI 配置联动更新（强制）
 
-所有 AI 配置唯一事实源是 `.ai/`（规范 `rules/`、公共池 `agents|skills|commands/`、工具专属 `tools/<工具>/`、钩子/CI/引擎）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完**必须立即** `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（pre-commit 与 CI 强制拒绝不同步）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行（定位意图→只改源→派生→校验→汇报）；支持的工具可调 `ai-config-editor` 子代理 / `ai-config` 技能。
+所有 AI 配置唯一事实源是 `.ai/`（规范 `rules/`、公共池 `agents|skills|commands/`、工具专属 `tools/<工具>/`、钩子/CI/引擎）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完**必须立即** `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（钩子与 CI 强制拒绝）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行（定位意图→只改源→派生→校验→汇报）；支持的工具可调 `ai-config-editor` 子代理 / `ai-config` 技能。
 
 ## 过程性内容落盘
 
@@ -76,13 +76,13 @@
 
 | 分支 | 用途 |
 |---|---|
-| `acme-foundation` | 受保护主线，始终可发布；只接受合流，不在其上直接开发提交 |
+| `acme-foundation` | 受保护主线，始终可发布；只接受合流，不直接开发提交 |
 | `main` | 历史初始化分支，已归档；不可推送 / 删除 |
-| `feat/<简述>` / `fix/<简述>` | 功能开发 / 缺陷修复；默认只留本地 |
+| `feat/<简述>` / `fix/<简述>` | 功能 / 修复；默认只留本地 |
 | `ai-coding-support` | AI 配置镜像分支：`.ai/`、`.ai-memory/` 等支撑变更同步落地 |
 
-并行开发用独立工作树：`node .ai/worktree.mjs add <分支名>`（落 `.worktrees/`，基点当前 HEAD），同一分支
-不得双检，收尾 `worktree.mjs remove`；流程见 `.ai-memory/playbooks/parallel-dev.md`。
+**所有开发（产生提交）默认用独立工作树，无需提示**：开工先 `node .ai/worktree.mjs add <分支名>`；
+同一分支不得双检，收尾 `worktree.mjs remove`；只读分析除外。细节见 `.ai-memory/playbooks/parallel-dev.md`。
 
 ## 提交信息规范（Conventional Commits）
 
@@ -129,7 +129,7 @@ AI 工具执行 Git 操作按三档授权，越档视为违规；授权随用户
 
 ## 开发合流流程（本地开发 → 合并 → 推送）
 
-禁止在主线 `acme-foundation` 直接提交，三步：① 在 `feat/`、`fix/` 分支或工作树内开发自检；
+禁止在主线 `acme-foundation` 直接提交，三步：① 在工作树内的 `feat/`、`fix/` 分支开发自检；
 ② 回主工作树合并（优先快进）并验证（`sync --check`/测试/构建）；③ 推送前读 `parallel-dev.md`：
 两策略分支必须同一条命令推送（pre-push 预检镜像一致性），AI 配置同步镜像 `ai-coding-support`；
 feat/fix 默认不推远端（钩子拒绝，豁免见手册）。推远端与删分支按授权分级。
