@@ -154,4 +154,4 @@ ACME 是全栈应用（非纯本地演示）：前端多端 monorepo + Java 后�
 - 前端（`frontend/`，pnpm）：`typecheck`/`test`/`build`；入口 `dev`/`desktop:dev`/`mobile:start`；桌面额外 `--filter @acme/desktop check`。
 - 后端（`acme-cloud/`）：`mvn test`；Maven 不在 PATH、PG 集成测试需 Docker（详见 backend 分层规则）。
 - AI 配置：`node .ai/sync.mjs` 派生 + `--check` 校验；引擎回归 `.ai/tests/`（CI ai-config 作业）；开关 `.ai/ai-coding-config.yml`；同步通过≠钩子已启用。
-- 环境连接 `.ai/env/`、搭建脚本 `workspace/env-stack/`；prod 默认只读，禁明文密钥。
+- 环境连接 `.ai/env/`、搭建脚本 `workspace/env-stack/`；prod 默认只读，禁明文密钥。本地调试时后端连接环境以 `.ai/ai-coding-config.yml` 的 `environment.file` 所指 `.ai/env/` 定义为准。

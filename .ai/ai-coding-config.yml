@@ -1,8 +1,9 @@
-# AI-Coding 行为/引擎开关 —— 唯一事实源：.ai/ai-coding-config.yml
+# AI-Coding 行为/引擎开关 + 环境上下文 —— 唯一事实源：.ai/ai-coding-config.yml
 # 由 .ai/sync.mjs 在派生/校验时读取（本文件是源，不派生；仿 .ai/env/）。改本文件后必须重跑 node .ai/sync.mjs。
-# 只门控「可选的派生引擎行为」；AI 协作红线与强制规范在 .ai/rules/，不可在此关闭。
+# engine 只门控「可选的派生引擎行为」；AI 协作红线与强制规范在 .ai/rules/，不可在此关闭。
+# environment 是本地调试环境的现状声明：AI 在调试任务前读取并遵循；引擎只校验、不消费。
 # 核心派生（rules/入口/scopes/pools/tools/ci）是「全工具联动」铁律的保证，始终开启，不设开关。
-# Schema 与取舍见 .ai/ARCHITECTURE.md「行为/引擎开关」与 .ai-memory/decisions/2026-11-12-06-ai-coding-config.md。
+# Schema 与取舍见 .ai/ARCHITECTURE.md「行为/引擎开关」与 .ai-memory/decisions/2026-11-12-06-ai-coding-config.md、2026-11-13-09-env-debug-target-config.md。
 version: 1
 engine:
   # 根部/分层入口默认形态：stub（引用存根，默认）| symlink（符号链接，磁盘零拷贝）。
@@ -13,3 +14,7 @@ engine:
   # .ai/RULES.md 拼接后的字节预算上限（正整数）。默认 8192（8KB）；本项目放宽至 10KB（取舍见
   # .ai-memory/decisions/2026-11-13-01-rules-budget.md）。当前字节/余量以 node .ai/sync.mjs --check 实测为准。
   rulesBudgetBytes: 10240
+environment:
+  # 当前运行环境的定义文件（.ai/env/ 下的文件名，见名知意：local=本地中间件，cloud-*=云端 k3s）。
+  # 本地调试（前后端在本地运行）时，后端连接该文件定义的运行环境；切换环境改此值并重跑 sync。
+  file: cloud-dev.yaml

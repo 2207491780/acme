@@ -346,7 +346,7 @@ test('should_sync_real_links_and_check_without_probe_when_links_are_available', 
   succeeds(run(repo, ['--check']));
 });
 
-// ---- ai-coding-config.yml：引擎开关（缺省兼容 / entryMode / orphanDetection / 预算 / 非法配置） ----
+// ---- ai-coding-config.yml：引擎开关 + 环境上下文（缺省兼容 / entryMode / orphanDetection / 预算 / environment / 非法配置） ----
 const CONFIG = '.ai/ai-coding-config.yml';
 
 test('should_use_stub_defaults_when_config_absent', async (t) => {
@@ -419,6 +419,19 @@ test('should_enforce_custom_rulesBudgetBytes_from_config', async (t) => {
   assert.deepEqual(await snapshot(repo), before);
 });
 
+test('should_accept_environment_file_pointer_when_valid_yaml_name', async (t) => {
+  const { repo } = await fixture(t);
+  for (const yaml of [
+    'environment:\n  file: local.yaml\n',
+    'environment:\n  file: cloud-dev.yaml\n',
+    'version: 1\nengine:\n  entryMode: stub\nenvironment:\n  file: cloud-test.yaml # inline\n',
+  ]) {
+    await put(repo, CONFIG, yaml);
+    succeeds(run(repo));
+    succeeds(run(repo, ['--check']));
+  }
+});
+
 const badConfigs = [
   ['unknown_top_key', 'foo: 1\n', /未知顶层键/],
   ['unknown_engine_key', 'engine:\n  bogus: true\n', /未知 engine 键/],
@@ -430,6 +443,12 @@ const badConfigs = [
   ['array_unsupported', 'engine:\n  - a\n', /不支持数组/],
   ['tab_indent', 'engine:\n\tentryMode: stub\n', /不支持 Tab/],
   ['engine_not_map', 'engine: stub\n', /engine 必须是映射/],
+  ['unknown_environment_key', 'environment:\n  bogus: true\n', /未知 environment 键/],
+  ['legacy_localDebug_key', 'environment:\n  localDebug: cloud\n', /未知 environment 键/],
+  ['bad_file_type', 'environment:\n  file: 123\n', /file 必须为/],
+  ['bad_file_suffix', 'environment:\n  file: dev.yml\n', /file 必须为/],
+  ['file_with_path', 'environment:\n  file: env/dev.yaml\n', /file 必须为/],
+  ['environment_not_map', 'environment: cloud-dev.yaml\n', /environment 必须是映射/],
 ];
 for (const [name, yaml, msg] of badConfigs) {
   test(`should_reject_invalid_config_before_writing_when_${name}`, async (t) => {

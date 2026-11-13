@@ -13,5 +13,7 @@ acme-common 公共池、acme-framework 框架层、acme-platform 平台服务、
 - PG 集成测试无 Docker 自动跳过——跳过不等于验证，合并前必须在有 Docker 环境跑过。
 - 构建与全量测试：`acme-cloud/` 下 `mvn test`；Maven 不在 PATH
   （`"C:\Program Files\Maven\apache-maven-my\bin\mvn.cmd"`）。
+- **本地调试环境**：后端连接的运行环境按根配置 `.ai/ai-coding-config.yml` 的 `environment.file` 所指 `.ai/env/` 定义：
+  `local.yaml`=本地中间件（PG/Redis/Nacos）；`cloud-*.yaml`=云端 k3s 环境中间件。
 - 模块结构：`*-api` 对外契约、`*-service` 实现与部署单元；分层 common→framework→platform→business→gateway。
   总览见同目录 `BACKEND.md`，命名见 `.ai-memory/playbooks/naming.md`。
