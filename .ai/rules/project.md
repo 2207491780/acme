@@ -2,12 +2,12 @@
 
 ## 当前实现
 
-ACME 是多端发布流程演示台，不是真实部署平台：发布单、审批、构建进度和产物均为本地模拟，没有后端鉴权或部署接口。Web 使用本地存储，移动端目前仅内存存储。
+ACME 是全栈应用（非纯本地演示）：前端多端 monorepo + Java 后端 + k8s 部署栈，经 CI/CD 真实部署。各端技术栈/命令/约定以分层 `AGENTS.md`（frontend/backend/ui-prototype）及同目录总览（FRONTEND/BACKEND/UI-PROTOTYPE.md）为准。
 
-- 工程根 `workspace/apps/frontend/`；`packages/core/` 为框架无关业务/令牌，`web/` 为 React UI，`desktop/` 复用 Web 产物，`mobile/` 为 React Native。
-- 实际栈：Node ≥22.13、pnpm 11.8、TypeScript 5、React 18、Vite 5、Ant Design 5、Zustand、Electron 37、Expo 52 / RN 0.76；测试为 Vitest 与 Node test。
-- 未接入 TanStack Query、antd-mobile、electron-vite，不能假定这些依赖存在。
-- 视觉事实源为 `packages/core/src/theme.ts`；UI 修改先读工程内 `UI-SPEC.md`，校验页用 `pnpm ui:guide` 生成，禁止手改生成页。
+- 前端 `workspace/apps/frontend/`：pnpm monorepo（Node≥22.13、pnpm11.8、TS5、React18、Vite5、AntD5、Zustand、Electron37、Expo52/RN0.76；Vitest/node:test）；`packages/core` 框架无关业务+令牌、`web` React UI、`desktop` 套壳 Web 产物、`mobile` RN 原生；已接后端 API（auth/admin/audit）。未接入 TanStack Query/antd-mobile/electron-vite，勿假定存在。
+- 后端 `workspace/apps/backend/`：Java25 + Spring Boot4.1 多模块 Maven（`acme-parent` + `acme-cloud`：common→framework→platform→business→gateway，`*-api` 契约 / `*-service` 实现）。
+- 部署 `workspace/env-stack/`：docker/k8s(base+overlays) + `scripts/deploy.sh`；CD 构建五镜像推 TCR、SSH 部署、prod 人工审批。
+- 视觉事实源 `packages/core/src/theme.ts`；改 UI 先读工程内 `UI-SPEC.md`，校验页 `pnpm ui:guide` 生成，禁手改。
 
 ## 关键回归
 
@@ -15,8 +15,7 @@ ACME 是多端发布流程演示台，不是真实部署平台：发布单、审
 
 ## 命令与门禁
 
-在工程根运行 `pnpm typecheck`、`pnpm test`、`pnpm build`；入口为 `pnpm dev`、`pnpm desktop:dev`、`pnpm mobile:start`。桌面额外运行 `pnpm --filter @acme/desktop check`。
-
-AI 修改运行 `node .ai/sync.mjs` 和 `node .ai/sync.mjs --check`。同步通过不代表钩子已启用；派生引擎回归测试在 `.ai/tests/`（CI ai-config 作业运行）。引擎开关见 `.ai/ai-coding-config.yml`。
-
-环境连接定义在 `.ai/env/`，搭建脚本在 `workspace/env-stack/`；prod 默认只读，禁止明文密钥。
+- 前端（`frontend/`，pnpm）：`typecheck`/`test`/`build`；入口 `dev`/`desktop:dev`/`mobile:start`；桌面额外 `--filter @acme/desktop check`。
+- 后端（`acme-cloud/`）：`mvn test`；Maven 不在 PATH、PG 集成测试需 Docker（详见 backend 分层规则）。
+- AI 配置：`node .ai/sync.mjs` 派生 + `--check` 校验；引擎回归 `.ai/tests/`（CI ai-config 作业）；开关 `.ai/ai-coding-config.yml`；同步通过≠钩子已启用。
+- 环境连接 `.ai/env/`、搭建脚本 `workspace/env-stack/`；prod 默认只读，禁明文密钥。

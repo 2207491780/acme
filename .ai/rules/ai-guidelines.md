@@ -18,16 +18,7 @@
 
 ## AI 配置联动更新（强制）
 
-修改 AI Coding 相关内容时，**必须触发所有工具联动更新**，保证任何工具读到的规范颗粒度一致：
-
-1. 所有 AI 配置的唯一事实源是 `.ai/`（公共规范 `.ai/rules/`、共享能力池 `.ai/agents|skills|commands/`、工具专属配置 `.ai/tools/<工具>/`），**禁止**直接修改任何工具目录下的派生文件（如 `CLAUDE.md`、`.cursor/rules/project.mdc`、`.claude/` 内的生成内容）。
-2. 每次修改后**必须立即**运行 `node .ai/sync.mjs`，把变更派生到所有工具目录，再提交。
-3. 提交前自检：`node .ai/sync.mjs --check` 必须通过；不同步的提交会被 pre-commit 钩子与 CI 拒绝。
-4. **禁止只同步部分工具**：要么全部联动更新，要么不提交。
-
-## AI 配置修改任务
-
-凡任务涉及增删改 AI-Coding 配置（公共规范、分层规则、agents/skills/commands 公共池、工具专属配置、钩子、CI、派生引擎）：先完整阅读 `.ai-memory/playbooks/ai-config.md`，严格按其五步流程执行（定位意图 → 只改源 → `node .ai/sync.mjs` 派生 → `--check` 校验 → 汇报）。支持子代理/技能的工具，可直接调用 `ai-config-editor`（子代理）或 `ai-config`（技能）。
+所有 AI 配置唯一事实源是 `.ai/`（规范 `rules/`、公共池 `agents|skills|commands/`、工具专属 `tools/<工具>/`、钩子/CI/引擎）：**禁止手改任何派生文件**（`CLAUDE.md`、`.cursor/**`、`.claude/**` 等），**禁止只同步部分工具**。改完**必须立即** `node .ai/sync.mjs` 派生到所有工具，提交前 `node .ai/sync.mjs --check` 必过（pre-commit 与 CI 强制拒绝不同步）。凡增删改 AI 配置，先读 `.ai-memory/playbooks/ai-config.md` 按五步流程执行（定位意图→只改源→派生→校验→汇报）；支持的工具可调 `ai-config-editor` 子代理 / `ai-config` 技能。
 
 ## 过程性内容落盘
 
@@ -37,7 +28,7 @@
 - **高频操作步骤**（怎么做）→ `.ai-memory/` 新增手册，并在规则中挂触发条款。
 - **必须遵守的约束** → `.ai/rules/`。
 - **工作记忆**（进行中事项、踩坑速记、待沉淀结论）→ `.ai-memory/drafts/`（草稿区，随时改写；个人草稿用 `*.local.md` 不入库；成熟的结论提炼进 decisions/playbooks/rules 后删除草稿）。
-- 预算：`.ai/RULES.md`（全部规范拼接后）≤ 8KB；超限时细节移入 playbooks/decisions，规则只留一句结论加路径。
+- 预算：`.ai/RULES.md` 拼接后字节上限见 `.ai/ai-coding-config.yml`（`rulesBudgetBytes`）；超限时细节移入 playbooks/decisions，规则只留一句结论加路径。
 
 ## 产出要求
 
