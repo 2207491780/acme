@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { ApiError } from '../api/client';
-import { systemApi, type AdminTenantView } from '../api/system';
-import { useMeStore } from '../store/meStore';
+import { ApiError, formatDate, systemApi, useMeStore, type AdminTenantView } from '@acme/core';
 
 const { Text } = Typography;
 
@@ -125,7 +123,7 @@ export function TenantsPage() {
       ),
     },
     { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true, render: (v: string | null) => v ?? '—' },
-    { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180, render: (v: string) => new Date(v).toLocaleString() },
+    { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180, render: (v: string) => formatDate(v) },
     {
       title: '操作', key: 'actions', width: 180,
       render: (_, record) => (

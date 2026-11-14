@@ -23,12 +23,8 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES } from '@acme/core';
+import { ACTIVE_STATUSES, authApi, startAuthRenewal, useAuthStore, useMeStore } from '@acme/core';
 import { useStore } from './store/useStore';
-import { useAuthStore } from './store/authStore';
-import { useMeStore } from './store/meStore';
-import { startAuthRenewal } from './api/client';
-import { authApi } from './api/auth';
 import { detectPlatform, download } from './utils/dom';
 import { Dashboard } from './pages/Dashboard';
 import { Releases } from './pages/Releases';

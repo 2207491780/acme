@@ -3,8 +3,7 @@ import { Alert, Button, Card, DatePicker, Form, Input, Space, Table, Tag, Typogr
 import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
-import { ApiError } from '../api/client';
-import { auditApi, type AdminAuditEventView } from '../api/audit';
+import { ApiError, auditApi, formatDate, type AdminAuditEventView } from '@acme/core';
 
 const { Text } = Typography;
 
@@ -60,7 +59,7 @@ export function AuditPage() {
   }, [page, queryVersion]);
 
   const columns: ColumnsType<AdminAuditEventView> = [
-    { title: '时间', dataIndex: 'occurredAt', key: 'occurredAt', width: 170, render: (v: string) => new Date(v).toLocaleString() },
+    { title: '时间', dataIndex: 'occurredAt', key: 'occurredAt', width: 170, render: (v: string) => formatDate(v) },
     { title: '操作者', dataIndex: 'operatorId', key: 'operatorId', width: 140, render: (v: string) => <Text code>{v}</Text> },
     { title: '端', dataIndex: 'channel', key: 'channel', width: 70, render: (v: string) => <Tag>{v}</Tag> },
     { title: '动作', dataIndex: 'action', key: 'action', width: 180, render: (v: string) => <Text code>{v}</Text> },

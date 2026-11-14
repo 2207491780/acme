@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isExpiringSoon, load, useAuthStore } from '../src/store/authStore';
+import { isExpiringSoon, load, useAuthStore } from '@acme/core';
 
 /** 会话存储与续约判定（login-state / login-renew）。 */
 describe('authStore', () => {

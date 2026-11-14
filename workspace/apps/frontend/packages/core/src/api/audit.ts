@@ -1,4 +1,5 @@
-import { apiFetch } from './client';
+import { apiFetch } from '../http/client';
+import type { PageResult } from './system';
 
 /** 审计事件视图（契约对齐 AdminAuditEventView；id 序列化为字符串）。 */
 export interface AdminAuditEventView {
@@ -15,11 +16,6 @@ export interface AdminAuditEventView {
   content: string;
   occurredAt: string;
   createdAt: string;
-}
-
-export interface PageResult<T> {
-  records: T[];
-  total: number;
 }
 
 /** 基础设施域接口（platform-infra；P3 审计事件查询打通）。 */

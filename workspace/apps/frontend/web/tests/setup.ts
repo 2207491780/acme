@@ -26,10 +26,14 @@ function storageFactory(): Storage {
 const localStorageStub = storageFactory();
 const sessionStorageStub = storageFactory();
 
-vi.stubGlobal('localStorage', localStorageStub);
-vi.stubGlobal('sessionStorage', sessionStorageStub);
-vi.stubGlobal('window', {
-  localStorage: localStorageStub,
-  sessionStorage: sessionStorageStub,
-  location: { hash: '' },
-});
+// jsdom 环境（*.test.tsx 组件测试）自带真实 window/localStorage/location，不打桩；
+// node 环境维持最小桩（store/工具测试）。
+if (typeof window === 'undefined') {
+  vi.stubGlobal('localStorage', localStorageStub);
+  vi.stubGlobal('sessionStorage', sessionStorageStub);
+  vi.stubGlobal('window', {
+    localStorage: localStorageStub,
+    sessionStorage: sessionStorageStub,
+    location: { hash: '' },
+  });
+}

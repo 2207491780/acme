@@ -2,9 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, App, Button, Card, Checkbox, Divider, Form, Input, Select, Space, Typography } from 'antd';
 import { ApartmentOutlined, GlobalOutlined, LockOutlined, ReloadOutlined, SafetyCertificateOutlined, ThunderboltOutlined, UserOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { ApiError } from '../api/client';
-import { authApi, type CaptchaData, type TenantSummary } from '../api/auth';
-import { useAuthStore } from '../store/authStore';
+import { ApiError, authApi, useAuthStore, type CaptchaData, type TenantSummary } from '@acme/core';
 import { loginFormDefaults } from './loginDefaults';
 
 const { Text } = Typography;

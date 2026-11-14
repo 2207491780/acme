@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch } from '../http/client';
 
 /** 启用租户摘要（login-tenant-select）。 */
 export interface TenantSummary {

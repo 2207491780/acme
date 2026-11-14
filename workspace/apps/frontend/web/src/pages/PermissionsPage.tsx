@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { ApiError } from '../api/client';
-import { systemApi, type AdminPermissionView } from '../api/system';
-import { useMeStore } from '../store/meStore';
+import { ApiError, systemApi, useMeStore, type AdminPermissionView } from '@acme/core';
 
 const { Text } = Typography;
 

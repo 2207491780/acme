@@ -9,7 +9,9 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    // 组件测试（*.test.tsx）需要真实 DOM → jsdom；store/工具测试维持 node + 最小桩
+    environmentMatchGlobs: [['**/*.test.tsx', 'jsdom']],
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     setupFiles: ['./tests/setup.ts'],
   },
 });

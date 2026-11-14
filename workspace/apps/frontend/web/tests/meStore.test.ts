@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useAuthStore } from '../src/store/authStore';
-import { useMeStore } from '../src/store/meStore';
+import { useAuthStore, useMeStore } from '@acme/core';
 
 /** 服务端画像加载（p1-me-sync）：成功写入 / 403 清会话回登录 / 降级不阻塞 / 并发单飞。 */
 describe('meStore', () => {

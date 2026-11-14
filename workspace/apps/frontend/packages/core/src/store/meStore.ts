@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ApiError } from '../api/client';
+import { ApiError } from '../http/client';
 import { systemApi, type AdminMeView } from '../api/system';
 import { useAuthStore } from './authStore';
 

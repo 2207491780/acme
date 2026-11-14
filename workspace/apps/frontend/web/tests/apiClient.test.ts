@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { authApi } from '../src/api/auth';
-import { apiFetch } from '../src/api/client';
+import { authApi } from '@acme/core';
+import { apiFetch } from '@acme/core';
 
 /** web 端 apiFetch 信封解包（FR-013）：void 端点空体豁免（emptyAsSuccess）与默认空体拒绝。 */
 describe('web apiFetch', () => {

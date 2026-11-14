@@ -63,7 +63,7 @@ export function load(): { session: AuthSession | null; remember: boolean } {
     }
     return { session: parsed, remember };
   } catch {
-    // 持久化数据损坏按未登录处理（不阻塞应用）
+    // 持久化数据损坏（或宿主无 window/localStorage，如非浏览器环境）按未登录处理（不阻塞应用）
     return { session: null, remember: false };
   }
 }

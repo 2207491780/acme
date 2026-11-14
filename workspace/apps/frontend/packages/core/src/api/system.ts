@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch } from '../http/client';
 
 /** 分页信封（契约对齐 PageResult；total 为 Long——按数字容错解析）。 */
 export interface PageResult<T> {
