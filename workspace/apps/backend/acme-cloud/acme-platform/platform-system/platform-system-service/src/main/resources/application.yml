@@ -24,16 +24,25 @@ spring:
     enabled: true
     default-schema: platform_system
     schemas: platform_system
+  data:
+    redis:
+      # 站内信推送扇出 pub/sub（REQ-20261114-120102；通道 platform-system:notify:ws，12.3.2）；
+      # 取值口径同网关 / platform-auth（REDIS_* 环境注入，本地默认 .dev-stack）
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:acme_local_redis_2026}
 
 server:
   port: 9881
 
 acme:
   security:
-    # 公开端点豁免：无业务公开路径——system 全部接口需认证（架构设计 6.2）；
-    # 仅探针与指标面（14.2.1/14.2.2）直连放行：kubelet / 监控直连服务端口，网关不路由故无对外暴露
+    # 公开端点豁免（架构设计 6.2）：探针与指标面（14.2.1/14.2.2）直连放行——kubelet / 监控直连服务端口，
+    # 网关不路由故无对外暴露；REQ-20261114-120102 增补 /ws/system/**：WS 握手经 NotifyHandshakeInterceptor
+    # 用户令牌验签为唯一强制门（浏览器 WebSocket 无法携带内部令牌头，见拦截器类注）
     public-paths:
       - /actuator/**
+      - /ws/system/**
     token:
       # 内部令牌校验密钥域（与网关签发同源；14.3.3 经环境注入、不落仓库默认值——未注入即启动失败）
       hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET}
@@ -44,6 +53,20 @@ acme:
     id:
       # 雪花 worker 标识（12.3.1 必填；与 platform-auth 配不同值防碰撞）
       worker-id: 2
+  notify:
+    ws:
+      # 服务端心跳空闲超时（确认记录⑧钉死键 acme.notify.ws.idle-timeout，缺省 30s）：
+      # 静默超时断开并回收会话（AC-9）
+      idle-timeout: 30s
+      sweep-interval: 2s
+  gateway:
+    user-token:
+      # WS 握手用户令牌验签（REQ-20261114-120102，确认记录④⑦⑬：与网关 acme.gateway.user-token 同键单源，
+      # 环境注入一次网关/服务侧共用；载体=?token= query 参数；密钥=用户令牌域 ACME_USER_TOKEN_HMAC_SECRET，
+      # 与内部令牌密钥域（acme.security.token）隔离（11.6.2）；14.3.3 经环境注入、不落仓库默认值——
+      # 未注入即启动失败（TokenKeys 空密钥显式失败）。本地启动环境变量增补该键（AGENTS.md 启动清单同步口径）
+      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET}
+      issuer: acme-auth
 
 management:
   endpoints:

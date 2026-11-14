@@ -76,6 +76,18 @@ public final class SystemErrorCodes {
     /** 接口级权限点不足（403）。 */
     public static final String PERMISSION_DENIED = "platform-system-07-0001";
 
+    /** 公告已发布，不允许修改或删除（409；REQ-20261114-120102 通知公告域）。 */
+    public static final String NOTICE_PUBLISHED = "platform-system-08-0001";
+
+    /** 公告不存在（404；REQ-20261114-120102，实施增补：publish/update 对不存在 id 不可静默成功）。 */
+    public static final String NOTICE_NOT_FOUND = "platform-system-08-0002";
+
+    /** 站内信不存在（404；REQ-20261114-120102 站内信域）。 */
+    public static final String MESSAGE_NOT_FOUND = "platform-system-09-0001";
+
+    /** 无权操作他人站内信（403；REQ-20261114-120102）。 */
+    public static final String MESSAGE_FORBIDDEN = "platform-system-09-0002";
+
     private SystemErrorCodes() {
     }
 }

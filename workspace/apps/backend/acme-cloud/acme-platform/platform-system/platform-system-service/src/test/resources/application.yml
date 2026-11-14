@@ -23,6 +23,17 @@ acme:
   flex:
     id:
       worker-id: 2
+  notify:
+    ws:
+      # WS 握手用户令牌验签（REQ-20261114-120102）：测试占位密钥，非生产取值（14.3.3 口径）；
+      # 无 Redis 环境下扇出订阅建立失败由 NotifyPushBus 防御化捕获，不阻断上下文启动
+      idle-timeout: 30s
+      sweep-interval: 2s
+  gateway:
+    user-token:
+      # 与网关同键单源（确认记录⑬）：测试占位密钥，非生产取值
+      hmac-secret: notify-ws-handshake-test-secret-0123456789abcdef
+      issuer: acme-auth
 
 management:
   endpoint:

@@ -1,6 +1,9 @@
 # Ingress —— k3s 自带 Traefik；host 占位由 overlay 覆盖
 # （dev: dev.acmecloud.site / test: test.acmecloud.site / prod: acmecloud.site，见决策 2026-11-14-25）
 # 无 DNS 时本机验证：curl --resolve <host>:80 <服务器IP> 或 hosts 文件指向服务器 IP
+# /ws 前缀直连网关（REQ-20261114-120102）：WebSocket 升级请求（/ws/system/notify）不经 acme-web
+# 反代（其仅代理 /admin/、/app/），由 Traefik 原生 WS 升级透传（无需额外注解）到 acme-gateway，
+# 经 platform-system-ws 路由（gateway application.yml）到 platform-system，握手鉴权在服务侧。
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -18,3 +21,10 @@ spec:
                 name: acme-web
                 port:
                   number: 80
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: acme-gateway
+                port:
+                  number: 9888

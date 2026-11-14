@@ -77,7 +77,19 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     TENANT_DISABLE_DENIED(SystemErrorCodes.TENANT_DISABLE_DENIED, "默认租户不允许停用", 409),
 
     /** 接口级权限点不足。 */
-    PERMISSION_DENIED(SystemErrorCodes.PERMISSION_DENIED, "无操作权限", 403);
+    PERMISSION_DENIED(SystemErrorCodes.PERMISSION_DENIED, "无操作权限", 403),
+
+    /** 公告已发布，不允许修改或删除（REQ-20261114-120102）。 */
+    NOTICE_PUBLISHED(SystemErrorCodes.NOTICE_PUBLISHED, "公告已发布，不允许修改或删除", 409),
+
+    /** 公告不存在（REQ-20261114-120102 实施增补：publish/update 对不存在 id 不可静默成功）。 */
+    NOTICE_NOT_FOUND(SystemErrorCodes.NOTICE_NOT_FOUND, "公告不存在", 404),
+
+    /** 站内信不存在（REQ-20261114-120102）。 */
+    MESSAGE_NOT_FOUND(SystemErrorCodes.MESSAGE_NOT_FOUND, "站内信不存在", 404),
+
+    /** 无权操作他人站内信（REQ-20261114-120102）。 */
+    MESSAGE_FORBIDDEN(SystemErrorCodes.MESSAGE_FORBIDDEN, "无权操作他人站内信", 403);
 
     private final String code;
     private final String defaultMessage;

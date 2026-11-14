@@ -12,6 +12,7 @@ import {
   MenuFoldOutlined,
   MenuOutlined,
   MoonOutlined,
+  NotificationOutlined,
   PlusOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -23,9 +24,10 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, authApi, startAuthRenewal, useAuthStore, useMeStore } from '@acme/core';
+import { ACTIVE_STATUSES, authApi, startAuthRenewal, useAuthStore, useMeStore, useNotifyStore } from '@acme/core';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
+import { createNotifyClient } from './ws/notify-client';
 import { Dashboard } from './pages/Dashboard';
 import { Releases } from './pages/Releases';
 import { Apps } from './pages/Apps';
@@ -38,7 +40,9 @@ import { MenusPage } from './pages/MenusPage';
 import { DictsPage } from './pages/DictsPage';
 import { AuditPage } from './pages/AuditPage';
 import { FilesPage } from './pages/FilesPage';
+import { NoticesPage } from './pages/NoticesPage';
 import { LoginPage } from './pages/LoginPage';
+import { NotificationBell } from './components/NotificationBell';
 import { buildDynamicNav, type NavEntry } from './nav';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
@@ -100,6 +104,7 @@ const NAV: { path: string; icon: ReactNode; label: string; permission?: string }
   { path: '/permissions', icon: <SafetyCertificateOutlined />, label: '权限管理', permission: 'system:permission:list' },
   { path: '/menus', icon: <MenuOutlined />, label: '菜单管理', permission: 'system:menu:list' },
   { path: '/dicts', icon: <BookOutlined />, label: '字典管理', permission: 'system:dict:list' },
+  { path: '/notices', icon: <NotificationOutlined />, label: '通知公告', permission: 'system:notice:list' },
   { path: '/audit', icon: <FileSearchOutlined />, label: '审计事件', permission: 'infra:audit:list' },
   { path: '/settings', icon: <SettingOutlined />, label: '设置' },
 ];
@@ -136,6 +141,18 @@ export function App() {
     } else {
       useMeStore.getState().clear();
     }
+  }, [isAuthed]);
+
+  // 站内信实时链路（REQ-20261114-120102，AC-10）：登录态挂载即建连，message:new 帧 → 通知 store
+  // （铃铛徽标实时 +1）；登出/卸载主动关闭不重连。令牌随 connect 时从 useAuthStore 会话取。
+  useEffect(() => {
+    if (!isAuthed) {
+      return undefined;
+    }
+    const client = createNotifyClient();
+    client.on('message:new', (frame) => useNotifyStore.getState().applyMessageNew(frame));
+    client.connect();
+    return () => client.close();
   }, [isAuthed]);
 
   // 主题/时钟/快捷键副作用必须无条件注册：hooks 不得位于下方条件 return（if (!session)）之后，
@@ -326,6 +343,7 @@ export function App() {
                 {runtimeLabel}
               </span>
             )}
+            <NotificationBell />
             <Tooltip title="切换主题">
               <Button
                 type="text"
@@ -418,6 +436,14 @@ export function App() {
                 element={(
                   <PermissionGate permission="system:dict:list">
                     <DictsPage />
+                  </PermissionGate>
+                )}
+              />
+              <Route
+                path="/notices"
+                element={(
+                  <PermissionGate permission="system:notice:list">
+                    <NoticesPage />
                   </PermissionGate>
                 )}
               />

@@ -1,5 +1,7 @@
 # dev Ingress host 覆盖（DNS 控制台加 dev.acmecloud.site A 记录指向服务器 IP 后可直接访问；
 # 无 DNS 记录时 hosts 文件指向服务器 IP 兜底）
+# paths 全量覆盖 base（host 变更即整列替换）：/ws 路由须与本文件同步登记（REQ-20261114-120102，
+# /ws 直连网关——WebSocket 升级不经 acme-web 反代，Traefik 原生透传，语义见 base/ingress.yaml 头注）
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -16,3 +18,10 @@ spec:
                 name: acme-web
                 port:
                   number: 80
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: acme-gateway
+                port:
+                  number: 9888

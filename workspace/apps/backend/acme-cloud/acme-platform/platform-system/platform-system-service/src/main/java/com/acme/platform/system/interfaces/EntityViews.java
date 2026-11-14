@@ -5,6 +5,8 @@ import com.acme.common.util.TreeNode;
 import com.acme.platform.system.domain.SysDictItem;
 import com.acme.platform.system.domain.SysDictType;
 import com.acme.platform.system.domain.SysMenu;
+import com.acme.platform.system.domain.SysMessage;
+import com.acme.platform.system.domain.SysNotice;
 import com.acme.platform.system.domain.SysPermission;
 import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysTenant;
@@ -12,6 +14,8 @@ import com.acme.platform.system.domain.SysUser;
 import com.acme.platform.system.api.dto.AdminDictItemView;
 import com.acme.platform.system.api.dto.AdminDictTypeView;
 import com.acme.platform.system.api.dto.AdminMenuView;
+import com.acme.platform.system.api.dto.AdminMessageView;
+import com.acme.platform.system.api.dto.AdminNoticeView;
 import com.acme.platform.system.api.dto.AdminPermissionView;
 import com.acme.platform.system.api.dto.AdminRoleView;
 import com.acme.platform.system.api.dto.AdminTenantView;
@@ -84,6 +88,20 @@ public final class EntityViews {
     public static AdminDictItemView dictItemView(SysDictItem item) {
         return new AdminDictItemView(item.getId(), item.getDictTypeId(), item.getItemLabel(),
                 item.getItemValue(), item.getSortOrder(), item.getStatus(), item.getVersion());
+    }
+
+    /** 通知公告视图（REQ-20261114-120102）。 */
+    public static AdminNoticeView noticeView(SysNotice notice) {
+        return new AdminNoticeView(notice.getId(), notice.getTitle(), notice.getContent(),
+                notice.getStatus(), notice.getPublishAt(), notice.getCreatedAt(), notice.getUpdatedAt(),
+                notice.getVersion());
+    }
+
+    /** 站内信视图（REQ-20261114-120102 收件箱语义）。 */
+    public static AdminMessageView messageView(SysMessage message) {
+        return new AdminMessageView(message.getId(), message.getSenderId(), message.getRecipientId(),
+                message.getTitle(), message.getContent(), message.getIsRead(), message.getReadAt(),
+                message.getCreatedAt());
     }
 
     /** 菜单平铺视图（无 children，详情 / 创建 / 修改响应用）。 */

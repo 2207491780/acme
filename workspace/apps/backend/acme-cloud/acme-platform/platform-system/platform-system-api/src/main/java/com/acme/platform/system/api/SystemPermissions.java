@@ -79,6 +79,18 @@ public final class SystemPermissions {
     /** Excel 通用范式 demo（infra 域 Admin 端点；REQ-20261114-071607：单点覆盖模板/导出/导入三端点）。 */
     public static final String INFRA_EXCEL_DEMO = "infra:excel:demo";
 
+    /** 通知公告（REQ-20261114-120102 消息通知闭环一期；详情 GET /{id} 归 list 读语义，V7 先例）。 */
+    public static final String NOTICE_LIST = "system:notice:list";
+    public static final String NOTICE_CREATE = "system:notice:create";
+    public static final String NOTICE_UPDATE = "system:notice:update";
+    public static final String NOTICE_DELETE = "system:notice:delete";
+    public static final String NOTICE_PUBLISH = "system:notice:publish";
+
+    /** 站内信（REQ-20261114-120102；收件箱 / 未读数归 list 读语义，标记已读独立权限点）。 */
+    public static final String MESSAGE_SEND = "system:message:send";
+    public static final String MESSAGE_LIST = "system:message:list";
+    public static final String MESSAGE_READ = "system:message:read";
+
     private SystemPermissions() {
     }
 }

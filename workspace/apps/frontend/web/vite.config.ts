@@ -36,6 +36,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/admin': { target: process.env.WEB_API_TARGET ?? 'http://localhost:9888', changeOrigin: true },
+      // WS 实时推送（REQ-20261114-120102）：/ws/system/** 经网关路由到 platform-system（ws:true 升级协议）
+      '/ws': { target: process.env.WEB_API_TARGET ?? 'http://localhost:9888', changeOrigin: true, ws: true },
     },
   },
   preview: { port: 4173, strictPort: true },

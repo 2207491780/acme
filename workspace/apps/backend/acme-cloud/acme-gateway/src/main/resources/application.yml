@@ -32,6 +32,13 @@ spring:
               uri: lb://platform-system
               predicates:
                 - Path=/admin/v1/system/**
+            # WS 实时推送路由（REQ-20261114-120102）：SCG 原生支持 ws 升级代理；握手鉴权在
+            # platform-system 侧 NotifyHandshakeInterceptor（用户令牌验签，确认记录④）——
+            # /ws 前缀不在端别（/admin|/app）作用域，网关验签链不适用，服务侧握手为唯一强制门
+            - id: platform-system-ws
+              uri: lb://platform-system
+              predicates:
+                - Path=/ws/system/**
             # platform-infra 增补路由（仅追加不改既有，11.1.4；platform-infra-audit）
             - id: platform-infra
               uri: lb://platform-infra

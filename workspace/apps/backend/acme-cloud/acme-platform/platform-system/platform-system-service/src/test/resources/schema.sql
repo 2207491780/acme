@@ -48,3 +48,36 @@ CREATE TABLE sys_user_role (
     deleted    BOOLEAN     NOT NULL,
     CONSTRAINT uk_sys_user_role UNIQUE (tenant_id, user_id, role_id)
 );
+
+-- REQ-20261114-120102：通知公告 / 站内信（列定义对齐 V8__notice_message_notify.sql）
+CREATE TABLE sys_notice (
+    id          BIGINT PRIMARY KEY,
+    tenant_id   VARCHAR(64)  NOT NULL,
+    title       VARCHAR(128) NOT NULL,
+    content     CLOB         NOT NULL,
+    status      VARCHAR(16)  NOT NULL,
+    publish_at  TIMESTAMP,
+    created_at  TIMESTAMP    NOT NULL,
+    created_by  VARCHAR(64)  NOT NULL,
+    updated_at  TIMESTAMP    NOT NULL,
+    updated_by  VARCHAR(64)  NOT NULL,
+    version     BIGINT       NOT NULL,
+    deleted     BOOLEAN      NOT NULL
+);
+
+CREATE TABLE sys_message (
+    id           BIGINT PRIMARY KEY,
+    tenant_id    VARCHAR(64)  NOT NULL,
+    sender_id    BIGINT       NOT NULL,
+    recipient_id BIGINT       NOT NULL,
+    title        VARCHAR(128) NOT NULL,
+    content      CLOB         NOT NULL,
+    is_read      BOOLEAN      NOT NULL,
+    read_at      TIMESTAMP,
+    created_at   TIMESTAMP    NOT NULL,
+    created_by   VARCHAR(64)  NOT NULL,
+    updated_at   TIMESTAMP    NOT NULL,
+    updated_by   VARCHAR(64)  NOT NULL,
+    version      BIGINT       NOT NULL,
+    deleted      BOOLEAN      NOT NULL
+);

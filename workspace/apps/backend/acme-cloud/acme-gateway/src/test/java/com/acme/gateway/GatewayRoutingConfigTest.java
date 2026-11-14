@@ -42,17 +42,20 @@ class GatewayRoutingConfigTest {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
         assertThat(routes).isNotNull();
         Set<String> ids = routes.stream().map(RouteDefinition::getId).collect(Collectors.toSet());
-        // 按能力域注册的四条路由（11.1.4 仅追加；Q-D07：sample 死路由已移除；
+        // 按能力域注册的五条路由（11.1.4 仅追加；Q-D07：sample 死路由已移除；
         // platform-infra 增补经 platform-infra-audit 拆分评审；
-        // platform-auth-app 为 C 端双端前缀路由，consumer-auth-refresh-dataperm）；
+        // platform-auth-app 为 C 端双端前缀路由，consumer-auth-refresh-dataperm；
+        // platform-system-ws 为 WS 实时推送路由，REQ-20261114-120102）；
         // business-content / business-content-app 内容域双端路由已随业务域下线移除
         assertThat(ids).containsExactlyInAnyOrder("platform-auth", "platform-system", "platform-infra",
-                "platform-auth-app");
+                "platform-auth-app", "platform-system-ws");
         RouteDefinition auth = routes.stream()
                 .filter(r -> r.getId().equals("platform-auth")).findFirst().orElseThrow();
         assertThat(auth.getUri().toString()).isEqualTo("lb://platform-auth");
         RouteDefinition system = routes.stream().filter(r -> r.getId().equals("platform-system")).findFirst().orElseThrow();
         assertThat(system.getUri().toString()).isEqualTo("lb://platform-system");
+        RouteDefinition systemWs = routes.stream().filter(r -> r.getId().equals("platform-system-ws")).findFirst().orElseThrow();
+        assertThat(systemWs.getUri().toString()).isEqualTo("lb://platform-system");
         RouteDefinition infra = routes.stream().filter(r -> r.getId().equals("platform-infra")).findFirst().orElseThrow();
         assertThat(infra.getUri().toString()).isEqualTo("lb://platform-infra");
         RouteDefinition authApp = routes.stream().filter(r -> r.getId().equals("platform-auth-app")).findFirst().orElseThrow();
