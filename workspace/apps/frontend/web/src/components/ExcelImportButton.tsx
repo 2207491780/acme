@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { App as AntApp, Button, Modal, Space, Statistic, Table, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import type { ColumnsType } from 'antd/es/table';
 import { CloudUploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { downloadFile, useExcelImport, type ImportReportError } from '@acme/core';
@@ -26,10 +27,11 @@ export interface ExcelImportButtonProps {
 export function ExcelImportButton({
   url,
   templateUrl,
-  label = '导入 Excel',
+  label,
   accept = '.xlsx',
   onImported,
 }: ExcelImportButtonProps) {
+  const { t } = useTranslation();
   const { message } = AntApp.useApp();
   const inputRef = useRef<HTMLInputElement>(null);
   const [templateDownloading, setTemplateDownloading] = useState(false);
@@ -55,7 +57,7 @@ export function ExcelImportButton({
     }
     const result = await importFile(url, file);
     if (result) {
-      message.success(`导入完成：共 ${result.total} 行，有效 ${result.valid} 行，错误 ${result.errors.length} 行`);
+      message.success(t('files.toast.importDone', { total: result.total, valid: result.valid, errors: result.errors.length }));
       onImported?.(result);
     }
   };
@@ -69,16 +71,16 @@ export function ExcelImportButton({
       await downloadFile(templateUrl, 'import-template.xlsx');
     } catch {
       // 失败文案由 hook.error 承载；此处仅在失败时提示
-      message.error('模板下载失败，请稍后重试');
+      message.error(t('files.toast.templateFailed'));
     } finally {
       setTemplateDownloading(false);
     }
   };
 
   const errorColumns: ColumnsType<ImportReportError> = [
-    { title: '行号', dataIndex: 'row', key: 'row', width: 70 },
-    { title: '字段', dataIndex: 'field', key: 'field', width: 140, render: (v: string | null) => v ?? '—' },
-    { title: '原因', dataIndex: 'message', key: 'message' },
+    { title: t('files.import.columns.row'), dataIndex: 'row', key: 'row', width: 70 },
+    { title: t('files.import.columns.field'), dataIndex: 'field', key: 'field', width: 140, render: (v: string | null) => v ?? '—' },
+    { title: t('files.import.columns.reason'), dataIndex: 'message', key: 'message' },
   ];
 
   return (
@@ -94,26 +96,26 @@ export function ExcelImportButton({
       />
       <Space size={4}>
         <Button icon={<CloudUploadOutlined />} loading={importing} onClick={pick}>
-          {label}
+          {label ?? t('files.import.label')}
         </Button>
         {templateUrl ? (
           <Button icon={<DownloadOutlined />} loading={templateDownloading} onClick={() => void downloadTemplateFile()}>
-            下载模板
+            {t('files.import.template')}
           </Button>
         ) : null}
       </Space>
       <Modal
         open={report !== null}
-        title="导入报告"
+        title={t('files.import.reportTitle')}
         width={640}
         onCancel={clearReport}
-        footer={<Button type="primary" onClick={clearReport}>知道了</Button>}
+        footer={<Button type="primary" onClick={clearReport}>{t('files.import.ok')}</Button>}
         destroyOnClose
       >
         <Space size={32} wrap style={{ marginBottom: 16 }}>
-          <Statistic title="总行数" value={report?.total ?? 0} />
-          <Statistic title="有效" value={report?.valid ?? 0} valueStyle={{ color: 'var(--acid, #9db56a)' }} />
-          <Statistic title="错误" value={report?.errors.length ?? 0} valueStyle={{ color: 'var(--red, #c47b7b)' }} />
+          <Statistic title={t('files.import.statTotal')} value={report?.total ?? 0} />
+          <Statistic title={t('files.import.statValid')} value={report?.valid ?? 0} valueStyle={{ color: 'var(--acid, #9db56a)' }} />
+          <Statistic title={t('files.import.statErrors')} value={report?.errors.length ?? 0} valueStyle={{ color: 'var(--red, #c47b7b)' }} />
         </Space>
         {report && report.errors.length > 0 ? (
           <Table<ImportReportError>
@@ -125,7 +127,7 @@ export function ExcelImportButton({
             scroll={{ y: 320 }}
           />
         ) : (
-          <Text type="secondary">全部行校验通过（validate-only 不落库）。</Text>
+          <Text type="secondary">{t('files.import.allValid')}</Text>
         )}
       </Modal>
     </>

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import { useTranslation } from 'react-i18next';
 
 /**
  * 富文本编辑器（REQ-20261114-120102，AC-12；契约裁决⑪表面钉死）：
@@ -15,6 +16,7 @@ export interface RichTextEditorProps {
 }
 
 export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
+  const { t } = useTranslation();
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -23,7 +25,7 @@ export function RichTextEditor({ value, onChange }: RichTextEditorProps) {
     content: value ?? '',
     editorProps: {
       attributes: {
-        'aria-label': '公告正文',
+        'aria-label': t('notices.editor.ariaLabel'),
         class: 'rich-text-area',
       },
     },

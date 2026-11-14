@@ -1,6 +1,7 @@
 import { useMemo, useState, type HTMLAttributes } from 'react';
 import { App, Button, Card, Progress, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { useTranslation } from 'react-i18next';
 import {
   DeleteOutlined,
   EditOutlined,
@@ -16,17 +17,14 @@ import {
   PLATFORMS,
   SORTS,
   STATUSES,
-  STATUS_ACTION,
-  envLabel,
   filterReleases,
   fmtFull,
-  platformLabel,
   relTime,
   sortReleases,
   statusColor,
-  statusLabel,
   type Release,
 } from '@acme/core';
+import { envLabelKey, platformLabelKey, statusLabelKey } from '../labels';
 import { useStore } from '../store/useStore';
 import { EnvTag, PlatformTag, StatusTag } from '../components/atoms';
 import { PageHead } from '../components/PageHead';
@@ -39,6 +37,7 @@ function DraggableRow(props: HTMLAttributes<HTMLTableRowElement>) {
 }
 
 export function Releases() {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const state = useStore((s) => s.state);
   const query = useStore((s) => s.query);
@@ -64,22 +63,22 @@ export function Releases() {
 
   const onBulkAdvance = () => {
     const count = bulkAdvance();
-    message[count ? 'success' : 'warning'](count ? `已推进 ${count} 个发布单` : '所选发布单没有可推进的状态');
+    message[count ? 'success' : 'warning'](count ? t('releases.bulk.advanced', { n: count }) : t('releases.bulk.nothingToAdvance'));
   };
 
   const columns: ColumnsType<Release> = [
     {
-      title: '',
+      title: t('releases.columns.dragTitle'),
       key: 'drag',
       width: 34,
       render: () => (
-        <span className="drag-handle" title="拖拽调整优先级">
+        <span className="drag-handle" title={t('releases.columns.dragHint')}>
           <HolderOutlined />
         </span>
       ),
     },
     {
-      title: '发布单',
+      title: t('releases.columns.release'),
       key: 'title',
       render: (_, r) => (
         <div>
@@ -89,7 +88,7 @@ export function Releases() {
       ),
     },
     {
-      title: '应用 / 平台',
+      title: t('releases.columns.app'),
       key: 'app',
       render: (_, r) => {
         const app = state.apps.find((a) => a.id === r.appId);
@@ -101,11 +100,11 @@ export function Releases() {
         );
       },
     },
-    { title: '版本', key: 'version', render: (_, r) => <Tag color="processing">v{r.version}</Tag> },
-    { title: '环境', key: 'env', render: (_, r) => <EnvTag env={r.env} /> },
-    { title: '状态', key: 'status', render: (_, r) => <StatusTag status={r.status} /> },
+    { title: t('releases.columns.version'), key: 'version', render: (_, r) => <Tag color="processing">v{r.version}</Tag> },
+    { title: t('releases.columns.env'), key: 'env', render: (_, r) => <EnvTag env={r.env} /> },
+    { title: t('releases.columns.status'), key: 'status', render: (_, r) => <StatusTag status={r.status} /> },
     {
-      title: '进度',
+      title: t('releases.columns.progress'),
       key: 'progress',
       width: 130,
       render: (_, r) => (
@@ -117,14 +116,14 @@ export function Releases() {
         />
       ),
     },
-    { title: '负责人', key: 'owner', dataIndex: 'owner' },
+    { title: t('releases.columns.owner'), key: 'owner', dataIndex: 'owner' },
     {
-      title: '更新',
+      title: t('releases.columns.updated'),
       key: 'updated',
       render: (_, r) => <Tooltip title={fmtFull(r.updatedAt)}><span>{relTime(r.updatedAt)}</span></Tooltip>,
     },
     {
-      title: '操作',
+      title: t('releases.columns.actions'),
       key: 'actions',
       width: 120,
       render: (_, r) => {
@@ -132,15 +131,15 @@ export function Releases() {
         return (
           <Space size={4} onClick={(e) => e.stopPropagation()}>
             {next && (
-              <Tooltip title={STATUS_ACTION[r.status]}>
-                <Button size="small" icon={<PlayCircleOutlined />} onClick={() => advance(r.id)} aria-label={STATUS_ACTION[r.status]} />
+              <Tooltip title={t(`releases.action.${r.status}`)}>
+                <Button size="small" icon={<PlayCircleOutlined />} onClick={() => advance(r.id)} aria-label={t(`releases.action.${r.status}`)} />
               </Tooltip>
             )}
-            <Tooltip title="编辑">
-              <Button size="small" icon={<EditOutlined />} onClick={() => openModal({ type: 'release', id: r.id })} aria-label="编辑发布单" />
+            <Tooltip title={t('releases.row.edit')}>
+              <Button size="small" icon={<EditOutlined />} onClick={() => openModal({ type: 'release', id: r.id })} aria-label={t('releases.row.editRelease')} />
             </Tooltip>
-            <Tooltip title="删除">
-              <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove([r.id])} aria-label="删除发布单" />
+            <Tooltip title={t('releases.row.delete')}>
+              <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove([r.id])} aria-label={t('releases.row.deleteRelease')} />
             </Tooltip>
           </Space>
         );
@@ -151,12 +150,12 @@ export function Releases() {
   return (
     <>
       <PageHead
-        eyebrow="Release Orders"
-        title="发布单"
-        sub="创建、编辑、拖拽排序、批量操作与保存视图。所有变更即时保存，删除后可撤销。"
+        eyebrow={t('releases.head.eyebrow')}
+        title={t('releases.head.title')}
+        sub={t('releases.head.sub')}
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal({ type: 'release', id: null })}>
-            新建发布单
+            {t('releases.head.create')}
           </Button>
         }
       />
@@ -166,38 +165,38 @@ export function Releases() {
           style={{ width: 150 }}
           value={query.platform}
           onChange={(v) => setQuery({ platform: v })}
-          options={[{ value: 'all', label: '全部平台' }, ...PLATFORMS.map((p) => ({ value: p, label: platformLabel(p) }))]}
+          options={[{ value: 'all', label: t('releases.filters.allPlatforms') }, ...PLATFORMS.map((p) => ({ value: p, label: t(platformLabelKey(p)) }))]}
         />
         <Select
           style={{ width: 150 }}
           value={query.status}
           onChange={(v) => setQuery({ status: v })}
           options={[
-            { value: 'all', label: '全部状态' },
-            { value: 'active', label: '进行中' },
-            ...STATUSES.map((s) => ({ value: s, label: statusLabel(s) })),
+            { value: 'all', label: t('releases.filters.allStatuses') },
+            { value: 'active', label: t('releases.filters.active') },
+            ...STATUSES.map((s) => ({ value: s, label: t(statusLabelKey(s)) })),
           ]}
         />
         <Select
           style={{ width: 150 }}
           value={query.env}
           onChange={(v) => setQuery({ env: v })}
-          options={[{ value: 'all', label: '全部环境' }, ...ENVS.map((e) => ({ value: e, label: envLabel(e) }))]}
+          options={[{ value: 'all', label: t('releases.filters.allEnvs') }, ...ENVS.map((e) => ({ value: e, label: t(envLabelKey(e)) }))]}
         />
         <Select
           style={{ width: 150 }}
           value={query.sort}
           onChange={(v) => setQuery({ sort: v })}
-          options={SORTS.map(([value, label]) => ({ value, label }))}
+          options={SORTS.map(([value]) => ({ value, label: t(`releases.sort.${value}`) }))}
         />
         <Button icon={<SaveOutlined />} onClick={() => openModal({ type: 'savedView' })}>
-          保存视图
+          {t('releases.filters.saveView')}
         </Button>
       </Space>
 
       <Space wrap style={{ marginBottom: 16 }} align="center">
-        <Text type="secondary" strong style={{ fontSize: 12 }}>Saved views</Text>
-        {state.savedViews.length === 0 && <Text type="secondary" style={{ fontSize: 12 }}>暂无保存视图</Text>}
+        <Text type="secondary" strong style={{ fontSize: 12 }}>{t('releases.savedViews.label')}</Text>
+        {state.savedViews.length === 0 && <Text type="secondary" style={{ fontSize: 12 }}>{t('releases.savedViews.empty')}</Text>}
         {state.savedViews.map((v) => {
           const active = JSON.stringify(v.query) === JSON.stringify(query);
           return (
@@ -222,10 +221,10 @@ export function Releases() {
       {selection.length > 0 && (
         <Card size="small" style={{ marginBottom: 14, borderColor: 'var(--accent)' }}>
           <Space wrap>
-            <Text>已选择 <Text strong style={{ color: 'var(--accent)' }}>{selection.length}</Text> 项</Text>
-            <Button size="small" icon={<PlayCircleOutlined />} onClick={onBulkAdvance}>批量推进</Button>
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove(selection)}>批量删除</Button>
-            <Button size="small" type="text" onClick={clearSelection}>取消选择</Button>
+            <Text>{t('releases.bulk.selected')} <Text strong style={{ color: 'var(--accent)' }}>{selection.length}</Text> {t('releases.bulk.selectedSuffix')}</Text>
+            <Button size="small" icon={<PlayCircleOutlined />} onClick={onBulkAdvance}>{t('releases.bulk.advance')}</Button>
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove(selection)}>{t('releases.bulk.delete')}</Button>
+            <Button size="small" type="text" onClick={clearSelection}>{t('releases.bulk.clear')}</Button>
           </Space>
         </Card>
       )}
@@ -274,10 +273,10 @@ export function Releases() {
             setOverId(null);
           },
         })}
-        locale={{ emptyText: '没有匹配的发布单，调整筛选条件或新建一个。' }}
+        locale={{ emptyText: t('releases.empty') }}
       />
       <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 12 }}>
-        显示 {data.length} / {state.releases.length} 个发布单 · 拖拽行可调整手动优先级
+        {t('releases.summary', { shown: data.length, total: state.releases.length })}
       </Text>
     </>
   );

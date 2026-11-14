@@ -1,6 +1,7 @@
 import { Button, DatePicker, Form, Input, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
+import { useTranslation } from 'react-i18next';
 import { auditApi, formatDate, useCrud, type AdminAuditEventView } from '@acme/core';
 import { CrudTable } from '../components/CrudTable';
 
@@ -28,40 +29,41 @@ interface AuditFormValues {
  *  迁移 CRUD 范本（REQ-20261114-120101）：useCrud（表单筛选走 filters，提交重置第 1 页）
  *  + CrudTable（filterPanel 保持原查询表单布局；查询型页面无新建/删除）。 */
 export function AuditPage() {
+  const { t } = useTranslation();
   const [form] = Form.useForm<AuditFormValues>();
 
   const crud = useCrud<AdminAuditEventView, AuditFilters>({
-    fetchPage: ({ page, size, filters }) =>
+    fetchPage: ({ page, size, filters, signal }) =>
       auditApi.events(page, size, {
         operatorId: filters?.operatorId,
         action: filters?.action,
         traceId: filters?.traceId,
         from: filters?.from,
         to: filters?.to,
-      }),
+      }, signal),
     filters: { operatorId: undefined, action: undefined, traceId: undefined, from: undefined, to: undefined },
     pageSize: 20,
-    errorMessage: '审计事件加载失败',
+    errorMessage: t('audit.errors.loadFailed'),
   });
 
   const columns: ColumnsType<AdminAuditEventView> = [
-    { title: '时间', dataIndex: 'occurredAt', key: 'occurredAt', width: 170, render: (v: string) => formatDate(v) },
-    { title: '操作者', dataIndex: 'operatorId', key: 'operatorId', width: 140, render: (v: string) => <Text code>{v}</Text> },
-    { title: '端', dataIndex: 'channel', key: 'channel', width: 70, render: (v: string) => <Tag>{v}</Tag> },
-    { title: '动作', dataIndex: 'action', key: 'action', width: 180, render: (v: string) => <Text code>{v}</Text> },
-    { title: '对象', key: 'target', width: 200, render: (_, record) => (record.targetId ? `${record.targetType}:${record.targetId}` : record.targetType) },
-    { title: '内容', dataIndex: 'content', key: 'content', ellipsis: true },
-    { title: 'Trace', dataIndex: 'traceId', key: 'traceId', width: 140, ellipsis: true, render: (v: string) => (v ? <Text code style={{ fontSize: 11 }}>{v.slice(0, 12)}…</Text> : '—') },
+    { title: t('audit.columns.occurredAt'), dataIndex: 'occurredAt', key: 'occurredAt', width: 170, render: (v: string) => formatDate(v) },
+    { title: t('audit.columns.operatorId'), dataIndex: 'operatorId', key: 'operatorId', width: 140, render: (v: string) => <Text code>{v}</Text> },
+    { title: t('audit.columns.channel'), dataIndex: 'channel', key: 'channel', width: 70, render: (v: string) => <Tag>{v}</Tag> },
+    { title: t('audit.columns.action'), dataIndex: 'action', key: 'action', width: 180, render: (v: string) => <Text code>{v}</Text> },
+    { title: t('audit.columns.target'), key: 'target', width: 200, render: (_, record) => (record.targetId ? `${record.targetType}:${record.targetId}` : record.targetType) },
+    { title: t('audit.columns.content'), dataIndex: 'content', key: 'content', ellipsis: true },
+    { title: t('audit.columns.traceId'), dataIndex: 'traceId', key: 'traceId', width: 140, ellipsis: true, render: (v: string) => (v ? <Text code style={{ fontSize: 11 }}>{v.slice(0, 12)}…</Text> : '—') },
   ];
 
   return (
     <CrudTable<AdminAuditEventView, AuditFilters>
       crud={crud}
-      title="审计事件"
+      title={t('audit.title')}
       columns={columns}
       searchable={false}
-      reloadAriaLabel="刷新审计事件"
-      totalText={(t) => `共 ${t} 条`}
+      reloadAriaLabel={t('audit.reload')}
+      totalText={(total) => t('audit.total', { total })}
       filterPanel={
         <Form
           form={form}
@@ -77,26 +79,26 @@ export function AuditPage() {
           }}
         >
           <Form.Item name="operatorId">
-            <Input placeholder="操作者 ID" allowClear style={{ width: 160 }} />
+            <Input placeholder={t('audit.filters.operatorId')} allowClear style={{ width: 160 }} />
           </Form.Item>
           <Form.Item name="action">
-            <Input placeholder="动作（如 release.create）" allowClear style={{ width: 200 }} />
+            <Input placeholder={t('audit.filters.action')} allowClear style={{ width: 200 }} />
           </Form.Item>
           <Form.Item name="traceId">
-            <Input placeholder="Trace ID" allowClear style={{ width: 180 }} />
+            <Input placeholder={t('audit.filters.traceId')} allowClear style={{ width: 180 }} />
           </Form.Item>
           <Form.Item name="range">
             <DatePicker.RangePicker showTime style={{ width: 340 }} />
           </Form.Item>
           <Space size={4}>
-            <Button type="primary" htmlType="submit">查询</Button>
+            <Button type="primary" htmlType="submit">{t('audit.filters.query')}</Button>
             <Button
               onClick={() => {
                 form.resetFields();
                 crud.resetFilters();
               }}
             >
-              重置
+              {t('audit.filters.reset')}
             </Button>
           </Space>
         </Form>

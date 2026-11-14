@@ -1,0 +1,50 @@
+/** en-US login page resource pack (login-ui). */
+export const login = {
+  brand: {
+    title: 'Acme SaaS Cloud Platform',
+    subtitle: 'MULTI-TENANT CLOUD · Release Delivery Platform',
+  },
+  features: {
+    tenantIsolation: 'Tenant isolation: data / config / quotas are hard-isolated per tenant',
+    gatewayAuth: 'Central gateway verification: JWS claims carry tenantId, no cross-tenant access',
+    multiClient: 'Multi-client: Web / Electron / mobile share the business layer and tenant identity',
+    accessNote: 'Accounts are provisioned by tenant administrators; signing in means accepting the platform terms.',
+    sessionNote: 'Sessions are 30-minute short sessions with automatic sliding renewal; signing out expires them immediately.',
+  },
+  errors: {
+    tenantsLoadFailed: 'Failed to load tenants, please check the network',
+    captchaLoadFailed: 'Failed to load the captcha, click to retry',
+    captchaNotReady: 'Captcha is not ready, click to refresh',
+    loginFailed: 'Sign-in failed, please try again later',
+  },
+  form: {
+    tenant: 'Tenant',
+    tenantRequired: 'Please select a tenant',
+    tenantLoading: 'Loading tenants…',
+    tenantSelect: 'Select a tenant',
+    tenantEmpty: 'No tenants available',
+    username: 'Username',
+    usernameRequired: 'Please enter the username',
+    usernameLength: 'Username must be 3–64 characters',
+    usernamePlaceholder: 'Username (unique within tenant)',
+    password: 'Password',
+    passwordRequired: 'Please enter the password',
+    passwordLength: 'Password must be 1–64 characters',
+    captcha: 'Captcha',
+    captchaRequired: 'Please enter the captcha',
+    captchaLength: 'Captcha must be 4 characters',
+    captchaInput: 'Type the 4 characters on the right',
+    captchaRefreshTitle: 'Click to refresh the captcha (and reset the demo lock counter)',
+    captchaImageAlt: 'Captcha',
+    remember: 'Remember me (stay signed in for 7 days)',
+    submit: 'Sign in',
+  },
+  session: {
+    title: 'Session notes',
+    detail: 'Sign-in issues a JWS access token (30-minute short session) with automatic sliding renewal; repeated failures trigger account lockout protection.',
+  },
+  actions: {
+    retry: 'Retry',
+  },
+  welcome: 'Welcome back, {{name}}',
+};

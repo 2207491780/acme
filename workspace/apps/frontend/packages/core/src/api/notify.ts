@@ -54,9 +54,9 @@ export interface NotifyMessageNewFrame {
 /** 通知域接口（platform-system；权限 system:notice:* / system:message:*）。 */
 export const notifyApi = {
   // ---- 通知公告（system:notice:*） ----
-  /** 公告分页（keyword 匹配标题）。 */
-  noticeList: (page: number, size: number, keyword?: string): Promise<PageResult<AdminNoticeView>> =>
-    apiFetch<PageResult<AdminNoticeView>>(`/admin/v1/system/notices?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`),
+  /** 公告分页（keyword 匹配标题；signal 为可选取消信号，透传 apiFetch）。 */
+  noticeList: (page: number, size: number, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminNoticeView>> =>
+    apiFetch<PageResult<AdminNoticeView>>(`/admin/v1/system/notices?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
   /** 公告详情（编辑回显兜底入口）。 */
   noticeDetail: (noticeId: string): Promise<AdminNoticeView> =>
     apiFetch<AdminNoticeView>(`/admin/v1/system/notices/${noticeId}`),

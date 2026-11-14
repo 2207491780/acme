@@ -1,20 +1,29 @@
 import { useRef } from 'react';
 import type { ReactNode } from 'react';
 import { App, Button, Card, Col, Row, Select, Space, Switch, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import {
   DatabaseOutlined,
   DownloadOutlined,
+  GlobalOutlined,
   ReloadOutlined,
   ThunderboltOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import type { Accent } from '@acme/core';
+import type { Accent, AppLocale } from '@acme/core';
+import { SUPPORTED_LOCALES, useLocaleStore } from '@acme/core';
 import { useStore } from '../store/useStore';
 import { PageHead } from '../components/PageHead';
 import { ACCENTS, ACCENT_ORDER } from '../theme';
 import { detectPlatform, download } from '../utils/dom';
 
 const { Text } = Typography;
+
+/** 语言选项（展示名复用 i18n 资源包 nav.userMenu.language*，语言名以自身语言展示）。 */
+const LOCALE_LABEL_KEYS: Record<AppLocale, string> = {
+  'zh-CN': 'nav.userMenu.languageZh',
+  'en-US': 'nav.userMenu.languageEn',
+};
 
 function SettingRow({ label, desc, control }: { label: string; desc: string; control: ReactNode }) {
   return (
@@ -29,6 +38,7 @@ function SettingRow({ label, desc, control }: { label: string; desc: string; con
 }
 
 export function Settings() {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const settings = useStore((s) => s.state.settings);
   const state = useStore((s) => s.state);
@@ -43,9 +53,9 @@ export function Settings() {
       try {
         const data: unknown = JSON.parse(String(reader.result));
         const ok = dispatch({ type: 'IMPORT', data });
-        message[ok ? 'success' : 'error'](ok ? '导入成功' : '未导入：文件格式无效或数据已被其他窗口更新');
+        message[ok ? 'success' : 'error'](ok ? t('settings.data.importDone') : t('settings.data.importInvalid'));
       } catch {
-        message.error('导入失败：无法解析 JSON');
+        message.error(t('settings.data.importParseFailed'));
       }
     };
     reader.readAsText(file);
@@ -55,18 +65,18 @@ export function Settings() {
     platform === 'desktop' && window.acmeDesktop
       ? { info: `Electron ${window.acmeDesktop.versions.electron} · ${window.acmeDesktop.platform}`, badge: 'Desktop' }
       : platform === 'mobile'
-        ? { info: '响应式移动入口 · 共享 Web 业务层', badge: 'Mobile' }
-        : { info: '浏览器 Web 端 · 本地持久化', badge: 'Web' };
+        ? { info: t('settings.runtime.mobileInfo'), badge: 'Mobile' }
+        : { info: t('settings.runtime.webInfo'), badge: 'Web' };
 
   return (
     <>
-      <PageHead eyebrow="Preferences" title="设置" sub="主题、密度、强调色与数据管理。所有偏好即时生效并持久化到本地。" />
+      <PageHead eyebrow={t('settings.head.eyebrow')} title={t('settings.head.title')} sub={t('settings.head.sub')} />
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={12}>
-          <Card title={<Space><ThunderboltOutlined style={{ color: 'var(--accent)' }} /> 外观</Space>} style={{ height: '100%' }}>
+          <Card title={<Space><ThunderboltOutlined style={{ color: 'var(--accent)' }} /> {t('settings.appearance.title')}</Space>} style={{ height: '100%' }}>
             <SettingRow
-              label="深色主题"
-              desc="切换深色 / 浅色界面"
+              label={t('settings.appearance.theme')}
+              desc={t('settings.appearance.themeDesc')}
               control={
                 <Switch
                   checked={settings.theme === 'dark'}
@@ -75,23 +85,23 @@ export function Settings() {
               }
             />
             <SettingRow
-              label="界面密度"
-              desc="舒适 / 紧凑布局"
+              label={t('settings.appearance.density')}
+              desc={t('settings.appearance.densityDesc')}
               control={
                 <Select
                   style={{ width: 120 }}
                   value={settings.density}
                   onChange={(v) => dispatch({ type: 'UPDATE_SETTINGS', patch: { density: v } })}
                   options={[
-                    { value: 'comfortable', label: '舒适' },
-                    { value: 'compact', label: '紧凑' },
+                    { value: 'comfortable', label: t('settings.appearance.densityComfortable') },
+                    { value: 'compact', label: t('settings.appearance.densityCompact') },
                   ]}
                 />
               }
             />
             <SettingRow
-              label="强调色"
-              desc="影响按钮、导航与高亮"
+              label={t('settings.appearance.accent')}
+              desc={t('settings.appearance.accentDesc')}
               control={
                 <Space>
                   {ACCENT_ORDER.map((name: Accent) => (
@@ -115,8 +125,8 @@ export function Settings() {
               }
             />
             <SettingRow
-              label="动效"
-              desc="界面过渡与入场动画"
+              label={t('settings.appearance.motion')}
+              desc={t('settings.appearance.motionDesc')}
               control={
                 <Switch
                   checked={settings.motion}
@@ -127,28 +137,28 @@ export function Settings() {
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title={<Space><DatabaseOutlined style={{ color: 'var(--accent)' }} /> 数据管理</Space>} style={{ height: '100%' }}>
+          <Card title={<Space><DatabaseOutlined style={{ color: 'var(--accent)' }} /> {t('settings.data.title')}</Space>} style={{ height: '100%' }}>
             <SettingRow
-              label="导出数据"
-              desc="下载当前发布单与应用 JSON"
+              label={t('settings.data.export')}
+              desc={t('settings.data.exportDesc')}
               control={
                 <Button
                   icon={<DownloadOutlined />}
                   onClick={() => {
                     download(`acme-frontend-ops-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2));
-                    message.success('数据已导出');
+                    message.success(t('settings.data.exportDone'));
                   }}
                 >
-                  导出
+                  {t('settings.data.exportAction')}
                 </Button>
               }
             />
             <SettingRow
-              label="导入数据"
-              desc="从 JSON 文件恢复"
+              label={t('settings.data.import')}
+              desc={t('settings.data.importDesc')}
               control={
                 <>
-                  <Button icon={<UploadOutlined />} onClick={() => fileRef.current?.click()}>导入</Button>
+                  <Button icon={<UploadOutlined />} onClick={() => fileRef.current?.click()}>{t('settings.data.importAction')}</Button>
                   <input
                     ref={fileRef}
                     type="file"
@@ -164,25 +174,49 @@ export function Settings() {
               }
             />
             <SettingRow
-              label="重置演示数据"
-              desc="恢复初始种子数据"
+              label={t('settings.data.reset')}
+              desc={t('settings.data.resetDesc')}
               control={
                 <Button
                   danger
                   icon={<ReloadOutlined />}
                   onClick={() => {
                     const ok = resetData();
-                    message[ok ? 'success' : 'warning'](ok ? '已重置为演示数据' : '未重置：数据已变化，请检查后重试');
+                    message[ok ? 'success' : 'warning'](ok ? t('settings.data.resetDone') : t('settings.data.resetConflict'));
                   }}
                 >
-                  重置
+                  {t('settings.data.resetAction')}
                 </Button>
               }
             />
-            <SettingRow label="运行环境" desc={runtime.info} control={<Text style={{ color: 'var(--accent)' }}>{runtime.badge}</Text>} />
+            <SettingRow label={t('settings.runtime.label')} desc={runtime.info} control={<Text style={{ color: 'var(--accent)' }}>{runtime.badge}</Text>} />
+            <SettingRow
+              label={t('settings.language.label')}
+              desc={t('settings.language.desc')}
+              control={
+                <LanguageSelect />
+              }
+            />
           </Card>
         </Col>
       </Row>
     </>
+  );
+}
+
+/** 语言切换入口（Settings；locale 经 useLocaleStore 持久化并联动 i18n/日期 formatter）。 */
+function LanguageSelect() {
+  const { t } = useTranslation();
+  const locale = useLocaleStore((s) => s.locale);
+  const setLocale = useLocaleStore((s) => s.setLocale);
+  return (
+    <Select<AppLocale>
+      style={{ width: 140 }}
+      value={locale}
+      onChange={(next) => setLocale(next)}
+      aria-label={t('settings.language.label')}
+      suffixIcon={<GlobalOutlined />}
+      options={SUPPORTED_LOCALES.map((value) => ({ value, label: t(LOCALE_LABEL_KEYS[value]) }))}
+    />
   );
 }

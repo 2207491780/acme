@@ -1,0 +1,48 @@
+/** en-US settings resource pack (appearance / data management / language). */
+export const settings = {
+  head: {
+    eyebrow: 'Preferences',
+    title: 'Settings',
+    sub: 'Theme, density, accent color and data management. All preferences take effect instantly and persist locally.',
+  },
+  appearance: {
+    title: 'Appearance',
+    theme: 'Dark theme',
+    themeDesc: 'Switch between dark / light interface',
+    density: 'UI density',
+    densityDesc: 'Comfortable / compact layout',
+    densityComfortable: 'Comfortable',
+    densityCompact: 'Compact',
+    accent: 'Accent color',
+    accentDesc: 'Affects buttons, navigation and highlights',
+    motion: 'Motion',
+    motionDesc: 'Interface transitions and entrance animations',
+  },
+  language: {
+    label: 'Language',
+    desc: 'Language for UI copy and date formats',
+  },
+  data: {
+    title: 'Data management',
+    export: 'Export data',
+    exportDesc: 'Download current releases and apps as JSON',
+    exportAction: 'Export',
+    exportDone: 'Data exported',
+    import: 'Import data',
+    importDesc: 'Restore from a JSON file',
+    importAction: 'Import',
+    importDone: 'Import succeeded',
+    importInvalid: 'Not imported: the file format is invalid or the data was updated in another window',
+    importParseFailed: 'Import failed: unable to parse JSON',
+    reset: 'Reset demo data',
+    resetDesc: 'Restore the initial seed data',
+    resetAction: 'Reset',
+    resetDone: 'Reset to demo data',
+    resetConflict: 'Not reset: data has changed, please review and retry',
+  },
+  runtime: {
+    label: 'Runtime',
+    mobileInfo: 'Responsive mobile entry · shares the web business layer',
+    webInfo: 'Browser web client · local persistence',
+  },
+};

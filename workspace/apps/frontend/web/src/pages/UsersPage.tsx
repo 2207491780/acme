@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { App, Button, Checkbox, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { useTranslation } from 'react-i18next';
 import {
   ApiError,
   formatDate,
@@ -40,18 +41,20 @@ interface RoleBindValues {
 /** 用户管理（p2-admin）：分页/搜索/新建/编辑/启停/删除/角色绑定。
  *  通用 CRUD 范本：headless 状态机走 @acme/core useCrud，展示层为 CrudTable + CrudFormModal。
  *  角色选择器来自角色目录（/system/roles 首页大页）；内置账号（builtIn）禁止删除。
- *  动作按钮按 me.permissions 权限码显隐（fail-closed）。 */
+ *  动作按钮按 me.permissions 权限码显隐（fail-closed）。
+ *  文案经 users 域资源包（zh 基线=既有用例断言原文，REQ-20261114-120103）。 */
 export function UsersPage() {
+  const { t } = useTranslation();
   const { message } = App.useApp();
-  const permissions = useMeStore((s) => s.me?.permissions ?? []);
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
 
   const crud = useCrud<AdminUserView, UserFilters>({
-    fetchPage: ({ page, size, keyword, filters }) =>
-      systemApi.userList(page, size, keyword || undefined, filters?.status),
+    fetchPage: ({ page, size, keyword, filters, signal }) =>
+      systemApi.userList(page, size, keyword || undefined, filters?.status, signal),
     filters: { status: undefined },
     permissions,
     pageSize: 10,
-    errorMessage: '用户清单加载失败',
+    errorMessage: t('users.errors.loadFailed'),
   });
 
   const [roles, setRoles] = useState<AdminRoleView[]>([]);
@@ -103,11 +106,11 @@ export function UsersPage() {
         phone: values.phone,
         roleIds: values.roleIds ?? [],
       });
-      message.success(`用户 ${values.username} 已创建（首密码请经「重置密码」流程下发）`);
+      message.success(t('users.form.createSuccess', { name: values.username }));
       setCreating(false);
       crud.reload(1);
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '创建失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.createFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -124,11 +127,11 @@ export function UsersPage() {
         phone: values.phone,
         version: editing.version,
       });
-      message.success('用户已更新');
+      message.success(t('users.form.updateSuccess'));
       setEditing(null);
       crud.reload();
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '更新失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.updateFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -140,11 +143,11 @@ export function UsersPage() {
     setSubmitting(true);
     try {
       await systemApi.userBindRoles(binding.id, values.roleIds ?? []);
-      message.success(`用户 ${binding.username} 角色已更新`);
+      message.success(t('users.bind.success', { name: binding.username }));
       setBinding(null);
       crud.reload();
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '角色绑定失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('users.bind.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -154,34 +157,34 @@ export function UsersPage() {
     const next = record.status === 'ENABLED' ? 'DISABLED' : 'ENABLED';
     try {
       await systemApi.userStatus(record.id, next);
-      message.success(`用户已${next === 'ENABLED' ? '启用' : '停用'}`);
+      message.success(next === 'ENABLED' ? t('users.status.enabledDone') : t('users.status.disabledDone'));
       crud.reload();
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '操作失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
     }
   };
 
   const remove = async (record: AdminUserView) => {
     try {
       await systemApi.userDelete(record.id);
-      message.success(`用户 ${record.username} 已删除`);
+      message.success(t('users.deleted', { name: record.username }));
       crud.reload();
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '删除失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.deleteFailed'));
     }
   };
 
   const columns: ColumnsType<AdminUserView> = [
-    { title: '账号', dataIndex: 'username', key: 'username', width: 160 },
-    { title: '昵称', dataIndex: 'nickname', key: 'nickname', render: (v: string | null) => v ?? '—' },
+    { title: t('users.columns.username'), dataIndex: 'username', key: 'username', width: 160 },
+    { title: t('users.columns.nickname'), dataIndex: 'nickname', key: 'nickname', render: (v: string | null) => v ?? '—' },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 90,
+      title: t('users.columns.status'), dataIndex: 'status', key: 'status', width: 90,
       render: (status: AdminUserView['status']) => (
-        <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? '启用' : '停用'}</Tag>
+        <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('users.status.enabled') : t('users.status.disabled')}</Tag>
       ),
     },
     {
-      title: '角色', dataIndex: 'roleIds', key: 'roleIds',
+      title: t('users.columns.roles'), dataIndex: 'roleIds', key: 'roleIds',
       render: (_, record) => {
         const names = record.roleIds
           .map((id) => roles.find((r) => r.id === id)?.roleName ?? roles.find((r) => r.id === id)?.roleCode)
@@ -189,24 +192,24 @@ export function UsersPage() {
         return names.length ? <Space size={4} wrap>{names.map((n) => <Tag key={n as string}>{n as string}</Tag>)}</Space> : '—';
       },
     },
-    { title: '更新时间', dataIndex: 'updatedAt', key: 'updatedAt', width: 180, render: (v: string) => formatDate(v) },
+    { title: t('users.columns.updatedAt'), dataIndex: 'updatedAt', key: 'updatedAt', width: 180, render: (v: string) => formatDate(v) },
     {
-      title: '操作', key: 'actions', width: 300,
+      title: t('users.columns.actions'), key: 'actions', width: 300,
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:user:update') ? <Button size="small" onClick={() => openEdit(record)}>编辑</Button> : null}
-          {crud.can('system:user:assign-role') ? <Button size="small" onClick={() => openBind(record)}>分配角色</Button> : null}
+          {crud.can('system:user:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('users.actions.edit')}</Button> : null}
+          {crud.can('system:user:assign-role') ? <Button size="small" onClick={() => openBind(record)}>{t('users.actions.assignRoles')}</Button> : null}
           {crud.can('system:user:update') ? (
-            <Popconfirm title={`确认${record.status === 'ENABLED' ? '停用' : '启用'} ${record.username}？`} onConfirm={() => void toggleStatus(record)}>
-              <Button size="small" danger={record.status === 'ENABLED'}>{record.status === 'ENABLED' ? '停用' : '启用'}</Button>
+            <Popconfirm title={t('users.status.toggleConfirm', { action: record.status === 'ENABLED' ? t('users.status.disabled') : t('users.status.enabled'), name: record.username })} onConfirm={() => void toggleStatus(record)}>
+              <Button size="small" danger={record.status === 'ENABLED'}>{record.status === 'ENABLED' ? t('users.status.disabled') : t('users.status.enabled')}</Button>
             </Popconfirm>
           ) : null}
           {crud.can('system:user:delete') && !record.builtIn ? (
-            <Popconfirm title={`确认删除用户 ${record.username}？`} onConfirm={() => void remove(record)}>
-              <Button size="small" danger>删除</Button>
+            <Popconfirm title={t('users.actions.deleteConfirm', { name: record.username })} onConfirm={() => void remove(record)}>
+              <Button size="small" danger>{t('users.actions.delete')}</Button>
             </Popconfirm>
           ) : null}
-          {record.builtIn ? <Text type="secondary" style={{ fontSize: 12 }}>内置</Text> : null}
+          {record.builtIn ? <Text type="secondary" style={{ fontSize: 12 }}>{t('users.actions.builtIn')}</Text> : null}
         </Space>
       ),
     },
@@ -216,23 +219,23 @@ export function UsersPage() {
     <>
       <CrudTable<AdminUserView, UserFilters>
         crud={crud}
-        title="用户管理"
+        title={t('users.title')}
         columns={columns}
-        searchPlaceholder="搜索账号"
+        searchPlaceholder={t('users.search.placeholder')}
         searchWidth={200}
-        reloadAriaLabel="刷新用户清单"
+        reloadAriaLabel={t('users.reload')}
         createPermission="system:user:create"
-        createLabel="新建用户"
+        createLabel={t('users.create')}
         onCreate={openCreate}
-        totalText={(t) => `共 ${t} 个用户`}
+        totalText={(total) => t('users.total', { total })}
         filters={(
           <Select<'ENABLED' | 'DISABLED'>
             allowClear
-            placeholder="状态过滤"
+            placeholder={t('users.filters.status')}
             style={{ width: 120 }}
             options={[
-              { value: 'ENABLED', label: '启用' },
-              { value: 'DISABLED', label: '停用' },
+              { value: 'ENABLED', label: t('users.status.enabled') },
+              { value: 'DISABLED', label: t('users.status.disabled') },
             ]}
             value={crud.filters.status}
             onChange={(value) => crud.setFilter('status', value)}
@@ -242,7 +245,7 @@ export function UsersPage() {
 
       <CrudFormModal<UserCreateValues>
         open={creating}
-        title="新建用户"
+        title={t('users.create')}
         form={createForm}
         submitting={submitting}
         onOk={() => void submitCreate()}
@@ -250,34 +253,34 @@ export function UsersPage() {
       >
         <Form.Item
           name="username"
-          label="账号"
+          label={t('users.form.username')}
           rules={[
-            { required: true, message: '请输入账号' },
-            { min: 3, max: 64, message: '长度 3–64 字符' },
+            { required: true, message: t('users.form.usernameRequired') },
+            { min: 3, max: 64, message: t('common.validation.lengthRange', { min: 3, max: 64 }) },
           ]}
         >
-          <Input placeholder="登录账号（创建后不可改）" autoComplete="off" />
+          <Input placeholder={t('users.form.usernamePlaceholder')} autoComplete="off" />
         </Form.Item>
         <Form.Item
           name="nickname"
-          label="昵称"
+          label={t('users.form.nickname')}
           rules={[
-            { required: true, message: '请输入昵称' },
-            { min: 1, max: 64, message: '长度 1–64 字符' },
+            { required: true, message: t('users.form.nicknameRequired') },
+            { min: 1, max: 64, message: t('common.validation.lengthRange', { min: 1, max: 64 }) },
           ]}
         >
-          <Input placeholder="显示昵称" />
+          <Input placeholder={t('users.form.nicknamePlaceholder')} />
         </Form.Item>
-        <Form.Item name="email" label="邮箱" rules={[{ type: 'email', message: '邮箱格式不正确' }, { max: 128, message: '长度不超过 128 字符' }]}>
-          <Input placeholder="选填" autoComplete="off" />
+        <Form.Item name="email" label={t('users.form.email')} rules={[{ type: 'email', message: t('users.form.emailInvalid') }, { max: 128, message: t('common.validation.maxLength', { max: 128 }) }]}>
+          <Input placeholder={t('users.form.optional')} autoComplete="off" />
         </Form.Item>
-        <Form.Item name="phone" label="手机号" rules={[{ max: 32, message: '长度不超过 32 字符' }]}>
-          <Input placeholder="选填" autoComplete="off" />
+        <Form.Item name="phone" label={t('users.form.phone')} rules={[{ max: 32, message: t('common.validation.maxLength', { max: 32 }) }]}>
+          <Input placeholder={t('users.form.optional')} autoComplete="off" />
         </Form.Item>
-        <Form.Item name="roleIds" label="角色">
+        <Form.Item name="roleIds" label={t('users.form.roles')}>
           <Select
             mode="multiple"
-            placeholder="选择角色（可多选）"
+            placeholder={t('users.form.rolesPlaceholder')}
             options={roles.filter((r) => r.status === 'ENABLED').map((r) => ({ value: r.id, label: r.roleName }))}
             optionFilterProp="label"
           />
@@ -286,7 +289,7 @@ export function UsersPage() {
 
       <CrudFormModal<UserEditValues>
         open={editing !== null}
-        title={`编辑用户：${editing?.username ?? ''}`}
+        title={t('users.form.editTitle', { name: editing?.username ?? '' })}
         form={editForm}
         submitting={submitting}
         onOk={() => void submitEdit()}
@@ -294,41 +297,41 @@ export function UsersPage() {
       >
         <Form.Item
           name="nickname"
-          label="昵称"
+          label={t('users.form.nickname')}
           rules={[
-            { required: true, message: '请输入昵称' },
-            { min: 1, max: 64, message: '长度 1–64 字符' },
+            { required: true, message: t('users.form.nicknameRequired') },
+            { min: 1, max: 64, message: t('common.validation.lengthRange', { min: 1, max: 64 }) },
           ]}
         >
-          <Input placeholder="显示昵称" />
+          <Input placeholder={t('users.form.nicknamePlaceholder')} />
         </Form.Item>
-        <Form.Item name="email" label="邮箱" rules={[{ type: 'email', message: '邮箱格式不正确' }, { max: 128, message: '长度不超过 128 字符' }]}>
-          <Input placeholder="选填" />
+        <Form.Item name="email" label={t('users.form.email')} rules={[{ type: 'email', message: t('users.form.emailInvalid') }, { max: 128, message: t('common.validation.maxLength', { max: 128 }) }]}>
+          <Input placeholder={t('users.form.optional')} />
         </Form.Item>
-        <Form.Item name="phone" label="手机号" rules={[{ max: 32, message: '长度不超过 32 字符' }]}>
-          <Input placeholder="选填" />
+        <Form.Item name="phone" label={t('users.form.phone')} rules={[{ max: 32, message: t('common.validation.maxLength', { max: 32 }) }]}>
+          <Input placeholder={t('users.form.optional')} />
         </Form.Item>
         <Text type="secondary" style={{ fontSize: 12 }}>
-          按乐观锁提交（版本 {editing?.version ?? '—'}）；账号与角色绑定不可在此修改。
+          {t('users.form.editLockNote', { version: editing?.version ?? '—' })}
         </Text>
       </CrudFormModal>
 
       <CrudFormModal<RoleBindValues>
         open={binding !== null}
-        title={`分配角色：${binding?.username ?? ''}`}
+        title={t('users.bind.title', { name: binding?.username ?? '' })}
         form={bindForm}
         submitting={submitting}
         onOk={() => void submitBind()}
         onCancel={() => setBinding(null)}
       >
-        <Form.Item name="roleIds" label="角色（全量覆盖）" rules={[{ required: true, message: '至少选择一个角色' }]}>
+        <Form.Item name="roleIds" label={t('users.bind.rolesLabel')} rules={[{ required: true, message: t('users.bind.rolesRequired') }]}>
           <Checkbox.Group style={{ display: 'grid', gap: 8 }}>
             {roles.filter((r) => r.status === 'ENABLED').map((r) => (
               <Checkbox key={r.id} value={r.id}>{`${r.roleName}（${r.roleCode}）`}</Checkbox>
             ))}
           </Checkbox.Group>
         </Form.Item>
-        <Text type="secondary" style={{ fontSize: 12 }}>提交即全量覆盖该用户的角色绑定；权限码随下次令牌签发生效。</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>{t('users.bind.submitNote')}</Text>
       </CrudFormModal>
     </>
   );

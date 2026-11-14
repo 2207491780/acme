@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Alert, Button, Card, Input, Space, Table } from 'antd';
+import { useTranslation } from 'react-i18next';
 import type { ColumnsType } from 'antd/es/table';
 import type { GetRowKey } from 'antd/es/table/interface';
 import type { TableProps } from 'antd';
@@ -17,7 +18,7 @@ export interface CrudTableProps<T extends object, F extends Record<string, strin
   columns: ColumnsType<T>;
   /** 行键（字段名或取键函数；默认 'id'）。 */
   rowKey?: string | GetRowKey<T>;
-  /** 关键字搜索占位文案。 */
+  /** 关键字搜索占位文案（缺省 i18n common.table.searchPlaceholder）。 */
   searchPlaceholder?: string;
   /** 搜索框宽度（默认 200）。 */
   searchWidth?: number;
@@ -29,13 +30,13 @@ export interface CrudTableProps<T extends object, F extends Record<string, strin
   actions?: ReactNode;
   /** 新建按钮权限码（显隐 fail-closed 交给 crud.can）。 */
   createPermission?: string;
-  /** 新建按钮文案。 */
+  /** 新建按钮文案（缺省 i18n common.actions.create）。 */
   createLabel?: ReactNode;
   /** 新建点击回调（与 createPermission 同时提供才渲染按钮）。 */
   onCreate?: () => void;
-  /** 刷新按钮 aria-label（无障碍语义）。 */
+  /** 刷新按钮 aria-label（无障碍语义；缺省 i18n 刷新列表文案）。 */
   reloadAriaLabel?: string;
-  /** 分页总数文案（默认「共 X 条」）。 */
+  /** 分页总数文案（缺省 i18n common.table.total）。 */
   totalText?: (total: number) => string;
   /** 表格尺寸（透传 antd Table size；主从/紧凑表用 small）。 */
   size?: TableProps<T>['size'];
@@ -61,15 +62,15 @@ export function CrudTable<T extends object, F extends Record<string, string | un
   title,
   columns,
   rowKey,
-  searchPlaceholder = '搜索',
+  searchPlaceholder,
   searchWidth = 200,
   searchable = true,
   filters,
   actions,
   createPermission,
-  createLabel = '新建',
+  createLabel,
   onCreate,
-  reloadAriaLabel = '刷新列表',
+  reloadAriaLabel,
   totalText,
   size,
   onRow,
@@ -78,6 +79,7 @@ export function CrudTable<T extends object, F extends Record<string, string | un
   filterPanel,
   footer,
 }: CrudTableProps<T, F>) {
+  const { t } = useTranslation();
   return (
     <Card
       title={title}
@@ -85,16 +87,16 @@ export function CrudTable<T extends object, F extends Record<string, string | un
         <Space wrap>
           {searchable ? (
             <Input.Search
-              placeholder={searchPlaceholder}
+              placeholder={searchPlaceholder ?? t('common.table.searchPlaceholder')}
               allowClear
               style={{ width: searchWidth }}
               onSearch={(value) => crud.search(value.trim())}
             />
           ) : null}
           {filters}
-          <Button icon={<ReloadOutlined />} onClick={() => crud.reload()} aria-label={reloadAriaLabel} />
+          <Button icon={<ReloadOutlined />} onClick={() => crud.reload()} aria-label={reloadAriaLabel ?? t('common.table.reloadAria')} />
           {createPermission && onCreate && crud.can(createPermission) ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>{createLabel}</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>{createLabel ?? t('common.actions.create')}</Button>
           ) : null}
           {actions}
         </Space>
@@ -107,7 +109,7 @@ export function CrudTable<T extends object, F extends Record<string, string | un
           showIcon
           style={{ marginBottom: 16 }}
           message={crud.error}
-          action={<Button size="small" onClick={() => crud.reload()}>重试</Button>}
+          action={<Button size="small" onClick={() => crud.reload()}>{t('common.actions.retry')}</Button>}
         />
       ) : null}
       <Table<T>
@@ -122,7 +124,7 @@ export function CrudTable<T extends object, F extends Record<string, string | un
           current: crud.page,
           pageSize: crud.size,
           total: crud.total,
-          showTotal: totalText ?? ((t) => `共 ${t} 条`),
+          showTotal: totalText ?? ((total) => t('common.table.total', { total })),
           onChange: (p) => crud.gotoPage(p),
         } : false}
       />

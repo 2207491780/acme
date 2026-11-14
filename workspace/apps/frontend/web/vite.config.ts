@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 
@@ -19,38 +19,49 @@ function injectCsp(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), injectCsp()],
-  resolve: {
-    // 仅对直接依赖去重，避免主题上下文分裂及 pnpm 隔离依赖的解析失败。
-    dedupe: ['react', 'react-dom', 'antd'],
-    alias: {
-      '@acme/core': fileURLToPath(new URL('../packages/core/src/index.ts', import.meta.url)),
+export default defineConfig(({ mode }) => {
+  // WEB_API_TARGET 分层（REQ-20261114-120103，AC-8）：shell 环境变量优先（既有语义不变，
+  // 含 `?? 'http://localhost:9888'` 既有缺省锚）；shell 未注入时回退 .env.[mode] 文件值
+  // （dev 预置本地网关、prod 留空），文件亦未设时终落缺省 localhost:9888。
+  const env = loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '');
+  const shellTarget = process.env.WEB_API_TARGET ?? 'http://localhost:9888';
+  const apiTarget = process.env.WEB_API_TARGET !== undefined
+    ? shellTarget
+    : (env.WEB_API_TARGET || shellTarget);
+
+  return {
+    plugins: [react(), injectCsp()],
+    resolve: {
+      // 仅对直接依赖去重，避免主题上下文分裂及 pnpm 隔离依赖的解析失败。
+      dedupe: ['react', 'react-dom', 'antd'],
+      alias: {
+        '@acme/core': fileURLToPath(new URL('../packages/core/src/index.ts', import.meta.url)),
+      },
     },
-  },
-  // /admin 代理到网关：目标经 WEB_API_TARGET 注入（缺省本地 9888；远程联调设
-  // WEB_API_TARGET=http://dev.acmecloud.site），同源请求规避 CSP connect-src 'self' 与开发态 CORS；
-  // 路由为 Hash 形态（#/...），代理前缀不与 SPA 路由冲突
-  server: {
-    port: 5173,
-    strictPort: true,
-    proxy: {
-      '/admin': { target: process.env.WEB_API_TARGET ?? 'http://localhost:9888', changeOrigin: true },
-      // WS 实时推送（REQ-20261114-120102）：/ws/system/** 经网关路由到 platform-system（ws:true 升级协议）
-      '/ws': { target: process.env.WEB_API_TARGET ?? 'http://localhost:9888', changeOrigin: true, ws: true },
+    // /admin 代理到网关：目标经 WEB_API_TARGET 注入（缺省本地 9888；远程联调设
+    // WEB_API_TARGET=http://dev.acmecloud.site），同源请求规避 CSP connect-src 'self' 与开发态 CORS；
+    // 路由为 Hash 形态（#/...），代理前缀不与 SPA 路由冲突
+    server: {
+      port: 5173,
+      strictPort: true,
+      proxy: {
+        '/admin': { target: apiTarget, changeOrigin: true },
+        // WS 实时推送（REQ-20261114-120102）：/ws/system/** 经网关路由到 platform-system（ws:true 升级协议）
+        '/ws': { target: apiTarget, changeOrigin: true, ws: true },
+      },
     },
-  },
-  preview: { port: 4173, strictPort: true },
-  build: {
-    outDir: 'dist',
-    sourcemap: true,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'antd-vendor': ['antd', '@ant-design/icons'],
+    preview: { port: 4173, strictPort: true },
+    build: {
+      outDir: 'dist',
+      sourcemap: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'antd-vendor': ['antd', '@ant-design/icons'],
+          },
         },
       },
     },
-  },
+  };
 });

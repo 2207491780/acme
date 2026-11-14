@@ -108,9 +108,9 @@ export const systemApi = {
   me: (): Promise<AdminMeView> => apiFetch<AdminMeView>('/admin/v1/system/me'),
 
   // ---- 租户管理（TENANT_* 权限码） ----
-  /** 租户分页（keyword 匹配代码/名称）。 */
-  tenantList: (page: number, size: number, keyword?: string): Promise<PageResult<AdminTenantView>> =>
-    apiFetch<PageResult<AdminTenantView>>(`/admin/v1/system/tenants?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`),
+  /** 租户分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */
+  tenantList: (page: number, size: number, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminTenantView>> =>
+    apiFetch<PageResult<AdminTenantView>>(`/admin/v1/system/tenants?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
   /** 新建租户（tenantCode 全局唯一且不可改）。 */
   tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string }): Promise<AdminTenantView> =>
     apiFetch<AdminTenantView>('/admin/v1/system/tenants', {
@@ -134,9 +134,9 @@ export const systemApi = {
     }),
 
   // ---- 用户管理（USER_* 权限码） ----
-  /** 用户分页（username 匹配、status 过滤）。 */
-  userList: (page: number, size: number, username?: string, status?: 'ENABLED' | 'DISABLED'): Promise<PageResult<AdminUserView>> =>
-    apiFetch<PageResult<AdminUserView>>(`/admin/v1/system/users?page=${page}&size=${size}${username ? `&username=${encodeURIComponent(username)}` : ''}${status ? `&status=${status}` : ''}`),
+  /** 用户分页（username 匹配、status 过滤；signal 为可选取消信号，透传 apiFetch）。 */
+  userList: (page: number, size: number, username?: string, status?: 'ENABLED' | 'DISABLED', signal?: AbortSignal): Promise<PageResult<AdminUserView>> =>
+    apiFetch<PageResult<AdminUserView>>(`/admin/v1/system/users?page=${page}&size=${size}${username ? `&username=${encodeURIComponent(username)}` : ''}${status ? `&status=${status}` : ''}`, { signal }),
   /** 新建用户（首密码经管理端 credentials 接口另行重置）。 */
   userCreate: (payload: { username: string; nickname: string; email?: string; phone?: string; roleIds: string[] }): Promise<AdminUserView> =>
     apiFetch<AdminUserView>('/admin/v1/system/users', {
@@ -170,9 +170,9 @@ export const systemApi = {
     }),
 
   // ---- 角色管理（ROLE_* / ROLE_GRANT 权限码，P3） ----
-  /** 角色分页（keyword 匹配代码/名称）。 */
-  roleList: (page = 1, size = 100, keyword?: string): Promise<PageResult<AdminRoleView>> =>
-    apiFetch<PageResult<AdminRoleView>>(`/admin/v1/system/roles?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`),
+  /** 角色分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */
+  roleList: (page = 1, size = 100, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminRoleView>> =>
+    apiFetch<PageResult<AdminRoleView>>(`/admin/v1/system/roles?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
   /** 新建角色（roleCode 模式与租户代码同型；parentId 空为顶级）。 */
   roleCreate: (payload: { parentId?: number | null; roleCode: string; roleName: string; remark?: string }): Promise<AdminRoleView> =>
     apiFetch<AdminRoleView>('/admin/v1/system/roles', {
@@ -219,9 +219,9 @@ export const systemApi = {
     }),
 
   // ---- 权限点管理（PERMISSION_* 权限码，P3） ----
-  /** 权限点分页（平台级目录）。 */
-  permissionList: (page = 1, size = 50): Promise<PageResult<AdminPermissionView>> =>
-    apiFetch<PageResult<AdminPermissionView>>(`/admin/v1/system/permissions?page=${page}&size=${size}`),
+  /** 权限点分页（平台级目录；signal 为可选取消信号，透传 apiFetch）。 */
+  permissionList: (page = 1, size = 50, signal?: AbortSignal): Promise<PageResult<AdminPermissionView>> =>
+    apiFetch<PageResult<AdminPermissionView>>(`/admin/v1/system/permissions?page=${page}&size=${size}`, { signal }),
   /** 新建权限点（permissionCode 模式 ^[a-z][a-z0-9:-]*$）。 */
   permissionCreate: (payload: { permissionCode: string; permissionName: string; permissionType: string; httpMethod?: string; httpPath?: string }): Promise<AdminPermissionView> =>
     apiFetch<AdminPermissionView>('/admin/v1/system/permissions', {
@@ -242,13 +242,13 @@ export const systemApi = {
 
   // ---- 菜单管理（MENU_* 权限码，P3） ----
   /** 菜单树（全量；前端渲染树形表格）。page/size 为可选分页参数：全量树不截断，
-   *  仅用于统一列表请求携带分页口径（后端按全量返回）。 */
-  menuTree: (page?: number, size?: number): Promise<AdminMenuView[]> => {
+   *  仅用于统一列表请求携带分页口径（后端按全量返回）；signal 为可选取消信号，透传 apiFetch。 */
+  menuTree: (page?: number, size?: number, signal?: AbortSignal): Promise<AdminMenuView[]> => {
     const qs = new URLSearchParams();
     if (page !== undefined) qs.set('page', String(page));
     if (size !== undefined) qs.set('size', String(size));
     const suffix = page !== undefined || size !== undefined ? `?${qs.toString()}` : '';
-    return apiFetch<AdminMenuView[]>(`/admin/v1/system/menus${suffix}`);
+    return apiFetch<AdminMenuView[]>(`/admin/v1/system/menus${suffix}`, { signal });
   },
   /** 新建菜单（parentId 空=根；menuType DIRECTORY|MENU）。 */
   menuCreate: (payload: { parentId?: number | null; menuName: string; menuType: string; path?: string; component?: string; icon?: string; sortOrder: number; visible?: boolean; permissionCode?: string }): Promise<AdminMenuView> =>
@@ -269,9 +269,9 @@ export const systemApi = {
     apiFetch<void>(`/admin/v1/system/menus/${menuId}`, { method: 'DELETE' }),
 
   // ---- 字典管理（DICT_* 权限码，P3） ----
-  /** 字典类型分页。 */
-  dictTypeList: (page = 1, size = 50, keyword?: string): Promise<PageResult<AdminDictTypeView>> =>
-    apiFetch<PageResult<AdminDictTypeView>>(`/admin/v1/system/dict-types?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`),
+  /** 字典类型分页（signal 为可选取消信号，透传 apiFetch）。 */
+  dictTypeList: (page = 1, size = 50, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminDictTypeView>> =>
+    apiFetch<PageResult<AdminDictTypeView>>(`/admin/v1/system/dict-types?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
   /** 新建字典类型。 */
   dictTypeCreate: (payload: { dictCode: string; dictName: string; remark?: string }): Promise<AdminDictTypeView> =>
     apiFetch<AdminDictTypeView>('/admin/v1/system/dict-types', {
@@ -290,13 +290,13 @@ export const systemApi = {
   dictTypeDelete: (typeId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/dict-types/${typeId}`, { method: 'DELETE' }),
   /** 字典条目清单（按类型）。page/size 可选：useDict 消费时传大页取全量（确认记录⑥）；
-   *  缺省不携带查询参数（既有管理端调用不变）。 */
-  dictItemList: (typeId: string, page?: number, size?: number): Promise<AdminDictItemView[]> => {
+   *  缺省不携带查询参数（既有管理端调用不变）；signal 为可选取消信号，透传 apiFetch。 */
+  dictItemList: (typeId: string, page?: number, size?: number, signal?: AbortSignal): Promise<AdminDictItemView[]> => {
     const qs = new URLSearchParams();
     if (page !== undefined) qs.set('page', String(page));
     if (size !== undefined) qs.set('size', String(size));
     const suffix = page !== undefined || size !== undefined ? `?${qs.toString()}` : '';
-    return apiFetch<AdminDictItemView[]>(`/admin/v1/system/dict-types/${typeId}/items${suffix}`);
+    return apiFetch<AdminDictItemView[]>(`/admin/v1/system/dict-types/${typeId}/items${suffix}`, { signal });
   },
   /** 新建字典条目。 */
   dictItemCreate: (typeId: string, payload: { itemLabel: string; itemValue: string; sortOrder: number }): Promise<AdminDictItemView> =>

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { App, Button, Form, Input, Popconfirm, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { useTranslation } from 'react-i18next';
 import { formatDate, notifyApi, notifyErrorMessage, useCrud, useMeStore } from '@acme/core';
 import type { AdminNoticeView, NoticeStatus } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
@@ -19,20 +20,15 @@ interface NoticeFormValues {
   content: string;
 }
 
-const STATUS_META: Record<NoticeStatus, { color: string; label: string }> = {
-  DRAFT: { color: 'default', label: '草稿' },
-  PUBLISHED: { color: 'success', label: '已发布' },
-  OFFLINE: { color: 'warning', label: '已下线' },
-};
-
 export function NoticesPage() {
+  const { t } = useTranslation();
   const { message: antdMessage } = App.useApp();
-  const permissions = useMeStore((s) => s.me?.permissions ?? []);
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
 
   const crud = useCrud<AdminNoticeView>({
-    fetchPage: ({ page, size, keyword }) => notifyApi.noticeList(page, size, keyword),
+    fetchPage: ({ page, size, keyword, signal }) => notifyApi.noticeList(page, size, keyword, signal),
     permissions,
-    errorMessage: '公告列表加载失败',
+    errorMessage: t('notices.errors.loadFailed'),
   });
 
   const [creating, setCreating] = useState(false);
@@ -64,72 +60,79 @@ export function NoticesPage() {
     try {
       if (editing) {
         await notifyApi.noticeUpdate(editing.id, { title: values.title, content: values.content, version: editing.version });
-        antdMessage.success('公告已更新');
+        antdMessage.success(t('notices.form.updated'));
       } else {
         await notifyApi.noticeCreate({ title: values.title, content: values.content });
-        antdMessage.success('公告已创建');
+        antdMessage.success(t('notices.form.created'));
       }
       closeModal();
       crud.reload();
     } catch (ex: unknown) {
-      antdMessage.error(notifyErrorMessage(ex, '保存失败，请稍后重试'));
+      antdMessage.error(notifyErrorMessage(ex, t('notices.toast.saveFailed')));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const runRowAction = async (record: AdminNoticeView, action: () => Promise<unknown>, successText: string, fallback: string) => {
+  const runRowAction = async (record: AdminNoticeView, action: () => Promise<unknown>, successKey: string, fallbackKey: string) => {
     setActingId(record.id);
     try {
       await action();
-      antdMessage.success(successText);
+      antdMessage.success(t(successKey));
       crud.reload();
     } catch (ex: unknown) {
       // 统一转译（NOTICE_PUBLISHED / NOTICE_NOT_FOUND 等尾部附码）；行保留不刷新
-      antdMessage.error(notifyErrorMessage(ex, fallback));
+      antdMessage.error(notifyErrorMessage(ex, t(fallbackKey)));
     } finally {
       setActingId(null);
     }
   };
 
   const columns: ColumnsType<AdminNoticeView> = [
-    { title: '标题', dataIndex: 'title', key: 'title' },
+    { title: t('notices.columns.title'), dataIndex: 'title', key: 'title' },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 90,
-      render: (v: NoticeStatus) => <Tag color={STATUS_META[v]?.color ?? 'default'}>{STATUS_META[v]?.label ?? v}</Tag>,
+      title: t('notices.columns.status'), dataIndex: 'status', key: 'status', width: 90,
+      render: (v: NoticeStatus) => {
+        const meta = {
+          DRAFT: { color: 'default' },
+          PUBLISHED: { color: 'success' },
+          OFFLINE: { color: 'warning' },
+        } as Record<NoticeStatus, { color: string }>;
+        return <Tag color={meta[v]?.color ?? 'default'}>{t(`notices.status.${v}`)}</Tag>;
+      },
     },
     {
-      title: '发布时间', dataIndex: 'publishAt', key: 'publishAt', width: 170,
+      title: t('notices.columns.publishAt'), dataIndex: 'publishAt', key: 'publishAt', width: 170,
       render: (v: string | null) => formatDate(v),
     },
     {
-      title: '操作', key: 'actions', width: 230,
+      title: t('notices.columns.actions'), key: 'actions', width: 230,
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:notice:update') && record.status !== 'PUBLISHED' ? (
-            <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
+            <Button size="small" onClick={() => openEdit(record)}>{t('notices.actions.edit')}</Button>
           ) : null}
           {crud.can('system:notice:publish') && record.status !== 'PUBLISHED' ? (
             <Button
               size="small"
               loading={actingId === record.id}
-              onClick={() => void runRowAction(record, () => notifyApi.noticePublish(record.id), '公告已发布，全员站内信已生成', '发布失败，请稍后重试')}
+              onClick={() => void runRowAction(record, () => notifyApi.noticePublish(record.id), 'notices.toast.publishSuccess', 'notices.toast.publishFailed')}
             >
-              发布
+              {t('notices.actions.publish')}
             </Button>
           ) : null}
           {crud.can('system:notice:publish') && record.status === 'PUBLISHED' ? (
             <Button
               size="small"
               loading={actingId === record.id}
-              onClick={() => void runRowAction(record, () => notifyApi.noticeOffline(record.id), '公告已下线', '下线失败，请稍后重试')}
+              onClick={() => void runRowAction(record, () => notifyApi.noticeOffline(record.id), 'notices.toast.offlineSuccess', 'notices.toast.offlineFailed')}
             >
-              下线
+              {t('notices.actions.offline')}
             </Button>
           ) : null}
           {crud.can('system:notice:delete') ? (
-            <Popconfirm title={`确认删除公告「${record.title}」？`} onConfirm={() => void runRowAction(record, () => notifyApi.noticeDelete(record.id), '公告已删除', '删除失败，请稍后重试')}>
-              <Button size="small" danger>删除</Button>
+            <Popconfirm title={t('notices.actions.deleteConfirm', { title: record.title })} onConfirm={() => void runRowAction(record, () => notifyApi.noticeDelete(record.id), 'notices.toast.deleteSuccess', 'notices.toast.deleteFailed')}>
+              <Button size="small" danger>{t('notices.actions.delete')}</Button>
             </Popconfirm>
           ) : null}
         </Space>
@@ -141,17 +144,17 @@ export function NoticesPage() {
     <div>
       <CrudTable<AdminNoticeView>
         crud={crud}
-        title="通知公告"
+        title={t('notices.title')}
         columns={columns}
-        searchPlaceholder="搜索公告标题"
-        reloadAriaLabel="刷新公告"
+        searchPlaceholder={t('notices.search.placeholder')}
+        reloadAriaLabel={t('notices.reload')}
         createPermission="system:notice:create"
-        createLabel="新建"
+        createLabel={t('notices.create')}
         onCreate={openCreate}
       />
       <CrudFormModal<NoticeFormValues>
         open={creating || editing !== null}
-        title={editing ? '编辑公告' : '新建公告'}
+        title={editing ? t('notices.form.editTitle') : t('notices.form.createTitle')}
         form={form}
         submitting={submitting}
         onOk={() => void submit()}
@@ -160,21 +163,21 @@ export function NoticesPage() {
       >
         <Form.Item
           name="title"
-          label="标题"
-          rules={[{ required: true, message: '请输入公告标题' }, { max: 128, message: '长度不超过 128 字符' }]}
+          label={t('notices.form.title')}
+          rules={[{ required: true, message: t('notices.form.titleRequired') }, { max: 128, message: t('common.validation.maxLength', { max: 128 }) }]}
         >
-          <Input placeholder="公告标题" autoComplete="off" />
+          <Input placeholder={t('notices.form.titlePlaceholder')} autoComplete="off" />
         </Form.Item>
         <Form.Item
           name="content"
-          label="正文"
-          rules={[{ required: true, message: '请输入公告正文' }]}
+          label={t('notices.form.content')}
+          rules={[{ required: true, message: t('notices.form.contentRequired') }]}
         >
           <RichTextEditor />
         </Form.Item>
         {editing ? (
           <div style={{ marginBottom: 16, fontSize: 12, color: 'var(--muted)' }}>
-            按乐观锁提交（版本 {editing.version}）。
+            {t('notices.form.lockNote', { version: editing.version })}
           </div>
         ) : null}
       </CrudFormModal>

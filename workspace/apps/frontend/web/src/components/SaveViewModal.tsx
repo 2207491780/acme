@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { App, Form, Input, Modal, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { SaveOutlined } from '@ant-design/icons';
 import { useStore } from '../store/useStore';
 
 export function SaveViewModal() {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const modal = useStore((s) => s.modal);
   const query = useStore((s) => s.query);
@@ -19,18 +21,18 @@ export function SaveViewModal() {
   const onFinish = ({ name }: { name: string }) => {
     const trimmed = name.trim();
     dispatch({ type: 'SAVE_VIEW', name: trimmed, query });
-    message.success(`视图「${trimmed}」已保存`);
+    message.success(t('releases.saveView.saved', { name: trimmed }));
     closeModal();
   };
 
   return (
     <Modal
-      title="保存当前视图"
+      title={t('releases.saveView.title')}
       open={open}
       onCancel={closeModal}
       onOk={() => form.submit()}
-      okText="保存"
-      cancelText="取消"
+      okText={t('releases.saveView.ok')}
+      cancelText={t('releases.saveView.cancel')}
       okButtonProps={{ icon: <SaveOutlined /> }}
       destroyOnHidden
       width={420}
@@ -38,15 +40,15 @@ export function SaveViewModal() {
       <Form form={form} layout="vertical" onFinish={onFinish} preserve={false}>
         <Form.Item
           name="name"
-          label="视图名称"
+          label={t('releases.saveView.name')}
           rules={[
-            { required: true, message: '请输入视图名称' },
-            { max: 20, message: '名称不能超过 20 个字符' },
+            { required: true, message: t('releases.saveView.nameRequired') },
+            { max: 20, message: t('releases.saveView.nameMax') },
           ]}
         >
-          <Input placeholder="例如：生产待发布" maxLength={20} allowClear />
+          <Input placeholder={t('releases.saveView.namePlaceholder')} maxLength={20} allowClear />
         </Form.Item>
-        <Typography.Text type="secondary">将保存当前搜索、平台、状态、环境与排序条件。</Typography.Text>
+        <Typography.Text type="secondary">{t('releases.saveView.desc')}</Typography.Text>
       </Form>
     </Modal>
   );

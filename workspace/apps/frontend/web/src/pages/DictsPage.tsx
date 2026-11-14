@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { App, Button, Card, Form, Input, InputNumber, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import { ApiError, systemApi, useCrud, useMeStore, type AdminDictItemView, type AdminDictTypeView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
@@ -27,14 +28,15 @@ interface ItemFormValues {
  *  迁移 CRUD 范本（REQ-20261114-120101）：类型表走 useCrud + CrudTable（small/行点击选中），
  *  条目表为选中主记录的子清单（无分页/搜索，保持原形态）；两个表单弹窗走 CrudFormModal。 */
 export function DictsPage() {
+  const { t } = useTranslation();
   const { message } = App.useApp();
-  const permissions = useMeStore((s) => s.me?.permissions ?? []);
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
 
   const crud = useCrud<AdminDictTypeView>({
-    fetchPage: ({ page, size }) => systemApi.dictTypeList(page, size),
+    fetchPage: ({ page, size, signal }) => systemApi.dictTypeList(page, size, undefined, signal),
     permissions,
     pageSize: 20,
-    errorMessage: '字典类型加载失败',
+    errorMessage: t('dicts.errors.typesLoadFailed'),
   });
 
   const [selected, setSelected] = useState<AdminDictTypeView | null>(null);
@@ -53,7 +55,7 @@ export function DictsPage() {
 
   // 选中态跟随清单：选中项被删/翻页后清空（对齐迁移前 reloadTypes 的回调口径）
   useEffect(() => {
-    if (selected && !crud.records.some((t) => t.id === selected.id)) {
+    if (selected && !crud.records.some((type) => type.id === selected.id)) {
       setSelected(null);
       setItems([]);
     }
@@ -69,7 +71,7 @@ export function DictsPage() {
         : ((list as unknown as { records?: AdminDictItemView[] }).records ?? []);
       setItems(rows);
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '条目加载失败');
+      message.error(ex instanceof ApiError ? ex.message : t('dicts.errors.itemsLoadFailed'));
     } finally {
       setItemsLoading(false);
     }
@@ -90,10 +92,10 @@ export function DictsPage() {
           remark: values.remark,
           version: typeEditing.version,
         });
-        message.success('字典类型已更新');
+        message.success(t('dicts.types.form.updated'));
       } else {
         const created = await systemApi.dictTypeCreate(values);
-        message.success('字典类型已创建');
+        message.success(t('dicts.types.form.created'));
         setSelected(created);
         void loadItems(created.id);
       }
@@ -101,7 +103,7 @@ export function DictsPage() {
       setTypeCreating(false);
       crud.reload();
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '操作失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
     } finally {
       setTypeSubmitting(false);
     }
@@ -110,14 +112,14 @@ export function DictsPage() {
   const removeType = async (record: AdminDictTypeView) => {
     try {
       await systemApi.dictTypeDelete(record.id);
-      message.success(`字典类型 ${record.dictCode} 已删除`);
+      message.success(t('dicts.types.deleted', { code: record.dictCode }));
       if (selected?.id === record.id) {
         setSelected(null);
         setItems([]);
       }
       crud.reload();
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '删除失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.deleteFailed'));
     }
   };
 
@@ -133,16 +135,16 @@ export function DictsPage() {
           sortOrder: values.sortOrder,
           version: itemEditing.version,
         });
-        message.success('条目已更新');
+        message.success(t('dicts.items.updated'));
       } else {
         await systemApi.dictItemCreate(selected.id, values);
-        message.success('条目已创建');
+        message.success(t('dicts.items.created'));
       }
       setItemEditing(null);
       setItemCreating(false);
       void loadItems(selected.id);
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '操作失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
     } finally {
       setItemSubmitting(false);
     }
@@ -151,32 +153,32 @@ export function DictsPage() {
   const removeItem = async (record: AdminDictItemView) => {
     try {
       await systemApi.dictItemDelete(record.id);
-      message.success('条目已删除');
+      message.success(t('dicts.items.deleted'));
       if (selected) void loadItems(selected.id);
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '删除失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.deleteFailed'));
     }
   };
 
   const typeColumns: ColumnsType<AdminDictTypeView> = [
-    { title: '代码', dataIndex: 'dictCode', key: 'dictCode', width: 150 },
-    { title: '名称', dataIndex: 'dictName', key: 'dictName' },
+    { title: t('dicts.types.columns.dictCode'), dataIndex: 'dictCode', key: 'dictCode', width: 150 },
+    { title: t('dicts.types.columns.dictName'), dataIndex: 'dictName', key: 'dictName' },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 80,
-      render: (v: AdminDictTypeView['status']) => <Tag color={v === 'ENABLED' ? 'success' : 'default'}>{v === 'ENABLED' ? '启用' : '停用'}</Tag>,
+      title: t('dicts.types.columns.status'), dataIndex: 'status', key: 'status', width: 80,
+      render: (v: AdminDictTypeView['status']) => <Tag color={v === 'ENABLED' ? 'success' : 'default'}>{v === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>,
     },
     {
-      title: '操作', key: 'actions', width: 150,
+      title: t('dicts.types.columns.actions'), key: 'actions', width: 150,
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:dict:update') ? (
             <Button size="small" onClick={() => { setTypeEditing(record); typeForm.setFieldsValue({ dictCode: record.dictCode, dictName: record.dictName, remark: record.remark ?? undefined }); setTypeCreating(false); }}>
-              编辑
+              {t('common.actions.edit')}
             </Button>
           ) : null}
           {crud.can('system:dict:delete') ? (
-            <Popconfirm title={`确认删除 ${record.dictCode}？`} onConfirm={() => void removeType(record)}>
-              <Button size="small" danger>删除</Button>
+            <Popconfirm title={t('dicts.types.deleteConfirm', { code: record.dictCode })} onConfirm={() => void removeType(record)}>
+              <Button size="small" danger>{t('common.actions.delete')}</Button>
             </Popconfirm>
           ) : null}
         </Space>
@@ -185,21 +187,21 @@ export function DictsPage() {
   ];
 
   const itemColumns: ColumnsType<AdminDictItemView> = [
-    { title: '标签', dataIndex: 'itemLabel', key: 'itemLabel' },
-    { title: '值', dataIndex: 'itemValue', key: 'itemValue', render: (v: string) => <Text code>{v}</Text> },
-    { title: '排序', dataIndex: 'sortOrder', key: 'sortOrder', width: 70 },
+    { title: t('dicts.items.columns.itemLabel'), dataIndex: 'itemLabel', key: 'itemLabel' },
+    { title: t('dicts.items.columns.itemValue'), dataIndex: 'itemValue', key: 'itemValue', render: (v: string) => <Text code>{v}</Text> },
+    { title: t('dicts.items.columns.sortOrder'), dataIndex: 'sortOrder', key: 'sortOrder', width: 70 },
     {
-      title: '操作', key: 'actions', width: 150,
+      title: t('dicts.items.columns.actions'), key: 'actions', width: 150,
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:dict:update') ? (
             <Button size="small" onClick={() => { setItemEditing(record); itemForm.setFieldsValue({ itemLabel: record.itemLabel, itemValue: record.itemValue, sortOrder: record.sortOrder }); setItemCreating(false); }}>
-              编辑
+              {t('common.actions.edit')}
             </Button>
           ) : null}
           {crud.can('system:dict:delete') ? (
-            <Popconfirm title={`确认删除条目 ${record.itemLabel}？`} onConfirm={() => void removeItem(record)}>
-              <Button size="small" danger>删除</Button>
+            <Popconfirm title={t('dicts.items.deleteConfirm', { label: record.itemLabel })} onConfirm={() => void removeItem(record)}>
+              <Button size="small" danger>{t('common.actions.delete')}</Button>
             </Popconfirm>
           ) : null}
         </Space>
@@ -212,33 +214,33 @@ export function DictsPage() {
       <div style={{ flex: '1 1 420px', minWidth: 380 }}>
         <CrudTable<AdminDictTypeView>
           crud={crud}
-          title="字典类型"
+          title={t('dicts.types.title')}
           columns={typeColumns}
           searchable={false}
           size="small"
-          reloadAriaLabel="刷新字典类型"
+          reloadAriaLabel={t('dicts.types.reload')}
           createPermission="system:dict:create"
-          createLabel="新建"
+          createLabel={t('dicts.types.create')}
           onCreate={() => { setTypeEditing(null); typeForm.resetFields(); setTypeCreating(true); }}
           onRow={(record) => ({ onClick: () => selectType(record), style: { cursor: 'pointer' } })}
           rowClassName={(record) => (selected?.id === record.id ? 'ant-table-row-selected' : '')}
-          footer={<Text type="secondary" style={{ fontSize: 12 }}>点击行选择类型，右侧维护其条目。</Text>}
+          footer={<Text type="secondary" style={{ fontSize: 12 }}>{t('dicts.types.footer')}</Text>}
         />
       </div>
 
       <Card
-        title={selected ? `条目：${selected.dictName}（${selected.dictCode}）` : '字典条目'}
+        title={selected ? t('dicts.items.selectedTitle', { name: selected.dictName, code: selected.dictCode }) : t('dicts.items.title')}
         style={{ flex: '1 1 420px', minWidth: 380 }}
         extra={
           selected && crud.can('system:dict:create') ? (
             <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => { setItemEditing(null); itemForm.resetFields(); itemForm.setFieldsValue({ sortOrder: 0 }); setItemCreating(true); }}>
-              新建条目
+              {t('dicts.items.create')}
             </Button>
           ) : undefined
         }
       >
         {!selected ? (
-          <Text type="secondary">先在左侧选择一个字典类型。</Text>
+          <Text type="secondary">{t('dicts.items.pickFirst')}</Text>
         ) : (
           <Table<AdminDictItemView>
             rowKey="id"
@@ -253,7 +255,7 @@ export function DictsPage() {
 
       <CrudFormModal<TypeFormValues>
         open={typeCreating || typeEditing !== null}
-        title={typeEditing ? `编辑字典类型：${typeEditing.dictCode}` : '新建字典类型'}
+        title={typeEditing ? t('dicts.types.form.editTitle', { code: typeEditing.dictCode }) : t('dicts.types.form.createTitle')}
         form={typeForm}
         submitting={typeSubmitting}
         onOk={() => void submitType()}
@@ -261,46 +263,46 @@ export function DictsPage() {
       >
         <Form.Item
           name="dictCode"
-          label="类型代码"
+          label={t('dicts.types.form.code')}
           rules={[
-            { required: true, message: '请输入类型代码' },
-            { pattern: CODE_PATTERN, message: '小写字母开头，仅含小写字母/数字/_/-' },
-            { min: 2, max: 64, message: '长度 2–64 字符' },
+            { required: true, message: t('dicts.types.form.codeRequired') },
+            { pattern: CODE_PATTERN, message: t('common.validation.codePattern') },
+            { min: 2, max: 64, message: t('common.validation.lengthRange', { min: 2, max: 64 }) },
           ]}
-          extra={typeEditing ? '类型代码不可修改' : '创建后不可修改'}
+          extra={typeEditing ? t('dicts.types.form.codeExtra') : t('common.validation.immutableAfterCreate')}
         >
-          <Input placeholder="如 release_env" disabled={typeEditing !== null} autoComplete="off" />
+          <Input placeholder={t('dicts.types.form.codePlaceholder')} disabled={typeEditing !== null} autoComplete="off" />
         </Form.Item>
-        <Form.Item name="dictName" label="类型名称" rules={[{ required: true, message: '请输入类型名称' }, { min: 1, max: 64, message: '长度 1–64 字符' }]}>
-          <Input placeholder="类型显示名称" />
+        <Form.Item name="dictName" label={t('dicts.types.form.name')} rules={[{ required: true, message: t('dicts.types.form.nameRequired') }, { min: 1, max: 64, message: t('common.validation.lengthRange', { min: 1, max: 64 }) }]}>
+          <Input placeholder={t('dicts.types.form.namePlaceholder')} />
         </Form.Item>
-        <Form.Item name="remark" label="备注" rules={[{ max: 255, message: '长度不超过 255 字符' }]}>
-          <Input.TextArea placeholder="选填" rows={2} />
+        <Form.Item name="remark" label={t('dicts.types.form.remark')} rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}>
+          <Input.TextArea placeholder={t('common.validation.optional')} rows={2} />
         </Form.Item>
         {typeEditing ? (
-          <Text type="secondary" style={{ fontSize: 12 }}>按乐观锁提交（版本 {typeEditing.version}）。</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>{t('common.validation.optimisticLock', { version: typeEditing.version })}。</Text>
         ) : null}
       </CrudFormModal>
 
       <CrudFormModal<ItemFormValues>
         open={itemCreating || itemEditing !== null}
-        title={itemEditing ? '编辑条目' : `新建条目（${selected?.dictName ?? ''}）`}
+        title={itemEditing ? t('dicts.items.editTitle') : t('dicts.items.createTitle', { name: selected?.dictName ?? '' })}
         form={itemForm}
         submitting={itemSubmitting}
         onOk={() => void submitItem()}
         onCancel={() => { setItemCreating(false); setItemEditing(null); }}
       >
-        <Form.Item name="itemLabel" label="标签" rules={[{ required: true, message: '请输入标签' }, { min: 1, max: 128, message: '长度 1–128 字符' }]}>
-          <Input placeholder="显示标签" />
+        <Form.Item name="itemLabel" label={t('dicts.items.label')} rules={[{ required: true, message: t('dicts.items.labelRequired') }, { min: 1, max: 128, message: t('common.validation.lengthRange', { min: 1, max: 128 }) }]}>
+          <Input placeholder={t('dicts.items.labelPlaceholder')} />
         </Form.Item>
-        <Form.Item name="itemValue" label="值" rules={[{ required: true, message: '请输入值' }, { min: 1, max: 128, message: '长度 1–128 字符' }]}>
-          <Input placeholder="存储值" autoComplete="off" />
+        <Form.Item name="itemValue" label={t('dicts.items.value')} rules={[{ required: true, message: t('dicts.items.valueRequired') }, { min: 1, max: 128, message: t('common.validation.lengthRange', { min: 1, max: 128 }) }]}>
+          <Input placeholder={t('dicts.items.valuePlaceholder')} autoComplete="off" />
         </Form.Item>
-        <Form.Item name="sortOrder" label="排序" rules={[{ required: true, message: '请输入排序号' }]}>
+        <Form.Item name="sortOrder" label={t('dicts.items.sortOrder')} rules={[{ required: true, message: t('dicts.items.sortOrderRequired') }]}>
           <InputNumber min={0} max={9999} style={{ width: '100%' }} />
         </Form.Item>
         {itemEditing ? (
-          <Text type="secondary" style={{ fontSize: 12 }}>按乐观锁提交（版本 {itemEditing.version}）。</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>{t('common.validation.optimisticLock', { version: itemEditing.version })}。</Text>
         ) : null}
       </CrudFormModal>
     </div>

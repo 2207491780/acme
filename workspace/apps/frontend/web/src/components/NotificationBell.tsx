@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { App, Badge, Button, Drawer, List, Tag, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { BellOutlined } from '@ant-design/icons';
 import { formatDate, notifyApi, notifyErrorMessage, useMeStore, useNotifyStore } from '@acme/core';
 import type { AdminMessageView } from '@acme/core';
@@ -16,8 +17,9 @@ import type { AdminMessageView } from '@acme/core';
 const INBOX_PAGE_SIZE = 10;
 
 export function NotificationBell() {
+  const { t } = useTranslation();
   const { message: antdMessage } = App.useApp();
-  const permissions = useMeStore((s) => s.me?.permissions ?? []);
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
   const canList = permissions.includes('system:message:list');
   const canRead = permissions.includes('system:message:read');
   const unreadCount = useNotifyStore((s) => s.unreadCount);
@@ -44,12 +46,12 @@ export function NotificationBell() {
         setRecords(result.records ?? []);
         setTotal(Number(result.total));
       } catch (ex: unknown) {
-        antdMessage.error(notifyErrorMessage(ex, '收件箱加载失败'));
+        antdMessage.error(notifyErrorMessage(ex, t('components.notification.inboxLoadFailed')));
       } finally {
         setLoading(false);
       }
     },
-    [antdMessage],
+    [antdMessage, t],
   );
 
   // 抽屉打开/翻页即拉取收件箱（CrudTable 分页口径 page 从 1 起）
@@ -67,7 +69,7 @@ export function NotificationBell() {
       await useNotifyStore.getState().markRead(record.id);
       await loadInbox(page);
     } catch (ex: unknown) {
-      antdMessage.error(notifyErrorMessage(ex, '标记已读失败，请稍后重试'));
+      antdMessage.error(notifyErrorMessage(ex, t('components.notification.markReadFailed')));
     }
   };
 
@@ -76,7 +78,7 @@ export function NotificationBell() {
       await useNotifyStore.getState().markAllRead();
       await loadInbox(page);
     } catch (ex: unknown) {
-      antdMessage.error(notifyErrorMessage(ex, '全部已读失败，请稍后重试'));
+      antdMessage.error(notifyErrorMessage(ex, t('components.notification.markAllReadFailed')));
     }
   };
 
@@ -88,7 +90,7 @@ export function NotificationBell() {
     <>
       <Button
         type="text"
-        aria-label="通知中心"
+        aria-label={t('components.notification.center')}
         onClick={() => setDrawerOpen(true)}
         icon={(
           <Badge count={unreadCount} size="small">
@@ -99,11 +101,11 @@ export function NotificationBell() {
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        title="通知中心"
+        title={t('components.notification.center')}
         width={420}
         destroyOnClose
         styles={{ body: { paddingTop: 0 } }}
-        extra={canRead ? <Button size="small" onClick={() => void markAllRead()}>全部已读</Button> : undefined}
+        extra={canRead ? <Button size="small" onClick={() => void markAllRead()}>{t('components.notification.markAllRead')}</Button> : undefined}
       >
         <List<AdminMessageView>
           size="small"
@@ -119,7 +121,7 @@ export function NotificationBell() {
                   <Typography.Text strong={!item.isRead} className="notify-inbox-title">
                     {item.title}
                   </Typography.Text>
-                  {item.isRead ? <Tag color="default">已读</Tag> : <Tag color="processing">未读</Tag>}
+                  {item.isRead ? <Tag color="default">{t('components.notification.read')}</Tag> : <Tag color="processing">{t('components.notification.unread')}</Tag>}
                 </div>
                 <Typography.Text type="secondary" className="notify-inbox-time">
                   {formatDate(item.createdAt)}

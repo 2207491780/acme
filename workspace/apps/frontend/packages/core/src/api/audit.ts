@@ -20,12 +20,13 @@ export interface AdminAuditEventView {
 
 /** 基础设施域接口（platform-infra；P3 审计事件查询打通）。 */
 export const auditApi = {
-  /** 审计事件分页（权限点 infra:audit:list；具备 list:all 时为全租户视图）。
+  /** 审计事件分页（权限点 infra:audit:list；具备 list:all 时为全租户视图；signal 为可选取消信号）。
    *  from/to 为 ISO-8601 时间串（后端 @DateTimeFormat ISO DATE_TIME）。 */
   events: (
     page: number,
     size: number,
     filters: { operatorId?: string; action?: string; traceId?: string; from?: string; to?: string } = {},
+    signal?: AbortSignal,
   ): Promise<PageResult<AdminAuditEventView>> => {
     const qs = new URLSearchParams({ page: String(page), size: String(size) });
     if (filters.operatorId) qs.set('operatorId', filters.operatorId);
@@ -33,6 +34,6 @@ export const auditApi = {
     if (filters.traceId) qs.set('traceId', filters.traceId);
     if (filters.from) qs.set('from', filters.from);
     if (filters.to) qs.set('to', filters.to);
-    return apiFetch<PageResult<AdminAuditEventView>>(`/admin/v1/infra/audit-events?${qs.toString()}`);
+    return apiFetch<PageResult<AdminAuditEventView>>(`/admin/v1/infra/audit-events?${qs.toString()}`, { signal });
   },
 };

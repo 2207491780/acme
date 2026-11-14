@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Button } from 'antd';
+import { useTranslation } from 'react-i18next';
 import type { ButtonProps } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import { App as AntApp } from 'antd';
@@ -17,7 +18,7 @@ export interface UploadButtonProps {
   /** 业务归类（随 multipart 可选字段 bizType/bizId 透传）。 */
   bizType?: string;
   bizId?: string;
-  /** 按钮文案。 */
+  /** 按钮文案（缺省 i18n files.actions.upload）。 */
   label?: ReactNode;
   /** 按钮类型（缺省 primary）。 */
   buttonType?: ButtonProps['type'];
@@ -38,14 +39,15 @@ export function UploadButton({
   url,
   bizType,
   bizId,
-  label = '上传文件',
+  label,
   buttonType = 'primary',
   accept,
   permission = 'infra:file:upload',
   onUploaded,
 }: UploadButtonProps) {
+  const { t } = useTranslation();
   const { message } = AntApp.useApp();
-  const permissions = useMeStore((s) => s.me?.permissions ?? []);
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -67,10 +69,10 @@ export function UploadButton({
     setUploading(true);
     try {
       const uploaded = await uploadFormData<FileView>(url ?? FILE_ENDPOINTS.base, file, { bizType, bizId });
-      message.success(`${uploaded.originalName ?? file.name} 上传成功`);
+      message.success(t('files.toast.uploadSuccess', { name: uploaded.originalName ?? file.name }));
       onUploaded?.(uploaded);
     } catch (ex: unknown) {
-      message.error(transferErrorMessage(ex, '上传失败，请稍后重试'));
+      message.error(transferErrorMessage(ex, t('common.errors.operationFailed')));
     } finally {
       setUploading(false);
     }
@@ -88,7 +90,7 @@ export function UploadButton({
         tabIndex={-1}
       />
       <Button type={buttonType} icon={<UploadOutlined />} loading={uploading} onClick={pick}>
-        {label}
+        {label ?? t('files.actions.upload')}
       </Button>
     </>
   );

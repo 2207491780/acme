@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { App, Button, Descriptions, Drawer, Empty, Progress, Space, Timeline, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import {
   AlertOutlined,
   CopyOutlined,
@@ -8,7 +9,7 @@ import {
   FileZipOutlined,
   PlayCircleOutlined,
 } from '@ant-design/icons';
-import { NEXT_STATUS, STATUS_ACTION, fmtFull, statusColor, type Status } from '@acme/core';
+import { NEXT_STATUS, fmtFull, statusColor, type Status } from '@acme/core';
 import { useStore } from '../store/useStore';
 import { EnvTag, PlatformTag, StatusTag } from './atoms';
 import { useDeleteReleases } from '../hooks/useReleaseActions';
@@ -25,6 +26,7 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 export function ReleaseDrawer() {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const drawerId = useStore((s) => s.drawerId);
   const release = useStore((s) => s.state.releases.find((r) => r.id === s.drawerId));
@@ -46,7 +48,7 @@ export function ReleaseDrawer() {
 
   const copy = async (text: string) => {
     const ok = await copyText(text);
-    message[ok ? 'success' : 'error'](ok ? `已复制：${text}` : '复制失败，请手动复制');
+    message[ok ? 'success' : 'error'](ok ? t('apps.copy.done', { text }) : t('apps.copy.failed'));
   };
 
   return (
@@ -60,19 +62,19 @@ export function ReleaseDrawer() {
           <Space wrap>
             {next && (
               <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => advance(release.id)}>
-                {STATUS_ACTION[release.status]}
+                {t(`releases.action.${release.status}`)}
               </Button>
             )}
             <Button icon={<EditOutlined />} onClick={() => openModal({ type: 'release', id: release.id })}>
-              编辑
+              {t('releases.drawer.edit')}
             </Button>
             {canFail && (
               <Button danger icon={<AlertOutlined />} onClick={() => setStatus('failed')}>
-                标记失败
+                {t('releases.drawer.markFailed')}
               </Button>
             )}
-            {canCancel && <Button onClick={() => setStatus('cancelled')}>取消</Button>}
-            <Button danger icon={<DeleteOutlined />} onClick={() => remove([release.id])} aria-label="删除发布单" />
+            {canCancel && <Button onClick={() => setStatus('cancelled')}>{t('releases.drawer.cancel')}</Button>}
+            <Button danger icon={<DeleteOutlined />} onClick={() => remove([release.id])} aria-label={t('releases.drawer.delete')} />
           </Space>
         )
       }
@@ -95,19 +97,19 @@ export function ReleaseDrawer() {
             column={2}
             bordered
             items={[
-              { key: 'app', label: '应用', children: app?.name || release.appId },
-              { key: 'version', label: '版本', children: `v${release.version}` },
-              { key: 'owner', label: '负责人', children: release.owner },
-              { key: 'priority', label: '优先级', children: `P${release.priority}` },
-              { key: 'created', label: '创建时间', children: fmtFull(release.createdAt) },
-              { key: 'updated', label: '更新时间', children: fmtFull(release.updatedAt) },
+              { key: 'app', label: t('releases.drawer.app'), children: app?.name || release.appId },
+              { key: 'version', label: t('releases.drawer.version'), children: `v${release.version}` },
+              { key: 'owner', label: t('releases.drawer.owner'), children: release.owner },
+              { key: 'priority', label: t('releases.drawer.priority'), children: `P${release.priority}` },
+              { key: 'created', label: t('releases.drawer.createdAt'), children: fmtFull(release.createdAt) },
+              { key: 'updated', label: t('releases.drawer.updatedAt'), children: fmtFull(release.updatedAt) },
             ]}
           />
 
-          <SectionLabel>备注</SectionLabel>
-          <Paragraph style={{ marginBottom: 0 }}>{release.notes || '暂无备注'}</Paragraph>
+          <SectionLabel>{t('releases.drawer.notes')}</SectionLabel>
+          <Paragraph style={{ marginBottom: 0 }}>{release.notes || t('releases.drawer.notesEmpty')}</Paragraph>
 
-          <SectionLabel>产物</SectionLabel>
+          <SectionLabel>{t('releases.drawer.artifacts')}</SectionLabel>
           {release.artifacts.length ? (
             <Space direction="vertical" style={{ width: '100%' }}>
               {release.artifacts.map((a) => (
@@ -120,23 +122,23 @@ export function ReleaseDrawer() {
                     <div style={{ fontFamily: 'var(--mono)', fontWeight: 650, fontSize: 12.5 }}>{a.name}</div>
                     <Text type="secondary" style={{ fontSize: 11 }}>{a.size}</Text>
                   </div>
-                  <Button size="small" type="text" icon={<CopyOutlined />} onClick={() => copy(a.name)} aria-label={`复制产物名 ${a.name}`} />
+                  <Button size="small" type="text" icon={<CopyOutlined />} onClick={() => copy(a.name)} aria-label={t('releases.drawer.artifactCopy', { name: a.name })} />
                 </div>
               ))}
             </Space>
           ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="构建完成后生成产物" />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('releases.drawer.artifactsEmpty')} />
           )}
 
-          <SectionLabel>时间线</SectionLabel>
+          <SectionLabel>{t('releases.drawer.timeline')}</SectionLabel>
           <Timeline
-            items={[...release.timeline].reverse().map((t) => ({
+            items={[...release.timeline].reverse().map((item) => ({
               color: 'var(--accent)',
               children: (
                 <>
-                  <div style={{ fontWeight: 650, fontSize: 13 }}>{t.action}</div>
+                  <div style={{ fontWeight: 650, fontSize: 13 }}>{item.action}</div>
                   <Text type="secondary" style={{ fontSize: 11.5 }}>
-                    {t.by} · {fmtFull(t.at)}
+                    {item.by} · {fmtFull(item.at)}
                   </Text>
                 </>
               ),

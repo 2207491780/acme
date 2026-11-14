@@ -69,13 +69,13 @@ export async function uploadFormData<T>(
 
 /** 基础设施域接口（platform-infra）。 */
 export const infraApi = {
-  /** 文件分页（bizType/bizId 精确过滤、keyword 按原名模糊；权限点 infra:file:list）。 */
-  fileList: (page: number, size: number, filters: FileListFilters = {}): Promise<PageResult<FileView>> => {
+  /** 文件分页（bizType/bizId 精确过滤、keyword 按原名模糊；权限点 infra:file:list；signal 为可选取消信号）。 */
+  fileList: (page: number, size: number, filters: FileListFilters = {}, signal?: AbortSignal): Promise<PageResult<FileView>> => {
     const qs = new URLSearchParams({ page: String(page), size: String(size) });
     if (filters.bizType) qs.set('bizType', filters.bizType);
     if (filters.bizId) qs.set('bizId', filters.bizId);
     if (filters.keyword) qs.set('keyword', filters.keyword);
-    return apiFetch<PageResult<FileView>>(`${FILE_ENDPOINTS.base}?${qs.toString()}`);
+    return apiFetch<PageResult<FileView>>(`${FILE_ENDPOINTS.base}?${qs.toString()}`, { signal });
   },
   /** 上传文件（multipart file + 可选 bizType/bizId；权限点 infra:file:upload）。
    *  超限/类型拒绝由后端以 FILE_SIZE_EXCEEDED/FILE_TYPE_REJECTED 拒绝（前端经 transferErrorMessage 转译）。 */

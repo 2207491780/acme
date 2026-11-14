@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { App, Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tag, Tree, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { useTranslation } from 'react-i18next';
 import { ApiError, systemApi, useCrud, useMeStore, type AdminMenuView, type AdminPermissionView, type AdminRoleView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
@@ -21,14 +22,15 @@ interface RoleFormValues {
  *  迁移 CRUD 范本（REQ-20261114-120101）：列表/表单走 useCrud + CrudTable/CrudFormModal；
  *  授权弹窗为绑定语义（非 CRUD 表单），保持原 Modal 形态。 */
 export function RolesPage() {
+  const { t } = useTranslation();
   const { message } = App.useApp();
-  const permissions = useMeStore((s) => s.me?.permissions ?? []);
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
 
   const crud = useCrud<AdminRoleView>({
-    fetchPage: ({ page, size, keyword }) => systemApi.roleList(page, size, keyword || undefined),
+    fetchPage: ({ page, size, keyword, signal }) => systemApi.roleList(page, size, keyword || undefined, signal),
     permissions,
     pageSize: 10,
-    errorMessage: '角色清单加载失败',
+    errorMessage: t('roles.errors.loadFailed'),
   });
 
   const [creating, setCreating] = useState(false);
@@ -70,7 +72,7 @@ export function RolesPage() {
           parentId: values.parentId ? Number(values.parentId) : null,
           version: editing.version,
         });
-        message.success('角色已更新');
+        message.success(t('roles.form.updated'));
       } else {
         await systemApi.roleCreate({
           parentId: values.parentId ? Number(values.parentId) : null,
@@ -78,13 +80,13 @@ export function RolesPage() {
           roleName: values.roleName,
           remark: values.remark,
         });
-        message.success('角色已创建');
+        message.success(t('roles.form.created'));
       }
       setEditing(null);
       setCreating(false);
       crud.reload(1);
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '操作失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -94,20 +96,20 @@ export function RolesPage() {
     const next = record.status === 'ENABLED' ? 'DISABLED' : 'ENABLED';
     try {
       await systemApi.roleStatus(record.id, next);
-      message.success(`角色已${next === 'ENABLED' ? '启用' : '停用'}`);
+      message.success(next === 'ENABLED' ? t('roles.actions.enabledDone') : t('roles.actions.disabledDone'));
       crud.reload();
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '操作失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
     }
   };
 
   const remove = async (record: AdminRoleView) => {
     try {
       await systemApi.roleDelete(record.id);
-      message.success(`角色 ${record.roleCode} 已删除`);
+      message.success(t('roles.deleted', { code: record.roleCode }));
       crud.reload();
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '删除失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('common.errors.deleteFailed'));
     }
   };
 
@@ -129,7 +131,7 @@ export function RolesPage() {
         setGrantedIds(collectTreeIds(granted));
       }
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '授权数据加载失败');
+      message.error(ex instanceof ApiError ? ex.message : t('roles.grant.loadFailed'));
       setGranting(null);
     } finally {
       setGrantLoading(false);
@@ -142,51 +144,51 @@ export function RolesPage() {
     try {
       if (grantKind === 'permissions') {
         await systemApi.roleBindPermissions(granting.id, grantedIds);
-        message.success(`角色 ${granting.roleCode} 权限已更新（新权限随下次令牌签发生效）`);
+        message.success(t('roles.grant.permissionsUpdated', { code: granting.roleCode }));
       } else {
         await systemApi.roleBindMenus(granting.id, grantedIds.map(Number));
-        message.success(`角色 ${granting.roleCode} 菜单已更新`);
+        message.success(t('roles.grant.menusUpdated', { code: granting.roleCode }));
       }
       setGranting(null);
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : '授权失败，请稍后重试');
+      message.error(ex instanceof ApiError ? ex.message : t('roles.grant.failed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   const columns: ColumnsType<AdminRoleView> = [
-    { title: '角色代码', dataIndex: 'roleCode', key: 'roleCode', width: 180 },
-    { title: '角色名称', dataIndex: 'roleName', key: 'roleName' },
+    { title: t('roles.columns.roleCode'), dataIndex: 'roleCode', key: 'roleCode', width: 180 },
+    { title: t('roles.columns.roleName'), dataIndex: 'roleName', key: 'roleName' },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 90,
+      title: t('roles.columns.status'), dataIndex: 'status', key: 'status', width: 90,
       render: (status: AdminRoleView['status']) => (
-        <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? '启用' : '停用'}</Tag>
+        <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>
       ),
     },
-    { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true, render: (v: string | null) => v ?? '—' },
+    { title: t('roles.columns.remark'), dataIndex: 'remark', key: 'remark', ellipsis: true, render: (v: string | null) => v ?? '—' },
     {
-      title: '操作', key: 'actions', width: 320,
+      title: t('roles.columns.actions'), key: 'actions', width: 320,
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:role:update') ? <Button size="small" onClick={() => openEdit(record)}>编辑</Button> : null}
+          {crud.can('system:role:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('roles.actions.edit')}</Button> : null}
           {crud.can('system:role:grant') ? (
-            <Button size="small" onClick={() => void openGrant(record, 'permissions')}>权限</Button>
+            <Button size="small" onClick={() => void openGrant(record, 'permissions')}>{t('roles.actions.grantPermissions')}</Button>
           ) : null}
           {crud.can('system:role:grant') ? (
-            <Button size="small" onClick={() => void openGrant(record, 'menus')}>菜单</Button>
+            <Button size="small" onClick={() => void openGrant(record, 'menus')}>{t('roles.actions.grantMenus')}</Button>
           ) : null}
           {crud.can('system:role:update') ? (
-            <Popconfirm title={`确认${record.status === 'ENABLED' ? '停用' : '启用'} ${record.roleName}？`} onConfirm={() => void toggleStatus(record)}>
-              <Button size="small" danger={record.status === 'ENABLED'}>{record.status === 'ENABLED' ? '停用' : '启用'}</Button>
+            <Popconfirm title={t('roles.actions.toggleConfirm', { action: record.status === 'ENABLED' ? t('common.status.disabled') : t('common.status.enabled'), name: record.roleName })} onConfirm={() => void toggleStatus(record)}>
+              <Button size="small" danger={record.status === 'ENABLED'}>{record.status === 'ENABLED' ? t('common.status.disabled') : t('common.status.enabled')}</Button>
             </Popconfirm>
           ) : null}
           {crud.can('system:role:delete') && !record.builtIn ? (
-            <Popconfirm title={`确认删除角色 ${record.roleCode}？`} onConfirm={() => void remove(record)}>
-              <Button size="small" danger>删除</Button>
+            <Popconfirm title={t('roles.actions.deleteConfirm', { code: record.roleCode })} onConfirm={() => void remove(record)}>
+              <Button size="small" danger>{t('roles.actions.delete')}</Button>
             </Popconfirm>
           ) : null}
-          {record.builtIn ? <Text type="secondary" style={{ fontSize: 12 }}>内置</Text> : null}
+          {record.builtIn ? <Text type="secondary" style={{ fontSize: 12 }}>{t('roles.actions.builtIn')}</Text> : null}
         </Space>
       ),
     },
@@ -196,29 +198,29 @@ export function RolesPage() {
     <>
       <CrudTable<AdminRoleView>
         crud={crud}
-        title="角色管理"
+        title={t('roles.title')}
         columns={columns}
-        searchPlaceholder="搜索角色代码 / 名称"
+        searchPlaceholder={t('roles.search.placeholder')}
         searchWidth={220}
-        reloadAriaLabel="刷新角色清单"
+        reloadAriaLabel={t('roles.reload')}
         createPermission="system:role:create"
-        createLabel="新建角色"
+        createLabel={t('roles.create')}
         onCreate={openCreate}
-        totalText={(t) => `共 ${t} 个角色`}
+        totalText={(total) => t('roles.total', { total })}
       />
 
       <CrudFormModal<RoleFormValues>
         open={creating || editing !== null}
-        title={editing ? `编辑角色：${editing.roleCode}` : '新建角色'}
+        title={editing ? t('roles.form.editTitle', { code: editing.roleCode }) : t('roles.form.createTitle')}
         form={form}
         submitting={submitting}
         onOk={() => void submit()}
         onCancel={() => { setCreating(false); setEditing(null); }}
       >
-        <Form.Item name="parentId" label="父级角色（可选）">
+        <Form.Item name="parentId" label={t('roles.form.parent')}>
           <Select
             allowClear
-            placeholder="不选则为顶级角色"
+            placeholder={t('roles.form.parentPlaceholder')}
             options={crud.records.filter((r) => r.id !== editing?.id).map((r) => ({ value: r.id, label: r.roleName }))}
             optionFilterProp="label"
             showSearch
@@ -226,31 +228,31 @@ export function RolesPage() {
         </Form.Item>
         <Form.Item
           name="roleCode"
-          label="角色代码"
+          label={t('roles.form.code')}
           rules={[
-            { required: true, message: '请输入角色代码' },
-            { pattern: CODE_PATTERN, message: '小写字母开头，仅含小写字母/数字/_/-' },
-            { min: 2, max: 64, message: '长度 2–64 字符' },
+            { required: true, message: t('roles.form.codeRequired') },
+            { pattern: CODE_PATTERN, message: t('common.validation.codePattern') },
+            { min: 2, max: 64, message: t('common.validation.lengthRange', { min: 2, max: 64 }) },
           ]}
-          extra={editing ? '角色代码不可修改' : '创建后不可修改'}
+          extra={editing ? t('roles.form.codeImmutable') : t('roles.form.codeExtra')}
         >
-          <Input placeholder="如 ops_lead" disabled={editing !== null} autoComplete="off" />
+          <Input placeholder={t('roles.form.codePlaceholder')} disabled={editing !== null} autoComplete="off" />
         </Form.Item>
         <Form.Item
           name="roleName"
-          label="角色名称"
+          label={t('roles.form.name')}
           rules={[
-            { required: true, message: '请输入角色名称' },
-            { min: 1, max: 64, message: '长度 1–64 字符' },
+            { required: true, message: t('roles.form.nameRequired') },
+            { min: 1, max: 64, message: t('common.validation.lengthRange', { min: 1, max: 64 }) },
           ]}
         >
-          <Input placeholder="角色显示名称" />
+          <Input placeholder={t('roles.form.namePlaceholder')} />
         </Form.Item>
-        <Form.Item name="remark" label="备注" rules={[{ max: 255, message: '长度不超过 255 字符' }]}>
-          <Input.TextArea placeholder="选填" rows={2} />
+        <Form.Item name="remark" label={t('roles.form.remark')} rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}>
+          <Input.TextArea placeholder={t('common.validation.optional')} rows={2} />
         </Form.Item>
         {editing ? (
-          <Text type="secondary" style={{ fontSize: 12 }}>按乐观锁提交（版本 {editing.version}）；冲突时请刷新后重试。</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>{t('roles.form.lockNote', { version: editing.version })}</Text>
         ) : null}
       </CrudFormModal>
 
@@ -258,7 +260,7 @@ export function RolesPage() {
         open={granting !== null}
         title={
           granting
-            ? `${grantKind === 'permissions' ? '权限点' : '菜单'}授权：${granting.roleName}`
+            ? `${grantKind === 'permissions' ? t('roles.grant.permissionsTitle', { name: granting.roleName }) : t('roles.grant.menusTitle', { name: granting.roleName })}`
             : ''
         }
         width={grantKind === 'menus' ? 560 : 640}
@@ -280,7 +282,7 @@ export function RolesPage() {
           </div>
         )}
         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 12 }}>
-          提交即全量覆盖；权限变更随下次令牌签发生效。
+          {t('roles.grant.submitNote')}
         </Text>
       </Modal>
     </>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Tooltip } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
+import { useTranslation } from 'react-i18next';
 import {
   ApartmentOutlined,
   AppstoreOutlined,
@@ -8,6 +9,7 @@ import {
   DashboardOutlined,
   DownOutlined,
   FileSearchOutlined,
+  GlobalOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuOutlined,
@@ -24,7 +26,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, authApi, startAuthRenewal, useAuthStore, useMeStore, useNotifyStore } from '@acme/core';
+import { ACTIVE_STATUSES, authApi, startAuthRenewal, useAuthStore, useLocaleStore, useMeStore, useNotifyStore, type AppLocale } from '@acme/core';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
 import { createNotifyClient } from './ws/notify-client';
@@ -43,6 +45,7 @@ import { FilesPage } from './pages/FilesPage';
 import { NoticesPage } from './pages/NoticesPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotificationBell } from './components/NotificationBell';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { buildDynamicNav, type NavEntry } from './nav';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
@@ -56,6 +59,7 @@ const { Sider, Header, Content } = Layout;
  * 加载失败进入错误态并给出重试入口（review 修复：此前失败后所有权限页永远停留在“加载中”）。
  */
 function PermissionGate({ permission, children }: { permission: string; children: ReactNode }) {
+  const { t } = useTranslation();
   const me = useMeStore((s) => s.me);
   const loading = useMeStore((s) => s.loading);
   const error = useMeStore((s) => s.error);
@@ -66,18 +70,18 @@ function PermissionGate({ permission, children }: { permission: string; children
           <Alert
             type="error"
             showIcon
-            message="权限信息加载失败"
-            description={`${error}。权限入口暂不可用，请重试或刷新页面。`}
+            message={t('nav.permissionGate.loadFailed')}
+            description={t('nav.permissionGate.loadFailedDesc', { error })}
             action={
               <Button size="small" onClick={() => void useMeStore.getState().load()}>
-                重试
+                {t('common.actions.retry')}
               </Button>
             }
           />
         </Card>
       );
     }
-    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)' }}>权限信息加载中…</div>;
+    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)' }}>{t('nav.permissionGate.loading')}</div>;
   }
   if (!me.permissions.includes(permission)) {
     return (
@@ -85,8 +89,8 @@ function PermissionGate({ permission, children }: { permission: string; children
         <Alert
           type="warning"
           showIcon
-          message="无访问权限"
-          description={`缺少权限码 ${permission}，请联系租户管理员为当前账号分配对应角色。`}
+          message={t('nav.permissionGate.denied')}
+          description={t('nav.permissionGate.deniedDesc', { permission })}
         />
       </Card>
     );
@@ -94,22 +98,28 @@ function PermissionGate({ permission, children }: { permission: string; children
   return <>{children}</>;
 }
 
-const NAV: { path: string; icon: ReactNode; label: string; permission?: string }[] = [
-  { path: '/', icon: <DashboardOutlined />, label: '概览' },
-  { path: '/releases', icon: <UnorderedListOutlined />, label: '发布单' },
-  { path: '/apps', icon: <AppstoreOutlined />, label: '应用结构' },
-  { path: '/tenants', icon: <ApartmentOutlined />, label: '租户管理', permission: 'system:tenant:list' },
-  { path: '/users', icon: <UserOutlined />, label: '用户管理', permission: 'system:user:list' },
-  { path: '/roles', icon: <TeamOutlined />, label: '角色管理', permission: 'system:role:list' },
-  { path: '/permissions', icon: <SafetyCertificateOutlined />, label: '权限管理', permission: 'system:permission:list' },
-  { path: '/menus', icon: <MenuOutlined />, label: '菜单管理', permission: 'system:menu:list' },
-  { path: '/dicts', icon: <BookOutlined />, label: '字典管理', permission: 'system:dict:list' },
-  { path: '/notices', icon: <NotificationOutlined />, label: '通知公告', permission: 'system:notice:list' },
-  { path: '/audit', icon: <FileSearchOutlined />, label: '审计事件', permission: 'infra:audit:list' },
-  { path: '/settings', icon: <SettingOutlined />, label: '设置' },
+/** 页面级局部错误边界：路由页面渲染抛错 → 局部兜底 UI + 重试（REQ-20261114-120103，AC-3）。 */
+function PageBoundary({ children }: { children: ReactNode }) {
+  return <ErrorBoundary variant="page">{children}</ErrorBoundary>;
+}
+
+const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: string }[] = [
+  { path: '/', icon: <DashboardOutlined />, labelKey: 'nav.items.dashboard' },
+  { path: '/releases', icon: <UnorderedListOutlined />, labelKey: 'nav.items.releases' },
+  { path: '/apps', icon: <AppstoreOutlined />, labelKey: 'nav.items.apps' },
+  { path: '/tenants', icon: <ApartmentOutlined />, labelKey: 'nav.items.tenants', permission: 'system:tenant:list' },
+  { path: '/users', icon: <UserOutlined />, labelKey: 'nav.items.users', permission: 'system:user:list' },
+  { path: '/roles', icon: <TeamOutlined />, labelKey: 'nav.items.roles', permission: 'system:role:list' },
+  { path: '/permissions', icon: <SafetyCertificateOutlined />, labelKey: 'nav.items.permissions', permission: 'system:permission:list' },
+  { path: '/menus', icon: <MenuOutlined />, labelKey: 'nav.items.menus', permission: 'system:menu:list' },
+  { path: '/dicts', icon: <BookOutlined />, labelKey: 'nav.items.dicts', permission: 'system:dict:list' },
+  { path: '/notices', icon: <NotificationOutlined />, labelKey: 'nav.items.notices', permission: 'system:notice:list' },
+  { path: '/audit', icon: <FileSearchOutlined />, labelKey: 'nav.items.audit', permission: 'infra:audit:list' },
+  { path: '/settings', icon: <SettingOutlined />, labelKey: 'nav.items.settings' },
 ];
 
 export function App() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const screens = Grid.useBreakpoint();
@@ -194,15 +204,26 @@ export function App() {
 
   const me = useMeStore((s) => s.me);
   const displayName = me?.user.nickname || me?.user.username || session?.nickname || session?.username || '';
+  const rolesText = me?.roles.join(t('nav.userMenu.rolesSeparator')) || t('nav.userMenu.rolesLoading');
   const userMenuItems: MenuProps['items'] = [
-    { key: 'who', label: `${displayName}（租户 ${session?.tenantCode}）`, disabled: true },
+    { key: 'who', label: t('nav.userMenu.tenantLabel', { name: displayName, tenant: session?.tenantCode ?? '' }), disabled: true },
     {
       key: 'roles',
-      label: `角色：${me?.roles.join('、') || '加载中…'}`,
+      label: t('nav.userMenu.rolesLabel', { roles: rolesText }),
       disabled: true,
     },
     { type: 'divider' },
-    { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
+    {
+      key: 'locale',
+      icon: <GlobalOutlined />,
+      label: t('nav.userMenu.language'),
+      children: [
+        { key: 'locale-zh-CN', label: t('nav.userMenu.languageZh') },
+        { key: 'locale-en-US', label: t('nav.userMenu.languageEn') },
+      ],
+    },
+    { type: 'divider' },
+    { key: 'logout', icon: <LogoutOutlined />, label: t('nav.userMenu.logout'), danger: true },
   ];
 
   if (!session) {
@@ -212,7 +233,11 @@ export function App() {
   const activeCount = releases.filter((r) => ACTIVE_STATUSES.includes(r.status)).length;
   const current = location.pathname;
   const platform = detectPlatform();
-  const runtimeLabel = platform === 'desktop' ? 'Electron 桌面端' : platform === 'mobile' ? '移动端' : 'Web 端';
+  const runtimeLabel = platform === 'desktop'
+    ? t('nav.header.runtimeDesktop')
+    : platform === 'mobile'
+      ? t('nav.header.runtimeMobile')
+      : t('nav.header.runtimeWeb');
 
   const go = (path: string) => {
     navigate(path);
@@ -224,8 +249,20 @@ export function App() {
     if (location.pathname !== '/releases') navigate('/releases');
   };
 
+  const setLocale = useLocaleStore((s) => s.setLocale);
+  const onUserMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'logout') {
+      handleLogout();
+      return;
+    }
+    if (key.startsWith('locale-')) {
+      setLocale(key.slice('locale-'.length) as AppLocale);
+    }
+  };
+
   // 导航按权限过滤（p2-admin）：me 未加载时先全部隐藏，加载后按权限码展示（fail-closed）
-  const permittedNav = NAV.filter((n) => !n.permission || (me?.permissions.includes(n.permission) ?? false));
+  const permittedNav = NAV.filter((n) => !n.permission || (me?.permissions.includes(n.permission) ?? false))
+    .map((n) => ({ path: n.path, icon: n.icon, label: t(n.labelKey) }));
   // 导航动态化（REQ-20261114-120101，AC-7）：登录后按 me.menus 菜单树渲染（含权限码过滤）；
   // menus 缺失/为空/过滤后无可见项 → 回退静态 NAV（fail-closed 不变）；仅控显隐，不做动态路由注册。
   const labelOf = (n: NavEntry) =>
@@ -239,8 +276,8 @@ export function App() {
     );
   const dynamicNav = useMemo(
     () => (me && (me.menus?.length ?? 0) > 0 ? buildDynamicNav(me.menus, me.permissions, (_label, entry) => labelOf(entry)) : null),
-    // labelOf 依赖 activeCount（发布单活跃数），随渲染更新
-    [me, activeCount],
+    // labelOf 依赖 activeCount（发布单活跃数）与 t（语言切换后菜单文案重译），随渲染更新
+    [me, activeCount, t],
   );
   // 动态菜单的目录分组默认展开（受控）：保证分组子项在侧边导航直达可见
   const [navOpenKeys, setNavOpenKeys] = useState<string[] | undefined>(undefined);
@@ -262,8 +299,8 @@ export function App() {
         </div>
         {expanded && (
           <div>
-            <div className="brand-title">ACME 交付台</div>
-            <div className="brand-sub">Frontend Ops</div>
+            <div className="brand-title">{t('nav.brand.title')}</div>
+            <div className="brand-sub">{t('nav.brand.sub')}</div>
           </div>
         )}
       </div>
@@ -278,8 +315,8 @@ export function App() {
       />
       {expanded && (
         <div className="sidebar-foot">
-          <strong>多端复用</strong>
-          Web 端是页面唯一来源；Electron 套壳 Web 产物；移动端共享业务层并适配小屏。
+          <strong>{t('nav.brand.footTitle')}</strong>
+          {t('nav.brand.footText')}
         </div>
       )}
     </div>
@@ -306,13 +343,13 @@ export function App() {
               type="text"
               icon={isMobile || collapsed ? <MenuOutlined /> : <MenuFoldOutlined />}
               onClick={() => (isMobile ? setMobileNav(true) : setCollapsed((c) => !c))}
-              aria-label="切换导航"
+              aria-label={t('nav.header.toggleNav')}
             />
             <Input
               ref={searchRef}
               allowClear
               prefix={<SearchOutlined style={{ color: 'var(--muted)' }} />}
-              placeholder="搜索发布单 / 版本 / 负责人…"
+              placeholder={t('nav.header.searchPlaceholder')}
               value={query.search}
               onChange={(e) => onSearch(e.target.value)}
               style={{ flex: 1, maxWidth: 420 }}
@@ -344,25 +381,21 @@ export function App() {
               </span>
             )}
             <NotificationBell />
-            <Tooltip title="切换主题">
+            <Tooltip title={t('nav.header.toggleTheme')}>
               <Button
                 type="text"
                 icon={settings.theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
                 onClick={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: settings.theme === 'dark' ? 'light' : 'dark' } })}
-                aria-label="切换主题"
+                aria-label={t('nav.header.toggleTheme')}
               />
             </Tooltip>
             <Dropdown
               menu={{
                 items: userMenuItems,
-                onClick: ({ key }) => {
-                  if (key === 'logout') {
-                    handleLogout();
-                  }
-                },
+                onClick: onUserMenuClick,
               }}
             >
-              <Button type="text" aria-label="打开用户菜单" style={{ paddingInline: 6 }}>
+              <Button type="text" aria-label={t('nav.header.openUserMenu')} style={{ paddingInline: 6 }}>
                 <Space size={6}>
                   <Avatar size={26} style={{ background: 'var(--accent)' }} icon={<UserOutlined />} />
                   {!isMobile && <DownOutlined style={{ fontSize: 10, color: 'var(--muted)' }} />}
@@ -370,7 +403,7 @@ export function App() {
               </Button>
             </Dropdown>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal({ type: 'release', id: null })}>
-              {!isMobile && '新建'}
+              {!isMobile && t('nav.header.create')}
             </Button>
           </Header>
           <Content style={{ padding: isMobile ? '16px 14px 88px' : '24px 30px 60px' }}>
@@ -380,90 +413,106 @@ export function App() {
                 showIcon
                 role="alert"
                 style={{ marginBottom: 16 }}
-                message={storageError ? '数据尚未保存到本地' : '检测到其他窗口的数据变更'}
-                description={storageError
-                  ? '本页数据仅保留在内存中，请先导出备份再刷新或关闭页面。'
-                  : '本次操作已暂停，请检查数据后重试；如有未完成的修改，请先导出备份。'}
-                action={<Button onClick={() => download('acme-unsaved-backup.json', JSON.stringify(useStore.getState().state, null, 2))}>导出本页数据</Button>}
+                message={storageError ? t('nav.storage.unsaved') : t('nav.storage.conflict')}
+                description={storageError ? t('nav.storage.unsavedDesc') : t('nav.storage.conflictDesc')}
+                action={<Button onClick={() => download('acme-unsaved-backup.json', JSON.stringify(useStore.getState().state, null, 2))}>{t('nav.storage.export')}</Button>}
               />
             )}
             <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/releases" element={<Releases />} />
-              <Route path="/apps" element={<Apps />} />
+              <Route path="/" element={<PageBoundary><Dashboard /></PageBoundary>} />
+              <Route path="/releases" element={<PageBoundary><Releases /></PageBoundary>} />
+              <Route path="/apps" element={<PageBoundary><Apps /></PageBoundary>} />
               <Route
                 path="/tenants"
                 element={(
-                  <PermissionGate permission="system:tenant:list">
-                    <TenantsPage />
-                  </PermissionGate>
+                  <PageBoundary>
+                    <PermissionGate permission="system:tenant:list">
+                      <TenantsPage />
+                    </PermissionGate>
+                  </PageBoundary>
                 )}
               />
               <Route
                 path="/users"
                 element={(
-                  <PermissionGate permission="system:user:list">
-                    <UsersPage />
-                  </PermissionGate>
+                  <PageBoundary>
+                    <PermissionGate permission="system:user:list">
+                      <UsersPage />
+                    </PermissionGate>
+                  </PageBoundary>
                 )}
               />
               <Route
                 path="/roles"
                 element={(
-                  <PermissionGate permission="system:role:list">
-                    <RolesPage />
-                  </PermissionGate>
+                  <PageBoundary>
+                    <PermissionGate permission="system:role:list">
+                      <RolesPage />
+                    </PermissionGate>
+                  </PageBoundary>
                 )}
               />
               <Route
                 path="/permissions"
                 element={(
-                  <PermissionGate permission="system:permission:list">
-                    <PermissionsPage />
-                  </PermissionGate>
+                  <PageBoundary>
+                    <PermissionGate permission="system:permission:list">
+                      <PermissionsPage />
+                    </PermissionGate>
+                  </PageBoundary>
                 )}
               />
               <Route
                 path="/menus"
                 element={(
-                  <PermissionGate permission="system:menu:list">
-                    <MenusPage />
-                  </PermissionGate>
+                  <PageBoundary>
+                    <PermissionGate permission="system:menu:list">
+                      <MenusPage />
+                    </PermissionGate>
+                  </PageBoundary>
                 )}
               />
               <Route
                 path="/dicts"
                 element={(
-                  <PermissionGate permission="system:dict:list">
-                    <DictsPage />
-                  </PermissionGate>
+                  <PageBoundary>
+                    <PermissionGate permission="system:dict:list">
+                      <DictsPage />
+                    </PermissionGate>
+                  </PageBoundary>
                 )}
               />
               <Route
                 path="/notices"
                 element={(
-                  <PermissionGate permission="system:notice:list">
-                    <NoticesPage />
-                  </PermissionGate>
+                  <PageBoundary>
+                    <PermissionGate permission="system:notice:list">
+                      <NoticesPage />
+                    </PermissionGate>
+                  </PageBoundary>
                 )}
               />
               <Route
                 path="/audit"
                 element={(
-                  <PermissionGate permission="infra:audit:list">
-                    <AuditPage />
-                  </PermissionGate>
+                  <PageBoundary>
+                    <PermissionGate permission="infra:audit:list">
+                      <AuditPage />
+                    </PermissionGate>
+                  </PageBoundary>
                 )}
               />
               <Route
                 path="/files"
                 element={(
-                  <PermissionGate permission="infra:file:list">
-                    <FilesPage />
-                  </PermissionGate>
+                  <PageBoundary>
+                    <PermissionGate permission="infra:file:list">
+                      <FilesPage />
+                    </PermissionGate>
+                  </PageBoundary>
                 )}
               />
-              <Route path="/settings" element={<Settings />} />
+              <Route path="/settings" element={<PageBoundary><Settings /></PageBoundary>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Content>
@@ -471,7 +520,7 @@ export function App() {
       </Layout>
 
       {isMobile && (
-        <nav className="mobile-nav" aria-label="移动导航">
+        <nav className="mobile-nav" aria-label={t('nav.mobileNav')}>
           {navEntries.map((n) => (
             <button key={n.path} className={current === n.path ? 'active' : ''} onClick={() => go(n.path)}>
               {n.icon}

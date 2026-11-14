@@ -1,0 +1,48 @@
+/** zh-CN 设置页资源包（外观 / 数据管理 / 语言）。 */
+export const settings = {
+  head: {
+    eyebrow: 'Preferences',
+    title: '设置',
+    sub: '主题、密度、强调色与数据管理。所有偏好即时生效并持久化到本地。',
+  },
+  appearance: {
+    title: '外观',
+    theme: '深色主题',
+    themeDesc: '切换深色 / 浅色界面',
+    density: '界面密度',
+    densityDesc: '舒适 / 紧凑布局',
+    densityComfortable: '舒适',
+    densityCompact: '紧凑',
+    accent: '强调色',
+    accentDesc: '影响按钮、导航与高亮',
+    motion: '动效',
+    motionDesc: '界面过渡与入场动画',
+  },
+  language: {
+    label: '语言',
+    desc: '界面文案与日期格式语言',
+  },
+  data: {
+    title: '数据管理',
+    export: '导出数据',
+    exportDesc: '下载当前发布单与应用 JSON',
+    exportAction: '导出',
+    exportDone: '数据已导出',
+    import: '导入数据',
+    importDesc: '从 JSON 文件恢复',
+    importAction: '导入',
+    importDone: '导入成功',
+    importInvalid: '未导入：文件格式无效或数据已被其他窗口更新',
+    importParseFailed: '导入失败：无法解析 JSON',
+    reset: '重置演示数据',
+    resetDesc: '恢复初始种子数据',
+    resetAction: '重置',
+    resetDone: '已重置为演示数据',
+    resetConflict: '未重置：数据已变化，请检查后重试',
+  },
+  runtime: {
+    label: '运行环境',
+    mobileInfo: '响应式移动入口 · 共享 Web 业务层',
+    webInfo: '浏览器 Web 端 · 本地持久化',
+  },
+};

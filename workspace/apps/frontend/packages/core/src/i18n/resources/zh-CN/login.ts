@@ -1,0 +1,50 @@
+/** zh-CN 登录页资源包（login-ui）。 */
+export const login = {
+  brand: {
+    title: 'Acme SaaS 云平台',
+    subtitle: 'MULTI-TENANT CLOUD · 多租户发布流程云平台',
+  },
+  features: {
+    tenantIsolation: '租户隔离：数据 / 配置 / 配额按租户硬隔离，互不可见',
+    gatewayAuth: '网关集中验签：JWS claims 携带 tenantId，跨租户不可越权',
+    multiClient: '多端同源：Web / Electron / 移动端共享业务层与租户身份',
+    accessNote: '访问本平台需租户管理员开通账号；登录即代表同意平台使用规范。',
+    sessionNote: '会话为 30 分钟短会话，前端自动滑动续约；登出即刻失效。',
+  },
+  errors: {
+    tenantsLoadFailed: '租户清单加载失败，请检查网络',
+    captchaLoadFailed: '验证码加载失败，请点击重试',
+    captchaNotReady: '验证码未就绪，请点击刷新',
+    loginFailed: '登录失败，请稍后重试',
+  },
+  form: {
+    tenant: '租户',
+    tenantRequired: '请选择租户',
+    tenantLoading: '租户清单加载中…',
+    tenantSelect: '选择租户',
+    tenantEmpty: '暂无可用租户',
+    username: '账号',
+    usernameRequired: '请输入账号',
+    usernameLength: '账号长度 3–64 字符',
+    usernamePlaceholder: '账号（租户内唯一）',
+    password: '密码',
+    passwordRequired: '请输入密码',
+    passwordLength: '密码长度 1–64 字符',
+    captcha: '图形验证码',
+    captchaRequired: '请输入验证码',
+    captchaLength: '验证码为 4 位字符',
+    captchaInput: '输入右侧 4 位字符',
+    captchaRefreshTitle: '点击刷新验证码（并重置演示锁定计数）',
+    captchaImageAlt: '图形验证码',
+    remember: '记住我（7 天内自动保持登录）',
+    submit: '登 录',
+  },
+  session: {
+    title: '会话说明',
+    detail: '登录签发 JWS 访问令牌（30 分钟短会话），前端自动滑动续约；连续失败将触发账号锁定保护。',
+  },
+  actions: {
+    retry: '重试',
+  },
+  welcome: '欢迎回来，{{name}}',
+};

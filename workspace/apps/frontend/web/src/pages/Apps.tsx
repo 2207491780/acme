@@ -1,4 +1,5 @@
 import { App, Button, Card, Col, Descriptions, Row, Space, Typography } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { ApartmentOutlined, AppstoreOutlined, CopyOutlined, EditOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import type { Platform } from '@acme/core';
@@ -9,7 +10,26 @@ import { copyText } from '../utils/dom';
 
 const { Text, Paragraph } = Typography;
 
+/** 目录结构树（文案经 i18n apps.tree.* 承载，含各级注释）。 */
+function DirectoryTree() {
+  const { t } = useTranslation();
+  return (
+    <pre className="tree">
+{`frontend/                  `}<span className="note">{t('apps.tree.frontendNote')}</span>{`
+├── `}<span className="dir">packages/core/</span>{`         `}<span className="note">{t('apps.tree.coreNote')}</span>{`
+├── `}<span className="dir">web/</span>{`                   `}<span className="note">{t('apps.tree.webNote')}</span>{`
+│   ├── src/{components,pages,store,hooks,utils,styles}
+│   └── tests/
+├── `}<span className="dir">desktop/</span>{`               `}<span className="note">{t('apps.tree.desktopNote')}</span>{`
+│   └── src/{main,preload,shared}
+└── `}<span className="dir">mobile/</span>{`                `}<span className="note">{t('apps.tree.mobileNote')}</span>{`
+    └── src/{screens,components,store}`}
+    </pre>
+  );
+}
+
 export function Apps() {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const navigate = useNavigate();
   const apps = useStore((s) => s.state.apps);
@@ -19,7 +39,7 @@ export function Apps() {
 
   const copy = async (text: string) => {
     const ok = await copyText(text);
-    message[ok ? 'success' : 'error'](ok ? `已复制：${text}` : '复制失败，请手动复制');
+    message[ok ? 'success' : 'error'](ok ? t('apps.copy.done', { text }) : t('apps.copy.failed'));
   };
 
   const viewReleases = (platform: Platform) => {
@@ -30,9 +50,9 @@ export function Apps() {
   return (
     <>
       <PageHead
-        eyebrow="Applications"
-        title="应用与工程结构"
-        sub="pnpm monorepo：共享 core 业务层，Web 为页面唯一来源，Electron 复用 Web 产物，React Native 共享 core。"
+        eyebrow={t('apps.head.eyebrow')}
+        title={t('apps.head.title')}
+        sub={t('apps.head.sub')}
       />
 
       <Row gutter={[18, 18]} style={{ marginBottom: 18 }}>
@@ -51,22 +71,22 @@ export function Apps() {
                     </div>
                   </Space>
                 }
-                extra={<Button size="small" icon={<EditOutlined />} onClick={() => openModal({ type: 'app', id: app.id })} aria-label={`编辑应用 ${app.name}`} />}
+                extra={<Button size="small" icon={<EditOutlined />} onClick={() => openModal({ type: 'app', id: app.id })} aria-label={t('apps.card.editApp', { name: app.name })} />}
               >
                 <Paragraph type="secondary" style={{ fontSize: 13 }}>{app.description}</Paragraph>
                 <Descriptions
                   size="small"
                   column={1}
                   items={[
-                    { key: 'v', label: '当前版本', children: `v${app.version}` },
-                    { key: 'o', label: '负责人', children: app.owner },
-                    { key: 'h', label: '健康度', children: <HealthTag health={app.health} /> },
-                    { key: 'c', label: '发布单', children: `${count} 个` },
+                    { key: 'v', label: t('apps.card.currentVersion'), children: `v${app.version}` },
+                    { key: 'o', label: t('apps.card.owner'), children: app.owner },
+                    { key: 'h', label: t('apps.card.health'), children: <HealthTag health={app.health} /> },
+                    { key: 'c', label: t('apps.card.releases'), children: t('apps.card.releaseCount', { n: count }) },
                   ]}
                 />
                 <Space style={{ marginTop: 16 }}>
-                  <Button size="small" icon={<CopyOutlined />} onClick={() => copy(app.path)}>复制路径</Button>
-                  <Button size="small" type="text" icon={<UnorderedListOutlined />} onClick={() => viewReleases(app.platform)}>查看发布</Button>
+                  <Button size="small" icon={<CopyOutlined />} onClick={() => copy(app.path)}>{t('apps.card.copyPath')}</Button>
+                  <Button size="small" type="text" icon={<UnorderedListOutlined />} onClick={() => viewReleases(app.platform)}>{t('apps.card.viewReleases')}</Button>
                 </Space>
               </Card>
             </Col>
@@ -76,33 +96,23 @@ export function Apps() {
 
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={12}>
-          <Card title={<Space><ApartmentOutlined style={{ color: 'var(--accent)' }} /> 复用关系</Space>} style={{ height: '100%' }}>
+          <Card title={<Space><ApartmentOutlined style={{ color: 'var(--accent)' }} /> {t('apps.reuse.title')}</Space>} style={{ height: '100%' }}>
             <Space direction="vertical" size={14} style={{ width: '100%' }}>
-              <Space><PlatformIcon platform="web" size={18} /><div><Text strong>Web 端</Text><div className="platform-path">React + Vite + Ant Design · 页面与业务逻辑唯一来源</div></div></Space>
-              <Text type="secondary" style={{ fontSize: 12, paddingLeft: 18 }}>↓ 开发加载 Dev Server · 打包加载构建输出</Text>
-              <Space><PlatformIcon platform="desktop" size={18} /><div><Text strong>Electron 桌面端</Text><div className="platform-path">主进程 / 预加载桥接 · 复用 Web 产物</div></div></Space>
-              <Text type="secondary" style={{ fontSize: 12, paddingLeft: 18 }}>↓ 共享 @acme/core 业务层</Text>
-              <Space><PlatformIcon platform="mobile" size={18} /><div><Text strong>移动端</Text><div className="platform-path">React Native + Expo · 共享 core</div></div></Space>
+              <Space><PlatformIcon platform="web" size={18} /><div><Text strong>{t('apps.reuse.web')}</Text><div className="platform-path">{t('apps.reuse.webDesc')}</div></div></Space>
+              <Text type="secondary" style={{ fontSize: 12, paddingLeft: 18 }}>{t('apps.reuse.webArrow')}</Text>
+              <Space><PlatformIcon platform="desktop" size={18} /><div><Text strong>{t('apps.reuse.desktop')}</Text><div className="platform-path">{t('apps.reuse.desktopDesc')}</div></div></Space>
+              <Text type="secondary" style={{ fontSize: 12, paddingLeft: 18 }}>{t('apps.reuse.coreArrow')}</Text>
+              <Space><PlatformIcon platform="mobile" size={18} /><div><Text strong>{t('apps.reuse.mobile')}</Text><div className="platform-path">{t('apps.reuse.mobileDesc')}</div></div></Space>
             </Space>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
           <Card
-            title={<Space><AppstoreOutlined style={{ color: 'var(--accent)' }} /> 目录结构</Space>}
-            extra={<Button size="small" type="text" icon={<CopyOutlined />} onClick={() => copy('workspace/apps/frontend')}>复制</Button>}
+            title={<Space><AppstoreOutlined style={{ color: 'var(--accent)' }} /> {t('apps.tree.title')}</Space>}
+            extra={<Button size="small" type="text" icon={<CopyOutlined />} onClick={() => copy(t('apps.tree.copyTarget'))}>{t('apps.tree.copy')}</Button>}
             style={{ height: '100%' }}
           >
-            <pre className="tree">
-{`frontend/                  `}<span className="note"># pnpm monorepo</span>{`
-├── `}<span className="dir">packages/core/</span>{`         `}<span className="note"># 共享类型/业务/状态（框架无关 TS）</span>{`
-├── `}<span className="dir">web/</span>{`                   `}<span className="note"># React + Vite + Ant Design</span>{`
-│   ├── src/{components,pages,store,hooks,utils,styles}
-│   └── tests/
-├── `}<span className="dir">desktop/</span>{`               `}<span className="note"># Electron 复用 web 产物</span>{`
-│   └── src/{main,preload,shared}
-└── `}<span className="dir">mobile/</span>{`                `}<span className="note"># React Native + Expo</span>{`
-    └── src/{screens,components,store}`}
-            </pre>
+            <DirectoryTree />
           </Card>
         </Col>
       </Row>

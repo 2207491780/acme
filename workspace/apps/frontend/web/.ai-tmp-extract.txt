@@ -1,0 +1,161 @@
+ *
+ * 【权限播种口径（round1 裁决⑤）】me.permissions = 后端三段式码（SystemPermissions.java 口径），
+ * 双拼写播种已废除，统一只播三段式。
+ *
+ * 【字典消费面（round1 裁决⑥）】useDict 两步解析：
+ *   GET /admin/v1/system/dict-types（按 dictCode 匹配 typeId）→ GET /admin/v1/system/dict-types/{typeId}/items。
+ */
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { App as AntApp } from 'antd';
+import { HttpResponse, http } from 'msw';
+import { DictSelect } from '../src/components/DictSelect';
+import { server } from '../src/mocks/server';
+import { useAuthStore, useMeStore } from '@acme/core';
+
+vi.setConfig({ testTimeout: 25000 });
+
+// MSW 生命周期：handler 覆盖本用例请求面（me + 字典两步），未覆盖请求显式红灯（照 mswMeStore 迁移口径）
+beforeAll(() => {
+  server.listen({ onUnhandledRequest: 'error' });
+});
+
+afterEach(() => {
+  server.resetHandlers();
+});
+
+afterAll(() => {
+  server.close();
+});
+
+const PERM_DICT_LIST = ['system:dict:list'];
+
+type DictType = {
+  id: string; dictCode: string; dictName: string; status: 'ENABLED' | 'DISABLED';
+  remark: string; createdAt: string; version: string;
+};
+
+type DictItem = {
+  id: string; dictTypeId: string; itemLabel: string; itemValue: string;
+  sortOrder: number; status: 'ENABLED' | 'DISABLED'; version: string;
+};
+
+const dictItem = (id: string, itemLabel: string, itemValue: string, sortOrder: number): DictItem => ({
+  id, dictTypeId: '8801', itemLabel, itemValue, sortOrder, status: 'ENABLED', version: '0',
+});
+
+const ITEMS: DictItem[] = [
+  dictItem('1', '启用', 'ENABLED', 1),
+  dictItem('2', '停用', 'DISABLED', 2),
+];
+
+const stubBrowserGaps = () => {
+  // AntD5 在 jsdom 下的两处环境缺口
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: false, media: query, onchange: null,
+    addListener: vi.fn(), removeListener: vi.fn(),
+    addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+  }));
+  vi.stubGlobal('ResizeObserver', class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  });
+};
+
+/** MSW resolver mock → 与原 fetchMock.mock.calls 同形的调用记录（[Request, { method }]）。 */
+const callsOfResolver = (mock: { mock: { calls: unknown[][] } }): [Request, RequestInit][] =>
+  (mock.mock.calls as { request: Request }[][]).map(([{ request }]) => [request, { method: request.method }]);
+
+const seedMe = (permissions: string[]) => {
+  // me 播种经 MSW 覆盖（web/src/mocks 默认 handler 之上）；返回 resolver mock 备断言
+
+  const meHandler = vi.fn(() => HttpResponse.json({
+    success: true, code: '0', message: null,
+    data: {
+      user: {
+        id: '1001', username: 'admin', nickname: '超级管理员', email: null, phone: null,
+        status: 'ENABLED', builtIn: true, roleIds: [], createdAt: '', updatedAt: '', version: '0',
+      },
+      roles: ['super_admin'],
+      permissions,
+      menus: [],
+    },
+  }, { status: 200 }));
+  server.use(http.get('/admin/v1/system/me', meHandler));
+  return meHandler;
+};
+
+/** 字典消费面两步 handler（裁决⑥）：/dict-types 按 dictCode 出类型（id=8801），/{typeId}/items 出字典项。
+ *  resolver 为 vi.fn（调用记录供断言；MSW 请求入参 { request }）。 */
+const setupDictsApi = (codes: string[]) => {
+  const types: DictType[] = codes.map((code) => ({
+    id: '8801',
+    dictCode: code,
+    dictName: `类型-${code}`,
+    status: 'ENABLED',
+    remark: '',
+    createdAt: '2026-01-01T00:00:00Z',
+    version: '0',
+  }));
+  const typesHandler = vi.fn(({ request: _request }: { request: Request }) => HttpResponse.json({
+    success: true, code: '0', message: null,
+    data: { records: types, total: types.length },
+  }, { status: 200 }));
+  const itemsHandler = vi.fn(() => HttpResponse.json({
+    success: true, code: '0', message: null,
+    data: { records: ITEMS, total: ITEMS.length },
+  }, { status: 200 }));
+  server.use(http.get('/admin/v1/system/dict-types', typesHandler));
+  server.use(http.get('/admin/v1/system/dict-types/:typeId/items', itemsHandler));
+  return { typesHandler, itemsHandler };
+};
+
+/** 受控探针：value/onChange 走真受控回路，onChange 调用序列留档断言。 */
+const Harness = ({ dictCode, calls }: { dictCode: string; calls: string[] }) => {
+  const [value, setValue] = useState<string>('');
+  return (
+    <AntApp>
+      <DictSelect
+        dictCode={dictCode}
+        value={value}
+        onChange={(next: string) => { calls.push(next); setValue(next); }}
+      />
+    </AntApp>
+  );
+};
+
+beforeEach(() => {
+  window.location.hash = '';
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  useAuthStore.getState().clear();
+  useMeStore.getState().clear();
+  stubBrowserGaps();
+});
+
+afterEach(() => {
+  cleanup();
+  server.resetHandlers();
+  vi.unstubAllGlobals();
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  useAuthStore.getState().clear();
+  useMeStore.getState().clear();
+});
+
+describe('REQ20261114120101 DictSelect（AC-3，MSW 驱动迁移样例）', () => {
+  it('should_render_options_from_dict_items_when_permitted', async () => {
+    seedMe(PERM_DICT_LIST);
+    const { typesHandler, itemsHandler } = setupDictsApi(['dict-select-render']);
+    render(<Harness dictCode="dict-select-render" calls={[]} />);
+
+    const combobox = await screen.findByRole('combobox');
+    fireEvent.mouseDown(combobox);
+    // 选项按字典项渲染：itemLabel 展示
+    expect(await screen.findByText('启用')).toBeTruthy();
+    expect(screen.getByText('停用')).toBeTruthy();
+    // 选项来自字典消费面两步序列（裁决⑥）：类型清单 + 字典项各至少一次
+    const getsOf = (calls: [Request, RequestInit][], part: string) => calls.filter(
+      ([input, init]) => {

@@ -1,4 +1,5 @@
 import { App, Col, Form, Input, Modal, Row, Select } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { CheckOutlined } from '@ant-design/icons';
 import type { Health } from '@acme/core';
 import { useStore } from '../store/useStore';
@@ -14,6 +15,7 @@ interface AppFormValues {
 }
 
 export function AppFormModal() {
+  const { t } = useTranslation();
   const { message } = App.useApp();
   const modal = useStore((s) => s.modal);
   const app = useStore((s) => s.state.apps.find((a) => modal?.type === 'app' && a.id === modal.id));
@@ -39,18 +41,18 @@ export function AppFormModal() {
         description: values.description.trim(),
       },
     });
-    message.success('应用信息已更新');
+    message.success(t('apps.form.updated'));
     closeModal();
   };
 
   return (
     <Modal
-      title={`编辑应用 · ${app?.name || ''}`}
+      title={t('apps.form.title', { name: app?.name || '' })}
       open={open}
       onCancel={closeModal}
       onOk={() => form.submit()}
-      okText="保存"
-      cancelText="取消"
+      okText={t('apps.form.ok')}
+      cancelText={t('apps.form.cancel')}
       okButtonProps={{ icon: <CheckOutlined /> }}
       destroyOnHidden
       width={600}
@@ -58,40 +60,40 @@ export function AppFormModal() {
       <Form key={modal?.type === 'app' ? modal.id : 'app'} form={form} layout="vertical" onFinish={onFinish} requiredMark preserve={false} initialValues={initialValues}>
         <Row gutter={16}>
           <Col span={12}>
-            <Form.Item name="name" label="应用名称" rules={[{ required: true, message: '请输入应用名称' }]}>
+            <Form.Item name="name" label={t('apps.form.name')} rules={[{ required: true, message: t('apps.form.nameRequired') }]}>
               <Input allowClear />
             </Form.Item>
           </Col>
           <Col span={12}>
             <Form.Item
               name="version"
-              label="当前版本"
+              label={t('apps.form.version')}
               rules={[
-                { required: true, message: '请输入版本号' },
-                { pattern: VERSION_RE, message: '版本号格式应为 1.2.3' },
+                { required: true, message: t('apps.form.versionRequired') },
+                { pattern: VERSION_RE, message: t('apps.form.versionPattern') },
               ]}
             >
               <Input allowClear />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="owner" label="负责人" rules={[{ required: true, message: '请输入负责人' }]}>
+            <Form.Item name="owner" label={t('apps.form.owner')} rules={[{ required: true, message: t('apps.form.ownerRequired') }]}>
               <Input allowClear />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="health" label="健康度" rules={[{ required: true }]}>
+            <Form.Item name="health" label={t('apps.form.health')} rules={[{ required: true }]}>
               <Select
                 options={[
-                  { value: 'healthy', label: '健康' },
-                  { value: 'warning', label: '关注' },
-                  { value: 'critical', label: '异常' },
+                  { value: 'healthy', label: t('apps.form.healthOptions.healthy') },
+                  { value: 'warning', label: t('apps.form.healthOptions.warning') },
+                  { value: 'critical', label: t('apps.form.healthOptions.critical') },
                 ]}
               />
             </Form.Item>
           </Col>
           <Col span={24}>
-            <Form.Item name="description" label="描述">
+            <Form.Item name="description" label={t('apps.form.description')}>
               <Input.TextArea rows={3} />
             </Form.Item>
           </Col>

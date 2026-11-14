@@ -1,4 +1,5 @@
 import { Button, Select, Spin } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { useDict, useMeStore } from '@acme/core';
 
 export interface DictSelectProps {
@@ -33,7 +34,8 @@ export function DictSelect({
   id,
   'aria-label': ariaLabel,
 }: DictSelectProps) {
-  const permissions = useMeStore((s) => s.me?.permissions ?? []);
+  const { t } = useTranslation();
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
   const { items, loading, error, refresh } = useDict(dictCode);
 
   if (!permissions.includes(permission)) {
@@ -60,7 +62,7 @@ export function DictSelect({
         error ? (
           <span>
             {error}
-            <Button type="link" size="small" onClick={refresh}>重试</Button>
+            <Button type="link" size="small" onClick={refresh}>{t('components.dictSelect.retry')}</Button>
           </span>
         ) : (
           <Spin size="small" />

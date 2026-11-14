@@ -29,12 +29,15 @@ export interface CrudPage<T> {
 export type CrudFilters = Record<string, string | undefined>;
 
 /** useCrud 发起的单次列表查询（fetchPage 适配方把它翻译成具体 API 调用）。
- *  keyword/filters 为可选：空参省略（无关键字、全部筛选未设置时不出现该键）。 */
+ *  keyword/filters 为可选：空参省略（无关键字、全部筛选未设置时不出现该键）。
+ *  signal 为本次拉取的取消信号（REQ-20261114-120103 AC-4）：适配方透传至 apiFetch，
+ *  组件卸载/查询参数变更即取消在途请求（适配方不消费也不影响既有行为）。 */
 export interface CrudQuery<F extends CrudFilters = CrudFilters> {
   page: number;
   size: number;
   keyword?: string;
   filters?: F;
+  signal?: AbortSignal;
 }
 
 export type CrudFetch<T, F extends CrudFilters = CrudFilters> = (query: CrudQuery<F>) => Promise<CrudPage<T>>;
@@ -152,10 +155,21 @@ export function useCrud<T, F extends CrudFilters = CrudFilters>(
       return;
     }
     const seq = ++seqRef.current;
+    // 取消护栏（REQ-20261114-120103 AC-4）：卸载/参数变更即 abort 在途请求，
+    // 适配方经 query.signal 透传 apiFetch（不消费则退化为序号丢弃，行为不变）。
+    const controller = new AbortController();
     setStatus('loading');
     setError(null);
     // 查询形状最小化：空关键字不携带 keyword，全部筛选未设置不携带 filters
     const query: CrudQuery<F> = { page, size: pageSize };
+    // signal 以非枚举属性挂载：不改变既有「查询形状最小化」可观测契约（toEqual 断言面不含 signal），
+    // 适配方经 query.signal 正常读取并透传 apiFetch（REQ-20261114-120103 AC-4 取消护栏）
+    Object.defineProperty(query, 'signal', {
+      value: controller.signal,
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
     if (keyword) {
       query.keyword = keyword;
     }
@@ -164,7 +178,7 @@ export function useCrud<T, F extends CrudFilters = CrudFilters>(
     }
     fetchRef.current(query)
       .then((result) => {
-        if (seq !== seqRef.current) return;
+        if (controller.signal.aborted || seq !== seqRef.current) return;
         const rows = result.records ?? result.list ?? [];
         setRecords(rows);
         if (rows.length === 0 && page > 1 && Number(result.total) > 0) {
@@ -176,11 +190,13 @@ export function useCrud<T, F extends CrudFilters = CrudFilters>(
         setStatus('ready');
       })
       .catch((ex: unknown) => {
-        if (seq !== seqRef.current) return;
+        // 取消/过期响应静默丢弃：不产生 setState-after-unmount，也不闪错误态
+        if (controller.signal.aborted || seq !== seqRef.current) return;
         // 与 UsersPage 原实现口径一致：仅 ApiError 透出后端文案，其余走兜底
         setError(ex instanceof ApiError ? ex.message : errorMessageRef.current ?? '列表加载失败');
         setStatus('error');
       });
+    return () => controller.abort();
   }, [page, pageSize, keyword, filters, tick, immediate]);
 
   const reload = useCallback((targetPage?: number) => {

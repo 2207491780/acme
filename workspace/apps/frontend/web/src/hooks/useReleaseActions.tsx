@@ -1,7 +1,9 @@
 import { App, Button } from 'antd';
+import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStore';
 
 export function useDeleteReleases() {
+  const { t } = useTranslation();
   const { notification, message } = App.useApp();
   const deleteReleases = useStore((s) => s.deleteReleases);
   const dispatch = useStore((s) => s.dispatch);
@@ -12,8 +14,8 @@ export function useDeleteReleases() {
     const key = `undo-${Date.now()}`;
     notification.warning({
       key,
-      message: `已删除 ${items.length} 个发布单`,
-      description: '删除后可在限定时间内撤销恢复。',
+      message: t('releases.deleteActions.deleted', { n: items.length }),
+      description: t('releases.deleteActions.desc'),
       duration: 5.2,
       actions: [
         <Button
@@ -23,13 +25,13 @@ export function useDeleteReleases() {
             const ok = dispatch({ type: 'RESTORE_RELEASES', items });
             if (ok) {
               notification.destroy(key);
-              message.success('已恢复删除的发布单');
+              message.success(t('releases.deleteActions.restored'));
             } else {
-              message.warning('未恢复：数据可能已变化，请检查后重试');
+              message.warning(t('releases.deleteActions.restoreConflict'));
             }
           }}
         >
-          撤销
+          {t('common.actions.undo')}
         </Button>,
       ],
     });
