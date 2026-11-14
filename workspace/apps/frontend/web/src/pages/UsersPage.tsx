@@ -65,7 +65,7 @@ export function UsersPage() {
 
   // 权限就绪后加载角色目录（选择器数据源）
   useEffect(() => {
-    if (crud.can('USER_ASSIGN_ROLE')) {
+    if (crud.can('system:user:assign-role')) {
       systemApi.roleList()
         .then((result) => setRoles(result.records))
         .catch(() => setRoles([]));
@@ -194,14 +194,14 @@ export function UsersPage() {
       title: '操作', key: 'actions', width: 300,
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('USER_UPDATE') ? <Button size="small" onClick={() => openEdit(record)}>编辑</Button> : null}
-          {crud.can('USER_ASSIGN_ROLE') ? <Button size="small" onClick={() => openBind(record)}>分配角色</Button> : null}
-          {crud.can('USER_UPDATE') ? (
+          {crud.can('system:user:update') ? <Button size="small" onClick={() => openEdit(record)}>编辑</Button> : null}
+          {crud.can('system:user:assign-role') ? <Button size="small" onClick={() => openBind(record)}>分配角色</Button> : null}
+          {crud.can('system:user:update') ? (
             <Popconfirm title={`确认${record.status === 'ENABLED' ? '停用' : '启用'} ${record.username}？`} onConfirm={() => void toggleStatus(record)}>
               <Button size="small" danger={record.status === 'ENABLED'}>{record.status === 'ENABLED' ? '停用' : '启用'}</Button>
             </Popconfirm>
           ) : null}
-          {crud.can('USER_DELETE') && !record.builtIn ? (
+          {crud.can('system:user:delete') && !record.builtIn ? (
             <Popconfirm title={`确认删除用户 ${record.username}？`} onConfirm={() => void remove(record)}>
               <Button size="small" danger>删除</Button>
             </Popconfirm>
@@ -221,7 +221,7 @@ export function UsersPage() {
         searchPlaceholder="搜索账号"
         searchWidth={200}
         reloadAriaLabel="刷新用户清单"
-        createPermission="USER_CREATE"
+        createPermission="system:user:create"
         createLabel="新建用户"
         onCreate={openCreate}
         totalText={(t) => `共 ${t} 个用户`}

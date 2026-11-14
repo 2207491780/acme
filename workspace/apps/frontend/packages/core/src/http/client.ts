@@ -96,6 +96,37 @@ export async function apiFetch<T>(
 }
 
 /**
+ * 原始响应获取（文件流下载/导出等二进制端点）：与 apiFetch 同源携带鉴权并复用
+ * 单飞续约（401 续约一次后原样重试；续约失败清会话回登录页），不做信封解析——
+ * 响应体形态（blob/流）与 Content-Disposition（下载原名）由调用方自行处理。
+ */
+export async function apiFetchRaw(
+  path: string,
+  init: RequestInit = {},
+  options: { auth?: boolean; retried?: boolean } = {},
+): Promise<Response> {
+  const { auth = true, retried = false } = options;
+  const headers = new Headers(init.headers);
+  const session = useAuthStore.getState().session;
+  if (auth && session) {
+    headers.set('Authorization', `Bearer ${session.accessToken}`);
+  }
+  const res = await fetch(path, { ...init, headers });
+  if (res.status === 401 && auth && !retried) {
+    const renewed = await renewOnce();
+    if (renewed) {
+      return apiFetchRaw(path, init, { auth, retried: true });
+    }
+    useAuthStore.getState().clear();
+    if (window.location.hash !== '#/login') {
+      window.location.hash = '#/login';
+    }
+    throw new ApiError(401, 'AUTH_REQUIRED', '登录状态已失效，请重新登录');
+  }
+  return res;
+}
+
+/**
  * 续约守护循环（login-renew）：每 30s 巡检，令牌将在 2 分钟内过期即滑动续约；
  * 续约失败且已实际过期 → 清会话回登录页。返回停止函数（App 卸载时清理）。
  */

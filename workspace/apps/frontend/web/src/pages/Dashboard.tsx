@@ -3,6 +3,7 @@ import {
   AppstoreOutlined,
   ClockCircleOutlined,
   DashboardOutlined,
+  FolderOpenOutlined,
   PlusOutlined,
   RocketOutlined,
   ThunderboltOutlined,
@@ -16,6 +17,7 @@ import {
   sortReleases,
   statusLabel,
   statusTone,
+  useMeStore,
   type Platform,
   type Status,
   type Tone,
@@ -48,6 +50,8 @@ export function Dashboard() {
   const setQuery = useStore((s) => s.setQuery);
   const openDrawer = useStore((s) => s.openDrawer);
   const openModal = useStore((s) => s.openModal);
+  // 文件管理入口（REQ-20261114-120101）：按权限显隐（fail-closed），路由仍由 /files 权限门禁守护
+  const canFiles = useMeStore((s) => (s.me?.permissions ?? []).includes('infra:file:list'));
 
   const m = metrics(state);
   const recent = sortReleases(state.releases, 'updated', state.order).slice(0, 5);
@@ -82,6 +86,11 @@ export function Dashboard() {
               <Button type="text" icon={<AppstoreOutlined />} onClick={() => navigate('/apps')}>
                 应用结构
               </Button>
+              {canFiles ? (
+                <Button type="text" icon={<FolderOpenOutlined />} onClick={() => navigate('/files')}>
+                  文件管理
+                </Button>
+              ) : null}
             </Space>
           </div>
           <div className="hero-stats">

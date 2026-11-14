@@ -2,8 +2,12 @@ import type { ReactNode } from 'react';
 import { Alert, Button, Card, Input, Space, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { GetRowKey } from 'antd/es/table/interface';
+import type { TableProps } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { CrudController } from '@acme/core';
+
+type RowClassName<T> = (record: T, index: number) => string;
+type OnRow<T> = NonNullable<TableProps<T>['onRow']>;
 
 export interface CrudTableProps<T extends object, F extends Record<string, string | undefined> = Record<string, string | undefined>> {
   /** useCrud headless 状态机控制器（@acme/core）。 */
@@ -33,6 +37,18 @@ export interface CrudTableProps<T extends object, F extends Record<string, strin
   reloadAriaLabel?: string;
   /** 分页总数文案（默认「共 X 条」）。 */
   totalText?: (total: number) => string;
+  /** 表格尺寸（透传 antd Table size；主从/紧凑表用 small）。 */
+  size?: TableProps<T>['size'];
+  /** 行点击等事件（透传 antd Table onRow；主从表行选中）。 */
+  onRow?: OnRow<T>;
+  /** 行类名（透传 antd Table rowClassName；选中行高亮）。 */
+  rowClassName?: RowClassName<T>;
+  /** 是否分页（默认 true；树形/全量小表传 false 隐藏分页器）。 */
+  paged?: boolean;
+  /** 卡片体内、表格之上的筛选面板（表单驱动筛选页保持原有布局）。 */
+  filterPanel?: ReactNode;
+  /** 卡片体内、表格之下的补充内容（操作提示等）。 */
+  footer?: ReactNode;
 }
 
 /**
@@ -55,6 +71,12 @@ export function CrudTable<T extends object, F extends Record<string, string | un
   onCreate,
   reloadAriaLabel = '刷新列表',
   totalText,
+  size,
+  onRow,
+  rowClassName,
+  paged = true,
+  filterPanel,
+  footer,
 }: CrudTableProps<T, F>) {
   return (
     <Card
@@ -78,6 +100,7 @@ export function CrudTable<T extends object, F extends Record<string, string | un
         </Space>
       }
     >
+      {filterPanel}
       {crud.error ? (
         <Alert
           type="error"
@@ -92,14 +115,18 @@ export function CrudTable<T extends object, F extends Record<string, string | un
         columns={columns}
         dataSource={crud.records}
         loading={crud.loading}
-        pagination={{
+        size={size}
+        onRow={onRow}
+        rowClassName={rowClassName}
+        pagination={paged ? {
           current: crud.page,
           pageSize: crud.size,
           total: crud.total,
           showTotal: totalText ?? ((t) => `共 ${t} 条`),
           onChange: (p) => crud.gotoPage(p),
-        }}
+        } : false}
       />
+      {footer}
     </Card>
   );
 }

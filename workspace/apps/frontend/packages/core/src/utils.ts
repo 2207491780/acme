@@ -96,3 +96,21 @@ export function statusTone(s: Status | string): Tone {
     })[s as Status] || 'muted'
   ) as Tone;
 }
+
+/** 文件大小人性化展示（1024 进制；<1KB 展示 B；两位小数去掉尾零）。 */
+export function formatFileSize(size: number): string {
+  if (!Number.isFinite(size) || size < 0) {
+    return '—';
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = size;
+  let unitIndex = -1;
+  do {
+    value /= 1024;
+    unitIndex += 1;
+  } while (value >= 1024 && unitIndex < units.length - 1);
+  return `${parseFloat(value.toFixed(2))} ${units[unitIndex]}`;
+}

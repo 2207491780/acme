@@ -241,9 +241,15 @@ export const systemApi = {
     apiFetch<void>(`/admin/v1/system/permissions/${permissionId}`, { method: 'DELETE' }),
 
   // ---- 菜单管理（MENU_* 权限码，P3） ----
-  /** 菜单树（全量；前端渲染树形表格）。 */
-  menuTree: (): Promise<AdminMenuView[]> =>
-    apiFetch<AdminMenuView[]>('/admin/v1/system/menus'),
+  /** 菜单树（全量；前端渲染树形表格）。page/size 为可选分页参数：全量树不截断，
+   *  仅用于统一列表请求携带分页口径（后端按全量返回）。 */
+  menuTree: (page?: number, size?: number): Promise<AdminMenuView[]> => {
+    const qs = new URLSearchParams();
+    if (page !== undefined) qs.set('page', String(page));
+    if (size !== undefined) qs.set('size', String(size));
+    const suffix = page !== undefined || size !== undefined ? `?${qs.toString()}` : '';
+    return apiFetch<AdminMenuView[]>(`/admin/v1/system/menus${suffix}`);
+  },
   /** 新建菜单（parentId 空=根；menuType DIRECTORY|MENU）。 */
   menuCreate: (payload: { parentId?: number | null; menuName: string; menuType: string; path?: string; component?: string; icon?: string; sortOrder: number; visible?: boolean; permissionCode?: string }): Promise<AdminMenuView> =>
     apiFetch<AdminMenuView>('/admin/v1/system/menus', {
@@ -283,9 +289,15 @@ export const systemApi = {
   /** 删除字典类型（含条目时由后端拒绝）。 */
   dictTypeDelete: (typeId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/dict-types/${typeId}`, { method: 'DELETE' }),
-  /** 字典条目全量清单（按类型）。 */
-  dictItemList: (typeId: string): Promise<AdminDictItemView[]> =>
-    apiFetch<AdminDictItemView[]>(`/admin/v1/system/dict-types/${typeId}/items`),
+  /** 字典条目清单（按类型）。page/size 可选：useDict 消费时传大页取全量（确认记录⑥）；
+   *  缺省不携带查询参数（既有管理端调用不变）。 */
+  dictItemList: (typeId: string, page?: number, size?: number): Promise<AdminDictItemView[]> => {
+    const qs = new URLSearchParams();
+    if (page !== undefined) qs.set('page', String(page));
+    if (size !== undefined) qs.set('size', String(size));
+    const suffix = page !== undefined || size !== undefined ? `?${qs.toString()}` : '';
+    return apiFetch<AdminDictItemView[]>(`/admin/v1/system/dict-types/${typeId}/items${suffix}`);
+  },
   /** 新建字典条目。 */
   dictItemCreate: (typeId: string, payload: { itemLabel: string; itemValue: string; sortOrder: number }): Promise<AdminDictItemView> =>
     apiFetch<AdminDictItemView>(`/admin/v1/system/dict-types/${typeId}/items`, {

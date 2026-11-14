@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
+import { useState } from 'react';
+import { App, Button, Form, Input, InputNumber, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { ApiError, systemApi, useMeStore, type AdminMenuView } from '@acme/core';
+import { ApiError, systemApi, useCrud, useMeStore, type AdminMenuView } from '@acme/core';
+import { CrudFormModal } from '../components/CrudFormModal';
+import { CrudTable } from '../components/CrudTable';
 
 const { Text } = Typography;
 
@@ -23,35 +24,30 @@ interface MenuFormValues {
   permissionCode?: string;
 }
 
-/** 菜单管理（p3-admin）：树形表格全量展示 + 新建/编辑/删除；parent 下拉来自当前树。 */
+/** 菜单管理（p3-admin）：树形表格全量展示 + 新建/编辑/删除；parent 下拉来自当前树。
+ *  迁移 CRUD 范本（REQ-20261114-120101）：useCrud + CrudTable（树表 paged=false、无搜索）+ CrudFormModal。 */
 export function MenusPage() {
   const { message } = App.useApp();
   const permissions = useMeStore((s) => s.me?.permissions ?? []);
-  const can = (code: string) => permissions.includes(code);
 
-  const [tree, setTree] = useState<AdminMenuView[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const crud = useCrud<AdminMenuView>({
+    // 全量树：page/size 仅随请求携带（统一列表分页口径），后端按全量返回；
+    // 响应兼容运行时校验：数组（既有口径）或 { records } 分页信封（外部输入不信任）
+    fetchPage: async ({ page, size }) => {
+      const tree = await systemApi.menuTree(page, size);
+      const rows = Array.isArray(tree)
+        ? tree
+        : ((tree as unknown as { records?: AdminMenuView[] }).records ?? []);
+      return { records: rows, total: rows.length };
+    },
+    permissions,
+    errorMessage: '菜单树加载失败',
+  });
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminMenuView | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<MenuFormValues>();
-
-  const reload = useCallback(() => {
-    setLoading(true);
-    setLoadError(null);
-    systemApi.menuTree()
-      .then(setTree)
-      .catch((ex: unknown) => {
-        setLoadError(ex instanceof ApiError ? ex.message : '菜单树加载失败');
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    reload();
-  }, [reload]);
 
   const openCreate = (parentId?: number) => {
     setEditing(null);
@@ -108,7 +104,7 @@ export function MenusPage() {
       }
       setEditing(null);
       setCreating(false);
-      reload();
+      crud.reload();
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : '操作失败，请稍后重试');
     } finally {
@@ -120,7 +116,7 @@ export function MenusPage() {
     try {
       await systemApi.menuDelete(record.id);
       message.success(`菜单 ${record.menuName} 已删除`);
-      reload();
+      crud.reload();
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : '删除失败，请稍后重试');
     }
@@ -141,9 +137,9 @@ export function MenusPage() {
       title: '操作', key: 'actions', width: 180,
       render: (_, record) => (
         <Space size={4}>
-          {can('MENU_UPDATE') ? <Button size="small" onClick={() => openEdit(record)}>编辑</Button> : null}
-          {can('MENU_CREATE') ? <Button size="small" onClick={() => openCreate(record.id)}>加子项</Button> : null}
-          {can('MENU_DELETE') ? (
+          {crud.can('system:menu:update') ? <Button size="small" onClick={() => openEdit(record)}>编辑</Button> : null}
+          {crud.can('system:menu:create') ? <Button size="small" onClick={() => openCreate(record.id)}>加子项</Button> : null}
+          {crud.can('system:menu:delete') ? (
             <Popconfirm title={`确认删除菜单 ${record.menuName}？`} onConfirm={() => void remove(record)}>
               <Button size="small" danger>删除</Button>
             </Popconfirm>
@@ -154,83 +150,70 @@ export function MenusPage() {
   ];
 
   return (
-    <Card
-      title="菜单管理"
-      extra={
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={reload} aria-label="刷新菜单树" />
-          {can('MENU_CREATE') ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate()}>新建根菜单</Button>
-          ) : null}
-        </Space>
-      }
-    >
-      {loadError && (
-        <Alert type="error" showIcon style={{ marginBottom: 16 }} message={loadError}
-          action={<Button size="small" onClick={reload}>重试</Button>} />
-      )}
-      <Table<AdminMenuView>
-        rowKey="id"
+    <>
+      <CrudTable<AdminMenuView>
+        crud={crud}
+        title="菜单管理"
         columns={columns}
-        dataSource={tree}
-        loading={loading}
-        defaultExpandAllRows
-        pagination={false}
+        searchable={false}
+        paged={false}
+        reloadAriaLabel="刷新菜单树"
+        createPermission="system:menu:create"
+        createLabel="新建根菜单"
+        onCreate={() => openCreate()}
       />
 
-      <Modal
+      <CrudFormModal<MenuFormValues>
         open={creating || editing !== null}
         title={editing ? `编辑菜单：${editing.menuName}` : '新建菜单'}
-        onCancel={() => { setCreating(false); setEditing(null); }}
+        form={form}
+        submitting={submitting}
         onOk={() => void submit()}
-        confirmLoading={submitting}
-        destroyOnClose
+        onCancel={() => { setCreating(false); setEditing(null); }}
       >
-        <Form form={form} layout="vertical">
-          <Form.Item name="parentId" label="父级菜单（可选）">
-            <Select
-              allowClear
-              placeholder="不选则为根节点"
-              optionFilterProp="label"
-              showSearch
-              options={flattenMenuOptions(tree)}
-            />
-          </Form.Item>
-          <Form.Item name="menuName" label="菜单名称" rules={[{ required: true, message: '请输入菜单名称' }, { min: 1, max: 64, message: '长度 1–64 字符' }]}>
-            <Input placeholder="菜单显示名称" />
-          </Form.Item>
-          <Form.Item name="menuType" label="类型" rules={[{ required: true, message: '请选择类型' }]}>
-            <Select options={MENU_TYPES} />
-          </Form.Item>
-          <Form.Item name="path" label="路径" rules={[{ max: 255, message: '长度不超过 255 字符' }]}>
-            <Input placeholder="如 /tenants（叶子页面填路由）" autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="component" label="组件" rules={[{ max: 255, message: '长度不超过 255 字符' }]}>
-            <Input placeholder="选填，组件标识" autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="icon" label="图标" rules={[{ max: 64, message: '长度不超过 64 字符' }]}>
-            <Input placeholder="选填，图标标识" autoComplete="off" />
-          </Form.Item>
-          <Form.Item name="sortOrder" label="排序" rules={[{ required: true, message: '请输入排序号' }]}>
-            <InputNumber min={0} max={9999} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="visible" valuePropName="checked" label="可见">
-            <Select
-              options={[
-                { value: true, label: '可见' },
-                { value: false, label: '隐藏' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="permissionCode" label="权限码" rules={[{ max: 128, message: '长度不超过 128 字符' }]}>
-            <Input placeholder="选填，菜单级权限码" autoComplete="off" />
-          </Form.Item>
-          {editing ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>按乐观锁提交（版本 {editing.version}）；冲突时请刷新后重试。</Text>
-          ) : null}
-        </Form>
-      </Modal>
-    </Card>
+        <Form.Item name="parentId" label="父级菜单（可选）">
+          <Select
+            allowClear
+            placeholder="不选则为根节点"
+            optionFilterProp="label"
+            showSearch
+            options={flattenMenuOptions(crud.records)}
+          />
+        </Form.Item>
+        <Form.Item name="menuName" label="菜单名称" rules={[{ required: true, message: '请输入菜单名称' }, { min: 1, max: 64, message: '长度 1–64 字符' }]}>
+          <Input placeholder="菜单显示名称" />
+        </Form.Item>
+        <Form.Item name="menuType" label="类型" rules={[{ required: true, message: '请选择类型' }]}>
+          <Select options={MENU_TYPES} />
+        </Form.Item>
+        <Form.Item name="path" label="路径" rules={[{ max: 255, message: '长度不超过 255 字符' }]}>
+          <Input placeholder="如 /tenants（叶子页面填路由）" autoComplete="off" />
+        </Form.Item>
+        <Form.Item name="component" label="组件" rules={[{ max: 255, message: '长度不超过 255 字符' }]}>
+          <Input placeholder="选填，组件标识" autoComplete="off" />
+        </Form.Item>
+        <Form.Item name="icon" label="图标" rules={[{ max: 64, message: '长度不超过 64 字符' }]}>
+          <Input placeholder="选填，图标标识" autoComplete="off" />
+        </Form.Item>
+        <Form.Item name="sortOrder" label="排序" rules={[{ required: true, message: '请输入排序号' }]}>
+          <InputNumber min={0} max={9999} style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="visible" valuePropName="checked" label="可见">
+          <Select
+            options={[
+              { value: true, label: '可见' },
+              { value: false, label: '隐藏' },
+            ]}
+          />
+        </Form.Item>
+        <Form.Item name="permissionCode" label="权限码" rules={[{ max: 128, message: '长度不超过 128 字符' }]}>
+          <Input placeholder="选填，菜单级权限码" autoComplete="off" />
+        </Form.Item>
+        {editing ? (
+          <Text type="secondary" style={{ fontSize: 12 }}>按乐观锁提交（版本 {editing.version}）；冲突时请刷新后重试。</Text>
+        ) : null}
+      </CrudFormModal>
+    </>
   );
 }
 
@@ -245,4 +228,3 @@ function flattenMenuOptions(nodes: AdminMenuView[], depth = 0): { value: string;
   }
   return out;
 }
-

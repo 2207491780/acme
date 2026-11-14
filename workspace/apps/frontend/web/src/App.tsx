@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Tooltip } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import {
@@ -37,7 +37,9 @@ import { PermissionsPage } from './pages/PermissionsPage';
 import { MenusPage } from './pages/MenusPage';
 import { DictsPage } from './pages/DictsPage';
 import { AuditPage } from './pages/AuditPage';
+import { FilesPage } from './pages/FilesPage';
 import { LoginPage } from './pages/LoginPage';
+import { buildDynamicNav, type NavEntry } from './nav';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
 import { SaveViewModal } from './components/SaveViewModal';
@@ -88,18 +90,18 @@ function PermissionGate({ permission, children }: { permission: string; children
   return <>{children}</>;
 }
 
-const NAV: { key: string; path: string; icon: ReactNode; label: string; permission?: string }[] = [
-  { key: 'dashboard', path: '/', icon: <DashboardOutlined />, label: '概览' },
-  { key: 'releases', path: '/releases', icon: <UnorderedListOutlined />, label: '发布单' },
-  { key: 'apps', path: '/apps', icon: <AppstoreOutlined />, label: '应用结构' },
-  { key: 'tenants', path: '/tenants', icon: <ApartmentOutlined />, label: '租户管理', permission: 'TENANT_LIST' },
-  { key: 'users', path: '/users', icon: <UserOutlined />, label: '用户管理', permission: 'USER_LIST' },
-  { key: 'roles', path: '/roles', icon: <TeamOutlined />, label: '角色管理', permission: 'system:role:list' },
-  { key: 'permissions', path: '/permissions', icon: <SafetyCertificateOutlined />, label: '权限管理', permission: 'system:permission:list' },
-  { key: 'menus', path: '/menus', icon: <MenuOutlined />, label: '菜单管理', permission: 'system:menu:list' },
-  { key: 'dicts', path: '/dicts', icon: <BookOutlined />, label: '字典管理', permission: 'system:dict:list' },
-  { key: 'audit', path: '/audit', icon: <FileSearchOutlined />, label: '审计事件', permission: 'infra:audit:list' },
-  { key: 'settings', path: '/settings', icon: <SettingOutlined />, label: '设置' },
+const NAV: { path: string; icon: ReactNode; label: string; permission?: string }[] = [
+  { path: '/', icon: <DashboardOutlined />, label: '概览' },
+  { path: '/releases', icon: <UnorderedListOutlined />, label: '发布单' },
+  { path: '/apps', icon: <AppstoreOutlined />, label: '应用结构' },
+  { path: '/tenants', icon: <ApartmentOutlined />, label: '租户管理', permission: 'system:tenant:list' },
+  { path: '/users', icon: <UserOutlined />, label: '用户管理', permission: 'system:user:list' },
+  { path: '/roles', icon: <TeamOutlined />, label: '角色管理', permission: 'system:role:list' },
+  { path: '/permissions', icon: <SafetyCertificateOutlined />, label: '权限管理', permission: 'system:permission:list' },
+  { path: '/menus', icon: <MenuOutlined />, label: '菜单管理', permission: 'system:menu:list' },
+  { path: '/dicts', icon: <BookOutlined />, label: '字典管理', permission: 'system:dict:list' },
+  { path: '/audit', icon: <FileSearchOutlined />, label: '审计事件', permission: 'infra:audit:list' },
+  { path: '/settings', icon: <SettingOutlined />, label: '设置' },
 ];
 
 export function App() {
@@ -191,7 +193,7 @@ export function App() {
   }
 
   const activeCount = releases.filter((r) => ACTIVE_STATUSES.includes(r.status)).length;
-  const current = location.pathname === '/' ? 'dashboard' : location.pathname.slice(1);
+  const current = location.pathname;
   const platform = detectPlatform();
   const runtimeLabel = platform === 'desktop' ? 'Electron 桌面端' : platform === 'mobile' ? '移动端' : 'Web 端';
 
@@ -207,19 +209,33 @@ export function App() {
 
   // 导航按权限过滤（p2-admin）：me 未加载时先全部隐藏，加载后按权限码展示（fail-closed）
   const permittedNav = NAV.filter((n) => !n.permission || (me?.permissions.includes(n.permission) ?? false));
-  const menuItems: MenuProps['items'] = permittedNav.map((n) => ({
-    key: n.key,
-    icon: n.icon,
-    label:
-      n.key === 'releases' ? (
-        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {n.label}
-          <Badge count={activeCount} size="small" color="var(--accent)" />
-        </span>
-      ) : (
-        n.label
-      ),
-  }));
+  // 导航动态化（REQ-20261114-120101，AC-7）：登录后按 me.menus 菜单树渲染（含权限码过滤）；
+  // menus 缺失/为空/过滤后无可见项 → 回退静态 NAV（fail-closed 不变）；仅控显隐，不做动态路由注册。
+  const labelOf = (n: NavEntry) =>
+    n.path === '/releases' ? (
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {n.label}
+        <Badge count={activeCount} size="small" color="var(--accent)" />
+      </span>
+    ) : (
+      n.label
+    );
+  const dynamicNav = useMemo(
+    () => (me && (me.menus?.length ?? 0) > 0 ? buildDynamicNav(me.menus, me.permissions, (_label, entry) => labelOf(entry)) : null),
+    // labelOf 依赖 activeCount（发布单活跃数），随渲染更新
+    [me, activeCount],
+  );
+  // 动态菜单的目录分组默认展开（受控）：保证分组子项在侧边导航直达可见
+  const [navOpenKeys, setNavOpenKeys] = useState<string[] | undefined>(undefined);
+  useEffect(() => {
+    if (dynamicNav) {
+      setNavOpenKeys(dynamicNav.openKeys);
+    }
+  }, [dynamicNav]);
+  // 底栏/点击守卫用的扁平叶子集合（动态取菜单树叶子；回退取静态 NAV）
+  const navEntries: NavEntry[] = dynamicNav?.entries ?? permittedNav;
+  const leafPaths = new Set(navEntries.map((n) => n.path));
+  const menuItems: MenuProps['items'] = dynamicNav?.items ?? permittedNav.map((n) => ({ key: n.path, icon: n.icon, label: labelOf(n) }));
 
   const renderNav = (expanded: boolean) => (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -238,7 +254,9 @@ export function App() {
         mode="inline"
         selectedKeys={[current]}
         items={menuItems}
-        onClick={({ key }) => go(permittedNav.find((n) => n.key === key)?.path || '/')}
+        openKeys={navOpenKeys}
+        onOpenChange={(keys) => setNavOpenKeys(keys as string[])}
+        onClick={({ key }) => go(leafPaths.has(key) ? key : '/')}
         style={{ border: 'none', padding: '0 8px' }}
       />
       {expanded && (
@@ -358,7 +376,7 @@ export function App() {
               <Route
                 path="/tenants"
                 element={(
-                  <PermissionGate permission="TENANT_LIST">
+                  <PermissionGate permission="system:tenant:list">
                     <TenantsPage />
                   </PermissionGate>
                 )}
@@ -366,7 +384,7 @@ export function App() {
               <Route
                 path="/users"
                 element={(
-                  <PermissionGate permission="USER_LIST">
+                  <PermissionGate permission="system:user:list">
                     <UsersPage />
                   </PermissionGate>
                 )}
@@ -411,6 +429,14 @@ export function App() {
                   </PermissionGate>
                 )}
               />
+              <Route
+                path="/files"
+                element={(
+                  <PermissionGate permission="infra:file:list">
+                    <FilesPage />
+                  </PermissionGate>
+                )}
+              />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -420,8 +446,8 @@ export function App() {
 
       {isMobile && (
         <nav className="mobile-nav" aria-label="移动导航">
-          {permittedNav.map((n) => (
-            <button key={n.key} className={current === n.key ? 'active' : ''} onClick={() => go(n.path)}>
+          {navEntries.map((n) => (
+            <button key={n.path} className={current === n.path ? 'active' : ''} onClick={() => go(n.path)}>
               {n.icon}
               <span>{n.label}</span>
             </button>

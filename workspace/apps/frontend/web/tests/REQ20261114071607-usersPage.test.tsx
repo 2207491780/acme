@@ -7,7 +7,7 @@
  * 【表面口径（TL 裁决⑨对齐，前端工人已核实的行为事实）】
  *   - authStore/meStore 经 @acme/core 引入（AC-16 下沉后 web/src/store/* 路径已删除）
  *   - UsersPage 为命名导出 export function UsersPage（web/src/pages/UsersPage）
- *   - 权限点：USER_LIST / USER_CREATE / USER_UPDATE / USER_DELETE
+ *   - 权限点（071607 裁决⑫归一三段式，原⑨短式口径作废）：system:user:list / :create / :update / :delete
  *   - 文案：搜索占位「搜索账号」、新建按钮「新建用户」、账号表单 label「账号」；
  *     nickname 相关交互保持行为式（按对话框内既值/次序定位，不假设 label 文案）
  *   - 列表响应形状 { records, total }；搜索参数名 username
@@ -35,11 +35,13 @@ const ADD_BUTTON_TEXT = '新建用户';       // 新建入口按钮
 const EDIT_BUTTON_TEXT = /编\s*辑/;      // 行内编辑动作（兼容 antd 两字按钮 autoInsertSpace 插空）
 const DELETE_BUTTON_TEXT = /删\s*除/;    // 行内删除动作（同上）
 const LABEL_USERNAME = '账号';           // 账号表单 label
+// 权限键归一三段式（071607 裁决⑫：原⑨短式口径作废，生产口径=SystemPermissions.java 三段式码；
+// delta-2 只换播种键字面量，断言逻辑/文案/交互步骤全部不动）
 const PERM = {
-  list: 'USER_LIST',
-  create: 'USER_CREATE',
-  update: 'USER_UPDATE',
-  delete: 'USER_DELETE',
+  list: 'system:user:list',
+  create: 'system:user:create',
+  update: 'system:user:update',
+  delete: 'system:user:delete',
 };
 const ALL_PERMS = [PERM.list, PERM.create, PERM.update, PERM.delete];
 const CONFIRM_BUTTON = /确\s*定|^OK$/i;  // 兼容 zh_CN「确 定/确定」与 en「OK」

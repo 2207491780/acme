@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, App, Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tree, Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { App, Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tag, Tree, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { ApiError, systemApi, useMeStore, type AdminMenuView, type AdminPermissionView, type AdminRoleView } from '@acme/core';
+import { ApiError, systemApi, useCrud, useMeStore, type AdminMenuView, type AdminPermissionView, type AdminRoleView } from '@acme/core';
+import { CrudFormModal } from '../components/CrudFormModal';
+import { CrudTable } from '../components/CrudTable';
 
 const { Text } = Typography;
 
@@ -15,21 +16,20 @@ interface RoleFormValues {
   remark?: string;
 }
 
-/** 角色管理（p3-admin）：分页/搜索/新建/编辑/启停/删除 + 权限点绑定抽屉（ROLE_GRANT）。
- *  菜单绑定同抽屉形态（tree 勾选）随本页第二抽屉交付。 */
+/** 角色管理（p3-admin）：分页/搜索/新建/编辑/启停/删除 + 权限点绑定抽屉（system:role:grant）。
+ *  菜单绑定同抽屉形态（tree 勾选）随本页第二抽屉交付。
+ *  迁移 CRUD 范本（REQ-20261114-120101）：列表/表单走 useCrud + CrudTable/CrudFormModal；
+ *  授权弹窗为绑定语义（非 CRUD 表单），保持原 Modal 形态。 */
 export function RolesPage() {
   const { message } = App.useApp();
   const permissions = useMeStore((s) => s.me?.permissions ?? []);
-  const can = (code: string) => permissions.includes(code);
 
-  const [records, setRecords] = useState<AdminRoleView[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [size] = useState(10);
-  const [keyword, setKeyword] = useState('');
-  const [queryVersion, setQueryVersion] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const crud = useCrud<AdminRoleView>({
+    fetchPage: ({ page, size, keyword }) => systemApi.roleList(page, size, keyword || undefined),
+    permissions,
+    pageSize: 10,
+    errorMessage: '角色清单加载失败',
+  });
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminRoleView | null>(null);
@@ -41,35 +41,6 @@ export function RolesPage() {
   const [catalog, setCatalog] = useState<AdminPermissionView[]>([]);
   const [grantedIds, setGrantedIds] = useState<string[]>([]);
   const [grantLoading, setGrantLoading] = useState(false);
-
-  // 列表请求竞态防护：过期响应按序号丢弃（review 修复）
-  const reloadSeq = useRef(0);
-  const reload = useCallback((targetPage = page) => {
-    const seq = ++reloadSeq.current;
-    setLoading(true);
-    setLoadError(null);
-    systemApi.roleList(targetPage, size, keyword || undefined)
-      .then((result) => {
-        if (seq !== reloadSeq.current) return;
-        setRecords(result.records);
-        if (result.records.length === 0 && targetPage > 1 && Number(result.total) > 0) {
-          setPage(targetPage - 1);
-          return;
-        }
-        setTotal(Number(result.total));
-      })
-      .catch((ex: unknown) => {
-        if (seq !== reloadSeq.current) return;
-        setLoadError(ex instanceof ApiError ? ex.message : '角色清单加载失败');
-      })
-      .finally(() => {
-        if (seq === reloadSeq.current) setLoading(false);
-      });
-  }, [page, size, keyword, queryVersion]);
-
-  useEffect(() => {
-    reload(page);
-  }, [page, queryVersion]);
 
   const openCreate = () => {
     setEditing(null);
@@ -111,7 +82,7 @@ export function RolesPage() {
       }
       setEditing(null);
       setCreating(false);
-      reload(1);
+      crud.reload(1);
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : '操作失败，请稍后重试');
     } finally {
@@ -124,7 +95,7 @@ export function RolesPage() {
     try {
       await systemApi.roleStatus(record.id, next);
       message.success(`角色已${next === 'ENABLED' ? '启用' : '停用'}`);
-      reload(page);
+      crud.reload();
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : '操作失败，请稍后重试');
     }
@@ -134,7 +105,7 @@ export function RolesPage() {
     try {
       await systemApi.roleDelete(record.id);
       message.success(`角色 ${record.roleCode} 已删除`);
-      reload(page);
+      crud.reload();
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : '删除失败，请稍后重试');
     }
@@ -198,19 +169,19 @@ export function RolesPage() {
       title: '操作', key: 'actions', width: 320,
       render: (_, record) => (
         <Space size={4}>
-          {can('ROLE_UPDATE') ? <Button size="small" onClick={() => openEdit(record)}>编辑</Button> : null}
-          {can('ROLE_GRANT') ? (
+          {crud.can('system:role:update') ? <Button size="small" onClick={() => openEdit(record)}>编辑</Button> : null}
+          {crud.can('system:role:grant') ? (
             <Button size="small" onClick={() => void openGrant(record, 'permissions')}>权限</Button>
           ) : null}
-          {can('ROLE_GRANT') ? (
+          {crud.can('system:role:grant') ? (
             <Button size="small" onClick={() => void openGrant(record, 'menus')}>菜单</Button>
           ) : null}
-          {can('ROLE_UPDATE') ? (
+          {crud.can('system:role:update') ? (
             <Popconfirm title={`确认${record.status === 'ENABLED' ? '停用' : '启用'} ${record.roleName}？`} onConfirm={() => void toggleStatus(record)}>
               <Button size="small" danger={record.status === 'ENABLED'}>{record.status === 'ENABLED' ? '停用' : '启用'}</Button>
             </Popconfirm>
           ) : null}
-          {can('ROLE_DELETE') && !record.builtIn ? (
+          {crud.can('system:role:delete') && !record.builtIn ? (
             <Popconfirm title={`确认删除角色 ${record.roleCode}？`} onConfirm={() => void remove(record)}>
               <Button size="small" danger>删除</Button>
             </Popconfirm>
@@ -222,87 +193,66 @@ export function RolesPage() {
   ];
 
   return (
-    <Card
-      title="角色管理"
-      extra={
-        <Space>
-          <Input.Search
-            placeholder="搜索角色代码 / 名称"
-            allowClear
-            style={{ width: 220 }}
-            onSearch={(value) => {
-              setKeyword(value.trim());
-              setPage(1);
-              setQueryVersion((v) => v + 1);
-            }}
-          />
-          <Button icon={<ReloadOutlined />} onClick={() => reload(page)} aria-label="刷新角色清单" />
-          {can('ROLE_CREATE') ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新建角色</Button>
-          ) : null}
-        </Space>
-      }
-    >
-      {loadError && (
-        <Alert type="error" showIcon style={{ marginBottom: 16 }} message={loadError}
-          action={<Button size="small" onClick={() => reload(page)}>重试</Button>} />
-      )}
-      <Table<AdminRoleView>
-        rowKey="id"
+    <>
+      <CrudTable<AdminRoleView>
+        crud={crud}
+        title="角色管理"
         columns={columns}
-        dataSource={records}
-        loading={loading}
-        pagination={{ current: page, pageSize: size, total, showTotal: (t) => `共 ${t} 个角色`, onChange: (p) => setPage(p) }}
+        searchPlaceholder="搜索角色代码 / 名称"
+        searchWidth={220}
+        reloadAriaLabel="刷新角色清单"
+        createPermission="system:role:create"
+        createLabel="新建角色"
+        onCreate={openCreate}
+        totalText={(t) => `共 ${t} 个角色`}
       />
 
-      <Modal
+      <CrudFormModal<RoleFormValues>
         open={creating || editing !== null}
         title={editing ? `编辑角色：${editing.roleCode}` : '新建角色'}
-        onCancel={() => { setCreating(false); setEditing(null); }}
+        form={form}
+        submitting={submitting}
         onOk={() => void submit()}
-        confirmLoading={submitting}
-        destroyOnClose
+        onCancel={() => { setCreating(false); setEditing(null); }}
       >
-        <Form form={form} layout="vertical">
-          <Form.Item name="parentId" label="父级角色（可选）">
-            <Select
-              allowClear
-              placeholder="不选则为顶级角色"
-              options={records.filter((r) => r.id !== editing?.id).map((r) => ({ value: r.id, label: r.roleName }))}
-              optionFilterProp="label"
-              showSearch
-            />
-          </Form.Item>
-          <Form.Item
-            name="roleCode"
-            label="角色代码"
-            rules={[
-              { required: true, message: '请输入角色代码' },
-              { pattern: CODE_PATTERN, message: '小写字母开头，仅含小写字母/数字/_/-' },
-              { min: 2, max: 64, message: '长度 2–64 字符' },
-            ]}
-            extra={editing ? '角色代码不可修改' : '创建后不可修改'}
-          >
-            <Input placeholder="如 ops_lead" disabled={editing !== null} autoComplete="off" />
-          </Form.Item>
-          <Form.Item
-            name="roleName"
-            label="角色名称"
-            rules={[
-              { required: true, message: '请输入角色名称' },
-              { min: 1, max: 64, message: '长度 1–64 字符' },
-            ]}
-          >
-            <Input placeholder="角色显示名称" />
-          </Form.Item>
-          <Form.Item name="remark" label="备注" rules={[{ max: 255, message: '长度不超过 255 字符' }]}>
-            <Input.TextArea placeholder="选填" rows={2} />
-          </Form.Item>
-          {editing ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>按乐观锁提交（版本 {editing.version}）；冲突时请刷新后重试。</Text>
-          ) : null}
-        </Form>
-      </Modal>
+        <Form.Item name="parentId" label="父级角色（可选）">
+          <Select
+            allowClear
+            placeholder="不选则为顶级角色"
+            options={crud.records.filter((r) => r.id !== editing?.id).map((r) => ({ value: r.id, label: r.roleName }))}
+            optionFilterProp="label"
+            showSearch
+          />
+        </Form.Item>
+        <Form.Item
+          name="roleCode"
+          label="角色代码"
+          rules={[
+            { required: true, message: '请输入角色代码' },
+            { pattern: CODE_PATTERN, message: '小写字母开头，仅含小写字母/数字/_/-' },
+            { min: 2, max: 64, message: '长度 2–64 字符' },
+          ]}
+          extra={editing ? '角色代码不可修改' : '创建后不可修改'}
+        >
+          <Input placeholder="如 ops_lead" disabled={editing !== null} autoComplete="off" />
+        </Form.Item>
+        <Form.Item
+          name="roleName"
+          label="角色名称"
+          rules={[
+            { required: true, message: '请输入角色名称' },
+            { min: 1, max: 64, message: '长度 1–64 字符' },
+          ]}
+        >
+          <Input placeholder="角色显示名称" />
+        </Form.Item>
+        <Form.Item name="remark" label="备注" rules={[{ max: 255, message: '长度不超过 255 字符' }]}>
+          <Input.TextArea placeholder="选填" rows={2} />
+        </Form.Item>
+        {editing ? (
+          <Text type="secondary" style={{ fontSize: 12 }}>按乐观锁提交（版本 {editing.version}）；冲突时请刷新后重试。</Text>
+        ) : null}
+      </CrudFormModal>
 
       <Modal
         open={granting !== null}
@@ -333,7 +283,7 @@ export function RolesPage() {
           提交即全量覆盖；权限变更随下次令牌签发生效。
         </Text>
       </Modal>
-    </Card>
+    </>
   );
 }
 

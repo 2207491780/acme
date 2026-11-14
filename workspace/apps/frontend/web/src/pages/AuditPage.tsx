@@ -1,13 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Card, DatePicker, Form, Input, Space, Table, Tag, Typography } from 'antd';
+import { Button, DatePicker, Form, Input, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ReloadOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
-import { ApiError, auditApi, formatDate, type AdminAuditEventView } from '@acme/core';
+import { auditApi, formatDate, useCrud, type AdminAuditEventView } from '@acme/core';
+import { CrudTable } from '../components/CrudTable';
 
 const { Text } = Typography;
 
-interface AuditFilters {
+/** 已提交查询过滤（range 在提交时序列化为 from/to ISO 串，适配 useCrud 字符串筛选形状）。
+ *  用 type 而非 interface：类型别名才满足 CrudFilters 的 Record<string, string | undefined> 约束。 */
+type AuditFilters = {
+  operatorId?: string;
+  action?: string;
+  traceId?: string;
+  from?: string;
+  to?: string;
+};
+
+interface AuditFormValues {
   operatorId?: string;
   action?: string;
   traceId?: string;
@@ -15,48 +24,25 @@ interface AuditFilters {
 }
 
 /** 审计事件查询（p3-audit，权限点 infra:audit:list）：
- *  全租户视图需 infra:audit:list:all（服务端两级数据权限），否则仅本租户事件。 */
+ *  全租户视图需 infra:audit:list:all（服务端两级数据权限），否则仅本租户事件。
+ *  迁移 CRUD 范本（REQ-20261114-120101）：useCrud（表单筛选走 filters，提交重置第 1 页）
+ *  + CrudTable（filterPanel 保持原查询表单布局；查询型页面无新建/删除）。 */
 export function AuditPage() {
-  const [records, setRecords] = useState<AdminAuditEventView[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [size] = useState(20);
-  const [filters, setFilters] = useState<AuditFilters>({});
-  const [queryVersion, setQueryVersion] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [form] = Form.useForm<AuditFilters>();
+  const [form] = Form.useForm<AuditFormValues>();
 
-  // 列表请求竞态防护：过期响应按序号丢弃（review 修复）
-  const reloadSeq = useRef(0);
-  const reload = useCallback((targetPage = page) => {
-    const seq = ++reloadSeq.current;
-    setLoading(true);
-    setLoadError(null);
-    auditApi.events(targetPage, size, {
-      operatorId: filters.operatorId,
-      action: filters.action,
-      traceId: filters.traceId,
-      from: filters.range?.[0]?.toISOString(),
-      to: filters.range?.[1]?.toISOString(),
-    })
-      .then((result) => {
-        if (seq !== reloadSeq.current) return;
-        setRecords(result.records);
-        setTotal(Number(result.total));
-      })
-      .catch((ex: unknown) => {
-        if (seq !== reloadSeq.current) return;
-        setLoadError(ex instanceof ApiError ? ex.message : '审计事件加载失败');
-      })
-      .finally(() => {
-        if (seq === reloadSeq.current) setLoading(false);
-      });
-  }, [page, size, filters]);
-
-  useEffect(() => {
-    reload(page);
-  }, [page, queryVersion]);
+  const crud = useCrud<AdminAuditEventView, AuditFilters>({
+    fetchPage: ({ page, size, filters }) =>
+      auditApi.events(page, size, {
+        operatorId: filters?.operatorId,
+        action: filters?.action,
+        traceId: filters?.traceId,
+        from: filters?.from,
+        to: filters?.to,
+      }),
+    filters: { operatorId: undefined, action: undefined, traceId: undefined, from: undefined, to: undefined },
+    pageSize: 20,
+    errorMessage: '审计事件加载失败',
+  });
 
   const columns: ColumnsType<AdminAuditEventView> = [
     { title: '时间', dataIndex: 'occurredAt', key: 'occurredAt', width: 170, render: (v: string) => formatDate(v) },
@@ -69,54 +55,52 @@ export function AuditPage() {
   ];
 
   return (
-    <Card title="审计事件" extra={<Button icon={<ReloadOutlined />} onClick={() => reload(page)} aria-label="刷新审计事件" />}>
-      <Form
-        form={form}
-        layout="inline"
-        style={{ marginBottom: 16, flexWrap: 'wrap', rowGap: 8 }}
-        onFinish={(values: AuditFilters) => {
-          setFilters(values);
-          setPage(1);
-          setQueryVersion((v) => v + 1);
-        }}
-      >
-        <Form.Item name="operatorId">
-          <Input placeholder="操作者 ID" allowClear style={{ width: 160 }} />
-        </Form.Item>
-        <Form.Item name="action">
-          <Input placeholder="动作（如 release.create）" allowClear style={{ width: 200 }} />
-        </Form.Item>
-        <Form.Item name="traceId">
-          <Input placeholder="Trace ID" allowClear style={{ width: 180 }} />
-        </Form.Item>
-        <Form.Item name="range">
-          <DatePicker.RangePicker showTime style={{ width: 340 }} />
-        </Form.Item>
-        <Space size={4}>
-          <Button type="primary" htmlType="submit">查询</Button>
-          <Button
-            onClick={() => {
-              form.resetFields();
-              setFilters({});
-              setPage(1);
-              setQueryVersion((v) => v + 1);
-            }}
-          >
-            重置
-          </Button>
-        </Space>
-      </Form>
-      {loadError && (
-        <Alert type="error" showIcon style={{ marginBottom: 16 }} message={loadError}
-          action={<Button size="small" onClick={() => reload(page)}>重试</Button>} />
-      )}
-      <Table<AdminAuditEventView>
-        rowKey="id"
-        columns={columns}
-        dataSource={records}
-        loading={loading}
-        pagination={{ current: page, pageSize: size, total, showTotal: (t) => `共 ${t} 条`, onChange: (p) => setPage(p) }}
-      />
-    </Card>
+    <CrudTable<AdminAuditEventView, AuditFilters>
+      crud={crud}
+      title="审计事件"
+      columns={columns}
+      searchable={false}
+      reloadAriaLabel="刷新审计事件"
+      totalText={(t) => `共 ${t} 条`}
+      filterPanel={
+        <Form
+          form={form}
+          layout="inline"
+          style={{ marginBottom: 16, flexWrap: 'wrap', rowGap: 8 }}
+          onFinish={(values: AuditFormValues) => {
+            // 提交即整组过滤替换并重置到第 1 页（多次 setFilter 在同一事件批内合并为一次拉取）
+            crud.setFilter('operatorId', values.operatorId || undefined);
+            crud.setFilter('action', values.action || undefined);
+            crud.setFilter('traceId', values.traceId || undefined);
+            crud.setFilter('from', values.range?.[0]?.toISOString());
+            crud.setFilter('to', values.range?.[1]?.toISOString());
+          }}
+        >
+          <Form.Item name="operatorId">
+            <Input placeholder="操作者 ID" allowClear style={{ width: 160 }} />
+          </Form.Item>
+          <Form.Item name="action">
+            <Input placeholder="动作（如 release.create）" allowClear style={{ width: 200 }} />
+          </Form.Item>
+          <Form.Item name="traceId">
+            <Input placeholder="Trace ID" allowClear style={{ width: 180 }} />
+          </Form.Item>
+          <Form.Item name="range">
+            <DatePicker.RangePicker showTime style={{ width: 340 }} />
+          </Form.Item>
+          <Space size={4}>
+            <Button type="primary" htmlType="submit">查询</Button>
+            <Button
+              onClick={() => {
+                form.resetFields();
+                crud.resetFilters();
+              }}
+            >
+              重置
+            </Button>
+          </Space>
+        </Form>
+      }
+    />
   );
 }
