@@ -50,12 +50,27 @@ done
 
 # 单分支推送缺口（review 修复）：本地已镜像时只推一条策略分支也能过本地预检（对侧回退本地 HEAD），
 # 但远端对端未更新 → CI mirror-sync 必红。两条策略分支必须用同一条命令推送（删除已在上方拒绝）。
+# 边界（no-op ref）：策略分支本地与远端一致、无更新可推时，git 不为它生成 stdin 推送行，合规的
+# 同命令推送同样只出现一条策略分支。此时若缺省侧本地 HEAD 与其远端跟踪引用一致，说明远端对端
+# 已最新，打印说明后放行；远端跟踪引用不存在或解析失败则维持拒绝（无法确认对端状态不得放行）。
+# 两分支 AI 路径是否一致仍由下方 mirror-check.mjs 把关，此处不做一致性判断。
 if [ "$status" -eq 0 ]; then
   if { [ -n "$main_sha" ] && [ -z "$support_sha" ]; } || { [ -z "$main_sha" ] && [ -n "$support_sha" ]; }; then
-    echo "推送被拒绝：只推送了一条策略分支（另一条不在本次推送中）。"
-    echo "两条策略分支必须同一条命令推送，否则远端对端未更新、CI mirror-sync 判红："
-    echo "  git push origin acme-foundation ai-coding-support"
-    status=1
+    if [ -n "$main_sha" ]; then
+      missing_branch=ai-coding-support
+    else
+      missing_branch=acme-foundation
+    fi
+    missing_local=$(git rev-parse --verify --quiet "refs/heads/$missing_branch") || missing_local=''
+    missing_remote=$(git rev-parse --verify --quiet "refs/remotes/origin/$missing_branch") || missing_remote=''
+    if [ -n "$missing_local" ] && [ -n "$missing_remote" ] && [ "$missing_local" = "$missing_remote" ]; then
+      echo "ℹ️ $missing_branch 本地与远端一致（无更新），单侧策略分支推送放行。"
+    else
+      echo "推送被拒绝：只推送了一条策略分支（另一条不在本次推送中）。"
+      echo "两条策略分支必须同一条命令推送，否则远端对端未更新、CI mirror-sync 判红："
+      echo "  git push origin acme-foundation ai-coding-support"
+      status=1
+    fi
   fi
 fi
 
