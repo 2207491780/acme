@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { authApi, type CaptchaData, type TenantSummary } from '../api/auth';
 import { useAuthStore } from '../store/authStore';
+import { loginFormDefaults } from './loginDefaults';
 
 const { Text } = Typography;
 
@@ -32,6 +33,9 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form] = Form.useForm<LoginFormValues>();
+
+  // 开发阶段便利性：dev server 下预填超管默认凭据（生产构建不含，见 loginDefaults.ts）
+  const devDefaults = loginFormDefaults(import.meta.env.DEV);
 
   const loadTenants = useCallback(() => {
     setTenantsLoading(true);
@@ -177,7 +181,7 @@ export function LoginPage() {
               form={form}
               layout="vertical"
               onFinish={onFinish}
-              initialValues={{ remember: true }}
+              initialValues={{ remember: true, ...(devDefaults ?? {}) }}
               requiredMark
             >
               <Form.Item
