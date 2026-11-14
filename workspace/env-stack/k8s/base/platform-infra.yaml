@@ -39,6 +39,13 @@ spec:
                 name: acme-app-config
             - secretRef:
                 name: acme-app-secrets
+          env:
+            # 服务级覆盖共享 acme-app-config 的 JAVA_TOOL_OPTIONS（k8s 规则：env 优先于 envFrom）。
+            # framework-excel/job/storage 接线（3bef39b）后启动期类加载超出共享 96m 元空间上限，
+            # dev 实测 OOM Metaspace 崩溃循环（2026-11-14）；扩到 192m 并下调 MaxRAMPercentage=40，
+            # 保证 heap(205Mi)+metaspace(192Mi)+JVM 开销 < 512Mi 容器限额。
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=40 -XX:MaxMetaspaceSize=192m"
           ports:
             - containerPort: 9880
               name: http
@@ -63,5 +70,7 @@ spec:
               cpu: 50m
               memory: 192Mi
             limits:
-              # 320Mi 时实测贴线（316Mi）导致 OOM 重启，扩到 384Mi
-              memory: 384Mi
+              # 320Mi 时实测贴线（316Mi）导致 OOM 重启，扩到 384Mi；384Mi 后 framework-excel/job
+              # 接线使启动期 Metaspace 超 96m 上限（OOM Metaspace 崩溃循环，2026-11-14 dev），
+              # 扩到 512Mi 并按服务覆盖 JVM 参数（见上方 env 注释）
+              memory: 512Mi
