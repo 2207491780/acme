@@ -54,6 +54,7 @@ class StorageModuleFormTest {
         assertThat(StorageError.CREDENTIAL_MISSING.code()).isEqualTo("SYS-15-0003");
         assertThat(StorageError.NETWORK_FAILURE.code()).isEqualTo("SYS-15-0004");
         assertThat(StorageError.BUCKET_UNAVAILABLE.code()).isEqualTo("SYS-15-0005");
+        assertThat(StorageError.LOCAL_ROOT_DIR_MISSING.code()).isEqualTo("SYS-15-0006");
     }
 
     private static File mainClassesDir() {

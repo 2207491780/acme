@@ -1,11 +1,15 @@
 package com.acme.framework.storage.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.unit.DataSize;
 
 import java.time.Duration;
+import java.util.List;
 
 /**
  * 对象存储配置（FR-011~013、8.1.3 全字段默认值；架构设计 15 章；凭证经环境注入 14.3.3）。
+ * 适配器类型缺省 {@code local}（REQ-20261114-071607：本地 dev 无对象存储中间件，
+ * 生产经同一接口显式切 minio/oss）。
  */
 @ConfigurationProperties(prefix = "acme.storage")
 public class StorageProperties {
@@ -13,8 +17,8 @@ public class StorageProperties {
     /** 模块开关（3.5 可关闭性）。 */
     private boolean enabled = true;
 
-    /** 适配器类型（FR-012/013）。 */
-    private Type type = Type.MINIO;
+    /** 适配器类型（FR-012/013；local 缺省，REQ-20261114-071607）。 */
+    private Type type = Type.LOCAL;
 
     /** 服务端点（缺失显式失败 SYS-15-0003）。 */
     private String endpoint = "";
@@ -40,8 +44,14 @@ public class StorageProperties {
     /** 访问 URL 模式（架构设计 9.2：预签名或公共 URL）。 */
     private UrlMode urlMode = UrlMode.PRESIGN;
 
+    private final Local local = new Local();
+
+    private final Upload upload = new Upload();
+
     /** 适配器类型。 */
     public enum Type {
+        /** 本地盘实现（缺省；REQ-20261114-071607 本地 dev 无对象存储中间件）。 */
+        LOCAL,
         /** MinIO（S3 兼容，Q-004 端到端实证）。 */
         MINIO,
         /** 阿里云 OSS（Q-004 契约级验证）。 */
@@ -134,5 +144,88 @@ public class StorageProperties {
 
     public void setUrlMode(UrlMode urlMode) {
         this.urlMode = urlMode;
+    }
+
+    public Local getLocal() {
+        return local;
+    }
+
+    public Upload getUpload() {
+        return upload;
+    }
+
+    /** 本地盘实现配置（type=local；REQ-20261114-071607）。 */
+    public static class Local {
+
+        /** 落盘根目录（对象按 ObjectKey 路径落盘；缺失显式失败 SYS-15-0006）。 */
+        private String rootDir = "";
+
+        /** 访问 URL 前缀（url = url-base 拼接 ObjectKey 路径；空=仅返回存储相对路径）。 */
+        private String urlBase = "";
+
+        public String getRootDir() {
+            return rootDir;
+        }
+
+        public void setRootDir(String rootDir) {
+            this.rootDir = rootDir;
+        }
+
+        public String getUrlBase() {
+            return urlBase;
+        }
+
+        public void setUrlBase(String urlBase) {
+            this.urlBase = urlBase;
+        }
+    }
+
+    /** 上传业务约束（REQ-20261114-071607：文件服务上传上限 / 白名单 / 软删保留期）。 */
+    public static class Upload {
+
+        /** 单文件大小上限（缺省 10MB；超限 FILE_SIZE_EXCEEDED，业务侧判定）。 */
+        private DataSize maxSize = DataSize.ofMegabytes(10);
+
+        /** 类型白名单（缺省 xlsx/pdf/png/jpg/jpeg/txt/csv；匹配扩展名或 multipart contentType）。 */
+        private List<String> allowedContentTypes =
+                List.of("xlsx", "pdf", "png", "jpg", "jpeg", "txt", "csv");
+
+        /** 软删保留天数（缺省 7；file-retention-cleanup 清理口径）。 */
+        private int retentionDays = 7;
+
+        /** 清理任务 cron（缺省每日 03:00）。 */
+        private String retentionCron = "0 0 3 * * *";
+
+        public DataSize getMaxSize() {
+            return maxSize;
+        }
+
+        public void setMaxSize(DataSize maxSize) {
+            this.maxSize = maxSize;
+        }
+
+        public List<String> getAllowedContentTypes() {
+            return allowedContentTypes;
+        }
+
+        public void setAllowedContentTypes(List<String> allowedContentTypes) {
+            this.allowedContentTypes = allowedContentTypes == null ? List.of() : List.copyOf(allowedContentTypes);
+        }
+
+        public int getRetentionDays() {
+            return retentionDays;
+        }
+
+        public void setRetentionDays(int retentionDays) {
+            this.retentionDays = retentionDays;
+        }
+
+        public String getRetentionCron() {
+            return retentionCron;
+        }
+
+        public void setRetentionCron(String retentionCron) {
+            this.retentionCron = retentionCron;
+        }
     }
 }

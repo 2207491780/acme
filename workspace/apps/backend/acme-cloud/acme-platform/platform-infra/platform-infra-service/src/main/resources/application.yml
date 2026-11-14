@@ -43,6 +43,12 @@ spring:
     url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:acme}?currentSchema=platform_infra
     username: ${PG_USER:acme}
     password: ${PG_PASSWORD:acme_local_pg_2026}
+  servlet:
+    multipart:
+      # 文件服务上传面（REQ-20261114-071607）：容器侧上限高于业务上限（acme.storage.upload.max-size），
+      # 业务超限以 FILE_SIZE_EXCEEDED 信封表达，容器侧仅兜底防滥用
+      max-file-size: 12MB
+      max-request-size: 20MB
   flyway:
     enabled: true
     default-schema: platform_infra
@@ -58,6 +64,24 @@ server:
   port: 9880
 
 acme:
+  storage:
+    # 文件服务存储选型（REQ-20261114-071607）：type=local 为缺省（本地 dev 无对象存储中间件；
+    # 生产经同一接口显式切 minio/oss）。落盘根目录经环境注入（env-stack dev overlay 持久卷挂载）。
+    type: local
+    local:
+      # 本地盘根目录（缺失启动显式失败 SYS-15-0006；路径经环境变量注入，不落仓库默认值）
+      root-dir: ${ACME_STORAGE_LOCAL_ROOT_DIR}
+      # 访问 URL 前缀（url = url-base + "/" + ObjectKey 路径；经网关/静态资源面暴露时配置）
+      url-base: ${ACME_STORAGE_LOCAL_URL_BASE:}
+    upload:
+      # 单文件大小上限（业务面，超限 FILE_SIZE_EXCEEDED；容器 multipart 上限另配，见 spring.servlet.multipart）
+      max-size: 10MB
+      # 类型白名单（扩展名或 contentType 命中其一即放行）
+      allowed-content-types: xlsx,pdf,png,jpg,jpeg,txt,csv
+      # 软删保留天数（file-retention-cleanup 清理口径，缺省 7）
+      retention-days: 7
+      # 清理任务 cron（缺省每日 03:00）
+      retention-cron: "0 0 3 * * *"
   security:
     # 本服务无公开业务端点（探针与指标面经服务端口直连，网关不路由）
     public-paths:

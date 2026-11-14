@@ -21,7 +21,10 @@ public enum StorageError implements ErrorCode, HttpStatusAware {
     NETWORK_FAILURE("SYS-15-0004", "对象存储访问失败", 502),
 
     /** 桶不可用。 */
-    BUCKET_UNAVAILABLE("SYS-15-0005", "对象存储桶不可用", 500);
+    BUCKET_UNAVAILABLE("SYS-15-0005", "对象存储桶不可用", 500),
+
+    /** 本地盘根目录配置缺失（type=local 必配；REQ-20261114-071607）。 */
+    LOCAL_ROOT_DIR_MISSING("SYS-15-0006", "本地存储根目录配置缺失", 500);
 
     private final String code;
     private final String defaultMessage;

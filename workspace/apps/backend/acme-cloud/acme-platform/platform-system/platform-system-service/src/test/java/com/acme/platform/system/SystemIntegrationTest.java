@@ -71,7 +71,8 @@ class SystemIntegrationTest {
 
     @Test
     void flywaySeedPresent() {
-        // 种子数据（V2 基线 + V3/V4 infra 增补 + V5 内容域增补）：默认租户 / 超管 / super_admin / 38 权限点 / 9 菜单（AC-009 前置）
+        // 种子数据（V2 基线 + V3/V4 infra 增补 + V5 内容域增补 + V7 文件/任务/Excel 权限增补）：
+        // 默认租户 / 超管 / super_admin / 45 权限点 / 9 菜单（AC-009 前置）
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_tenant where tenant_code='default'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
@@ -79,9 +80,16 @@ class SystemIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_role where role_code='super_admin'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_permission", Long.class)).isEqualTo(38L);
+                "select count(*) from sys_permission", Long.class)).isEqualTo(45L);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_menu", Long.class)).isEqualTo(9L);
+        // REQ-20261114-071607：文件服务/任务调度/Excel demo 权限点种子（接口级 http_method + http_path）
+        assertThat(jdbcTemplate.queryForList(
+                "select permission_code from sys_permission where permission_code like 'infra:file:%' "
+                        + "or permission_code like 'infra:job:%' or permission_code like 'infra:excel:%' order by id",
+                String.class))
+                .containsExactly("infra:file:list", "infra:file:upload", "infra:file:download",
+                        "infra:file:delete", "infra:job:list", "infra:job:run", "infra:excel:demo");
     }
 
     @Test
@@ -90,7 +98,7 @@ class SystemIntegrationTest {
         jdbcTemplate.execute(readResource("db/migration/V2__seed_baseline.sql"));
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_user where username='admin'",
                 Long.class)).isEqualTo(1L);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(38L);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(45L);
     }
 
     @Test

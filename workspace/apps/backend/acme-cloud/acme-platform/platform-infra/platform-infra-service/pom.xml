@@ -14,9 +14,11 @@
     <name>platform-infra-service</name>
     <description>
         基础设施域服务实现与启动入口（platform-infra-audit 拆分评审结论，18.1.1）：
-        审计事件 MQ 消费落库（acme_op_audit）+ B 端审计查询；ShedLock 锁表 DDL 模板维护。
-        装配：core / jackson / trace / web / mybatis-flex / security / tenant / stream / audit / i18n / feign；
-        未用不声明——cache / lock / job / excel / storage / doc / ratelimit / observability / tx / gateway 不引入。
+        审计事件 MQ 消费落库（acme_op_audit）+ B 端审计查询 + 文件服务（本地盘）/ Excel demo / 任务调度
+        （REQ-20261114-071607）；ShedLock 锁表 DDL 模板维护。
+        装配：core / jackson / trace / web / mybatis-flex / security / tenant / stream / audit / i18n / feign
+        / storage / excel / job；
+        未用不声明——cache / lock / doc / ratelimit / observability / tx / gateway 不引入。
     </description>
 
     <dependencies>
@@ -82,6 +84,26 @@
         <dependency>
             <groupId>com.acme</groupId>
             <artifactId>common-i18n</artifactId>
+        </dependency>
+        <!-- 文件服务对象存储门面（REQ-20261114-071607：LocalObjectStorage 缺省装配） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-storage</artifactId>
+        </dependency>
+        <!-- Excel 通用范式 demo（REQ-20261114-071607：StreamExcelReader/Writer/ExcelHttpExporter 复用） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-excel</artifactId>
+        </dependency>
+        <!-- 任务调度（REQ-20261114-071607：@AcmeTask 注册表 + TaskTrigger 手动触发 + ShedLock 互斥） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-job</artifactId>
+        </dependency>
+        <!-- ShedLock JDBC 锁提供方（framework-job 内 optional 不传递，装配面显式引用；锁表 shedlock_locks） -->
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-provider-jdbc-template</artifactId>
         </dependency>
         <!-- 实引用直接声明（Modules.md 2.2.3） -->
         <dependency>

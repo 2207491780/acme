@@ -18,6 +18,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,6 +46,17 @@ class InfraIntegrationTest {
             new PostgreSQLContainer<>("postgres:17-alpine")
                     .withDatabaseName("acme").withUsername("test").withPassword("test");
 
+    /** 本地盘存储根（REQ-20261114-071607 起服务装配含 framework-storage；type=local 缺省，root-dir 必配）。 */
+    private static final Path STORAGE_ROOT = createStorageRoot();
+
+    private static Path createStorageRoot() {
+        try {
+            return Files.createTempDirectory("infra-it-storage");
+        } catch (IOException ex) {
+            throw new IllegalStateException("创建本地盘存储根失败", ex);
+        }
+    }
+
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
@@ -50,6 +64,7 @@ class InfraIntegrationTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.flyway.default-schema", () -> "public");
         registry.add("spring.flyway.schemas", () -> "public");
+        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
     }
 
     @Autowired

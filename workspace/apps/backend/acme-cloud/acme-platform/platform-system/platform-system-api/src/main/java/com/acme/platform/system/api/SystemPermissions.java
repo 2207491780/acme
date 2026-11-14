@@ -58,6 +58,27 @@ public final class SystemPermissions {
     /** 全租户审计视图（数据权限：无此权限点仅本人视图；consumer-auth-refresh-dataperm）。 */
     public static final String INFRA_AUDIT_LIST_ALL = "infra:audit:list:all";
 
+    /** 文件查询（infra 域 Admin 端点；REQ-20261114-071607 文件服务，含元数据读取）。 */
+    public static final String INFRA_FILE_LIST = "infra:file:list";
+
+    /** 文件上传（infra 域 Admin 端点；REQ-20261114-071607 文件服务）。 */
+    public static final String INFRA_FILE_UPLOAD = "infra:file:upload";
+
+    /** 文件下载（infra 域 Admin 端点；REQ-20261114-071607 文件服务）。 */
+    public static final String INFRA_FILE_DOWNLOAD = "infra:file:download";
+
+    /** 文件删除（infra 域 Admin 端点；REQ-20261114-071607 文件服务）。 */
+    public static final String INFRA_FILE_DELETE = "infra:file:delete";
+
+    /** 任务注册表查询（infra 域 Admin 端点；REQ-20261114-071607 任务调度）。 */
+    public static final String INFRA_JOB_LIST = "infra:job:list";
+
+    /** 任务手动触发（infra 域 Admin 端点；REQ-20261114-071607 任务调度）。 */
+    public static final String INFRA_JOB_RUN = "infra:job:run";
+
+    /** Excel 通用范式 demo（infra 域 Admin 端点；REQ-20261114-071607：单点覆盖模板/导出/导入三端点）。 */
+    public static final String INFRA_EXCEL_DEMO = "infra:excel:demo";
+
     private SystemPermissions() {
     }
 }
