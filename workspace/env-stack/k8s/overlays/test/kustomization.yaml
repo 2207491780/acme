@@ -5,8 +5,15 @@ kind: Kustomization
 namespace: acme-test
 resources:
   - ../../base
+  # REQ-20261114-071607：platform-infra 文件服务 storage root 持久卷（与 dev 同型；缺注入启动即失败）
+  - platform-infra-storage.yaml
 labels:
   - pairs:
       app.kubernetes.io/part-of: acme
       acme.io/env: test
     includeSelectors: false
+patches:
+  - path: platform-infra-storage-patch.yaml
+    target:
+      kind: Deployment
+      name: platform-infra

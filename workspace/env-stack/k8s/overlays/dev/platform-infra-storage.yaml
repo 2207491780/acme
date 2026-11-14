@@ -1,0 +1,13 @@
+# platform-infra 文件服务 storage root 持久卷（REQ-20261114-071607 §变更清单 env-stack 节）：
+# 本地盘对象存储落盘根，k3s 缺省 StorageClass（local-path）自动供给——真实宿主机路径在
+# 节点 /var/lib/rancher/k3s/storage 下，不入库（部署环境态）。无新增中间件（契约②）。
+# ⚠️ 缺省 StorageClass 的回收策略为 Delete：删除 PVC 前先缩容 platform-infra，避免误删文件数据。
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: platform-infra-storage
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi

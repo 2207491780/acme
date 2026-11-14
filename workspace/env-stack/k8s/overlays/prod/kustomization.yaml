@@ -1,5 +1,10 @@
 # prod overlay —— CORS 收紧为显式白名单（覆盖 base 的通配默认；域名按实际替换）
 # 部署审批走二期 CI 的 GitHub Environments required reviewers（决策 2026-11-13-06）
+#
+# REQ-20261114-071607 platform-infra 文件服务 storage root：prod 暂不启用（避免误开本地盘写入）——
+# 生产存储选型确认（本地盘 PVC 或切 minio/oss 对象存储）后，照抄 dev/test overlay 的
+# platform-infra-storage.yaml + platform-infra-storage-patch.yaml 并挂到本文件 resources/patches。
+# 未注入 ACME_STORAGE_LOCAL_ROOT_DIR 时 platform-infra 启动即失败（fail-fast，属预期防误开）。
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: acme-prod

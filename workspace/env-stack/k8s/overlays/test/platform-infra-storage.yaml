@@ -1,0 +1,12 @@
+# platform-infra 文件服务 storage root 持久卷（REQ-20261114-071607；与 dev overlay 同型）：
+# test 环境同样从 base 起 platform-infra，缺 ACME_STORAGE_LOCAL_ROOT_DIR 注入会启动失败并阻断
+# deploy.sh 的 rollout 等待，故 dev/test 成对启用。回收语义同 dev（缺省 StorageClass，删 PVC 先缩容）。
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: platform-infra-storage
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi

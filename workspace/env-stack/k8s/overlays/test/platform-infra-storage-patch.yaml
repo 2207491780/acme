@@ -1,0 +1,21 @@
+# platform-infra Deployment 补丁（与 dev overlay 同型，REQ-20261114-071607）：
+# ACME_STORAGE_LOCAL_ROOT_DIR → acme.storage.local.root-dir；数据落 platform-infra-storage PVC。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-infra
+spec:
+  template:
+    spec:
+      containers:
+        - name: infra
+          env:
+            - name: ACME_STORAGE_LOCAL_ROOT_DIR
+              value: /var/acme/storage
+          volumeMounts:
+            - name: storage-root
+              mountPath: /var/acme/storage
+      volumes:
+        - name: storage-root
+          persistentVolumeClaim:
+            claimName: platform-infra-storage

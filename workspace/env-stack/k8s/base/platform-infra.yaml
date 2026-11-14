@@ -1,4 +1,6 @@
 # platform-infra-service（9880）—— PG schema platform_infra + Redis（幂等/锁）
+# 文件服务 storage root（ACME_STORAGE_LOCAL_ROOT_DIR，REQ-20261114-071607）由 dev/test overlay
+# 注入 + PVC 挂载（base 不含：prod 是否启用待生产存储选型，见 prod overlay 注释）。
 apiVersion: v1
 kind: Service
 metadata:

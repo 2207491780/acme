@@ -61,6 +61,8 @@ cat <<EOF
   PG_HOST=127.0.0.1 PG_PORT=15432 REDIS_HOST=127.0.0.1 REDIS_PORT=16379 \\
   NACOS_ADDR=http://127.0.0.1:18848 \\
   mvn -f workspace/apps/backend/acme-cloud/pom.xml -pl acme-platform/platform-auth/platform-auth-service spring-boot:run
+  ⚠️ platform-infra 本地启动另需 ACME_STORAGE_LOCAL_ROOT_DIR=<本机已存在目录>
+    （REQ-20261114-071607 文件服务落盘根；非集群 Secret，本地自定路径，不入库）
 EOF
 
 # -tt 强制 pty：无 pty 的 SSH 会话断连时 sshd 不发 SIGHUP，远端会孤儿化；有 pty 则内核必发 HUP 触发 trap 清理。

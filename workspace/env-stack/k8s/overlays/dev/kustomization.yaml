@@ -5,6 +5,8 @@ kind: Kustomization
 namespace: acme-dev
 resources:
   - ../../base
+  # REQ-20261114-071607：platform-infra 文件服务 storage root 持久卷（dev 常驻环境启用）
+  - platform-infra-storage.yaml
 labels:
   - pairs:
       app.kubernetes.io/part-of: acme
@@ -15,3 +17,7 @@ patches:
     target:
       kind: Ingress
       name: acme-web
+  - path: platform-infra-storage-patch.yaml
+    target:
+      kind: Deployment
+      name: platform-infra
