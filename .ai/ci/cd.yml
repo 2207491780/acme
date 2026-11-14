@@ -3,7 +3,7 @@ name: cd
 # 触发：手动 dispatch（选 dev/test/prod，在含本文件的分支上触发）；打 v* 标签 → 自动部署 prod
 # （在 GitHub Environments 为 prod 配 required reviewers 人工审批）。
 # 链路：build 作业在云端 runner 构建五镜像并推 TCR（不占 4G 服务器构建资源，见 ADR 2026-11-13-06）；
-#       deploy 作业把 env-stack 同步到服务器后 SSH 执行 deploy.sh / healthcheck.sh。
+#       deploy 作业把 env-stack 同步到服务器后 SSH 执行 deploy.sh / healthcheck.sh，末尾 prune 节点旧镜像。
 # Secrets 清单与平台接入步骤见 .ai/ci/CI-GUIDE.md。
 on:
   workflow_dispatch:
@@ -92,3 +92,10 @@ jobs:
           ssh -i ~/.ssh/id_acme_deploy -p "${{ secrets.DEPLOY_SSH_PORT }}" \
             "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}" \
             "bash /opt/acme/src/workspace/env-stack/scripts/healthcheck.sh $TARGET_ENV"
+      - name: 节点镜像清理
+        run: |
+          # 健康检查通过后回收节点上无容器引用的旧镜像（旧 <env>-<sha7> 不再被引用）。
+          # 尽力而为：清理失败只告警不阻断（部署已成功）；代价是回滚旧 tag 需重新拉取，属预期取舍。
+          ssh -i ~/.ssh/id_acme_deploy -p "${{ secrets.DEPLOY_SSH_PORT }}" \
+            "${{ secrets.DEPLOY_SSH_USER }}@${{ secrets.DEPLOY_SSH_HOST }}" \
+            "k3s crictl rmi --prune || echo '⚠️ 节点镜像清理失败（不影响部署结果）'"
