@@ -17,3 +17,7 @@ patches:
     target:
       kind: Deployment
       name: platform-infra
+  - path: ingress-host.yaml
+    target:
+      kind: Ingress
+      name: acme-web

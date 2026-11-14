@@ -80,8 +80,11 @@ sh scripts/healthcheck.sh dev   # Pod Ready + web 探活
 kubectl -n acme-dev get pods    # 人工复核
 ```
 
-本机访问：hosts 文件加 `<服务器IP> acme.dev.local`，浏览器打开 `http://acme.dev.local`
-（登录走网关 `/admin/v1/auth/tokens`，演示凭证见后端 `V4__seed_demo_credentials.sql`）。
+本机访问（域名分层见决策 `.ai-memory/decisions/2026-11-14-25-domain-routing.md`）：
+DNS 控制台给 `dev.acmecloud.site` 加 A 记录指向服务器 IP 后，浏览器直接打开 `http://dev.acmecloud.site`
+（子域无 DNS 记录时可临时 hosts 文件兜底：`<服务器IP> dev.acmecloud.site`；
+登录走网关 `/admin/v1/auth/tokens`，演示凭证见后端 `V4__seed_demo_credentials.sql`）。
+test/prod 同型：`http://test.acmecloud.site` / `http://acmecloud.site`（prod 根域 A 记录已生效，下次 prod 部署后可用）。
 
 ## 8. 4G 日常运维要点
 

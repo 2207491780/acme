@@ -1,4 +1,5 @@
-# prod overlay —— CORS 收紧为显式白名单（覆盖 base 的通配默认；域名按实际替换）
+# prod overlay —— CORS 收紧为显式白名单（覆盖 base 的通配默认；同源反代下仅对非同源调用生效，
+# TLS 上线后改 https://acmecloud.site，见决策 2026-11-14-25）
 # 部署审批走二期 CI 的 GitHub Environments required reviewers（决策 2026-11-13-06）
 #
 # REQ-20261114-071607 platform-infra 文件服务 storage root：prod 暂不启用（避免误开本地盘写入）——
@@ -19,7 +20,7 @@ configMapGenerator:
   - name: acme-app-config
     behavior: merge
     literals:
-      - ACME_CORS_ALLOWED_ORIGINS=https://acme.example.com
+      - ACME_CORS_ALLOWED_ORIGINS=http://acmecloud.site
 patches:
   - path: ingress-host.yaml
     target:

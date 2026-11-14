@@ -1,0 +1,17 @@
+# test Ingress host 覆盖（DNS 控制台加 test.acmecloud.site A 记录指向服务器 IP 后可直接访问）
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acme-web
+spec:
+  rules:
+    - host: test.acmecloud.site
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: acme-web
+                port:
+                  number: 80

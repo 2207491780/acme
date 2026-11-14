@@ -11,7 +11,7 @@ NS="acme-$ENV"
 echo "▶ 等待 $NS 全部 Pod Ready"
 kubectl -n "$NS" wait --for=condition=Ready pods --all --timeout=300s
 
-# Ingress host（dev 默认 acme.dev.local；无 DNS 时以 Host 头直探节点 IP）
+# Ingress host（动态读自集群，随 overlay 域名变化；无需 DNS，以 Host 头直探节点 IP）
 HOST=$(kubectl -n "$NS" get ingress acme-web -o jsonpath='{.spec.rules[0].host}')
 NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
 

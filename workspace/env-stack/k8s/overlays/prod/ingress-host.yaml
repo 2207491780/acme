@@ -1,11 +1,11 @@
-# prod Ingress host 覆盖（域名上线时替换为真实域名）
+# prod Ingress host 覆盖（acmecloud.site 已 A 记录指向服务器；443 预留，TLS 未启用见决策 2026-11-14-25）
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: acme-web
 spec:
   rules:
-    - host: acme.example.com
+    - host: acmecloud.site
       http:
         paths:
           - path: /
