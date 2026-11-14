@@ -2,13 +2,13 @@ import { apiFetch } from './client';
 
 /** C 端登录域接口（契约对齐 AppAuthController；路径 /app/v1/auth）。 */
 export const authApi = {
-  /** 发送短信验证码（公开端点；60s/手机号频控，命中返回 CAPTCHA_SEND_LIMITED）。 */
+  /** 发送短信验证码（公开端点；60s/手机号频控，命中返回 CAPTCHA_SEND_LIMITED；void 端点 2xx 空体=成功）。 */
   sendCaptcha: (phone: string): Promise<void> =>
     apiFetch<void>('/app/v1/auth/captcha', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone }),
-    }, { auth: false }),
+    }, { auth: false, emptyAsSuccess: true }),
   /** 验证码登录（公开端点；首登自动注册，签发双令牌 access 2h / refresh 14d）。 */
   login: (phone: string, captcha: string): Promise<AppTokenIssued> =>
     apiFetch<AppTokenIssued>('/app/v1/auth/tokens', {
@@ -23,9 +23,9 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     }, { auth: false }),
-  /** 登出（需认证；双令牌一并撤销，幂等成功）。 */
+  /** 登出（需认证；双令牌一并撤销，幂等成功；void 端点 2xx 空体=成功）。 */
   logout: (): Promise<void> =>
-    apiFetch<void>('/app/v1/auth/tokens/current', { method: 'DELETE' }),
+    apiFetch<void>('/app/v1/auth/tokens/current', { method: 'DELETE' }, { emptyAsSuccess: true }),
 };
 
 /** 令牌签发结果（契约对齐 AppTokenIssued；expiresAt / refreshExpiresAt 为 ISO-8601）。 */

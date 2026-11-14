@@ -46,7 +46,7 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }, { auth: false }),
-  /** 登出（需认证；当前会话即刻失效，已失效令牌幂等成功）。 */
+  /** 登出（需认证；当前会话即刻失效，已失效令牌幂等成功；void 端点 2xx 空体=成功）。 */
   logout: (): Promise<void> =>
-    apiFetch<void>('/admin/v1/auth/tokens/current', { method: 'DELETE' }),
+    apiFetch<void>('/admin/v1/auth/tokens/current', { method: 'DELETE' }, { emptyAsSuccess: true }),
 };

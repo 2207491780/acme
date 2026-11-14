@@ -66,9 +66,9 @@ function refreshOnce(): Promise<boolean> {
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
-  options: { auth?: boolean; retried?: boolean } = {},
+  options: { auth?: boolean; retried?: boolean; emptyAsSuccess?: boolean } = {},
 ): Promise<T> {
-  const { auth = true, retried = false } = options;
+  const { auth = true, retried = false, emptyAsSuccess = false } = options;
   const headers = new Headers(init.headers);
   const session = useAuthStore.getState().session;
   if (auth && session) {
@@ -83,13 +83,17 @@ export async function apiFetch<T>(
   if (res.status === 401 && auth && !retried) {
     const refreshed = await refreshOnce();
     if (refreshed) {
-      return apiFetch<T>(path, init, { auth, retried: true });
+      return apiFetch<T>(path, init, { auth, retried: true, emptyAsSuccess });
     }
     useAuthStore.getState().clear();
     throw new ApiError(401, 'AUTH_REQUIRED', '登录状态已失效，请重新登录');
   }
   const envelope = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!envelope) {
+    // void 端点按 Modules.md 3.1.1 豁免不出信封（2xx 空体=成功）；未声明豁免的空体仍按异常处理
+    if (emptyAsSuccess && res.ok) {
+      return undefined as T;
+    }
     throw new ApiError(res.status, 'EMPTY_BODY', `接口无响应体（HTTP ${res.status}）`);
   }
   if (!envelope.success) {

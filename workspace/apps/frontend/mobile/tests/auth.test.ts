@@ -150,4 +150,25 @@ describe('mobile auth', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(useAuthStore.getState().session).toBeNull();
   });
+
+  it('should_resolve_send_captcha_when_void_endpoint_returns_empty_2xx', async () => {
+    // 后端 void 端点按 Modules.md 3.1.1 豁免不出信封（HTTP 200 空体=成功），emptyAsSuccess 豁免不放行错误态
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 200 })));
+    await expect(authApi.sendCaptcha('13800138000')).resolves.toBeUndefined();
+  });
+
+  it('should_resolve_logout_when_void_endpoint_returns_empty_2xx', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 200 })));
+    await expect(authApi.logout()).resolves.toBeUndefined();
+  });
+
+  it('should_reject_empty_body_when_not_marked_empty_as_success', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 200 })));
+    await expect(apiFetch<unknown>('/app/v1/auth/unknown')).rejects.toMatchObject({ code: 'EMPTY_BODY' });
+  });
+
+  it('should_reject_empty_body_when_error_status_even_with_empty_as_success', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 500 })));
+    await expect(authApi.sendCaptcha('13800138000')).rejects.toMatchObject({ code: 'EMPTY_BODY' });
+  });
 });
