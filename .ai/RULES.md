@@ -116,8 +116,8 @@ AI 工具执行 Git 操作按三档授权，越档视为违规；授权随用户
 
 ACME 是全栈应用（非纯本地演示）：前端多端 monorepo + Java 后端 + k8s 部署栈，经 CI/CD 真实部署。各端技术栈/命令/约定以分层 `AGENTS.md`（frontend/backend/ui-prototype）及同目录总览（FRONTEND/BACKEND/UI-PROTOTYPE.md）为准。
 
-- 前端 `workspace/apps/frontend/`：pnpm monorepo（Node≥22.13、pnpm11.8、TS5、React18、Vite5、AntD5、Zustand、Electron37、Expo52/RN0.76；Vitest/node:test）；`packages/core` 框架无关业务+令牌、`web` React UI、`desktop` 套壳 Web 产物、`mobile` RN 原生；已接后端 API（auth/admin/audit）。未接入 TanStack Query/antd-mobile/electron-vite，勿假定存在。
-- 后端 `workspace/apps/backend/`：Java25 + Spring Boot4.1 多模块 Maven（`acme-parent` + `acme-cloud`：common→framework→platform→business→gateway，`*-api` 契约 / `*-service` 实现）。
+- 前端 `workspace/apps/frontend/`：pnpm monorepo（Node≥22.13、pnpm11.8、TS5、React18、Vite5、AntD5、Zustand、Tiptap（@tiptap/react 及配套包，通知公告富文本正文）、Electron37、Expo52/RN0.76；Vitest/node:test）；`packages/core` 框架无关业务+令牌、`web` React UI、`desktop` 套壳 Web 产物、`mobile` RN 原生；已接后端 API（auth/admin/audit）。未接入 TanStack Query/antd-mobile/electron-vite，勿假定存在。
+- 后端 `workspace/apps/backend/`：Java25 + Spring Boot4.1 + WebSocket（spring-boot-starter-websocket，站内信实时推送）多模块 Maven（`acme-parent` + `acme-cloud`：common→framework→platform→business→gateway，`*-api` 契约 / `*-service` 实现）。
 - 部署 `workspace/env-stack/`：docker/k8s(base+overlays) + `scripts/deploy.sh`；CD 构建五镜像推 TCR、SSH 部署、prod 人工审批。会话内部署/回滚按 `.ai-memory/playbooks/conversational-cd.md`。
 - 视觉事实源 `packages/core/src/theme.ts`；改 UI 先读工程内 `UI-SPEC.md`，校验页 `pnpm ui:guide` 生成，禁手改。
 
