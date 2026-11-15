@@ -35,6 +35,9 @@ workspace/env-stack/config/registry.env
 !.env.template
 !.env.sample
 !.env.dist
+# 前端默认值声明文件（无密钥：WEB_API_TARGET/VITE_ENABLE_MSW，REQ-20261114-120103 AC-8）
+!workspace/apps/frontend/web/.env.development
+!workspace/apps/frontend/web/.env.production
 *.pem
 *.key
 *.p12
