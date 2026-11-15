@@ -37,12 +37,16 @@ class SystemApiContractTest {
     @Test
     void userViewSerializesLongAsStringAndEnumAsName() {
         AdminUserView view = new AdminUserView(1234567890123456789L, "admin", "超级管理员",
-                "a@acme.com", "13800000000", EnableStatus.ENABLED, true, List.of(1L),
+                "a@acme.com", "13800000000", 876543210987654321L, 1024L,
+                EnableStatus.ENABLED, true, List.of(1L),
                 Instant.parse("2026-10-22T08:00:00Z"), Instant.parse("2026-10-22T08:00:00Z"), 0L);
         String json = mapper.writeValueAsString(view);
-        // Long→String（openapi 契约：id / roleIds / version 均为 string）
+        // Long→String（openapi 契约：id / roleIds / version 均为 string；deptId/positionId 为
+        // REQ-20261114-120104 增补的同型 Long 字段）
         assertThat(json).contains("\"id\":\"1234567890123456789\"");
         assertThat(json).contains("\"roleIds\":[\"1\"]");
+        assertThat(json).contains("\"deptId\":\"876543210987654321\"");
+        assertThat(json).contains("\"positionId\":\"1024\"");
         assertThat(json).contains("\"version\":\"0\"");
         // 枚举按名（openapi EnableStatus）
         assertThat(json).contains("\"status\":\"ENABLED\"");
@@ -52,6 +56,8 @@ class SystemApiContractTest {
         AdminUserView back = mapper.readValue(json, AdminUserView.class);
         assertThat(back.id()).isEqualTo(view.id());
         assertThat(back.roleIds()).containsExactly(1L);
+        assertThat(back.deptId()).isEqualTo(view.deptId());
+        assertThat(back.positionId()).isEqualTo(view.positionId());
         assertThat(back.status()).isEqualTo(EnableStatus.ENABLED);
     }
 
@@ -81,6 +87,32 @@ class SystemApiContractTest {
         Method method = AuthorizationClient.class.getMethod("hasPermission", String.class);
         GetMapping getMapping = method.getAnnotation(GetMapping.class);
         assertThat(getMapping.value()).containsExactly("/internal/v1/authorization/permissions/{code}");
+    }
+
+    @Test
+    void dataScopeClientContractMetadataLocked() throws Exception {
+        // REQ-20261114-120104：数据范围解析内部契约（Feign 元数据锁定）
+        FeignClient feignClient = DataScopeClient.class.getAnnotation(FeignClient.class);
+        assertThat(feignClient).isNotNull();
+        assertThat(feignClient.name()).isEqualTo("platform-system");
+        assertThat(feignClient.contextId()).isEqualTo("dataScopeClient");
+
+        Method method = DataScopeClient.class.getMethod("currentDataScope");
+        GetMapping getMapping = method.getAnnotation(GetMapping.class);
+        assertThat(getMapping.value()).containsExactly("/internal/v1/authorization/data-scope");
+        assertThat(method.getReturnType()).isEqualTo(ContractResult.class);
+    }
+
+    @Test
+    void dataScopeViewSerializesLongIdsAsStrings() {
+        DataScopeView view = new DataScopeView("CUSTOM", List.of(11L, 22L), List.of("42"));
+        String json = mapper.writeValueAsString(view);
+        assertThat(json).contains("\"scope\":\"CUSTOM\"");
+        assertThat(json).contains("\"deptIds\":[\"11\",\"22\"]");
+        assertThat(json).contains("\"userIds\":[\"42\"]");
+        DataScopeView back = mapper.readValue(json, DataScopeView.class);
+        assertThat(back.deptIds()).containsExactly(11L, 22L);
+        assertThat(back.userIds()).containsExactly("42");
     }
 
     @Test

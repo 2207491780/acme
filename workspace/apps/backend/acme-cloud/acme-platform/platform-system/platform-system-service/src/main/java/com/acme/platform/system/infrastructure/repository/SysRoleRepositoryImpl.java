@@ -38,4 +38,18 @@ public class SysRoleRepositoryImpl extends FlexRepositorySupport<SysRole> implem
                 .where(SysRole::getRoleCode).in(roleCodes)
                 .and(SysRole::getStatus).eq(status));
     }
+
+    @Override
+    @com.acme.framework.tenant.support.IgnoreTenant("built-in-role-cross-tenant-lookup")
+    public List<SysRole> findBuiltInByRoleCodeIn(Collection<String> roleCodes) {
+        // 旁路查询（平台管理跨租户语义 12.4.2）：仅内置角色行可命中——内置行只能经系统种子路径创建，
+        // 租户自建角色（built_in=false）不进本查询面，P0「角色编码非信任锚」语义不回退
+        if (roleCodes == null || roleCodes.isEmpty()) {
+            return List.of();
+        }
+        return mapper().selectListByQuery(QueryWrapper.create()
+                .where(SysRole::getRoleCode).in(roleCodes)
+                .and(SysRole::getBuiltIn).eq(true)
+                .and(SysRole::getStatus).eq(EnableStatus.ENABLED));
+    }
 }

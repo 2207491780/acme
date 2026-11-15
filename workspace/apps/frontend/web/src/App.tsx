@@ -10,11 +10,13 @@ import {
   DownOutlined,
   FileSearchOutlined,
   GlobalOutlined,
+  IdcardOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuOutlined,
   MoonOutlined,
   NotificationOutlined,
+  PartitionOutlined,
   PlusOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -37,6 +39,8 @@ import { Settings } from './pages/Settings';
 import { TenantsPage } from './pages/TenantsPage';
 import { UsersPage } from './pages/UsersPage';
 import { RolesPage } from './pages/RolesPage';
+import { DeptsPage } from './pages/DeptsPage';
+import { PositionsPage } from './pages/PositionsPage';
 import { PermissionsPage } from './pages/PermissionsPage';
 import { MenusPage } from './pages/MenusPage';
 import { DictsPage } from './pages/DictsPage';
@@ -110,6 +114,8 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   { path: '/tenants', icon: <ApartmentOutlined />, labelKey: 'nav.items.tenants', permission: 'system:tenant:list' },
   { path: '/users', icon: <UserOutlined />, labelKey: 'nav.items.users', permission: 'system:user:list' },
   { path: '/roles', icon: <TeamOutlined />, labelKey: 'nav.items.roles', permission: 'system:role:list' },
+  { path: '/depts', icon: <PartitionOutlined />, labelKey: 'nav.items.depts', permission: 'system:dept:list' },
+  { path: '/positions', icon: <IdcardOutlined />, labelKey: 'nav.items.positions', permission: 'system:position:list' },
   { path: '/permissions', icon: <SafetyCertificateOutlined />, labelKey: 'nav.items.permissions', permission: 'system:permission:list' },
   { path: '/menus', icon: <MenuOutlined />, labelKey: 'nav.items.menus', permission: 'system:menu:list' },
   { path: '/dicts', icon: <BookOutlined />, labelKey: 'nav.items.dicts', permission: 'system:dict:list' },
@@ -448,6 +454,26 @@ export function App() {
                   <PageBoundary>
                     <PermissionGate permission="system:role:list">
                       <RolesPage />
+                    </PermissionGate>
+                  </PageBoundary>
+                )}
+              />
+              <Route
+                path="/depts"
+                element={(
+                  <PageBoundary>
+                    <PermissionGate permission="system:dept:list">
+                      <DeptsPage />
+                    </PermissionGate>
+                  </PageBoundary>
+                )}
+              />
+              <Route
+                path="/positions"
+                element={(
+                  <PageBoundary>
+                    <PermissionGate permission="system:position:list">
+                      <PositionsPage />
                     </PermissionGate>
                   </PageBoundary>
                 )}

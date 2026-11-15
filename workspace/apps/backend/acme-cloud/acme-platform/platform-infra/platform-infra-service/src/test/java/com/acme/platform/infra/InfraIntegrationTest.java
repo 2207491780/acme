@@ -93,13 +93,13 @@ class InfraIntegrationTest {
         ingestUseCase.ingest(event("evt-b1", "tenant-b", "order.create"));
 
         TenantContext.bind(new TenantContext("tenant-a"));
-        var tenantARecords = queryUseCase.page(PageQuery.firstPage(), null, null, null, null, null);
+        var tenantARecords = queryUseCase.page(PageQuery.firstPage(), null, null, null, null, null, null);
         assertThat(tenantARecords.records())
                 .extracting(OpAuditEvent::getEventId)
                 .containsExactly("evt-a1");
 
         TenantContext.bind(new TenantContext("tenant-b"));
-        assertThat(queryUseCase.page(PageQuery.firstPage(), null, null, null, null, null).records())
+        assertThat(queryUseCase.page(PageQuery.firstPage(), null, null, null, null, null, null).records())
                 .extracting(OpAuditEvent::getEventId)
                 .containsExactly("evt-b1");
     }
@@ -108,7 +108,7 @@ class InfraIntegrationTest {
     void systemLevelEventNormalizesTenant() {
         ingestUseCase.ingest(event("evt-sys", null, "infra.audit.list"));
         TenantContext.bind(new TenantContext(AuditIngestUseCase.SYSTEM_TENANT));
-        assertThat(queryUseCase.page(PageQuery.firstPage(), null, "infra.audit.list", null, null, null)
+        assertThat(queryUseCase.page(PageQuery.firstPage(), null, null, "infra.audit.list", null, null, null)
                 .records())
                 .extracting(OpAuditEvent::getEventId)
                 .containsExactly("evt-sys");
@@ -120,7 +120,7 @@ class InfraIntegrationTest {
         ingestUseCase.ingest(event("evt-dup", "tenant-a", "order.create"));
         ingestUseCase.ingest(event("evt-dup", "tenant-a", "order.create"));
         TenantContext.bind(new TenantContext("tenant-a"));
-        assertThat(queryUseCase.page(PageQuery.firstPage(), null, null, "evt-dup-trace", null, null)
+        assertThat(queryUseCase.page(PageQuery.firstPage(), null, null, null, "evt-dup-trace", null, null)
                 .total()).isEqualTo(1L);
     }
 
@@ -133,11 +133,11 @@ class InfraIntegrationTest {
                 "order.cancel", "order", "2", null, base.plusSeconds(3600), "it"));
 
         TenantContext.bind(new TenantContext("tenant-a"));
-        var byOperator = queryUseCase.page(PageQuery.firstPage(), "42", null, null, null, null);
+        var byOperator = queryUseCase.page(PageQuery.firstPage(), "42", null, null, null, null, null);
         assertThat(byOperator.records()).extracting(OpAuditEvent::getEventId).containsExactly("evt-f1");
-        var byAction = queryUseCase.page(PageQuery.firstPage(), null, "order.cancel", null, null, null);
+        var byAction = queryUseCase.page(PageQuery.firstPage(), null, null, "order.cancel", null, null, null);
         assertThat(byAction.records()).extracting(OpAuditEvent::getEventId).containsExactly("evt-f2");
-        var byTime = queryUseCase.page(PageQuery.firstPage(), null, null, null,
+        var byTime = queryUseCase.page(PageQuery.firstPage(), null, null, null, null,
                 base.plusSeconds(1), base.plusSeconds(7200));
         assertThat(byTime.records()).extracting(OpAuditEvent::getEventId).containsExactly("evt-f2");
     }

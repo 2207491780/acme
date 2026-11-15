@@ -1,11 +1,13 @@
 import type {
   AdminAuditEventView,
+  AdminDeptView,
   AdminDictItemView,
   AdminDictTypeView,
   AdminMenuView,
   AdminMessageView,
   AdminNoticeView,
   AdminPermissionView,
+  AdminPositionView,
   AdminRoleView,
   AdminTenantView,
   AdminUserView,
@@ -30,6 +32,8 @@ export const me = {
     status: 'ENABLED',
     builtIn: true,
     roleIds: ['1'],
+    deptId: '4001',
+    positionId: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     version: '0',
@@ -38,7 +42,9 @@ export const me = {
   permissions: [
     'system:tenant:list', 'system:tenant:create', 'system:tenant:update',
     'system:user:list', 'system:user:create', 'system:user:update', 'system:user:delete', 'system:user:assign-role',
-    'system:role:list', 'system:role:create', 'system:role:update', 'system:role:delete', 'system:role:grant',
+    'system:role:list', 'system:role:create', 'system:role:update', 'system:role:delete', 'system:role:grant', 'system:role:scope',
+    'system:dept:list', 'system:dept:create', 'system:dept:update', 'system:dept:delete',
+    'system:position:list', 'system:position:create', 'system:position:update', 'system:position:delete',
     'system:permission:list', 'system:permission:create', 'system:permission:update', 'system:permission:delete',
     'system:menu:list', 'system:menu:create', 'system:menu:update', 'system:menu:delete',
     'system:dict:list', 'system:dict:create', 'system:dict:update', 'system:dict:delete',
@@ -57,17 +63,39 @@ export const tenants: AdminTenantView[] = [
 export const users: AdminUserView[] = [
   {
     id: '1001', username: 'admin', nickname: '超级管理员', email: 'admin@acme.local', phone: null,
-    status: 'ENABLED', builtIn: true, roleIds: ['1'], createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', version: '0',
+    status: 'ENABLED', builtIn: true, roleIds: ['1'], deptId: '4001', positionId: null,
+    createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', version: '0',
   },
   {
     id: '1002', username: 'ops', nickname: '运维员', email: null, phone: null,
-    status: 'ENABLED', builtIn: false, roleIds: ['2'], createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-04T00:00:00Z', version: '0',
+    status: 'ENABLED', builtIn: false, roleIds: ['2'], deptId: '4002', positionId: '5003',
+    createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-04T00:00:00Z', version: '0',
   },
 ];
 
 export const roles: AdminRoleView[] = [
-  { id: '1', parentId: null, roleCode: 'super_admin', roleName: '超级管理员', status: 'ENABLED', builtIn: true, remark: null, version: '0' },
-  { id: '2', parentId: '1', roleCode: 'ops', roleName: '运维', status: 'ENABLED', builtIn: false, remark: null, version: '0' },
+  { id: '1', parentId: null, roleCode: 'super_admin', roleName: '超级管理员', status: 'ENABLED', builtIn: true, remark: null, dataScope: 'ALL', version: '0' },
+  { id: '2', parentId: '1', roleCode: 'ops', roleName: '运维', status: 'ENABLED', builtIn: false, remark: null, dataScope: 'DEPT', version: '0' },
+];
+
+/** 部门树（REQ-20261114-120104）：两级树（总部↘研发部）承载父子层级；财务部承载禁用态。 */
+export const depts: AdminDeptView[] = [
+  {
+    id: '4001', parentId: '0', deptName: '总部', sortOrder: 1, status: 'ENABLED', version: '0',
+    children: [
+      { id: '4002', parentId: '4001', deptName: '研发部', sortOrder: 1, status: 'ENABLED', version: '0', children: [] },
+    ],
+  },
+  { id: '4003', parentId: '0', deptName: '市场部', sortOrder: 2, status: 'ENABLED', version: '0', children: [] },
+  { id: '4004', parentId: '0', deptName: '财务部', sortOrder: 3, status: 'DISABLED', version: '0', children: [] },
+  { id: '4005', parentId: '0', deptName: '行政部', sortOrder: 4, status: 'ENABLED', version: '0', children: [] },
+];
+
+/** 岗位清单（REQ-20261114-120104）：前端工程师被 ops 引用（POSITION_IN_USE 演示）。 */
+export const positions: AdminPositionView[] = [
+  { id: '5001', positionCode: 'frontend_eng', positionName: '前端工程师', status: 'ENABLED', createdAt: '2026-01-01T00:00:00Z', version: '0' },
+  { id: '5002', positionCode: 'product_mgr', positionName: '产品经理', status: 'ENABLED', createdAt: '2026-01-02T00:00:00Z', version: '0' },
+  { id: '5003', positionCode: 'qa_eng', positionName: '测试工程师', status: 'ENABLED', createdAt: '2026-01-03T00:00:00Z', version: '0' },
 ];
 
 export const permissions: AdminPermissionView[] = [

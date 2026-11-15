@@ -121,4 +121,18 @@ public class RoleController {
     public void bindMenus(@PathVariable Long roleId, @Valid @RequestBody AdminMenuIds request) {
         roleUseCase.bindMenus(roleId, request.menuIds());
     }
+
+    /**
+     * 设置角色数据范围（REQ-20261114-120104）：五档枚举 + CUSTOM 部门集；
+     * 校验失败 DATA_SCOPE_INVALID，写 sys_role.data_scope + sys_role_dept 全量重写
+     * （统一响应体 Result 契约口径：void 语义显式出信封，code="0"）。
+     */
+    @PutMapping("/{roleId}/data-scope")
+    @RequirePermission(SystemPermissions.ROLE_SCOPE)
+    public com.acme.common.core.Result<Void> updateDataScope(
+            @PathVariable Long roleId,
+            @Valid @RequestBody com.acme.platform.system.api.dto.AdminRoleDataScope request) {
+        roleUseCase.updateDataScope(roleId, request);
+        return com.acme.common.core.Result.ok(null);
+    }
 }

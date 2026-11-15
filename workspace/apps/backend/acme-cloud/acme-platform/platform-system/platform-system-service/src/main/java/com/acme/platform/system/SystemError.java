@@ -40,6 +40,9 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     /** 非内置角色绑定平台保留域权限点被拒绝。 */
     ROLE_GRANT_RESERVED(SystemErrorCodes.ROLE_GRANT_RESERVED, "平台保留域权限点不允许授予非内置角色", 409),
 
+    /** 数据范围设置非法（档位未知 / CUSTOM 未传部门集或部门集含未知部门，REQ-20261114-120104）。 */
+    DATA_SCOPE_INVALID(SystemErrorCodes.DATA_SCOPE_INVALID, "数据范围设置非法", 409),
+
     /** 权限点不存在。 */
     PERMISSION_NOT_FOUND(SystemErrorCodes.PERMISSION_NOT_FOUND, "权限点不存在", 404),
 
@@ -89,7 +92,28 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     MESSAGE_NOT_FOUND(SystemErrorCodes.MESSAGE_NOT_FOUND, "站内信不存在", 404),
 
     /** 无权操作他人站内信（REQ-20261114-120102）。 */
-    MESSAGE_FORBIDDEN(SystemErrorCodes.MESSAGE_FORBIDDEN, "无权操作他人站内信", 403);
+    MESSAGE_FORBIDDEN(SystemErrorCodes.MESSAGE_FORBIDDEN, "无权操作他人站内信", 403),
+
+    /** 部门不存在（REQ-20261114-120104）。 */
+    DEPT_NOT_FOUND(SystemErrorCodes.DEPT_NOT_FOUND, "部门不存在", 404),
+
+    /** 部门删除被拒绝（存在子部门，REQ-20261114-120104 确认记录③）。 */
+    DEPT_HAS_CHILDREN(SystemErrorCodes.DEPT_HAS_CHILDREN, "该部门下存在子部门，不允许删除", 409),
+
+    /** 部门删除被拒绝（存在用户归属，REQ-20261114-120104 确认记录③）。 */
+    DEPT_HAS_USERS(SystemErrorCodes.DEPT_HAS_USERS, "该部门下存在用户，不允许删除", 409),
+
+    /** 部门父节点调整成环（目标父为自身或其子孙，REQ-20261114-120104）。 */
+    DEPT_PARENT_CYCLE(SystemErrorCodes.DEPT_PARENT_CYCLE, "不能将部门移动到自身或其子部门之下", 409),
+
+    /** 岗位不存在（REQ-20261114-120104）。 */
+    POSITION_NOT_FOUND(SystemErrorCodes.POSITION_NOT_FOUND, "岗位不存在", 404),
+
+    /** 岗位删除被拒绝（存在用户引用，REQ-20261114-120104）。 */
+    POSITION_IN_USE(SystemErrorCodes.POSITION_IN_USE, "该岗位已被用户引用，不允许删除", 409),
+
+    /** 租户内岗位编码已存在（REQ-20261114-120104 实施增补）。 */
+    POSITION_CODE_DUPLICATED(SystemErrorCodes.POSITION_CODE_DUPLICATED, "岗位编码已存在", 409);
 
     private final String code;
     private final String defaultMessage;

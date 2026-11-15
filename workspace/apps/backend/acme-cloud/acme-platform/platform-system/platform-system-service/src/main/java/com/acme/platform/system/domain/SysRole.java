@@ -8,6 +8,8 @@ import com.mybatisflex.annotation.Table;
 /**
  * 角色（7.2.3：租户归属，(tenant_id, role_code) 唯一；软删除）。
  * 支持父子关系树状定义：根哨兵 0，树形经 parentId + TreeBuilder 组装，无对象关联（sys_menu 同款）。
+ * REQ-20261114-120104：data_scope 数据范围五档（列缺省 ALL——存量角色语义不变；存储为档位枚举名，
+ * 解析归 framework-security DataScope）。
  */
 @Table("sys_role")
 public class SysRole extends AuditBase {
@@ -36,6 +38,10 @@ public class SysRole extends AuditBase {
     @Column("built_in")
     private Boolean builtIn;
 
+    /** 数据范围五档枚举名（列缺省 ALL；null 视为缺省档）。 */
+    @Column("data_scope")
+    private String dataScope;
+
     protected SysRole() {
     }
 
@@ -50,6 +56,7 @@ public class SysRole extends AuditBase {
         this.status = EnableStatus.ENABLED;
         this.remark = remark;
         this.builtIn = builtIn != null && builtIn;
+        this.dataScope = com.acme.framework.security.support.DataScope.DEFAULT.name();
     }
 
     public Long getParentId() {
@@ -94,5 +101,13 @@ public class SysRole extends AuditBase {
 
     public Boolean getBuiltIn() {
         return builtIn;
+    }
+
+    public String getDataScope() {
+        return dataScope;
+    }
+
+    public void setDataScope(String dataScope) {
+        this.dataScope = dataScope;
     }
 }

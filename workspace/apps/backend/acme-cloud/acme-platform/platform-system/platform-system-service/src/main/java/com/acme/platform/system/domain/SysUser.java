@@ -7,6 +7,7 @@ import com.mybatisflex.annotation.Table;
 
 /**
  * 用户（7.2.2：租户归属实体，租户列自动注入与过滤 12.4.1；username 全局唯一=登录定位依据；软删除）。
+ * REQ-20261114-120104：dept_id / position_id 部门岗位归属（可空——存量用户不归属，语义不变）。
  */
 @Table("sys_user")
 public class SysUser extends AuditBase {
@@ -31,6 +32,12 @@ public class SysUser extends AuditBase {
 
     @Column("built_in")
     private Boolean builtIn;
+
+    @Column("dept_id")
+    private Long deptId;
+
+    @Column("position_id")
+    private Long positionId;
 
     protected SysUser() {
     }
@@ -86,5 +93,21 @@ public class SysUser extends AuditBase {
 
     public Boolean getBuiltIn() {
         return builtIn;
+    }
+
+    public Long getDeptId() {
+        return deptId;
+    }
+
+    public void setDeptId(Long deptId) {
+        this.deptId = deptId;
+    }
+
+    public Long getPositionId() {
+        return positionId;
+    }
+
+    public void setPositionId(Long positionId) {
+        this.positionId = positionId;
     }
 }

@@ -54,7 +54,7 @@ class PermissionDecisionServiceTest {
         // 种子对内置 super_admin 全量绑定权限点（V2/V3/V4），移除字符串短路后能力不回退
         when(roleRepository.findByRoleCodeInAndStatus(Set.of("super_admin"), EnableStatus.ENABLED))
                 .thenReturn(List.of(role(1L, "super_admin")));
-        when(rolePermissionRepository.findByRoleIdIn(List.of(1L)))
+        when(rolePermissionRepository.findByRoleIdIn(Set.of(1L)))
                 .thenReturn(List.of(new SysRolePermission(1L, 21L)));
         SysPermission permission = new SysPermission("system:user:create", "创建用户",
                 com.acme.platform.system.api.PermissionType.API, "POST", "/admin/v1/system/users");
@@ -69,7 +69,7 @@ class PermissionDecisionServiceTest {
         UserContext.bind(new UserContext("1001", Set.of("ops")));
         when(roleRepository.findByRoleCodeInAndStatus(Set.of("ops"), EnableStatus.ENABLED))
                 .thenReturn(List.of(role(11L, "ops")));
-        when(rolePermissionRepository.findByRoleIdIn(List.of(11L)))
+        when(rolePermissionRepository.findByRoleIdIn(Set.of(11L)))
                 .thenReturn(List.of(new SysRolePermission(11L, 21L)));
         SysPermission permission = new SysPermission("system:user:create", "创建用户",
                 com.acme.platform.system.api.PermissionType.API, "POST", "/admin/v1/system/users");
@@ -107,7 +107,7 @@ class PermissionDecisionServiceTest {
     void permissionCodesAggregatedForMeView() {
         when(roleRepository.findByRoleCodeInAndStatus(Set.of("ops"), EnableStatus.ENABLED))
                 .thenReturn(List.of(role(11L, "ops")));
-        when(rolePermissionRepository.findByRoleIdIn(List.of(11L)))
+        when(rolePermissionRepository.findByRoleIdIn(Set.of(11L)))
                 .thenReturn(List.of(new SysRolePermission(11L, 21L), new SysRolePermission(11L, 22L)));
         SysPermission first = new SysPermission("system:user:list", "用户列表",
                 com.acme.platform.system.api.PermissionType.API, "GET", "/x");

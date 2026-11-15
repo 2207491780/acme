@@ -6,7 +6,8 @@ export interface PageResult<T> {
   total: number;
 }
 
-/** 用户视图（契约对齐 AdminUserView；id/version/roleIds 序列化为字符串）。 */
+/** 用户视图（契约对齐 AdminUserView；id/version/roleIds 序列化为字符串）。
+ *  REQ-20261114-120104 扩展 deptId/positionId（可空：存量数据未分配）。 */
 export interface AdminUserView {
   id: string;
   username: string;
@@ -16,6 +17,8 @@ export interface AdminUserView {
   status: 'ENABLED' | 'DISABLED';
   builtIn: boolean;
   roleIds: string[];
+  deptId?: string | null;
+  positionId?: string | null;
   createdAt: string;
   updatedAt: string;
   version: string;
@@ -57,7 +60,8 @@ export interface AdminTenantView {
   version: string;
 }
 
-/** 角色视图（契约对齐 AdminRoleView；id/version/parentId 序列化为字符串或空）。 */
+/** 角色视图（契约对齐 AdminRoleView；id/version/parentId 序列化为字符串或空）。
+ *  REQ-20261114-120104 扩展 dataScope 列（角色-数据范围模型，五档枚举）。 */
 export interface AdminRoleView {
   id: string;
   parentId: string | null;
@@ -66,6 +70,7 @@ export interface AdminRoleView {
   status: 'ENABLED' | 'DISABLED';
   builtIn: boolean | null;
   remark: string | null;
+  dataScope: RoleDataScope;
   version: string;
 }
 
@@ -80,6 +85,33 @@ export interface AdminPermissionView {
   status: 'ENABLED' | 'DISABLED';
   version: string;
 }
+
+/** 部门视图（契约对齐 AdminDeptView；树形 children 嵌套，含禁用态；id/parentId/version 字符串）。 */
+export interface AdminDeptView {
+  id: string;
+  parentId: string;
+  deptName: string;
+  sortOrder: number;
+  status: 'ENABLED' | 'DISABLED';
+  children: AdminDeptView[];
+  version: string;
+}
+
+/** 岗位视图（契约对齐 AdminPositionView；id/version 字符串）。 */
+export interface AdminPositionView {
+  id: string;
+  positionCode: string;
+  positionName: string;
+  status: 'ENABLED' | 'DISABLED';
+  createdAt: string;
+  version: string;
+}
+
+/** 角色数据范围枚举（REQ-20261114-120104 确认记录①五档模型；wire 值契约字面）。 */
+export type RoleDataScope = 'ALL' | 'DEPT' | 'DEPT_AND_CHILD' | 'SELF' | 'CUSTOM';
+
+/** 数据范围五档 wire 值全集（展示名经 i18n roles.scope.options 映射）。 */
+export const DATA_SCOPE_VALUES: RoleDataScope[] = ['ALL', 'DEPT', 'DEPT_AND_CHILD', 'SELF', 'CUSTOM'];
 
 /** 字典类型视图（契约对齐 AdminDictTypeView）。 */
 export interface AdminDictTypeView {
@@ -134,22 +166,31 @@ export const systemApi = {
     }),
 
   // ---- 用户管理（USER_* 权限码） ----
-  /** 用户分页（username 匹配、status 过滤；signal 为可选取消信号，透传 apiFetch）。 */
-  userList: (page: number, size: number, username?: string, status?: 'ENABLED' | 'DISABLED', signal?: AbortSignal): Promise<PageResult<AdminUserView>> =>
-    apiFetch<PageResult<AdminUserView>>(`/admin/v1/system/users?page=${page}&size=${size}${username ? `&username=${encodeURIComponent(username)}` : ''}${status ? `&status=${status}` : ''}`, { signal }),
-  /** 新建用户（首密码经管理端 credentials 接口另行重置）。 */
-  userCreate: (payload: { username: string; nickname: string; email?: string; phone?: string; roleIds: string[] }): Promise<AdminUserView> =>
+  /** 用户分页（username 匹配、status/deptId 过滤——deptId 含子部门递归为后端语义；signal 为可选取消信号，透传 apiFetch）。 */
+  userList: (page: number, size: number, username?: string, status?: 'ENABLED' | 'DISABLED', deptId?: string | null, signal?: AbortSignal): Promise<PageResult<AdminUserView>> =>
+    apiFetch<PageResult<AdminUserView>>(`/admin/v1/system/users?page=${page}&size=${size}${username ? `&username=${encodeURIComponent(username)}` : ''}${status ? `&status=${status}` : ''}${deptId ? `&deptId=${encodeURIComponent(deptId)}` : ''}`, { signal }),
+  /** 新建用户（首密码经管理端 credentials 接口另行重置；deptId/positionId 可空=未分配）。 */
+  userCreate: (payload: { username: string; nickname: string; email?: string; phone?: string; roleIds: string[]; deptId?: string | null; positionId?: string | null }): Promise<AdminUserView> =>
     apiFetch<AdminUserView>('/admin/v1/system/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, roleIds: payload.roleIds.map(Number) }),
+      body: JSON.stringify({
+        ...payload,
+        roleIds: payload.roleIds.map(Number),
+        deptId: payload.deptId ? Number(payload.deptId) : null,
+        positionId: payload.positionId ? Number(payload.positionId) : null,
+      }),
     }),
-  /** 用户改名/邮箱/手机（version 乐观锁）。 */
-  userUpdate: (userId: string, payload: { nickname: string; email?: string; phone?: string; version: string }): Promise<AdminUserView> =>
+  /** 用户改名/邮箱/手机/部门/岗位（version 乐观锁）。 */
+  userUpdate: (userId: string, payload: { nickname: string; email?: string; phone?: string; deptId?: string | null; positionId?: string | null; version: string }): Promise<AdminUserView> =>
     apiFetch<AdminUserView>(`/admin/v1/system/users/${userId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        deptId: payload.deptId ? Number(payload.deptId) : null,
+        positionId: payload.positionId ? Number(payload.positionId) : null,
+      }),
     }),
   /** 删除用户（builtIn 内置账号由后端拒绝）。 */
   userDelete: (userId: string): Promise<void> =>
@@ -217,6 +258,13 @@ export const systemApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ menuIds }),
     }),
+  /** 设置角色数据范围（REQ-20261114-120104；CUSTOM 时 deptIds 必传非空，由后端校验 DATA_SCOPE_INVALID）。 */
+  roleDataScope: (roleId: string, dataScope: RoleDataScope, deptIds: string[]): Promise<AdminRoleView> =>
+    apiFetch<AdminRoleView>(`/admin/v1/system/roles/${roleId}/data-scope`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataScope, deptIds: deptIds.map(Number) }),
+    }),
 
   // ---- 权限点管理（PERMISSION_* 权限码，P3） ----
   /** 权限点分页（平台级目录；signal 为可选取消信号，透传 apiFetch）。 */
@@ -267,6 +315,50 @@ export const systemApi = {
   /** 删除菜单。 */
   menuDelete: (menuId: number): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/menus/${menuId}`, { method: 'DELETE' }),
+
+  // ---- 部门管理（DEPT_* 权限码，REQ-20261114-120104） ----
+  /** 部门树（全量、含禁用态；前端渲染树形表格/选择器）。signal 为可选取消信号，透传 apiFetch。 */
+  deptTree: (signal?: AbortSignal): Promise<AdminDeptView[]> =>
+    apiFetch<AdminDeptView[]>('/admin/v1/system/depts', { signal }),
+  /** 新建部门（parentId 空=根部门；sortOrder/status 随体提交）。 */
+  deptCreate: (payload: { parentId?: number | null; deptName: string; sortOrder: number; status?: 'ENABLED' | 'DISABLED' }): Promise<AdminDeptView> =>
+    apiFetch<AdminDeptView>('/admin/v1/system/depts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, parentId: payload.parentId ?? null }),
+    }),
+  /** 部门改名/父级/排序/状态（version 乐观锁）。 */
+  deptUpdate: (deptId: string, payload: { parentId?: number | null; deptName: string; sortOrder: number; status?: 'ENABLED' | 'DISABLED'; version: string }): Promise<AdminDeptView> =>
+    apiFetch<AdminDeptView>(`/admin/v1/system/depts/${deptId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, parentId: payload.parentId ?? null }),
+    }),
+  /** 删除部门（有子部门/有用户由后端拒绝：DEPT_HAS_CHILDREN/DEPT_HAS_USERS）。 */
+  deptDelete: (deptId: string): Promise<void> =>
+    apiFetch<void>(`/admin/v1/system/depts/${deptId}`, { method: 'DELETE' }),
+
+  // ---- 岗位管理（POSITION_* 权限码，REQ-20261114-120104） ----
+  /** 岗位分页（keyword 匹配名称/编码；signal 为可选取消信号，透传 apiFetch）。 */
+  positionList: (page: number, size: number, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminPositionView>> =>
+    apiFetch<PageResult<AdminPositionView>>(`/admin/v1/system/positions?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
+  /** 新建岗位（positionCode 全局唯一且不可改）。 */
+  positionCreate: (payload: { positionCode: string; positionName: string; status?: 'ENABLED' | 'DISABLED' }): Promise<AdminPositionView> =>
+    apiFetch<AdminPositionView>('/admin/v1/system/positions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  /** 岗位改名/编码/状态（version 乐观锁）。 */
+  positionUpdate: (positionId: string, payload: { positionCode: string; positionName: string; status?: 'ENABLED' | 'DISABLED'; version: string }): Promise<AdminPositionView> =>
+    apiFetch<AdminPositionView>(`/admin/v1/system/positions/${positionId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  /** 删除岗位（被用户引用由后端拒绝：POSITION_IN_USE）。 */
+  positionDelete: (positionId: string): Promise<void> =>
+    apiFetch<void>(`/admin/v1/system/positions/${positionId}`, { method: 'DELETE' }),
 
   // ---- 字典管理（DICT_* 权限码，P3） ----
   /** 字典类型分页（signal 为可选取消信号，透传 apiFetch）。 */

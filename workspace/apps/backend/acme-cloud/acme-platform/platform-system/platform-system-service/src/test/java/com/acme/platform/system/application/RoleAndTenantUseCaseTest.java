@@ -1,19 +1,25 @@
 package com.acme.platform.system.application;
 
 import com.acme.common.core.BizException;
+import com.acme.framework.security.support.DataScope;
 import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.MenuType;
 import com.acme.platform.system.api.dto.AdminRoleCreate;
+import com.acme.platform.system.api.dto.AdminRoleDataScope;
 import com.acme.platform.system.api.dto.AdminRoleUpdate;
 import com.acme.platform.system.api.dto.AdminTenantCreate;
+import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysMenu;
 import com.acme.platform.system.domain.SysPermission;
 import com.acme.platform.system.domain.SysRole;
+import com.acme.platform.system.domain.SysRoleDept;
 import com.acme.platform.system.domain.SysRoleMenu;
 import com.acme.platform.system.domain.SysTenant;
+import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysPermissionRepository;
+import com.acme.platform.system.infrastructure.repository.SysRoleDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysRolePermissionRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
@@ -45,7 +51,8 @@ class RoleAndTenantUseCaseTest {
         SysRoleRepository roleRepository = mock(SysRoleRepository.class);
         RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 mock(SysRolePermissionRepository.class), roleMenuRepository,
-                mock(SysPermissionRepository.class), menuRepository);
+                mock(SysPermissionRepository.class), menuRepository,
+                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class));
 
         SysRole role = new SysRole("ops", "运维", null, false);
         setId(role, 1L);
@@ -117,7 +124,8 @@ class RoleAndTenantUseCaseTest {
         SysRolePermissionRepository rolePermissionRepository = mock(SysRolePermissionRepository.class);
         RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 rolePermissionRepository, mock(SysRoleMenuRepository.class),
-                permissionRepository, mock(SysMenuRepository.class));
+                permissionRepository, mock(SysMenuRepository.class),
+                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class));
         when(roleRepository.findById(2L)).thenReturn(Optional.of(role(2L, 0L, "ops", false)));
         when(permissionRepository.findAllById(java.util.Set.of(32L)))
                 .thenReturn(List.of(permission(32L, "system:tenant:create")));
@@ -136,7 +144,8 @@ class RoleAndTenantUseCaseTest {
         SysRolePermissionRepository rolePermissionRepository = mock(SysRolePermissionRepository.class);
         RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 rolePermissionRepository, mock(SysRoleMenuRepository.class),
-                permissionRepository, mock(SysMenuRepository.class));
+                permissionRepository, mock(SysMenuRepository.class),
+                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class));
         when(roleRepository.findById(1L)).thenReturn(Optional.of(role(1L, 0L, "super_admin", true)));
         when(permissionRepository.findAllById(java.util.Set.of(32L)))
                 .thenReturn(List.of(permission(32L, "system:tenant:create")));
@@ -207,6 +216,90 @@ class RoleAndTenantUseCaseTest {
         verify(roleRepository, never()).delete(role);
     }
 
+    // ---------- 数据范围五档设置（REQ-20261114-120104，AC-3） ----------
+
+    @Test
+    void updateDataScopeUnknownTierRejected() {
+        SysRoleRepository roleRepository = mock(SysRoleRepository.class);
+        RoleUseCase useCase = roleUseCase(roleRepository);
+        when(roleRepository.findById(2L)).thenReturn(Optional.of(role(2L, 0L, "ops", false)));
+        assertThatThrownBy(() -> useCase.updateDataScope(2L, new AdminRoleDataScope("TENANT", List.of())))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(SystemError.DATA_SCOPE_INVALID.code()));
+    }
+
+    @Test
+    void updateDataScopeCustomWithoutDeptIdsRejected() {
+        SysRoleRepository roleRepository = mock(SysRoleRepository.class);
+        SysRoleDeptRepository roleDeptRepository = mock(SysRoleDeptRepository.class);
+        SysDeptRepository deptRepository = mock(SysDeptRepository.class);
+        RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
+                mock(SysRolePermissionRepository.class), mock(SysRoleMenuRepository.class),
+                mock(SysPermissionRepository.class), mock(SysMenuRepository.class),
+                deptRepository, roleDeptRepository);
+        when(roleRepository.findById(2L)).thenReturn(Optional.of(role(2L, 0L, "ops", false)));
+        // CUSTOM 未传部门集 → DATA_SCOPE_INVALID
+        assertThatThrownBy(() -> useCase.updateDataScope(2L, new AdminRoleDataScope("CUSTOM", List.of())))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(SystemError.DATA_SCOPE_INVALID.code()));
+        // CUSTOM 含未知 / 跨租户部门（租户过滤后不存在）→ DATA_SCOPE_INVALID
+        assertThatThrownBy(() -> useCase.updateDataScope(2L, new AdminRoleDataScope("CUSTOM", List.of(11L))))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(SystemError.DATA_SCOPE_INVALID.code()));
+        verify(roleDeptRepository, never()).deleteByRoleId(any());
+    }
+
+    @Test
+    void updateDataScopeCustomWritesBindingRowsAndTier() {
+        SysRoleRepository roleRepository = mock(SysRoleRepository.class);
+        SysRoleDeptRepository roleDeptRepository = mock(SysRoleDeptRepository.class);
+        SysDeptRepository deptRepository = mock(SysDeptRepository.class);
+        RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
+                mock(SysRolePermissionRepository.class), mock(SysRoleMenuRepository.class),
+                mock(SysPermissionRepository.class), mock(SysMenuRepository.class),
+                deptRepository, roleDeptRepository);
+        SysRole role = role(2L, 0L, "ops", false);
+        when(roleRepository.findById(2L)).thenReturn(Optional.of(role));
+        when(roleRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deptRepository.findAllById(java.util.Set.of(11L, 12L))).thenReturn(List.of(
+                new SysDept(0L, "总部", 0, null), new SysDept(0L, "研发部", 1, null)));
+
+        useCase.updateDataScope(2L, new AdminRoleDataScope("CUSTOM", List.of(11L, 12L)));
+
+        // 绑定行整体重写：先物理解绑再批量写入（7.2.7）
+        verify(roleDeptRepository).deleteByRoleId(2L);
+        org.mockito.ArgumentCaptor<List<SysRoleDept>> captor =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(roleDeptRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).extracting(SysRoleDept::getDeptId)
+                .containsExactlyInAnyOrder(11L, 12L);
+        assertThat(role.getDataScope()).isEqualTo(DataScope.CUSTOM.name());
+    }
+
+    @Test
+    void updateDataScopeNonCustomClearsBindingRows() {
+        SysRoleRepository roleRepository = mock(SysRoleRepository.class);
+        SysRoleDeptRepository roleDeptRepository = mock(SysRoleDeptRepository.class);
+        SysDeptRepository deptRepository = mock(SysDeptRepository.class);
+        RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
+                mock(SysRolePermissionRepository.class), mock(SysRoleMenuRepository.class),
+                mock(SysPermissionRepository.class), mock(SysMenuRepository.class),
+                deptRepository, roleDeptRepository);
+        SysRole role = role(2L, 0L, "ops", false);
+        when(roleRepository.findById(2L)).thenReturn(Optional.of(role));
+        when(roleRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        useCase.updateDataScope(2L, new AdminRoleDataScope("DEPT_AND_CHILD", List.of(11L)));
+
+        // 非 CUSTOM 档清空绑定行（防档位回落遗留脏集）；dept 入参不落绑定
+        verify(roleDeptRepository).deleteByRoleId(2L);
+        verify(roleDeptRepository, never()).saveAll(any());
+        assertThat(role.getDataScope()).isEqualTo(DataScope.DEPT_AND_CHILD.name());
+    }
+
     @Test
     void defaultTenantDisableRejected() {
         SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
@@ -234,7 +327,8 @@ class RoleAndTenantUseCaseTest {
     private static RoleUseCase roleUseCase(SysRoleRepository roleRepository) {
         return new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 mock(SysRolePermissionRepository.class), mock(SysRoleMenuRepository.class),
-                mock(SysPermissionRepository.class), mock(SysMenuRepository.class));
+                mock(SysPermissionRepository.class), mock(SysMenuRepository.class),
+                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class));
     }
 
     private static SysRole role(Long id, Long parentId, String code, boolean builtIn) {

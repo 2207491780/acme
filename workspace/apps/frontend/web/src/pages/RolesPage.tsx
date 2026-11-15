@@ -2,9 +2,22 @@ import { useEffect, useState } from 'react';
 import { App, Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tag, Tree, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import { ApiError, systemApi, useCrud, useMeStore, type AdminMenuView, type AdminPermissionView, type AdminRoleView } from '@acme/core';
+import {
+  ApiError,
+  DATA_SCOPE_VALUES,
+  systemApi,
+  systemErrorMessage,
+  useCrud,
+  useDeptTree,
+  useMeStore,
+  type AdminMenuView,
+  type AdminPermissionView,
+  type AdminRoleView,
+  type RoleDataScope,
+} from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
+import { flattenDeptOptions } from '../utils/dept';
 
 const { Text } = Typography;
 
@@ -17,10 +30,26 @@ interface RoleFormValues {
   remark?: string;
 }
 
+interface DataScopeValues {
+  dataScope?: RoleDataScope;
+  deptIds?: string[];
+}
+
+/** 数据范围枚举 → i18n 显示名（roles.scope.options；显示名文案经资源包，无硬编码中文）。 */
+const DATA_SCOPE_LABEL_KEYS: Record<RoleDataScope, string> = {
+  ALL: 'roles.scope.options.all',
+  DEPT: 'roles.scope.options.dept',
+  DEPT_AND_CHILD: 'roles.scope.options.deptAndChild',
+  SELF: 'roles.scope.options.self',
+  CUSTOM: 'roles.scope.options.custom',
+};
+
 /** 角色管理（p3-admin）：分页/搜索/新建/编辑/启停/删除 + 权限点绑定抽屉（system:role:grant）。
  *  菜单绑定同抽屉形态（tree 勾选）随本页第二抽屉交付。
+ *  REQ-20261114-120104 扩展：行内「数据范围」弹窗（system:role:scope）——五档 Select +
+ *  CUSTOM 部门多选（useDeptTree），提交 PUT data-scope（dataScope+deptIds）。
  *  迁移 CRUD 范本（REQ-20261114-120101）：列表/表单走 useCrud + CrudTable/CrudFormModal；
- *  授权弹窗为绑定语义（非 CRUD 表单），保持原 Modal 形态。 */
+ *  授权/数据范围弹窗为绑定语义（非 CRUD 表单），保持原 Modal 形态。 */
 export function RolesPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
@@ -44,10 +73,44 @@ export function RolesPage() {
   const [grantedIds, setGrantedIds] = useState<string[]>([]);
   const [grantLoading, setGrantLoading] = useState(false);
 
+  // 数据范围弹窗（REQ-20261114-120104）：scope 五档 + CUSTOM 部门多选（选项源 useDeptTree 模块缓存）
+  const deptTree = useDeptTree();
+  const [scoping, setScoping] = useState<AdminRoleView | null>(null);
+  const [scopeSubmitting, setScopeSubmitting] = useState(false);
+  const [scopeForm] = Form.useForm<DataScopeValues>();
+  const scopeValue = Form.useWatch('dataScope', scopeForm);
+
   const openCreate = () => {
     setEditing(null);
     form.resetFields();
     setCreating(true);
+  };
+
+  /** 打开数据范围弹窗：回填该角色当前 scope（wire 缺省回退 ALL）。 */
+  const openScope = (record: AdminRoleView) => {
+    setScoping(record);
+    scopeForm.resetFields();
+    scopeForm.setFieldsValue({
+      dataScope: (record.dataScope as RoleDataScope) ?? 'ALL',
+      deptIds: [],
+    });
+  };
+
+  /** 提交数据范围：PUT /roles/{id}/data-scope（dataScope + CUSTOM 部门集；校验由后端兜底）。 */
+  const submitScope = async () => {
+    if (!scoping) return;
+    const values = await scopeForm.validateFields();
+    setScopeSubmitting(true);
+    try {
+      await systemApi.roleDataScope(scoping.id, values.dataScope ?? 'ALL', values.deptIds ?? []);
+      message.success(t('roles.scope.updated', { code: scoping.roleCode }));
+      setScoping(null);
+      crud.reload();
+    } catch (ex: unknown) {
+      message.error(systemErrorMessage(ex, t('roles.scope.failed')));
+    } finally {
+      setScopeSubmitting(false);
+    }
   };
 
   const openEdit = (record: AdminRoleView) => {
@@ -168,7 +231,7 @@ export function RolesPage() {
     },
     { title: t('roles.columns.remark'), dataIndex: 'remark', key: 'remark', ellipsis: true, render: (v: string | null) => v ?? '—' },
     {
-      title: t('roles.columns.actions'), key: 'actions', width: 320,
+      title: t('roles.columns.actions'), key: 'actions', width: 380,
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:role:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('roles.actions.edit')}</Button> : null}
@@ -177,6 +240,9 @@ export function RolesPage() {
           ) : null}
           {crud.can('system:role:grant') ? (
             <Button size="small" onClick={() => void openGrant(record, 'menus')}>{t('roles.actions.grantMenus')}</Button>
+          ) : null}
+          {crud.can('system:role:scope') ? (
+            <Button size="small" onClick={() => openScope(record)}>{t('roles.actions.dataScope')}</Button>
           ) : null}
           {crud.can('system:role:update') ? (
             <Popconfirm title={t('roles.actions.toggleConfirm', { action: record.status === 'ENABLED' ? t('common.status.disabled') : t('common.status.enabled'), name: record.roleName })} onConfirm={() => void toggleStatus(record)}>
@@ -283,6 +349,43 @@ export function RolesPage() {
         )}
         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 12 }}>
           {t('roles.grant.submitNote')}
+        </Text>
+      </Modal>
+
+      <Modal
+        open={scoping !== null}
+        title={scoping ? t('roles.scope.title', { name: scoping.roleName }) : ''}
+        width={480}
+        onCancel={() => setScoping(null)}
+        onOk={() => void submitScope()}
+        confirmLoading={scopeSubmitting}
+        destroyOnClose
+      >
+        <Form form={scopeForm} layout="vertical">
+          <Form.Item name="dataScope" label={t('roles.scope.scopeLabel')}>
+            <Select<RoleDataScope>
+              options={DATA_SCOPE_VALUES.map((value) => ({ value, label: t(DATA_SCOPE_LABEL_KEYS[value]) }))}
+            />
+          </Form.Item>
+          {scopeValue === 'CUSTOM' ? (
+            <Form.Item
+              name="deptIds"
+              label={t('roles.scope.customLabel')}
+              rules={[{ required: true, message: t('roles.scope.customRequired') }]}
+            >
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder={t('roles.scope.customPlaceholder')}
+                optionFilterProp="label"
+                showSearch
+                options={flattenDeptOptions(deptTree.tree, { enabledOnly: true })}
+              />
+            </Form.Item>
+          ) : null}
+        </Form>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {t('roles.scope.submitNote')}
         </Text>
       </Modal>
     </>

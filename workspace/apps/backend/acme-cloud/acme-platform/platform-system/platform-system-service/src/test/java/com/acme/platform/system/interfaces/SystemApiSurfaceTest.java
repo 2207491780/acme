@@ -30,20 +30,25 @@ import com.acme.platform.system.api.dto.AdminUserUpdate;
 import com.acme.platform.system.application.AuthProfileUseCase;
 import com.acme.platform.system.application.AuthorizationUseCase;
 import com.acme.platform.system.application.DictUseCase;
+import com.acme.platform.system.application.DeptUseCase;
 import com.acme.platform.system.application.MeUseCase;
 import com.acme.platform.system.application.MenuUseCase;
 import com.acme.platform.system.application.PermissionUseCase;
+import com.acme.platform.system.application.PositionUseCase;
 import com.acme.platform.system.application.RoleUseCase;
 import com.acme.platform.system.application.TenantInitUseCase;
 import com.acme.platform.system.application.TenantUseCase;
 import com.acme.platform.system.application.UserUseCase;
+import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysDictItem;
 import com.acme.platform.system.domain.SysDictType;
 import com.acme.platform.system.domain.SysMenu;
 import com.acme.platform.system.domain.SysPermission;
+import com.acme.platform.system.domain.SysPosition;
 import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysTenant;
 import com.acme.platform.system.domain.SysUser;
+import com.acme.platform.system.api.dto.AdminDeptView;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -74,12 +79,12 @@ class SystemApiSurfaceTest {
         when(useCase.create(any())).thenReturn(user);
         when(useCase.get(any())).thenReturn(user);
         when(useCase.update(any(), any())).thenReturn(user);
-        when(useCase.page(any(), any(), any()))
+        when(useCase.page(any(), any(), any(), any()))
                 .thenReturn(new PageResult<>(List.of(user), 1L));
         when(useCase.roleIdsOf(any())).thenReturn(List.of(3L));
         UserController controller = new UserController(useCase);
 
-        assertThat(controller.list(1, 20, null, null).total()).isEqualTo(1L);
+        assertThat(controller.list(1, 20, null, null, null).total()).isEqualTo(1L);
         assertThat(controller.create(new AdminUserCreate("u1", "昵称", null, null, null)).username())
                 .isEqualTo("u1");
         assertThat(controller.get(7L).roleIds()).containsExactly(3L);
@@ -87,6 +92,67 @@ class SystemApiSurfaceTest {
         controller.delete(7L);
         controller.updateStatus(7L, new AdminStatusUpdate(EnableStatus.DISABLED));
         controller.bindRoles(7L, new AdminRoleIds(List.of(3L)));
+    }
+
+    @Test
+    void deptControllerFullSurface() {
+        // REQ-20261114-120104 部门接口全表面（树 / 增改删）
+        DeptUseCase useCase = mock(DeptUseCase.class);
+        SysDept dept = deptWithId(1L, 0L, "总部");
+        when(useCase.create(any())).thenReturn(dept);
+        when(useCase.get(any())).thenReturn(dept);
+        // update 桩镜像真实用例语义：把请求应用到实体再返回（否则静态桩返回未变更实体）
+        when(useCase.update(any(), any())).thenAnswer(invocation -> {
+            com.acme.platform.system.api.dto.AdminDeptUpdate request = invocation.getArgument(1);
+            dept.setDeptName(request.name());
+            if (request.sortOrder() != null) {
+                dept.setSortOrder(request.sortOrder());
+            }
+            if (request.status() != null) {
+                dept.setStatus(request.status());
+            }
+            return dept;
+        });
+        when(useCase.listAll()).thenReturn(List.of(dept));
+        DeptController controller = new DeptController(useCase);
+
+        assertThat(controller.tree()).hasSize(1);
+        assertThat(controller.create(new com.acme.platform.system.api.dto.AdminDeptCreate(
+                0L, "总部", 1, EnableStatus.ENABLED)).deptName()).isEqualTo("总部");
+        assertThat(controller.get(1L).parentId()).isEqualTo(0L);
+        assertThat(controller.update(1L, new com.acme.platform.system.api.dto.AdminDeptUpdate(
+                "总部二", null, 2, EnableStatus.DISABLED, 0L)).sortOrder()).isEqualTo(2);
+        controller.delete(1L);
+    }
+
+    @Test
+    void positionControllerFullSurface() {
+        // REQ-20261114-120104 岗位接口全表面（分页 / 增改删 / 启停）
+        PositionUseCase useCase = mock(PositionUseCase.class);
+        SysPosition position = new SysPosition("engineer", "工程师", EnableStatus.ENABLED);
+        when(useCase.create(any())).thenReturn(position);
+        when(useCase.get(any())).thenReturn(position);
+        // update 桩镜像真实用例语义：把请求应用到实体再返回（否则静态桩返回未变更实体）
+        when(useCase.update(any(), any())).thenAnswer(invocation -> {
+            com.acme.platform.system.api.dto.AdminPositionUpdate request = invocation.getArgument(1);
+            position.setPositionCode(request.code());
+            position.setPositionName(request.name());
+            if (request.status() != null) {
+                position.setStatus(request.status());
+            }
+            return position;
+        });
+        when(useCase.page(any(), any(), any())).thenReturn(new PageResult<>(List.of(position), 1L));
+        PositionController controller = new PositionController(useCase);
+
+        assertThat(controller.list(1, 20, null, null).total()).isEqualTo(1L);
+        assertThat(controller.create(new com.acme.platform.system.api.dto.AdminPositionCreate(
+                "engineer", "工程师", EnableStatus.ENABLED)).positionCode()).isEqualTo("engineer");
+        assertThat(controller.get(9L).positionName()).isEqualTo("工程师");
+        assertThat(controller.update(9L, new com.acme.platform.system.api.dto.AdminPositionUpdate(
+                "engineer", "高级工程师", EnableStatus.ENABLED, 0L)).positionName()).isEqualTo("高级工程师");
+        controller.updateStatus(9L, new AdminStatusUpdate(EnableStatus.DISABLED));
+        controller.delete(9L);
     }
 
     // 菜单树组装需实体 id（TreeBuilder DP-004 非空约定）
@@ -113,6 +179,23 @@ class SystemApiSurfaceTest {
             throw new IllegalStateException(ex);
         }
         return role;
+    }
+
+    // 部门树组装需实体 id 与 path
+    private static SysDept deptWithId(long id, long parentId, String name) {
+        SysDept dept = new SysDept(parentId, name, 0, EnableStatus.ENABLED);
+        try {
+            var idField = com.acme.framework.flex.support.AuditBase.class.getDeclaredField("id");
+            idField.setAccessible(true);
+            idField.set(dept, id);
+            var versionField = com.acme.framework.flex.support.AuditBase.class.getDeclaredField("version");
+            versionField.setAccessible(true);
+            versionField.set(dept, 0L);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException(ex);
+        }
+        dept.setPath(parentId == 0 ? "/" + id + "/" : "/" + parentId + "/" + id + "/");
+        return dept;
     }
 
 @Test
@@ -148,6 +231,9 @@ class SystemApiSurfaceTest {
         controller.bindPermissions(1L, new AdminPermissionIds(List.of(9L)));
         assertThat(controller.menus(1L)).hasSize(1);
         controller.bindMenus(1L, new AdminMenuIds(List.of(2L)));
+        // REQ-20261114-120104：数据范围设置端点
+        controller.updateDataScope(1L, new com.acme.platform.system.api.dto.AdminRoleDataScope(
+                "CUSTOM", List.of(11L, 12L)));
     }
 
     @Test
@@ -276,9 +362,20 @@ class SystemApiSurfaceTest {
     @Test
     void internalAuthorizationControllerReturnsDecision() {
         AuthorizationUseCase useCase = mock(AuthorizationUseCase.class);
+        com.acme.platform.system.security.DataScopeService dataScopeService =
+                mock(com.acme.platform.system.security.DataScopeService.class);
         when(useCase.hasPermission(anyString())).thenReturn(true);
-        AuthorizationController controller = new AuthorizationController(useCase);
+        when(dataScopeService.currentSubjectWithUserIds()).thenReturn(
+                com.acme.framework.security.support.DataScopeDecision.of(
+                        com.acme.framework.security.support.DataScope.CUSTOM,
+                        java.util.List.of(11L), java.util.List.of("42")));
+        AuthorizationController controller = new AuthorizationController(useCase, dataScopeService);
         assertThat(controller.hasPermission("auth:credential:manage").getData()).isTrue();
+        // REQ-20261114-120104：内部数据范围端点
+        var view = controller.currentDataScope().getData();
+        assertThat(view.scope()).isEqualTo("CUSTOM");
+        assertThat(view.deptIds()).containsExactly(11L);
+        assertThat(view.userIds()).containsExactly("42");
     }
 
     @Test
@@ -303,6 +400,17 @@ class SystemApiSurfaceTest {
         assertThat(EntityViews.flatMenu(menu).parentId()).isEqualTo(0L);
         assertThat(EntityViews.menuTree(List.of(menu), null)).hasSize(1);
         assertThat(EntityViews.menuTree(List.of(menu), java.util.Set.of())).isEmpty();
+        // REQ-20261114-120104：部门树（嵌套 children + 禁用态透传）/ 平铺 / 岗位视图
+        SysDept root = deptWithId(1L, 0L, "总部");
+        SysDept child = deptWithId(2L, 1L, "研发部");
+        child.setStatus(EnableStatus.DISABLED);
+        var deptTree = EntityViews.deptTree(List.of(root, child));
+        assertThat(deptTree).hasSize(1);
+        assertThat(deptTree.get(0).children()).extracting(AdminDeptView::deptName).containsExactly("研发部");
+        assertThat(deptTree.get(0).children().get(0).status()).isEqualTo(EnableStatus.DISABLED);
+        assertThat(EntityViews.deptView(root).children()).isEmpty();
+        SysPosition position = new SysPosition("engineer", "工程师", EnableStatus.ENABLED);
+        assertThat(EntityViews.positionView(position).positionCode()).isEqualTo("engineer");
     }
 
     @Test

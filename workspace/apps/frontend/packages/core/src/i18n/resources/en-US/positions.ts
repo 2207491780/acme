@@ -1,0 +1,40 @@
+/** en-US positions resource pack (REQ-20261114-120104, org structure domain; keys aligned with zh-CN). */
+export const positions = {
+  title: 'Positions',
+  search: { placeholder: 'Search position name / code' },
+  reload: 'Refresh positions',
+  create: 'New position',
+  total: '{{total}} positions in total',
+  columns: {
+    positionCode: 'Position code',
+    positionName: 'Position name',
+    status: 'Status',
+    createdAt: 'Created',
+    actions: 'Actions',
+  },
+  actions: {
+    edit: 'Edit',
+    delete: 'Delete',
+    deleteConfirm: 'Confirm deletion of position {{name}}?',
+  },
+  form: {
+    editTitle: 'Edit position: {{name}}',
+    createTitle: 'New position',
+    name: 'Position name',
+    nameRequired: 'Please enter the position name',
+    namePlaceholder: 'Position display name',
+    code: 'Position code',
+    codeRequired: 'Please enter the position code',
+    codePlaceholder: 'e.g. frontend_eng',
+    status: 'Status',
+    lockNote: 'Submitted with optimistic lock (version {{version}}); if conflicts occur, refresh and try again.',
+    created: 'Position created',
+    updated: 'Position updated',
+  },
+  errors: {
+    loadFailed: 'Failed to load positions',
+    deleteFailed: 'Failed to delete the position, please try again later',
+    positionInUse: 'The position is referenced by users and cannot be deleted',
+  },
+  deleted: 'Position {{name}} deleted',
+};

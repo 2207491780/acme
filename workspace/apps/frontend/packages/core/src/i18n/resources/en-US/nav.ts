@@ -7,6 +7,8 @@ export const nav = {
     tenants: 'Tenants',
     users: 'Users',
     roles: 'Roles',
+    depts: 'Departments',
+    positions: 'Positions',
     permissions: 'Permissions',
     menus: 'Menus',
     dicts: 'Dictionaries',

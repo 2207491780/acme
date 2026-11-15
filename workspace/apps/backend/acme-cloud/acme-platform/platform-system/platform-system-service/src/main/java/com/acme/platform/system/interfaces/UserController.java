@@ -27,6 +27,8 @@ import java.util.List;
 
 /**
  * 用户管理接口（FR-006/007；路径含端别前缀——网关不 StripPrefix，架构设计 6.1 取舍 #8）。
+ * REQ-20261114-120104：列表 deptId 入参（含子部门）+ 数据范围五档过滤（示范域）；
+ * 创建 / 编辑接受 deptId / positionId。
  */
 @RestController
 @RequestMapping("/admin/v1/system/users")
@@ -43,8 +45,9 @@ public class UserController {
     public PageResult<AdminUserView> list(@RequestParam(defaultValue = "1") Integer page,
                                           @RequestParam(defaultValue = "20") Integer size,
                                           @RequestParam(required = false) String username,
-                                          @RequestParam(required = false) EnableStatus status) {
-        PageResult<SysUser> result = userUseCase.page(new PageQuery(page, size), username, status);
+                                          @RequestParam(required = false) EnableStatus status,
+                                          @RequestParam(required = false) Long deptId) {
+        PageResult<SysUser> result = userUseCase.page(new PageQuery(page, size), username, status, deptId);
         List<AdminUserView> records = result.records().stream()
                 .map(user -> EntityViews.userView(user, userUseCase.roleIdsOf(user.getId()))).toList();
         return new PageResult<>(records, result.total());

@@ -1,10 +1,12 @@
 import { http } from 'msw';
-import type { AdminDictTypeView, AdminMenuView, AdminRoleView, AdminTenantView, AdminUserView } from '@acme/core';
+import type { AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPositionView, AdminRoleView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
-/** 系统域 handler（platform-system）：me / 租户 / 用户 / 角色 / 权限点 / 菜单 / 字典。
- *  resolver 内联（msw 2.x Params 泛型按路径逐 handler 推断，不抽公共别名）。 */
+/** 系统域 handler（platform-system）：me / 租户 / 用户 / 角色 / 部门 / 岗位 / 权限点 / 菜单 / 字典。
+ *  resolver 内联（msw 2.x Params 泛型按路径逐 handler 推断，不抽公共别名）。
+ *  REQ-20261114-120104 扩展：部门树 CRUD / 岗位 CRUD / 角色数据范围（PUT data-scope）/
+ *  用户部门筛选（deptId 子树递归）与用户部门/岗位字段。 */
 
 /** 通用 keyword 过滤（命中任一字段子串，大小写不敏感）。 */
 function matchKeyword<T>(rows: T[], keyword: string | null, fields: (row: T) => (string | null | undefined)[]): T[] {
@@ -17,15 +19,67 @@ function matchKeyword<T>(rows: T[], keyword: string | null, fields: (row: T) => 
 
 const keywordOf = (request: Request): string | null => urlOf(request).searchParams.get('keyword');
 
+// ————— 部门树内存工具（REQ-20261114-120104） —————
+
+/** 深拷贝种子树（嵌套 children 与 db 常量隔离，避免 dev 内存态写入种子）。 */
+function cloneDeptTree(nodes: AdminDeptView[]): AdminDeptView[] {
+  return nodes.map((node) => ({ ...node, children: cloneDeptTree(node.children) }));
+}
+
+function findDept(nodes: AdminDeptView[], id: string): AdminDeptView | null {
+  for (const node of nodes) {
+    if (node.id === id) {
+      return node;
+    }
+    const hit = findDept(node.children, id);
+    if (hit) {
+      return hit;
+    }
+  }
+  return null;
+}
+
+function patchDeptTree(nodes: AdminDeptView[], id: string, patch: (node: AdminDeptView) => AdminDeptView): AdminDeptView[] {
+  return nodes.map((node) => (node.id === id
+    ? patch(node)
+    : { ...node, children: patchDeptTree(node.children, id, patch) }));
+}
+
+function removeFromDeptTree(nodes: AdminDeptView[], id: string): AdminDeptView[] {
+  return nodes
+    .filter((node) => node.id !== id)
+    .map((node) => ({ ...node, children: removeFromDeptTree(node.children, id) }));
+}
+
+/** candidate 是否位于 ancestor 子树内（防环：上级部门不能是自身或其子部门）。 */
+function isDeptDescendant(nodes: AdminDeptView[], ancestorId: string, candidateId: string): boolean {
+  const ancestor = findDept(nodes, ancestorId);
+  return !!ancestor && !!findDept(ancestor.children, candidateId);
+}
+
+/** 部门子树 id 全集（用户列表 deptId 过滤的含子部门递归口径）。 */
+function collectDeptIds(root: AdminDeptView, into: Set<string>): void {
+  into.add(root.id);
+  for (const child of root.children) {
+    collectDeptIds(child, into);
+  }
+}
+
+const DATA_SCOPE_ENUM: RoleDataScope[] = ['ALL', 'DEPT', 'DEPT_AND_CHILD', 'SELF', 'CUSTOM'];
+
 /** 审计可写集合：dev mock 的内存态允许增删改（仅内存，不落盘）。 */
 const store = {
   tenants: [...db.tenants],
   users: [...db.users],
   roles: [...db.roles],
+  depts: cloneDeptTree(db.depts),
+  positions: [...db.positions],
   permissions: [...db.permissions],
   menus: [...db.menus],
   dictTypes: [...db.dictTypes],
   dictItems: [...db.dictItems],
+  /** 角色数据范围=CUSTOM 时的部门集（sys_role_dept 演示；非 CUSTOM 清空）。 */
+  roleDeptIds: {} as Record<string, string[]>,
 };
 
 let nextId = 10000;
@@ -82,8 +136,20 @@ export const systemHandlers = [
   http.get('/admin/v1/system/users', ({ request }) => {
     const params = urlOf(request).searchParams;
     const status = params.get('status');
-    const rows = matchKeyword(store.users, params.get('username'), (u: AdminUserView) => [u.username])
+    let rows = matchKeyword(store.users, params.get('username'), (u: AdminUserView) => [u.username])
       .filter((u) => !status || u.status === status);
+    // deptId 过滤（REQ-20261114-120104 契约「含子部门递归」）：收集部门子树 id 集后过滤
+    const deptId = params.get('deptId');
+    if (deptId) {
+      const root = findDept(store.depts, deptId);
+      if (root) {
+        const ids = new Set<string>();
+        collectDeptIds(root, ids);
+        rows = rows.filter((u) => u.deptId != null && ids.has(u.deptId));
+      } else {
+        rows = [];
+      }
+    }
     return page(slicePage(rows, pagingOf(request)), rows.length);
   }),
   http.post('/admin/v1/system/users', async ({ request }) => {
@@ -98,6 +164,8 @@ export const systemHandlers = [
       status: 'ENABLED' as const,
       builtIn: false,
       roleIds,
+      deptId: body.deptId ? String(body.deptId) : null,
+      positionId: body.positionId ? String(body.positionId) : null,
       createdAt: nowIso(),
       updatedAt: nowIso(),
       version: '0',
@@ -117,6 +185,8 @@ export const systemHandlers = [
       nickname: typeof body.nickname === 'string' ? body.nickname : target.nickname,
       email: (body.email as string | null) ?? target.email,
       phone: (body.phone as string | null) ?? target.phone,
+      deptId: body.deptId !== undefined ? (body.deptId ? String(body.deptId) : null) : (target.deptId ?? null),
+      positionId: body.positionId !== undefined ? (body.positionId ? String(body.positionId) : null) : (target.positionId ?? null),
       updatedAt: nowIso(),
       version: String(Number(target.version) + 1),
     };
@@ -142,6 +212,134 @@ export const systemHandlers = [
     return empty();
   }),
 
+  // ---- 部门（REQ-20261114-120104） ----
+  http.get('/admin/v1/system/depts', () => ok(store.depts)),
+  http.post('/admin/v1/system/depts', async ({ request }) => {
+    const body = await bodyOf(request);
+    if (typeof body.deptName !== 'string' || !body.deptName.trim()) {
+      return fail('DEPT_NAME_INVALID', '部门名称缺失', 400);
+    }
+    const parentId = body.parentId ? String(body.parentId) : '0';
+    if (parentId !== '0' && !findDept(store.depts, parentId)) {
+      return fail('DEPT_NOT_FOUND', '上级部门不存在或已被删除', 404);
+    }
+    const created: AdminDeptView = {
+      id: genId(),
+      parentId,
+      deptName: body.deptName,
+      sortOrder: Number(body.sortOrder ?? 0),
+      status: body.status === 'DISABLED' ? 'DISABLED' : 'ENABLED',
+      children: [],
+      version: '0',
+    };
+    if (parentId === '0') {
+      store.depts = [...store.depts, created];
+    } else {
+      store.depts = patchDeptTree(store.depts, parentId, (node) => ({ ...node, children: [...node.children, created] }));
+    }
+    return ok(created);
+  }),
+  http.put('/admin/v1/system/depts/:deptId', async ({ request, params }) => {
+    const body = await bodyOf(request);
+    const id = String(params.deptId);
+    const target = findDept(store.depts, id);
+    if (!target) {
+      return fail('DEPT_NOT_FOUND', '部门不存在或已被删除', 404);
+    }
+    const parentId = body.parentId !== undefined ? (body.parentId ? String(body.parentId) : '0') : target.parentId;
+    if (parentId === id || isDeptDescendant(store.depts, id, parentId)) {
+      return fail('DEPT_PARENT_INVALID', '上级部门不能是自身或其子部门', 400);
+    }
+    const updated: AdminDeptView = {
+      ...target,
+      parentId,
+      deptName: typeof body.deptName === 'string' ? body.deptName : target.deptName,
+      sortOrder: body.sortOrder !== undefined ? Number(body.sortOrder) : target.sortOrder,
+      status: body.status === 'DISABLED' ? 'DISABLED' : body.status === 'ENABLED' ? 'ENABLED' : target.status,
+      version: String(Number(target.version) + 1),
+    };
+    if (parentId === target.parentId) {
+      store.depts = patchDeptTree(store.depts, id, () => updated);
+      return ok(updated);
+    }
+    // 换父：校验新父存在（防误删）→ 先摘除再挂载（根=顶层追加）
+    if (parentId !== '0' && !findDept(store.depts, parentId)) {
+      return fail('DEPT_NOT_FOUND', '上级部门不存在或已被删除', 404);
+    }
+    store.depts = removeFromDeptTree(store.depts, id);
+    if (parentId === '0') {
+      store.depts = [...store.depts, updated];
+    } else {
+      store.depts = patchDeptTree(store.depts, parentId, (node) => ({ ...node, children: [...node.children, updated] }));
+    }
+    return ok(updated);
+  }),
+  http.delete('/admin/v1/system/depts/:deptId', ({ params }) => {
+    const id = String(params.deptId);
+    const target = findDept(store.depts, id);
+    if (!target) {
+      return fail('DEPT_NOT_FOUND', '部门不存在或已被删除', 404);
+    }
+    // 删除守卫（契约确认记录③）：有子部门/有用户拒绝
+    if (target.children.length > 0) {
+      return fail('DEPT_HAS_CHILDREN', '存在子部门，无法删除', 400);
+    }
+    if (store.users.some((u) => u.deptId === id)) {
+      return fail('DEPT_HAS_USERS', '部门下存在用户，无法删除', 400);
+    }
+    store.depts = removeFromDeptTree(store.depts, id);
+    return empty();
+  }),
+
+  // ---- 岗位（REQ-20261114-120104） ----
+  http.get('/admin/v1/system/positions', ({ request }) => {
+    const rows = matchKeyword(store.positions, keywordOf(request), (p: AdminPositionView) => [p.positionCode, p.positionName]);
+    return page(slicePage(rows, pagingOf(request)), rows.length);
+  }),
+  http.post('/admin/v1/system/positions', async ({ request }) => {
+    const body = await bodyOf(request);
+    const created: AdminPositionView = {
+      id: genId(),
+      positionCode: String(body.positionCode ?? ''),
+      positionName: String(body.positionName ?? ''),
+      status: body.status === 'DISABLED' ? 'DISABLED' : 'ENABLED',
+      createdAt: nowIso(),
+      version: '0',
+    };
+    store.positions = [...store.positions, created];
+    return ok(created);
+  }),
+  http.put('/admin/v1/system/positions/:positionId', async ({ request, params }) => {
+    const body = await bodyOf(request);
+    const id = String(params.positionId);
+    const target = store.positions.find((p) => p.id === id);
+    if (!target) {
+      return fail('POSITION_NOT_FOUND', '岗位不存在或已被删除', 404);
+    }
+    const updated: AdminPositionView = {
+      ...target,
+      positionName: typeof body.positionName === 'string' ? body.positionName : target.positionName,
+      positionCode: typeof body.positionCode === 'string' ? body.positionCode : target.positionCode,
+      status: body.status === 'DISABLED' ? 'DISABLED' : body.status === 'ENABLED' ? 'ENABLED' : target.status,
+      version: String(Number(target.version) + 1),
+    };
+    store.positions = store.positions.map((p) => (p.id === id ? updated : p));
+    return ok(updated);
+  }),
+  http.delete('/admin/v1/system/positions/:positionId', ({ params }) => {
+    const id = String(params.positionId);
+    const target = store.positions.find((p) => p.id === id);
+    if (!target) {
+      return fail('POSITION_NOT_FOUND', '岗位不存在或已被删除', 404);
+    }
+    // 被用户引用的岗位删除拒绝（契约 §API 错误码 POSITION_IN_USE）
+    if (store.users.some((u) => u.positionId === id)) {
+      return fail('POSITION_IN_USE', '岗位已被用户引用，无法删除', 400);
+    }
+    store.positions = store.positions.filter((p) => p.id !== id);
+    return empty();
+  }),
+
   // ---- 角色 ----
   http.get('/admin/v1/system/roles', ({ request }) => {
     const rows = matchKeyword(store.roles, keywordOf(request), (role: AdminRoleView) => [role.roleCode, role.roleName]);
@@ -157,10 +355,44 @@ export const systemHandlers = [
       status: 'ENABLED' as const,
       builtIn: false,
       remark: (body.remark as string | undefined) ?? null,
+      dataScope: 'ALL' as const,
       version: '0',
     };
     store.roles = [created, ...store.roles];
     return ok(created);
+  }),
+  // 数据范围子资源（契约 §API：PUT /roles/{id}/data-scope）先于通配 PUT 识别
+  http.put('/admin/v1/system/roles/:roleId/data-scope', async ({ request, params }) => {
+    const body = await bodyOf(request);
+    const id = String(params.roleId);
+    const target = store.roles.find((role) => role.id === id);
+    if (!target) {
+      return fail('ROLE_NOT_FOUND', '角色不存在或已被删除', 404);
+    }
+    const dataScope = String(body.dataScope ?? '');
+    if (!DATA_SCOPE_ENUM.includes(dataScope as RoleDataScope)) {
+      return fail('DATA_SCOPE_INVALID', '数据范围枚举无效', 400);
+    }
+    const deptIds = Array.isArray(body.deptIds) ? (body.deptIds as unknown[]).map(String) : [];
+    if (dataScope === 'CUSTOM') {
+      // AC-3 镜像：CUSTOM 未传/传空 deptIds → 校验拒绝；传非法部门 → 拒绝
+      if (deptIds.length === 0) {
+        return fail('DATA_SCOPE_INVALID', '自定义数据范围必须携带部门集', 400);
+      }
+      if (deptIds.some((deptId) => !findDept(store.depts, deptId))) {
+        return fail('DATA_SCOPE_INVALID', '自定义部门不存在', 400);
+      }
+      store.roleDeptIds[id] = deptIds;
+    } else {
+      delete store.roleDeptIds[id];
+    }
+    const updated: AdminRoleView = {
+      ...target,
+      dataScope: dataScope as RoleDataScope,
+      version: String(Number(target.version) + 1),
+    };
+    store.roles = store.roles.map((role) => (role.id === id ? updated : role));
+    return ok(updated);
   }),
   http.put('/admin/v1/system/roles/:roleId', async ({ request, params }) => {
     const body = await bodyOf(request);

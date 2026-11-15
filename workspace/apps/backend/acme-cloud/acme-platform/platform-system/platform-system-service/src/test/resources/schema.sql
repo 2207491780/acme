@@ -1,19 +1,21 @@
 -- 仓储切片测试隔离环境（16.1 等效隔离环境）：H2 内存库；列定义对齐 V1__init_schema.sql（user/role/user_role）
 CREATE TABLE sys_user (
-    id         BIGINT PRIMARY KEY,
-    tenant_id  VARCHAR(64)  NOT NULL,
-    username   VARCHAR(64)  NOT NULL,
-    nickname   VARCHAR(64)  NOT NULL,
-    email      VARCHAR(128),
-    phone      VARCHAR(32),
-    status     VARCHAR(16)  NOT NULL,
-    built_in   BOOLEAN      NOT NULL,
-    created_at TIMESTAMP    NOT NULL,
-    created_by VARCHAR(64)  NOT NULL,
-    updated_at TIMESTAMP    NOT NULL,
-    updated_by VARCHAR(64)  NOT NULL,
-    version    BIGINT       NOT NULL,
-    deleted    BOOLEAN      NOT NULL,
+    id          BIGINT PRIMARY KEY,
+    tenant_id   VARCHAR(64)  NOT NULL,
+    username    VARCHAR(64)  NOT NULL,
+    nickname    VARCHAR(64)  NOT NULL,
+    email       VARCHAR(128),
+    phone       VARCHAR(32),
+    status      VARCHAR(16)  NOT NULL,
+    built_in    BOOLEAN      NOT NULL,
+    dept_id     BIGINT,
+    position_id BIGINT,
+    created_at  TIMESTAMP    NOT NULL,
+    created_by  VARCHAR(64)  NOT NULL,
+    updated_at  TIMESTAMP    NOT NULL,
+    updated_by  VARCHAR(64)  NOT NULL,
+    version     BIGINT       NOT NULL,
+    deleted     BOOLEAN      NOT NULL,
     CONSTRAINT uk_sys_user_username UNIQUE (username)
 );
 
@@ -26,6 +28,7 @@ CREATE TABLE sys_role (
     remark     VARCHAR(255),
     built_in   BOOLEAN      NOT NULL,
     parent_id  BIGINT       NOT NULL DEFAULT 0,
+    data_scope VARCHAR(16),
     created_at TIMESTAMP    NOT NULL,
     created_by VARCHAR(64)  NOT NULL,
     updated_at TIMESTAMP    NOT NULL,
@@ -80,4 +83,50 @@ CREATE TABLE sys_message (
     updated_by   VARCHAR(64)  NOT NULL,
     version      BIGINT       NOT NULL,
     deleted      BOOLEAN      NOT NULL
+);
+
+-- REQ-20261114-120104：部门 / 岗位 / 角色-部门绑定（列定义对齐 V9__org_structure_data_scope.sql）
+CREATE TABLE sys_dept (
+    id         BIGINT PRIMARY KEY,
+    tenant_id  VARCHAR(64)  NOT NULL,
+    parent_id  BIGINT       NOT NULL DEFAULT 0,
+    path       VARCHAR(512) NOT NULL,
+    dept_name  VARCHAR(64)  NOT NULL,
+    sort_order INTEGER      NOT NULL DEFAULT 0,
+    status     VARCHAR(16)  NOT NULL,
+    created_at TIMESTAMP    NOT NULL,
+    created_by VARCHAR(64)  NOT NULL,
+    updated_at TIMESTAMP    NOT NULL,
+    updated_by VARCHAR(64)  NOT NULL,
+    version    BIGINT       NOT NULL,
+    deleted    BOOLEAN      NOT NULL
+);
+
+CREATE TABLE sys_position (
+    id            BIGINT PRIMARY KEY,
+    tenant_id     VARCHAR(64) NOT NULL,
+    position_code VARCHAR(64) NOT NULL,
+    position_name VARCHAR(64) NOT NULL,
+    status        VARCHAR(16) NOT NULL,
+    created_at    TIMESTAMP   NOT NULL,
+    created_by    VARCHAR(64) NOT NULL,
+    updated_at    TIMESTAMP   NOT NULL,
+    updated_by    VARCHAR(64) NOT NULL,
+    version       BIGINT      NOT NULL,
+    deleted       BOOLEAN     NOT NULL,
+    CONSTRAINT uk_sys_position_tenant_code UNIQUE (tenant_id, position_code)
+);
+
+CREATE TABLE sys_role_dept (
+    id         BIGINT PRIMARY KEY,
+    tenant_id  VARCHAR(64) NOT NULL,
+    role_id    BIGINT      NOT NULL,
+    dept_id    BIGINT      NOT NULL,
+    created_at TIMESTAMP   NOT NULL,
+    created_by VARCHAR(64) NOT NULL,
+    updated_at TIMESTAMP   NOT NULL,
+    updated_by VARCHAR(64) NOT NULL,
+    version    BIGINT      NOT NULL,
+    deleted    BOOLEAN     NOT NULL,
+    CONSTRAINT uk_sys_role_dept UNIQUE (tenant_id, role_id, dept_id)
 );

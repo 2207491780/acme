@@ -80,13 +80,24 @@ public class PermissionDecisionService {
         return codes;
     }
 
-    /** 角色集 → 本租户启用角色绑定的权限点 id 集（无启用角色或无绑定返回空集）。 */
+    /**
+     * 角色集 → 启用角色绑定的权限点 id 集（无启用角色或无绑定返回空集）：
+     * ① 本租户启用角色（主路径，租户过滤 12.4.1）；
+     * ② 内置角色跨租户兜底（REQ-20261114-120104 AC-6 跨租户管理面 + SystemIntegrationTest tenant-a
+     *    上下文先例口径）：内置角色行仅系统种子路径可建、保留编码防租户自建同名提权（review P0 语义
+     *    不回退——非内置角色仍严格本租户解析），使内置超管在任意租户上下文持全量权限点绑定。
+     */
     private Set<Long> resolvePermissionIds(Set<String> roleCodes) {
-        List<SysRole> roles = roleRepository.findByRoleCodeInAndStatus(roleCodes, EnableStatus.ENABLED);
-        if (roles.isEmpty()) {
+        Set<Long> roleIds = new LinkedHashSet<>();
+        for (SysRole role : roleRepository.findByRoleCodeInAndStatus(roleCodes, EnableStatus.ENABLED)) {
+            roleIds.add(role.getId());
+        }
+        for (SysRole role : roleRepository.findBuiltInByRoleCodeIn(roleCodes)) {
+            roleIds.add(role.getId());
+        }
+        if (roleIds.isEmpty()) {
             return Set.of();
         }
-        List<Long> roleIds = roles.stream().map(SysRole::getId).toList();
         Set<Long> permissionIds = new LinkedHashSet<>();
         for (var binding : rolePermissionRepository.findByRoleIdIn(roleIds)) {
             permissionIds.add(binding.getPermissionId());

@@ -26,6 +26,21 @@ public final class SystemPermissions {
     public static final String ROLE_DELETE = "system:role:delete";
     public static final String ROLE_GRANT = "system:role:grant";
 
+    /** 角色数据范围（REQ-20261114-120104：sys_role.data_scope 五档 + CUSTOM 部门集）。 */
+    public static final String ROLE_SCOPE = "system:role:scope";
+
+    /** 部门管理（REQ-20261114-120104 组织架构）。 */
+    public static final String DEPT_LIST = "system:dept:list";
+    public static final String DEPT_CREATE = "system:dept:create";
+    public static final String DEPT_UPDATE = "system:dept:update";
+    public static final String DEPT_DELETE = "system:dept:delete";
+
+    /** 岗位管理（REQ-20261114-120104 组织架构）。 */
+    public static final String POSITION_LIST = "system:position:list";
+    public static final String POSITION_CREATE = "system:position:create";
+    public static final String POSITION_UPDATE = "system:position:update";
+    public static final String POSITION_DELETE = "system:position:delete";
+
     /** 权限点管理。 */
     public static final String PERMISSION_LIST = "system:permission:list";
     public static final String PERMISSION_CREATE = "system:permission:create";

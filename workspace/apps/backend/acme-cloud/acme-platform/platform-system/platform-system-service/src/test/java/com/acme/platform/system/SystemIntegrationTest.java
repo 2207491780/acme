@@ -3,7 +3,13 @@ package com.acme.platform.system;
 import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
 import com.acme.common.contract.PageQuery;
+import com.acme.platform.system.api.dto.AdminDeptCreate;
+import com.acme.platform.system.api.dto.AdminPositionCreate;
+import com.acme.platform.system.api.dto.AdminRoleCreate;
+import com.acme.platform.system.api.dto.AdminRoleDataScope;
 import com.acme.platform.system.api.dto.AdminUserCreate;
+import com.acme.platform.system.application.DeptUseCase;
+import com.acme.platform.system.application.PositionUseCase;
 import com.acme.platform.system.application.TenantUseCase;
 import com.acme.platform.system.application.UserUseCase;
 import com.acme.platform.system.infrastructure.repository.SysUserRepository;
@@ -27,7 +33,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * platform-system 集成测试（Testcontainers PostgreSQL，16.2.1 本地可执行、不依赖共享库；
  * 无 Docker 环境自动跳过）：
- * AC-013 实体-脚本一致性（ddl-auto=validate 启动即校验）+ AC-016 双租户隔离 + AC-009 种子幂等。
+ * AC-013 实体-脚本一致性（ddl-auto=validate 启动即校验）+ AC-016 双租户隔离 + AC-009 种子幂等
+ * + REQ-20261114-120104 组织架构与数据权限（部门/岗位/角色数据范围/用户列表 scope 过滤真实 PG 面）。
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = PlatformSystemApplication.class, properties = {
@@ -65,14 +72,16 @@ class SystemIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @AfterEach
-    void clearTenant() {
+    void clearContexts() {
+        UserContext.clear();
         TenantContext.clear();
     }
 
     @Test
     void flywaySeedPresent() {
         // 种子数据（V2 基线 + V3/V4 infra 增补 + V5 内容域增补 + V7 文件/任务/Excel 权限增补
-        // + V8 通知公告/站内信权限增补）：默认租户 / 超管 / super_admin / 53 权限点 / 9 菜单（AC-009 前置）
+        // + V8 通知公告/站内信权限增补 + V9 组织架构/数据范围权限增补）：默认租户 / 超管 / super_admin /
+        // 62 权限点（53+9）/ 9 菜单（AC-009 前置；me.menus 语义不动）
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_tenant where tenant_code='default'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
@@ -80,7 +89,7 @@ class SystemIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_role where role_code='super_admin'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_permission", Long.class)).isEqualTo(53L);
+                "select count(*) from sys_permission", Long.class)).isEqualTo(62L);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_menu", Long.class)).isEqualTo(9L);
         // REQ-20261114-071607：文件服务/任务调度/Excel demo 权限点种子（接口级 http_method + http_path）
@@ -98,34 +107,57 @@ class SystemIntegrationTest {
                 .containsExactly("system:notice:list", "system:notice:create", "system:notice:update",
                         "system:notice:delete", "system:notice:publish",
                         "system:message:send", "system:message:list", "system:message:read");
+        // REQ-20261114-120104：组织架构/数据范围权限点种子（接口级 http_method + http_path）
+        assertThat(jdbcTemplate.queryForList(
+                "select permission_code from sys_permission where permission_code like 'system:dept:%' "
+                        + "or permission_code like 'system:position:%' "
+                        + "or permission_code like 'system:role:scope' order by id",
+                String.class))
+                .containsExactly("system:dept:list", "system:dept:create", "system:dept:update",
+                        "system:dept:delete", "system:position:list", "system:position:create",
+                        "system:position:update", "system:position:delete", "system:role:scope");
+        // V9 列口径：种子角色 data_scope 可空（null 经 DataScope.parse 归缺省档 ALL，存量角色语义不变）
+        assertThat(jdbcTemplate.queryForObject(
+                "select data_scope from sys_role where role_code='super_admin'", String.class)).isNull();
     }
 
     @Test
     void seedScriptReplayIsIdempotent() {
-        // 直接重放 V2/V8 种子 SQL（幂等口径 AC-009：固定主键 + ON CONFLICT DO NOTHING 不产生重复行）
+        // 直接重放 V2/V8/V9 种子 SQL（幂等口径 AC-009：固定主键 + ON CONFLICT DO NOTHING 不产生重复行）
         jdbcTemplate.execute(readResource("db/migration/V2__seed_baseline.sql"));
         jdbcTemplate.execute(readResource("db/migration/V8__notice_message_notify.sql"));
+        jdbcTemplate.execute(readResource("db/migration/V9__org_structure_data_scope.sql"));
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_user where username='admin'",
                 Long.class)).isEqualTo(1L);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(53L);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(62L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 46",
-                Long.class)).isEqualTo(8L);
+                Long.class)).isEqualTo(17L);
+        // V9 幂等：绑定行 9 条（58-66）与权限点 9 条（54-62）不因重放翻倍
+        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 54",
+                Long.class)).isEqualTo(9L);
     }
 
     @Test
     void tenantIsolationFiltersTenantOwnedTables() {
-        // 双租户数据隔离（AC-016 / 16.1 多租户场景）：A 租户查不到 B 租户用户
+        // 双租户数据隔离（AC-016 / 16.1 多租户场景）：A 租户查不到 B 租户用户。
+        // 数据权限示范域（AC-4）要求页面调用带主体上下文：各租户内置 ALL 档角色（data_scope 列缺省）。
         TenantContext.bind(new TenantContext("tenant-a"));
+        roleUseCase.create(new com.acme.platform.system.api.dto.AdminRoleCreate(
+                null, "it_admin_a", "租户A管理", null));
         userUseCase.create(new AdminUserCreate("user-a", "租户A用户", null, null, List.of()));
         TenantContext.bind(new TenantContext("tenant-b"));
+        roleUseCase.create(new com.acme.platform.system.api.dto.AdminRoleCreate(
+                null, "it_admin_b", "租户B管理", null));
         userUseCase.create(new AdminUserCreate("user-b", "租户B用户", null, null, List.of()));
 
         TenantContext.bind(new TenantContext("tenant-a"));
-        assertThat(userUseCase.page(PageQuery.firstPage(), null, null).records())
+        UserContext.bind(new UserContext("1", java.util.Set.of("it_admin_a")));
+        assertThat(userUseCase.page(PageQuery.firstPage(), null, null, null).records())
                 .allSatisfy(user -> assertThat(user.getUsername()).isEqualTo("user-a"));
 
         TenantContext.bind(new TenantContext("tenant-b"));
-        assertThat(userUseCase.page(PageQuery.firstPage(), null, null).records())
+        UserContext.bind(new UserContext("1", java.util.Set.of("it_admin_b")));
+        assertThat(userUseCase.page(PageQuery.firstPage(), null, null, null).records())
                 .allSatisfy(user -> assertThat(user.getUsername()).isEqualTo("user-b"));
     }
 
@@ -133,7 +165,7 @@ class SystemIntegrationTest {
     void missingTenantReadYieldsEmptyFailClosed() {
         // 无租户访问租户归属表：framework-tenant fail-closed（修订口径：读恒空集不跨租户出数，写显式拒绝）
         TenantContext.bind(null);
-        var result = userUseCase.page(PageQuery.firstPage(), null, null);
+        var result = userUseCase.page(PageQuery.firstPage(), null, null, null);
         org.assertj.core.api.Assertions.assertThat(result.records()).isEmpty();
         org.assertj.core.api.Assertions.assertThat(result.total()).isZero();
     }
@@ -176,6 +208,12 @@ class SystemIntegrationTest {
 
     @Autowired
     private com.acme.platform.system.application.AuthorizationUseCase authorizationUseCase;
+
+    @Autowired
+    private DeptUseCase deptUseCase;
+
+    @Autowired
+    private PositionUseCase positionUseCase;
 
     @Test
     void permissionCrudLifecycle() {
@@ -295,6 +333,167 @@ class SystemIntegrationTest {
         assertThat(authorizationUseCase.hasPermission("system:user:create")).isFalse();
         UserContext.bind(new com.acme.common.context.UserContext("1", java.util.Set.of("super_admin")));
         assertThat(authorizationUseCase.hasPermission("system:user:create")).isTrue();
+        UserContext.clear();
+    }
+
+    // ---------- 组织架构与数据权限（REQ-20261114-120104，真实 PG 事务与租户面） ----------
+
+    @Test
+    void deptLifecycleTreeAndDeleteGuards() {
+        // AC-1 / AC-6：树形返回含禁用态、删有子/有用户的部门拒绝、跨租户不可见
+        TenantContext.bind(new TenantContext("tenant-dept"));
+        var hq = deptUseCase.create(new AdminDeptCreate(0L, "总部", 1, null));
+        var child = deptUseCase.create(new AdminDeptCreate(hq.getId(), "研发部", 1, null));
+        child.setStatus(com.acme.platform.system.api.EnableStatus.DISABLED);
+        deptUseCase.update(child.getId(), new com.acme.platform.system.api.dto.AdminDeptUpdate(
+                "研发部", null, 1, com.acme.platform.system.api.EnableStatus.DISABLED, child.getVersion()));
+
+        // 树形返回（含禁用态）；子树 path 前缀展开命中自身与子孙
+        var tree = EntityViews.deptTree(deptUseCase.listAll());
+        assertThat(tree).hasSize(1);
+        assertThat(tree.get(0).deptName()).isEqualTo("总部");
+        assertThat(tree.get(0).children()).extracting(
+                com.acme.platform.system.api.dto.AdminDeptView::deptName).containsExactly("研发部");
+        assertThat(tree.get(0).children().get(0).status())
+                .isEqualTo(com.acme.platform.system.api.EnableStatus.DISABLED);
+        assertThat(deptUseCase.subtreeIds(hq.getId())).containsExactlyInAnyOrder(hq.getId(), child.getId());
+
+        // 删除守卫：有子部门 → DEPT_HAS_CHILDREN
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> deptUseCase.delete(hq.getId()))
+                .isInstanceOf(com.acme.common.core.BizException.class)
+                .satisfies(ex -> assertThat(((com.acme.common.core.BizException) ex).errorCode().code())
+                        .isEqualTo(com.acme.platform.system.SystemError.DEPT_HAS_CHILDREN.code()));
+        // 有用户归属 → DEPT_HAS_USERS
+        userUseCase.create(new AdminUserCreate("dept_user", "部门用户", null, null, List.of(),
+                child.getId(), null));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> deptUseCase.delete(child.getId()))
+                .isInstanceOf(com.acme.common.core.BizException.class)
+                .satisfies(ex -> assertThat(((com.acme.common.core.BizException) ex).errorCode().code())
+                        .isEqualTo(com.acme.platform.system.SystemError.DEPT_HAS_USERS.code()));
+        // 防环：总部重挂到其子孙 → DEPT_PARENT_CYCLE
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> deptUseCase.update(hq.getId(),
+                        new com.acme.platform.system.api.dto.AdminDeptUpdate("总部", child.getId(), 1,
+                                null, hq.getVersion())))
+                .isInstanceOf(com.acme.common.core.BizException.class)
+                .satisfies(ex -> assertThat(((com.acme.common.core.BizException) ex).errorCode().code())
+                        .isEqualTo(com.acme.platform.system.SystemError.DEPT_PARENT_CYCLE.code()));
+
+        // 跨租户不可见（AC-6）：租户过滤后 404
+        TenantContext.bind(new TenantContext("tenant-dept-other"));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> deptUseCase.get(hq.getId()))
+                .isInstanceOf(com.acme.common.core.BizException.class);
+    }
+
+    @Test
+    void positionLifecycleAndReferenceGuard() {
+        // AC-2：被引用删除拒绝、无引用删除成功、编码租户内唯一
+        TenantContext.bind(new TenantContext("tenant-pos"));
+        var referenced = positionUseCase.create(new AdminPositionCreate("it_eng", "集成工程师", null));
+        var free = positionUseCase.create(new AdminPositionCreate("it_free", "空闲岗位", null));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> positionUseCase.create(
+                        new AdminPositionCreate("it_eng", "重复编码", null)))
+                .isInstanceOf(com.acme.common.core.BizException.class);
+
+        userUseCase.create(new AdminUserCreate("pos_user", "岗位用户", null, null, List.of(),
+                null, referenced.getId()));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> positionUseCase.delete(referenced.getId()))
+                .isInstanceOf(com.acme.common.core.BizException.class)
+                .satisfies(ex -> assertThat(((com.acme.common.core.BizException) ex).errorCode().code())
+                        .isEqualTo(com.acme.platform.system.SystemError.POSITION_IN_USE.code()));
+        positionUseCase.delete(free.getId());
+        assertThat(positionUseCase.page(new PageQuery(1, 20), "it_free", null).total()).isZero();
+    }
+
+    @Test
+    void roleDataScopeLifecycleOnRealDatabase() {
+        // AC-3：档位校验 / CUSTOM 部门集落库 / 非 CUSTOM 清空重写
+        TenantContext.bind(new TenantContext("tenant-scope"));
+        var hq = deptUseCase.create(new AdminDeptCreate(0L, "总部", 1, null));
+        var role = roleUseCase.create(new AdminRoleCreate(null, "it_scope", "范围角色", null));
+
+        // 档位未知 → DATA_SCOPE_INVALID
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> roleUseCase.updateDataScope(role.getId(),
+                        new AdminRoleDataScope("TENANT", List.of())))
+                .isInstanceOf(com.acme.common.core.BizException.class)
+                .satisfies(ex -> assertThat(((com.acme.common.core.BizException) ex).errorCode().code())
+                        .isEqualTo(com.acme.platform.system.SystemError.DATA_SCOPE_INVALID.code()));
+        // CUSTOM 未传部门集 → DATA_SCOPE_INVALID
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> roleUseCase.updateDataScope(role.getId(),
+                        new AdminRoleDataScope("CUSTOM", List.of())))
+                .isInstanceOf(com.acme.common.core.BizException.class);
+        // CUSTOM 含未知部门 → DATA_SCOPE_INVALID
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> roleUseCase.updateDataScope(role.getId(),
+                        new AdminRoleDataScope("CUSTOM", List.of(999999999999L))))
+                .isInstanceOf(com.acme.common.core.BizException.class);
+        // 传合法 deptIds → sys_role_dept 落库（AC-3）
+        roleUseCase.updateDataScope(role.getId(), new AdminRoleDataScope("CUSTOM", List.of(hq.getId())));
+        assertThat(jdbcTemplate.queryForList(
+                "select dept_id from sys_role_dept where role_id = ?", Long.class, role.getId()))
+                .containsExactly(hq.getId());
+        assertThat(roleUseCase.get(role.getId()).getDataScope()).isEqualTo("CUSTOM");
+        // 非 CUSTOM 档 → 绑定行清空
+        roleUseCase.updateDataScope(role.getId(), new AdminRoleDataScope("DEPT", List.of()));
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_role_dept where role_id = ?", Long.class, role.getId())).isZero();
+        assertThat(roleUseCase.get(role.getId()).getDataScope()).isEqualTo("DEPT");
+    }
+
+    @Test
+    void userListFilteredByRoleDataScope() {
+        // AC-4：DEPT_AND_CHILD 含子部门、SELF 仅本人、CUSTOM 自定义集、ALL 全部（真实 PG 面）
+        TenantContext.bind(new TenantContext("tenant-scope"));
+        var hq = deptUseCase.create(new AdminDeptCreate(0L, "总部", 1, null));
+        var rd = deptUseCase.create(new AdminDeptCreate(hq.getId(), "研发部", 1, null));
+        var fe = deptUseCase.create(new AdminDeptCreate(rd.getId(), "前端组", 1, null));
+        var uHq = userUseCase.create(new AdminUserCreate("u_hq", "总部用户", null, null, List.of(),
+                hq.getId(), null));
+        var uRd = userUseCase.create(new AdminUserCreate("u_rd", "研发用户", null, null, List.of(),
+                rd.getId(), null));
+        userUseCase.create(new AdminUserCreate("u_fe", "前端用户", null, null, List.of(), fe.getId(), null));
+        var role = roleUseCase.create(new AdminRoleCreate(null, "it_scope_rd", "研发视图角色", null));
+        // 主体 = 研发用户，持范围角色（档位随用例调整）
+        UserContext.bind(new UserContext(String.valueOf(uRd.getId()), java.util.Set.of("it_scope_rd")));
+
+        // DEPT_AND_CHILD：本部门 + 子部门（研发部 + 前端组），不含总部
+        roleUseCase.updateDataScope(role.getId(), new AdminRoleDataScope("DEPT_AND_CHILD", List.of()));
+        var page = userUseCase.page(PageQuery.firstPage(), null, null, null);
+        assertThat(page.records()).extracting(com.acme.platform.system.domain.SysUser::getUsername)
+                .containsExactlyInAnyOrder("u_rd", "u_fe");
+
+        // SELF：仅本人
+        roleUseCase.updateDataScope(role.getId(), new AdminRoleDataScope("SELF", List.of()));
+        assertThat(userUseCase.page(PageQuery.firstPage(), null, null, null).records())
+                .extracting(com.acme.platform.system.domain.SysUser::getUsername)
+                .containsExactly("u_rd");
+
+        // CUSTOM：自定义部门集（总部）
+        roleUseCase.updateDataScope(role.getId(), new AdminRoleDataScope("CUSTOM", List.of(hq.getId())));
+        assertThat(userUseCase.page(PageQuery.firstPage(), null, null, null).records())
+                .extracting(com.acme.platform.system.domain.SysUser::getUsername)
+                .containsExactly("u_hq");
+
+        // deptId 入参（含子部门）叠加 scope 过滤：SELF 档 ∩ 研发部子树 → 本人
+        roleUseCase.updateDataScope(role.getId(), new AdminRoleDataScope("DEPT_AND_CHILD", List.of()));
+        assertThat(userUseCase.page(PageQuery.firstPage(), null, null, rd.getId()).records())
+                .extracting(com.acme.platform.system.domain.SysUser::getUsername)
+                .containsExactlyInAnyOrder("u_rd", "u_fe");
+
+        // ALL：全部
+        roleUseCase.updateDataScope(role.getId(), new AdminRoleDataScope("ALL", List.of()));
+        assertThat(userUseCase.page(PageQuery.firstPage(), null, null, null).total()).isEqualTo(3L);
+
+        // 多角色合并：ALL 角色并存 → 不受限
+        var allRole = roleUseCase.create(new AdminRoleCreate(null, "it_scope_all", "全量角色", null));
+        roleUseCase.updateDataScope(allRole.getId(), new AdminRoleDataScope("ALL", List.of()));
+        UserContext.bind(new UserContext(String.valueOf(uRd.getId()),
+                java.util.Set.of("it_scope_rd", "it_scope_all")));
+        assertThat(userUseCase.page(PageQuery.firstPage(), null, null, null).total()).isEqualTo(3L);
+        // 归属字段校验：跨租户 deptId 拒绝（DEPT_NOT_FOUND）
+        TenantContext.bind(new TenantContext("tenant-scope-other"));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> userUseCase.create(
+                        new AdminUserCreate("u_ghost", "幽灵用户", null, null, List.of(), hq.getId(), null)))
+                .isInstanceOf(com.acme.common.core.BizException.class);
+        assertThat(uHq.getDeptId()).isEqualTo(hq.getId());
         UserContext.clear();
     }
 

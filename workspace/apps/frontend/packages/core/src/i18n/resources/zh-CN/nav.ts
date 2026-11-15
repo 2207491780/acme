@@ -7,6 +7,8 @@ export const nav = {
     tenants: '租户管理',
     users: '用户管理',
     roles: '角色管理',
+    depts: '部门管理',
+    positions: '岗位管理',
     permissions: '权限管理',
     menus: '菜单管理',
     dicts: '字典管理',

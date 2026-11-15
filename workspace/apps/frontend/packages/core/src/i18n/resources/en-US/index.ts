@@ -7,6 +7,8 @@ import { apps } from './apps';
 import { tenants } from './tenants';
 import { users } from './users';
 import { roles } from './roles';
+import { depts } from './depts';
+import { positions } from './positions';
 import { permissions } from './permissions';
 import { menus } from './menus';
 import { dicts } from './dicts';
@@ -27,6 +29,8 @@ export const enUS = {
   tenants,
   users,
   roles,
+  depts,
+  positions,
   permissions,
   menus,
   dicts,

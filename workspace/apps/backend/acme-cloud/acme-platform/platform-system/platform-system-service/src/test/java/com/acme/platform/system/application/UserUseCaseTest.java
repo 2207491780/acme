@@ -6,10 +6,14 @@ import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.dto.AdminUserCreate;
 import com.acme.platform.system.api.dto.AdminUserUpdate;
+import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysUser;
+import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
+import com.acme.platform.system.infrastructure.repository.SysPositionRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRoleRepository;
+import com.acme.platform.system.security.DataScopeService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,15 +30,20 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 用户管理用例测试（FR-006/007：唯一性、内置保护、本人删除拒绝、绑定替换幂等）。
+ * 用户管理用例测试（FR-006/007：唯一性、内置保护、本人删除拒绝、绑定替换幂等；
+ * REQ-20261114-120104：部门/岗位归属校验）。
  */
 class UserUseCaseTest {
 
     private final SysUserRepository userRepository = mock(SysUserRepository.class);
     private final SysRoleRepository roleRepository = mock(SysRoleRepository.class);
     private final SysUserRoleRepository userRoleRepository = mock(SysUserRoleRepository.class);
+    private final SysDeptRepository deptRepository = mock(SysDeptRepository.class);
+    private final SysPositionRepository positionRepository = mock(SysPositionRepository.class);
+    private final DataScopeService dataScopeService = mock(DataScopeService.class);
 
-    private final UserUseCase useCase = new UserUseCase(userRepository, roleRepository, userRoleRepository);
+    private final UserUseCase useCase = new UserUseCase(userRepository, roleRepository, userRoleRepository,
+            deptRepository, positionRepository, dataScopeService);
 
     @AfterEach
     void cleanup() {
@@ -128,6 +137,37 @@ class UserUseCaseTest {
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(SystemError.ROLE_NOT_FOUND.code()));
+    }
+
+    @Test
+    void createWithMissingDeptOrPositionRejected() {
+        // REQ-20261114-120104：归属校验（跨租户 id 经租户过滤天然不存在）
+        when(userRepository.existsByUsername("u1")).thenReturn(false);
+        when(deptRepository.findById(11L)).thenReturn(java.util.Optional.empty());
+        assertThatThrownBy(() -> useCase.create(new AdminUserCreate("u1", "用户", null, null,
+                List.of(), 11L, null)))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(SystemError.DEPT_NOT_FOUND.code()));
+        when(positionRepository.findById(21L)).thenReturn(java.util.Optional.empty());
+        assertThatThrownBy(() -> useCase.create(new AdminUserCreate("u1", "用户", null, null,
+                List.of(), null, 21L)))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(SystemError.POSITION_NOT_FOUND.code()));
+    }
+
+    @Test
+    void createWithOrgRefsSavesAssignment() {
+        // REQ-20261114-120104：合法归属字段随实体落库
+        when(userRepository.existsByUsername("u1")).thenReturn(false);
+        when(deptRepository.findById(11L)).thenReturn(Optional.of(new SysDept(0L, "总部", 0, null)));
+        when(positionRepository.findById(21L)).thenReturn(java.util.Optional.of(
+                new com.acme.platform.system.domain.SysPosition("eng", "工程师", null)));
+        when(userRepository.save(any(SysUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        SysUser saved = useCase.create(new AdminUserCreate("u1", "用户", null, null, List.of(), 11L, 21L));
+        assertThat(saved.getDeptId()).isEqualTo(11L);
+        assertThat(saved.getPositionId()).isEqualTo(21L);
     }
 
     @Test

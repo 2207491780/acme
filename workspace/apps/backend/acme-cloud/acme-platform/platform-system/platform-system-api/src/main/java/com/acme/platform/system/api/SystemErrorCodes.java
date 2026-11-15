@@ -37,6 +37,9 @@ public final class SystemErrorCodes {
     /** 非内置角色不得绑定平台保留域权限点（409）。 */
     public static final String ROLE_GRANT_RESERVED = "platform-system-02-0007";
 
+    /** 数据范围设置非法（档位枚举未知 / CUSTOM 未传部门集或部门集含未知部门，REQ-20261114-120104，409）。 */
+    public static final String DATA_SCOPE_INVALID = "platform-system-02-0008";
+
     /** 权限点不存在（404）。 */
     public static final String PERMISSION_NOT_FOUND = "platform-system-03-0001";
 
@@ -87,6 +90,27 @@ public final class SystemErrorCodes {
 
     /** 无权操作他人站内信（403；REQ-20261114-120102）。 */
     public static final String MESSAGE_FORBIDDEN = "platform-system-09-0002";
+
+    /** 部门不存在（404；REQ-20261114-120104 部门域，实施增补：update 对不存在 id 不可静默成功）。 */
+    public static final String DEPT_NOT_FOUND = "platform-system-10-0001";
+
+    /** 部门删除被拒绝（存在子部门，409；REQ-20261114-120104 确认记录③）。 */
+    public static final String DEPT_HAS_CHILDREN = "platform-system-10-0002";
+
+    /** 部门删除被拒绝（存在用户归属，409；REQ-20261114-120104 确认记录③）。 */
+    public static final String DEPT_HAS_USERS = "platform-system-10-0003";
+
+    /** 部门父节点调整成环（目标父为自身或其子孙，409；REQ-20261114-120104 实施增补）。 */
+    public static final String DEPT_PARENT_CYCLE = "platform-system-10-0004";
+
+    /** 岗位不存在（404；REQ-20261114-120104 岗位域，实施增补：update 对不存在 id 不可静默成功）。 */
+    public static final String POSITION_NOT_FOUND = "platform-system-11-0001";
+
+    /** 岗位删除被拒绝（存在用户引用，409；REQ-20261114-120104）。 */
+    public static final String POSITION_IN_USE = "platform-system-11-0002";
+
+    /** 租户内岗位编码已存在（409；REQ-20261114-120104 实施增补：(tenant_id, position_code) 唯一对齐字典先例）。 */
+    public static final String POSITION_CODE_DUPLICATED = "platform-system-11-0003";
 
     private SystemErrorCodes() {
     }

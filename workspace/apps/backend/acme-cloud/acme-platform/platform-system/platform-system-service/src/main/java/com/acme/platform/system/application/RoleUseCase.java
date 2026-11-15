@@ -8,12 +8,17 @@ import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.dto.AdminRoleCreate;
 import com.acme.platform.system.api.dto.AdminRoleUpdate;
+import com.acme.framework.security.support.DataScope;
+import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysPermission;
 import com.acme.platform.system.domain.SysRole;
+import com.acme.platform.system.domain.SysRoleDept;
 import com.acme.platform.system.domain.SysRoleMenu;
 import com.acme.platform.system.domain.SysRolePermission;
 import com.acme.platform.system.domain.SysMenu;
+import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysMenuRepository;
+import com.acme.platform.system.infrastructure.repository.SysRoleDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysPermissionRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysRolePermissionRepository;
@@ -32,6 +37,7 @@ import java.util.Set;
  * 权限点 / 菜单绑定整体替换幂等（10.3.1）；菜单绑定自动补全父链保证树完整（openapi AdminMenuIds 契约）。
  * 角色支持父子关系树状定义：根哨兵 0（sys_menu 同款）、父角色可调整（内置角色除外）、
  * 写入沿父链防环、存在子角色拒绝删除；树组装在接口层 EntityViews.roleTree。
+ * REQ-20261114-120104：数据范围五档设置（sys_role.data_scope + CUSTOM 部门集 sys_role_dept 全量重写）。
  */
 @Service
 public class RoleUseCase {
@@ -51,17 +57,22 @@ public class RoleUseCase {
     private final SysRoleMenuRepository roleMenuRepository;
     private final SysPermissionRepository permissionRepository;
     private final SysMenuRepository menuRepository;
+    private final SysDeptRepository deptRepository;
+    private final SysRoleDeptRepository roleDeptRepository;
 
     public RoleUseCase(SysRoleRepository roleRepository, SysUserRoleRepository userRoleRepository,
                        SysRolePermissionRepository rolePermissionRepository,
                        SysRoleMenuRepository roleMenuRepository,
-                       SysPermissionRepository permissionRepository, SysMenuRepository menuRepository) {
+                       SysPermissionRepository permissionRepository, SysMenuRepository menuRepository,
+                       SysDeptRepository deptRepository, SysRoleDeptRepository roleDeptRepository) {
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
         this.rolePermissionRepository = rolePermissionRepository;
         this.roleMenuRepository = roleMenuRepository;
         this.permissionRepository = permissionRepository;
         this.menuRepository = menuRepository;
+        this.deptRepository = deptRepository;
+        this.roleDeptRepository = roleDeptRepository;
     }
 
     /** 创建角色（(tenant_id, role_code) 唯一；parentId 缺省为根角色，父角色须存在；保留编码拒绝）。 */
@@ -175,6 +186,37 @@ public class RoleUseCase {
     /** 角色绑定的菜单 ID 集。 */
     public List<Long> menuIdsOf(Long roleId) {
         return roleMenuRepository.findByRoleId(roleId).stream().map(SysRoleMenu::getMenuId).toList();
+    }
+
+    /**
+     * 设置角色数据范围（REQ-20261114-120104）：档位枚举校验（未知 → DATA_SCOPE_INVALID）；
+     * CUSTOM 须传非空且全部存在的部门集（空集 / 含未知或跨租户部门 → DATA_SCOPE_INVALID，
+     * 租户隔离由 sys_dept 租户过滤天然保证）；写 sys_role.data_scope + sys_role_dept 全量重写
+     * （非 CUSTOM 档清空绑定行，防档位回落遗留脏集）。
+     */
+    @Transactional
+    public void updateDataScope(Long roleId, com.acme.platform.system.api.dto.AdminRoleDataScope request) {
+        SysRole role = get(roleId);
+        DataScope scope = DataScope.parse(request.dataScope());
+        if (scope == null) {
+            throw new BizException(SystemError.DATA_SCOPE_INVALID);
+        }
+        if (scope == DataScope.CUSTOM) {
+            Set<Long> distinct = new LinkedHashSet<>(request.deptIds() == null ? List.of() : request.deptIds());
+            if (distinct.isEmpty()) {
+                throw new BizException(SystemError.DATA_SCOPE_INVALID);
+            }
+            List<SysDept> depts = deptRepository.findAllById(distinct);
+            if (depts.size() != distinct.size()) {
+                throw new BizException(SystemError.DATA_SCOPE_INVALID);
+            }
+            roleDeptRepository.deleteByRoleId(roleId);
+            roleDeptRepository.saveAll(distinct.stream().map(deptId -> new SysRoleDept(roleId, deptId)).toList());
+        } else {
+            roleDeptRepository.deleteByRoleId(roleId);
+        }
+        role.setDataScope(scope.name());
+        roleRepository.save(role);
     }
 
     /** 权限点绑定整体替换（角色须存在；权限点全集校验存在；非内置角色拒绝平台保留域，review 修复）。 */

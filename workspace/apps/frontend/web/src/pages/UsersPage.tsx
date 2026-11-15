@@ -7,17 +7,21 @@ import {
   formatDate,
   systemApi,
   useCrud,
+  useDeptTree,
   useMeStore,
+  type AdminPositionView,
   type AdminRoleView,
   type AdminUserView,
 } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
+import { flattenDeptOptions } from '../utils/dept';
 
 const { Text } = Typography;
 
 type UserFilters = {
   status?: 'ENABLED' | 'DISABLED';
+  deptId?: string;
 };
 
 interface UserCreateValues {
@@ -26,12 +30,16 @@ interface UserCreateValues {
   email?: string;
   phone?: string;
   roleIds: string[];
+  deptId?: string;
+  positionId?: string;
 }
 
 interface UserEditValues {
   nickname: string;
   email?: string;
   phone?: string;
+  deptId?: string;
+  positionId?: string;
 }
 
 interface RoleBindValues {
@@ -41,6 +49,8 @@ interface RoleBindValues {
 /** 用户管理（p2-admin）：分页/搜索/新建/编辑/启停/删除/角色绑定。
  *  通用 CRUD 范本：headless 状态机走 @acme/core useCrud，展示层为 CrudTable + CrudFormModal。
  *  角色选择器来自角色目录（/system/roles 首页大页）；内置账号（builtIn）禁止删除。
+ *  REQ-20261114-120104 扩展：筛选区部门 Select（列表请求携带 deptId，子部门递归为后端语义）、
+ *  表单部门/岗位选择（编辑路径同步新建路径字段）。
  *  动作按钮按 me.permissions 权限码显隐（fail-closed）。
  *  文案经 users 域资源包（zh 基线=既有用例断言原文，REQ-20261114-120103）。 */
 export function UsersPage() {
@@ -50,8 +60,8 @@ export function UsersPage() {
 
   const crud = useCrud<AdminUserView, UserFilters>({
     fetchPage: ({ page, size, keyword, filters, signal }) =>
-      systemApi.userList(page, size, keyword || undefined, filters?.status, signal),
-    filters: { status: undefined },
+      systemApi.userList(page, size, keyword || undefined, filters?.status, filters?.deptId, signal),
+    filters: { status: undefined, deptId: undefined },
     permissions,
     pageSize: 10,
     errorMessage: t('users.errors.loadFailed'),
@@ -66,6 +76,11 @@ export function UsersPage() {
   const [editForm] = Form.useForm<UserEditValues>();
   const [bindForm] = Form.useForm<RoleBindValues>();
 
+  // 部门/岗位选择器数据源（REQ-20261114-120104）：部门树经 useDeptTree 模块缓存共享；
+  // 岗位目录一次大页拉取（读路径降级为空选项，无独立权限门禁）。
+  const deptTree = useDeptTree();
+  const [positions, setPositions] = useState<AdminPositionView[]>([]);
+
   // 权限就绪后加载角色目录（选择器数据源）
   useEffect(() => {
     if (crud.can('system:user:assign-role')) {
@@ -74,6 +89,20 @@ export function UsersPage() {
         .catch(() => setRoles([]));
     }
   }, [permissions.length]);
+
+  useEffect(() => {
+    let alive = true;
+    systemApi.positionList(1, 200)
+      .then((result) => {
+        if (alive) setPositions(result?.records ?? []);
+      })
+      .catch(() => {
+        if (alive) setPositions([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const openCreate = () => {
     createForm.resetFields();
@@ -87,6 +116,8 @@ export function UsersPage() {
       nickname: record.nickname ?? undefined,
       email: record.email ?? undefined,
       phone: record.phone ?? undefined,
+      deptId: record.deptId ?? undefined,
+      positionId: record.positionId ?? undefined,
     });
   };
 
@@ -105,6 +136,8 @@ export function UsersPage() {
         email: values.email,
         phone: values.phone,
         roleIds: values.roleIds ?? [],
+        deptId: values.deptId ?? null,
+        positionId: values.positionId ?? null,
       });
       message.success(t('users.form.createSuccess', { name: values.username }));
       setCreating(false);
@@ -125,6 +158,8 @@ export function UsersPage() {
         nickname: values.nickname,
         email: values.email,
         phone: values.phone,
+        deptId: values.deptId ?? null,
+        positionId: values.positionId ?? null,
         version: editing.version,
       });
       message.success(t('users.form.updateSuccess'));
@@ -229,17 +264,27 @@ export function UsersPage() {
         onCreate={openCreate}
         totalText={(total) => t('users.total', { total })}
         filters={(
-          <Select<'ENABLED' | 'DISABLED'>
-            allowClear
-            placeholder={t('users.filters.status')}
-            style={{ width: 120 }}
-            options={[
-              { value: 'ENABLED', label: t('users.status.enabled') },
-              { value: 'DISABLED', label: t('users.status.disabled') },
-            ]}
-            value={crud.filters.status}
-            onChange={(value) => crud.setFilter('status', value)}
-          />
+          <>
+            <Select<string>
+              allowClear
+              placeholder={t('users.filters.dept')}
+              style={{ width: 140 }}
+              options={flattenDeptOptions(deptTree.tree)}
+              value={crud.filters.deptId}
+              onChange={(value) => crud.setFilter('deptId', value)}
+            />
+            <Select<'ENABLED' | 'DISABLED'>
+              allowClear
+              placeholder={t('users.filters.status')}
+              style={{ width: 120 }}
+              options={[
+                { value: 'ENABLED', label: t('users.status.enabled') },
+                { value: 'DISABLED', label: t('users.status.disabled') },
+              ]}
+              value={crud.filters.status}
+              onChange={(value) => crud.setFilter('status', value)}
+            />
+          </>
         )}
       />
 
@@ -285,6 +330,24 @@ export function UsersPage() {
             optionFilterProp="label"
           />
         </Form.Item>
+        <Form.Item name="deptId" label={t('users.form.dept')}>
+          <Select
+            allowClear
+            placeholder={t('users.form.deptPlaceholder')}
+            optionFilterProp="label"
+            showSearch
+            options={flattenDeptOptions(deptTree.tree, { enabledOnly: true })}
+          />
+        </Form.Item>
+        <Form.Item name="positionId" label={t('users.form.position')}>
+          <Select
+            allowClear
+            placeholder={t('users.form.positionPlaceholder')}
+            optionFilterProp="label"
+            showSearch
+            options={positions.filter((p) => p.status === 'ENABLED').map((p) => ({ value: p.id, label: p.positionName }))}
+          />
+        </Form.Item>
       </CrudFormModal>
 
       <CrudFormModal<UserEditValues>
@@ -310,6 +373,24 @@ export function UsersPage() {
         </Form.Item>
         <Form.Item name="phone" label={t('users.form.phone')} rules={[{ max: 32, message: t('common.validation.maxLength', { max: 32 }) }]}>
           <Input placeholder={t('users.form.optional')} />
+        </Form.Item>
+        <Form.Item name="deptId" label={t('users.form.dept')}>
+          <Select
+            allowClear
+            placeholder={t('users.form.deptPlaceholder')}
+            optionFilterProp="label"
+            showSearch
+            options={flattenDeptOptions(deptTree.tree, { enabledOnly: true })}
+          />
+        </Form.Item>
+        <Form.Item name="positionId" label={t('users.form.position')}>
+          <Select
+            allowClear
+            placeholder={t('users.form.positionPlaceholder')}
+            optionFilterProp="label"
+            showSearch
+            options={positions.filter((p) => p.status === 'ENABLED').map((p) => ({ value: p.id, label: p.positionName }))}
+          />
         </Form.Item>
         <Text type="secondary" style={{ fontSize: 12 }}>
           {t('users.form.editLockNote', { version: editing?.version ?? '—' })}
