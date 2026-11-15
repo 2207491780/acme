@@ -60,4 +60,19 @@ export const settings = {
     mobileInfo: '响应式移动入口 · 共享 Web 业务层',
     webInfo: '浏览器 Web 端 · 本地持久化',
   },
+  updater: {
+    title: '检查更新',
+    label: '应用更新',
+    desc: '检查桌面端新版本并安装（仅桌面端提供）',
+    currentVersion: '当前版本',
+    versionUnknown: '未知',
+    checkAction: '检查更新',
+    installAction: '重启并安装',
+    result: {
+      upToDate: '已是最新版本',
+      ready: '发现新版本 {{version}}，下载完成，可重启安装',
+      unreachable: '更新源不可达，请稍后重试',
+      disabled: '当前环境未启用自动更新',
+    },
+  },
 };

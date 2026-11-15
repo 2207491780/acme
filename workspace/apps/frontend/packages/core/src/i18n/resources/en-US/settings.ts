@@ -60,4 +60,19 @@ export const settings = {
     mobileInfo: 'Responsive mobile entry · shares the web business layer',
     webInfo: 'Browser web client · local persistence',
   },
+  updater: {
+    title: 'Updates',
+    label: 'App updates',
+    desc: 'Check for new desktop versions and install them (desktop only)',
+    currentVersion: 'Current version',
+    versionUnknown: 'Unknown',
+    checkAction: 'Check for updates',
+    installAction: 'Restart to install',
+    result: {
+      upToDate: 'You are up to date',
+      ready: 'New version {{version}} downloaded and ready to install',
+      unreachable: 'Update source unreachable, please try again later',
+      disabled: 'Automatic updates are disabled in this environment',
+    },
+  },
 };

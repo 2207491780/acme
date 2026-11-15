@@ -259,11 +259,39 @@ export function App() {
     { key: 'logout', icon: <LogoutOutlined />, label: t('nav.userMenu.logout'), danger: true },
   ];
 
+  // —— 导航动态化（REQ-20261114-120101，AC-7）：登录后按 me.menus 菜单树渲染（含权限码过滤）；
+  // menus 缺失/为空/过滤后无可见项 → 回退静态 NAV（fail-closed 不变）；仅控显隐，不做动态路由注册。
+  // 注意：本段含 hooks（useLocaleStore/useMemo/useState/useEffect），必须位于下方条件 return
+  // （if (!session)）之前——登录/登出（含 401 清会话）切换时 hook 数量不得变化，否则触发
+  // React "Rendered fewer hooks than expected" 崩溃（同上方 P0 注释口径）。
+  const activeCount = releases.filter((r) => ACTIVE_STATUSES.includes(r.status)).length;
+  const labelOf = (n: NavEntry) =>
+    n.path === '/releases' ? (
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {n.label}
+        <Badge count={activeCount} size="small" color="var(--accent)" />
+      </span>
+    ) : (
+      n.label
+    );
+  const setLocale = useLocaleStore((s) => s.setLocale);
+  const dynamicNav = useMemo(
+    () => (me && (me.menus?.length ?? 0) > 0 ? buildDynamicNav(me.menus, me.permissions, (_label, entry) => labelOf(entry)) : null),
+    // labelOf 依赖 activeCount（发布单活跃数）与 t（语言切换后菜单文案重译），随渲染更新
+    [me, activeCount, t],
+  );
+  // 动态菜单的目录分组默认展开（受控）：保证分组子项在侧边导航直达可见
+  const [navOpenKeys, setNavOpenKeys] = useState<string[] | undefined>(undefined);
+  useEffect(() => {
+    if (dynamicNav) {
+      setNavOpenKeys(dynamicNav.openKeys);
+    }
+  }, [dynamicNav]);
+
   if (!session) {
     return <LoginPage />;
   }
 
-  const activeCount = releases.filter((r) => ACTIVE_STATUSES.includes(r.status)).length;
   const current = location.pathname;
   const platform = detectPlatform();
   const runtimeLabel = platform === 'desktop'
@@ -282,7 +310,6 @@ export function App() {
     if (location.pathname !== '/releases') navigate('/releases');
   };
 
-  const setLocale = useLocaleStore((s) => s.setLocale);
   const onUserMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'logout') {
       handleLogout();
@@ -296,29 +323,6 @@ export function App() {
   // 导航按权限过滤（p2-admin）：me 未加载时先全部隐藏，加载后按权限码展示（fail-closed）
   const permittedNav = NAV.filter((n) => !n.permission || (me?.permissions.includes(n.permission) ?? false))
     .map((n) => ({ path: n.path, icon: n.icon, label: t(n.labelKey) }));
-  // 导航动态化（REQ-20261114-120101，AC-7）：登录后按 me.menus 菜单树渲染（含权限码过滤）；
-  // menus 缺失/为空/过滤后无可见项 → 回退静态 NAV（fail-closed 不变）；仅控显隐，不做动态路由注册。
-  const labelOf = (n: NavEntry) =>
-    n.path === '/releases' ? (
-      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {n.label}
-        <Badge count={activeCount} size="small" color="var(--accent)" />
-      </span>
-    ) : (
-      n.label
-    );
-  const dynamicNav = useMemo(
-    () => (me && (me.menus?.length ?? 0) > 0 ? buildDynamicNav(me.menus, me.permissions, (_label, entry) => labelOf(entry)) : null),
-    // labelOf 依赖 activeCount（发布单活跃数）与 t（语言切换后菜单文案重译），随渲染更新
-    [me, activeCount, t],
-  );
-  // 动态菜单的目录分组默认展开（受控）：保证分组子项在侧边导航直达可见
-  const [navOpenKeys, setNavOpenKeys] = useState<string[] | undefined>(undefined);
-  useEffect(() => {
-    if (dynamicNav) {
-      setNavOpenKeys(dynamicNav.openKeys);
-    }
-  }, [dynamicNav]);
   // 底栏/点击守卫用的扁平叶子集合（动态取菜单树叶子；回退取静态 NAV）
   const navEntries: NavEntry[] = dynamicNav?.entries ?? permittedNav;
   const leafPaths = new Set(navEntries.map((n) => n.path));

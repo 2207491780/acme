@@ -43,12 +43,15 @@ export function LoginPage() {
     setTenantsError(null);
     authApi.tenants()
       .then((list) => {
-        setTenants(list);
-        if (list.length > 0) {
+        // 信封 data 可能非数组（如异常兜底返回 null）→ 规整为空数组，避免渲染期 tenants.map 崩溃
+        //（与 OnlineUsersPage 列表规整口径一致）
+        const safeList = Array.isArray(list) ? list : [];
+        setTenants(safeList);
+        if (safeList.length > 0) {
           // 表单已填则保留用户输入；否则默认取首个租户
           const current = form.getFieldValue('tenantCode') as string | undefined;
           if (!current) {
-            form.setFieldValue('tenantCode', list[0].tenantCode);
+            form.setFieldValue('tenantCode', safeList[0].tenantCode);
           }
         }
       })

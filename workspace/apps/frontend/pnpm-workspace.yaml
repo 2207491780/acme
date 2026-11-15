@@ -8,3 +8,5 @@ allowBuilds:
   esbuild: true
   electron: true
   msw: true
+  # electron-builder（desktop 打包链路）的传递依赖，Squirrel.Windows 目标所需
+  electron-winstaller: true

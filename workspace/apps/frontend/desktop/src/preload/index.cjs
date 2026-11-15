@@ -8,4 +8,6 @@ contextBridge.exposeInMainWorld('acmeDesktop', {
   },
   openExternal: (url) => ipcRenderer.invoke('acme:open-external', url),
   getInfo: () => ipcRenderer.invoke('acme:get-info'),
+  checkUpdates: () => ipcRenderer.invoke('acme:check-updates'),
+  installUpdates: () => ipcRenderer.invoke('acme:install-updates'),
 });

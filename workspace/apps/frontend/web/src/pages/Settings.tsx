@@ -1,13 +1,15 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { App, Button, Card, Col, Input, Row, Select, Space, Switch, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
+  CloudDownloadOutlined,
   DatabaseOutlined,
   DownloadOutlined,
   GlobalOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
+  SyncOutlined,
   ThunderboltOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
@@ -35,6 +37,70 @@ function SettingRow({ label, desc, control }: { label: string; desc: string; con
       </div>
       {control}
     </div>
+  );
+}
+
+/** 检查更新结果态 → i18n 文案键（REQ-20261114-120111 AC-1/AC-2）。 */
+type UpdateCheckStatus = 'disabled' | 'up-to-date' | 'ready' | 'unreachable';
+
+const UPDATE_RESULT_KEYS: Record<UpdateCheckStatus, string> = {
+  disabled: 'settings.updater.result.disabled',
+  'up-to-date': 'settings.updater.result.upToDate',
+  ready: 'settings.updater.result.ready',
+  unreachable: 'settings.updater.result.unreachable',
+};
+
+/** 桌面端更新小节：当前版本 + 手动检查 + 结果提示 + 就绪重启安装（仅桌面桥接可达时挂载）。 */
+function UpdaterCard() {
+  const { t } = useTranslation();
+  const bridge = window.acmeDesktop;
+  const [version, setVersion] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<{ status: UpdateCheckStatus; version?: string | null } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    bridge?.getInfo().then((info) => {
+      if (alive) setVersion(info.version ?? null);
+    }).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [bridge]);
+
+  const onCheck = async () => {
+    if (!bridge?.checkUpdates || checking) return;
+    setChecking(true);
+    try {
+      setResult(await bridge.checkUpdates());
+    } catch {
+      setResult({ status: 'unreachable' });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const onInstall = () => {
+    bridge?.installUpdates?.().catch(() => {});
+  };
+
+  return (
+    <Card title={<Space><CloudDownloadOutlined style={{ color: 'var(--accent)' }} /> {t('settings.updater.title')}</Space>}>
+      <SettingRow
+        label={t('settings.updater.currentVersion')}
+        desc={t('settings.updater.desc')}
+        control={<Text style={{ color: 'var(--accent)' }}>{version ?? t('settings.updater.versionUnknown')}</Text>}
+      />
+      <SettingRow
+        label={t('settings.updater.label')}
+        desc={result ? t(UPDATE_RESULT_KEYS[result.status], { version: result.version ?? '' }) : ''}
+        control={
+          result?.status === 'ready'
+            ? <Button type="primary" icon={<SyncOutlined />} onClick={onInstall}>{t('settings.updater.installAction')}</Button>
+            : <Button icon={<CloudDownloadOutlined />} loading={checking} onClick={onCheck}>{t('settings.updater.checkAction')}</Button>
+        }
+      />
+    </Card>
   );
 }
 
@@ -204,6 +270,13 @@ export function Settings() {
           </Card>
         </Col>
       </Row>
+      {platform === 'desktop' && window.acmeDesktop?.checkUpdates && (
+        <Row gutter={[18, 18]} style={{ marginTop: 18 }}>
+          <Col xs={24} lg={12}>
+            <UpdaterCard />
+          </Col>
+        </Row>
+      )}
     </>
   );
 }

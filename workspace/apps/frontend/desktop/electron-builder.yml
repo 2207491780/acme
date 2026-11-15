@@ -1,0 +1,49 @@
+# REQ-20261114-120111 AC-6：electron-builder 最小出包链路。
+# 产物输出 desktop/dist_electron/（含安装包与 latest.yml）。
+# 发布 URL 由 CI 经 ACME_DESKTOP_PUBLISH_URL 注入（${env.*} 占位，见 publish 段）；
+# 本地 `--publish never` 只构建不发布，但 publish 配置存在即会在 dist_electron/ 产出 latest.yml。
+
+appId: com.acme.desktop
+productName: ACME
+# 命名依据：desktop/package.json（@acme/desktop「ACME 多端前端交付台 PC 桌面端」）；
+# 反域名沿用后端 Java 规范 groupId=com.acme。
+
+directories:
+  output: dist_electron
+  buildResources: resources
+
+# 打包 desktop 自身产物 + 运行时依赖（electron-updater 自动纳入）。
+files:
+  - src/main/**
+  - src/preload/**
+  - src/shared/**
+  - resources/**
+  - package.json
+
+# Web 构建产物：web 包 vite build.outDir = 'dist'（见 web/vite.config.ts），
+# 即 ../web/dist。src/main/index.js 的 distRoot 在打包态解析为 <resources>/web/dist
+# （app.asar/src/main 上跳三级），故经 extraResources 落到 resources/web/dist，
+# 与 acme:// 协议取文件路径严格对齐；files 内的 ../ 模式会进 app.asar 而与 distRoot 不符。
+extraResources:
+  - from: ../web/dist
+    to: web/dist
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - nsis
+  # 无仓库级 .ico 资源，暂用 electron-builder 默认图标（构建时仅告警不阻断）。
+
+nsis:
+  # 一键安装默认值即可；artifactName 含版本号，与 latest.yml 对齐。
+  artifactName: ACME-Setup-${version}.${ext}
+
+publish:
+  provider: generic
+  # 发布地址占位：CI 出包时经 `--config.publish.url=$ACME_DESKTOP_PUBLISH_URL` 覆盖注入
+  #（${env.*} 模式在变量未定义时会使构建失败，故不用）。
+  # 运行时真实更新源以 main 进程 setFeedURL(ACME_DESKTOP_UPDATE_URL) 为准（src/main/updater.js）；
+  # 此处仅为使本地 `--publish never` 构建正常产出 latest.yml 结构。
+  url: https://updates.acme.invalid/desktop
+  channel: latest
