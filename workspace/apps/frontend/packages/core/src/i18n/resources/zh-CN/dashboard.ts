@@ -22,6 +22,8 @@ export const dashboard = {
     pipeline: '交付流水线',
     pipelineTotal: '共 {{total}} 个发布单',
     statusDistribution: '发布状态分布',
+    trendChart: '近 7 日发布趋势',
+    distributionChart: '平台分布',
     recent: '最近更新',
     activity: '动态',
     recentAll: '全部',

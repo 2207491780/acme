@@ -12,6 +12,14 @@ export const components = {
   dictSelect: {
     retry: '重试',
   },
+  lockScreen: {
+    title: '屏幕已锁定',
+    desc: '输入锁屏口令继续操作',
+    placeholder: '请输入锁屏口令',
+    unlock: '解锁',
+    unlockFailed: '解锁失败，请重试',
+    forgot: '忘记口令？重新登录',
+  },
   notification: {
     center: '通知中心',
     markAllRead: '全部已读',

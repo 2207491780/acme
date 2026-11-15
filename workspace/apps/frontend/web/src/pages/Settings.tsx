@@ -1,17 +1,18 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { App, Button, Card, Col, Row, Select, Space, Switch, Typography } from 'antd';
+import { App, Button, Card, Col, Input, Row, Select, Space, Switch, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
   DatabaseOutlined,
   DownloadOutlined,
   GlobalOutlined,
   ReloadOutlined,
+  SafetyCertificateOutlined,
   ThunderboltOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
 import type { Accent, AppLocale } from '@acme/core';
-import { SUPPORTED_LOCALES, useLocaleStore } from '@acme/core';
+import { SUPPORTED_LOCALES, useLocaleStore, useLockStore, useUiPrefsStore } from '@acme/core';
 import { useStore } from '../store/useStore';
 import { PageHead } from '../components/PageHead';
 import { ACCENTS, ACCENT_ORDER } from '../theme';
@@ -137,6 +138,9 @@ export function Settings() {
           </Card>
         </Col>
         <Col xs={24} lg={12}>
+          <SecurityCard />
+        </Col>
+        <Col xs={24} lg={12}>
           <Card title={<Space><DatabaseOutlined style={{ color: 'var(--accent)' }} /> {t('settings.data.title')}</Space>} style={{ height: '100%' }}>
             <SettingRow
               label={t('settings.data.export')}
@@ -201,6 +205,81 @@ export function Settings() {
         </Col>
       </Row>
     </>
+  );
+}
+
+/**
+ * 安全与水印（REQ-20261114-120112，AC-3/AC-4）：
+ * 水印开关 → useUiPrefsStore（持久化，关闭立即生效）；锁屏口令 → useLockStore
+ * （本地会话口令）；闲置锁屏时长 → useUiPrefsStore + useLockStore.setIdleTimeoutMs。
+ */
+function SecurityCard() {
+  const { t } = useTranslation();
+  const { message } = App.useApp();
+  const watermarkEnabled = useUiPrefsStore((s) => s.watermarkEnabled);
+  const setWatermarkEnabled = useUiPrefsStore((s) => s.setWatermarkEnabled);
+  const lockIdleTimeoutMs = useUiPrefsStore((s) => s.lockIdleTimeoutMs);
+  const setLockIdleTimeoutMs = useUiPrefsStore((s) => s.setLockIdleTimeoutMs);
+  const [passcode, setPasscode] = useState('');
+
+  const savePasscode = (value: string) => {
+    const code = value.trim();
+    if (!code) {
+      return; // 空值不清除既有口令（避免误触失焦清空）
+    }
+    useLockStore.getState().setPasscode(code);
+    message.success(t('settings.security.passcodeSaved'));
+    setPasscode(code);
+  };
+
+  const onIdleLockChange = (ms: number) => {
+    setLockIdleTimeoutMs(ms);
+    useLockStore.getState().setIdleTimeoutMs(ms); // 立即生效（重新武装闲置定时器）
+  };
+
+  return (
+    <Card
+      title={<Space><SafetyCertificateOutlined style={{ color: 'var(--accent)' }} /> {t('settings.security.title')}</Space>}
+      style={{ height: '100%' }}
+    >
+      <SettingRow
+        label={t('settings.security.watermark')}
+        desc={t('settings.security.watermarkDesc')}
+        control={<Switch checked={watermarkEnabled} onChange={setWatermarkEnabled} />}
+      />
+      <SettingRow
+        label={t('settings.security.passcode')}
+        desc={t('settings.security.passcodeDesc')}
+        control={
+          <Input
+            type="password"
+            style={{ width: 160 }}
+            value={passcode}
+            placeholder={t('settings.security.passcodePlaceholder')}
+            onChange={(e) => setPasscode(e.target.value)}
+            onPressEnter={(e) => savePasscode(e.currentTarget.value)}
+            onBlur={(e) => savePasscode(e.target.value)}
+          />
+        }
+      />
+      <SettingRow
+        label={t('settings.security.idleLock')}
+        desc={t('settings.security.idleLockDesc')}
+        control={
+          <Select
+            style={{ width: 120 }}
+            value={lockIdleTimeoutMs}
+            onChange={onIdleLockChange}
+            options={[
+              { value: 0, label: t('settings.security.idleOff') },
+              { value: 60_000, label: t('settings.security.idle1') },
+              { value: 300_000, label: t('settings.security.idle5') },
+              { value: 900_000, label: t('settings.security.idle15') },
+            ]}
+          />
+        }
+      />
+    </Card>
   );
 }
 

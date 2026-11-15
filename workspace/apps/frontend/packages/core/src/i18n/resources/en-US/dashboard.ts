@@ -22,6 +22,8 @@ export const dashboard = {
     pipeline: 'Delivery pipeline',
     pipelineTotal: '{{total}} releases in total',
     statusDistribution: 'Status distribution',
+    trendChart: 'Release trend (last 7 days)',
+    distributionChart: 'Platform distribution',
     recent: 'Recently updated',
     activity: 'Activity',
     recentAll: 'All',

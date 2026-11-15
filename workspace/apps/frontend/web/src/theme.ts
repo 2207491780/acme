@@ -5,8 +5,10 @@ import {
   TONES,
   DENSITY,
   FONT_FAMILY,
+  FONT_SIZE,
   resolvePalette,
   withAlpha,
+  type ChartThemeSnapshot,
   type Settings,
 } from '@acme/core';
 
@@ -67,5 +69,25 @@ export function buildTheme(settings: Settings): ThemeConfig {
       },
       Card: { paddingLG: d.cardPadding },
     },
+  };
+}
+
+/**
+ * 图表主题快照（REQ-20261114-120112，AC-2）：从既有 settings 派生 createChartOption
+ * 所需的快照形状——全部色值取自 core 令牌（ACCENTS / resolvePalette），字号随密度单调。
+ */
+export function themeSnapshot(settings: Settings): ChartThemeSnapshot {
+  const n = resolvePalette(settings.theme);
+  return {
+    mode: settings.theme,
+    colors: {
+      accent: ACCENTS[settings.accent],
+      text: n.text,
+      subText: n.text2,
+      border: n.border,
+      background: n.bg,
+      surface: n.surface,
+    },
+    fontSize: settings.density === 'compact' ? FONT_SIZE.small : FONT_SIZE.base,
   };
 }

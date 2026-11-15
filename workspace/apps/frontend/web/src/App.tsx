@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Tooltip } from 'antd';
+import { Alert, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Tooltip, Watermark } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
@@ -9,9 +9,12 @@ import {
   DashboardOutlined,
   DownOutlined,
   FileSearchOutlined,
+  FullscreenExitOutlined,
+  FullscreenOutlined,
   GlobalOutlined,
   HistoryOutlined,
   IdcardOutlined,
+  LockOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuOutlined,
@@ -29,7 +32,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, authApi, startAuthRenewal, useAuthStore, useLocaleStore, useMeStore, useNotifyStore, type AppLocale } from '@acme/core';
+import { ACTIVE_STATUSES, authApi, startAuthRenewal, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useUiPrefsStore, type AppLocale } from '@acme/core';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
 import { createNotifyClient } from './ws/notify-client';
@@ -58,6 +61,8 @@ import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
 import { SaveViewModal } from './components/SaveViewModal';
 import { AppFormModal } from './components/AppFormModal';
+import { LockScreenOverlay } from './components/LockScreenOverlay';
+import { useFullscreen } from './hooks/useFullscreen';
 
 const { Sider, Header, Content } = Layout;
 
@@ -202,6 +207,23 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // 全屏 / 水印（REQ-20261114-120112，AC-3/AC-5）：水印开关即时生效（Settings 可关）
+  const { isFullscreen, enter: enterFullscreen, exit: exitFullscreen } = useFullscreen();
+  const watermarkEnabled = useUiPrefsStore((s) => s.watermarkEnabled);
+
+  // 闲置锁屏（AC-4）：进入应用武装闲置计时（时长来自 UI 偏好，0=关闭）；用户活动打点重置计时
+  useEffect(() => {
+    useLockStore.getState().setIdleTimeoutMs(useUiPrefsStore.getState().lockIdleTimeoutMs);
+    const onTouch = () => useLockStore.getState().touch();
+    document.addEventListener('pointerdown', onTouch);
+    document.addEventListener('keydown', onTouch);
+    return () => {
+      document.removeEventListener('pointerdown', onTouch);
+      document.removeEventListener('keydown', onTouch);
+      useLockStore.getState().stopIdleWatch();
+    };
+  }, []);
+
   const handleLogout = () => {
     void authApi
       .logout()
@@ -333,7 +355,7 @@ export function App() {
     </div>
   );
 
-  return (
+  const shell = (
     <>
       <Layout style={{ minHeight: '100vh' }}>
         {!isMobile && (
@@ -398,6 +420,22 @@ export function App() {
                 icon={settings.theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
                 onClick={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: settings.theme === 'dark' ? 'light' : 'dark' } })}
                 aria-label={t('nav.header.toggleTheme')}
+              />
+            </Tooltip>
+            <Tooltip title={t('nav.header.lockScreen')}>
+              <Button
+                type="text"
+                icon={<LockOutlined />}
+                onClick={() => useLockStore.getState().lock()}
+                aria-label={t('nav.header.lockScreen')}
+              />
+            </Tooltip>
+            <Tooltip title={isFullscreen ? t('nav.header.exitFullscreen') : t('nav.header.enterFullscreen')}>
+              <Button
+                type="text"
+                icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                onClick={() => (isFullscreen ? exitFullscreen() : enterFullscreen())}
+                aria-label={isFullscreen ? t('nav.header.exitFullscreen') : t('nav.header.enterFullscreen')}
               />
             </Tooltip>
             <Dropdown
@@ -596,6 +634,13 @@ export function App() {
       <ReleaseFormModal />
       <SaveViewModal />
       <AppFormModal />
+      <LockScreenOverlay />
     </>
+  );
+  // App 级水印（AC-3）：内容=当前用户账号；Settings 关闭（或未登录）立即消失并持久化
+  return watermarkEnabled && session ? (
+    <Watermark content={session.username} style={{ minHeight: '100vh' }}>{shell}</Watermark>
+  ) : (
+    shell
   );
 }

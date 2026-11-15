@@ -12,6 +12,14 @@ export const components = {
   dictSelect: {
     retry: 'Retry',
   },
+  lockScreen: {
+    title: 'Screen locked',
+    desc: 'Enter your lock passcode to continue',
+    placeholder: 'Enter lock passcode',
+    unlock: 'Unlock',
+    unlockFailed: 'Unlock failed, please try again',
+    forgot: 'Forgot passcode? Sign in again',
+  },
   notification: {
     center: 'Notification center',
     markAllRead: 'Mark all read',

@@ -4,6 +4,8 @@ import {
   ClockCircleOutlined,
   DashboardOutlined,
   FolderOpenOutlined,
+  LineChartOutlined,
+  PieChartOutlined,
   PlusOutlined,
   RocketOutlined,
   ThunderboltOutlined,
@@ -24,6 +26,8 @@ import {
 } from '@acme/core';
 import { useStore } from '../store/useStore';
 import { HealthTag, PlatformIcon, PlatformTag, StatusTag } from '../components/atoms';
+import { Chart } from '../components/Chart';
+import { useDashboardCharts } from '../hooks/useDashboardCharts';
 
 const { Text, Paragraph } = Typography;
 
@@ -52,6 +56,8 @@ export function Dashboard() {
   const m = metrics(state);
   const recent = sortReleases(state.releases, 'updated', state.order).slice(0, 5);
   const maxStatus = Math.max(1, ...Object.values(m.byStatus));
+  // 图表区（REQ-20261114-120112 AC-1）：数据来自统一数据 hook（Dashboard 既有统计衍生）
+  const charts = useDashboardCharts();
 
   const goPlatform = (platform: Platform) => {
     setQuery({ platform, status: 'all' });
@@ -137,6 +143,25 @@ export function Dashboard() {
           ))}
         </div>
       </Card>
+
+      <Row gutter={[18, 18]} style={{ marginBottom: 18 }}>
+        <Col xs={24} xl={12}>
+          <Card
+            title={<Space><LineChartOutlined style={{ color: 'var(--accent)' }} /> {t('dashboard.cards.trendChart')}</Space>}
+            style={{ height: '100%' }}
+          >
+            <Chart option={charts.trend ?? undefined} />
+          </Card>
+        </Col>
+        <Col xs={24} xl={12}>
+          <Card
+            title={<Space><PieChartOutlined style={{ color: 'var(--accent)' }} /> {t('dashboard.cards.distributionChart')}</Space>}
+            style={{ height: '100%' }}
+          >
+            <Chart option={charts.distribution ?? undefined} />
+          </Card>
+        </Col>
+      </Row>
 
       <Row gutter={[18, 18]}>
         <Col xs={24} xl={16}>
