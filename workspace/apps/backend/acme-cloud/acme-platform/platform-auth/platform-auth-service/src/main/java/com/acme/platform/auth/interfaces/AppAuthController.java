@@ -8,6 +8,7 @@ import com.acme.platform.auth.application.CaptchaUseCase;
 import com.acme.platform.auth.application.ConsumerLoginUseCase;
 import com.acme.platform.auth.application.LogoutUseCase;
 import com.acme.platform.auth.application.RefreshTokenUseCase;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,10 +45,13 @@ public class AppAuthController {
         captchaUseCase.send(request.phone());
     }
 
-    /** 验证码登录（公开端点；首登自动注册；签发双令牌）。 */
+    /** 验证码登录（公开端点；首登自动注册；签发双令牌）。
+     *  REQ-20261114-120105：客户端 ip/ua 随登录捕获入登录日志与会话信息。 */
     @PostMapping("/tokens")
-    public AppTokenIssued login(@Valid @RequestBody AppLoginRequest request) {
-        return loginUseCase.login(request.phone(), request.captcha());
+    public AppTokenIssued login(@Valid @RequestBody AppLoginRequest request,
+                                HttpServletRequest servletRequest) {
+        return loginUseCase.login(request.phone(), request.captcha(),
+                ClientRequests.resolveIp(servletRequest), ClientRequests.resolveUserAgent(servletRequest));
     }
 
     /** 刷新轮换（公开端点自证：一次性轮换，旧对即用即废）。 */

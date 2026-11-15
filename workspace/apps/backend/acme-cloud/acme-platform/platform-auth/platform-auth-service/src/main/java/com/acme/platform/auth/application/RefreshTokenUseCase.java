@@ -68,6 +68,10 @@ public class RefreshTokenUseCase {
         // （review 修复：此前撤销 TTL 仅 1 秒，旧令牌在剩余有效期内仍可用）
         revokeWithRemainingTtl(session.getTokenId(),
                 Instant.now().plusSeconds(consumerProperties.getAccessTtlSeconds()));
+        // REQ-20261114-120105：会话信息随轮换迁移（ip 沿用，lastActiveAt=本次刷新时点）
+        long accessTtl = Math.max(1, consumerProperties.getAccessTtlSeconds());
+        sessionRedis.readSessionInfo(session.getTokenId()).ifPresent(info ->
+                sessionRedis.writeSessionInfo(access.tokenId(), info.ip(), Instant.now(), accessTtl));
         return new AppTokenIssued(access.token(), refresh.token(),
                 access.expiresAt(), refresh.expiresAt(), session.getUserId(), null);
     }

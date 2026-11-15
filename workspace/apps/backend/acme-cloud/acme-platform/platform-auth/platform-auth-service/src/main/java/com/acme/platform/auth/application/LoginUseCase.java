@@ -38,6 +38,7 @@ public class LoginUseCase {
     private final UserTokenIssuer tokenIssuer;
     private final BCryptPasswordEncoder passwordEncoder;
     private final ImageCaptchaUseCase imageCaptchaUseCase;
+    private final LoginLogRecorder loginLogRecorder;
 
     public LoginUseCase(AuthProfileGateway authProfileGateway,
                         AuthCredentialRepository credentialRepository,
@@ -46,7 +47,8 @@ public class LoginUseCase {
                         SessionRecorder sessionRecorder,
                         UserTokenIssuer tokenIssuer,
                         BCryptPasswordEncoder passwordEncoder,
-                        ImageCaptchaUseCase imageCaptchaUseCase) {
+                        ImageCaptchaUseCase imageCaptchaUseCase,
+                        LoginLogRecorder loginLogRecorder) {
         this.authProfileGateway = authProfileGateway;
         this.credentialRepository = credentialRepository;
         this.loginGuard = loginGuard;
@@ -55,47 +57,64 @@ public class LoginUseCase {
         this.tokenIssuer = tokenIssuer;
         this.passwordEncoder = passwordEncoder;
         this.imageCaptchaUseCase = imageCaptchaUseCase;
+        this.loginLogRecorder = loginLogRecorder;
     }
 
-    /** B 端登录（公开端点；多租户 + 前置图形验证码；单会话互踢 Q-003；统一失败提示 FR-005）。 */
+    /**
+     * B 端登录（公开端点；多租户 + 前置图形验证码；单会话互踢 Q-003；统一失败提示 FR-005）。
+     * REQ-20261114-120105：成功/失败均记登录日志（异步落库，写失败不影响本路径）；
+     * 会话信息（ip/lastActiveAt）随签发写入供在线用户展示。
+     */
     public AdminTokenIssued login(String tenantCode, String username, String password,
-                                  String captchaId, String captchaCode) {
+                                  String captchaId, String captchaCode,
+                                  String clientIp, String userAgent) {
         String normalized = username == null ? "" : username.trim();
         String normalizedTenant = tenantCode == null ? "" : tenantCode.trim();
-        // 1. 图形验证码前置（一次性消费防刷，login-guard-captcha；错误区分 INVALID/EXPIRED）
-        imageCaptchaUseCase.verify(captchaId, captchaCode);
-        // 2. 锁定预检（Redis fail-open）
-        if (loginGuard.isLocked(normalized)) {
-            throw new BizException(AuthError.ACCOUNT_LOCKED);
+        try {
+            // 1. 图形验证码前置（一次性消费防刷，login-guard-captcha；错误区分 INVALID/EXPIRED）
+            imageCaptchaUseCase.verify(captchaId, captchaCode);
+            // 2. 锁定预检（Redis fail-open）
+            if (loginGuard.isLocked(normalized)) {
+                throw new BizException(AuthError.ACCOUNT_LOCKED);
+            }
+            // 3. 画像查询（事务外远程调用，Q-D06/Q-D08；404 → 统一失败）
+            AuthProfileView profile = authProfileGateway.findByUsername(normalized);
+            // 4. 租户一致性（多租户口径：SysUser.tenantId 存租户代码；不匹配按统一失败，不泄露归属差异 FR-005）
+            if (!normalizedTenant.equals(profile.tenantId())) {
+                throw new BizException(AuthError.LOGIN_FAILED);
+            }
+            // 5. 账号状态
+            if (EnableStatus.DISABLED.name().equals(profile.status())) {
+                throw new BizException(AuthError.ACCOUNT_DISABLED);
+            }
+            Long userId = Long.parseLong(profile.userId());
+            // 6. 凭据校验（未设密码与密码错误统一失败，FR-005）
+            AuthCredential credential = credentialRepository.findByUserId(userId);
+            if (credential == null || !passwordEncoder.matches(password, credential.getPasswordHash())) {
+                boolean locked = loginGuard.recordFailure(normalized);
+                throw new BizException(locked ? AuthError.ACCOUNT_LOCKED : AuthError.LOGIN_FAILED);
+            }
+            loginGuard.clearFailures(normalized);
+            // 7. 单会话互踢（DB 底账置 KICKED；撤销集写入 best-effort，Q-003）
+            kickPreviousSessions(userId);
+            // 8. 签发（jti=会话 tokenId；claims 契约见 4.1）+ 会话底账 + 单会话索引
+            UserTokenIssuer.IssuedToken issued = tokenIssuer.issue(userId, profile.tenantId(), profile.roles());
+            sessionRecorder.record(issued.tokenId(), userId, profile.tenantId(), UserTokenIssuer.CHANNEL_B,
+                    issued.issuedAt(), issued.expiresAt());
+            long ttl = Math.max(1, Duration.between(Instant.now(), issued.expiresAt()).toSeconds());
+            sessionRedis.indexSession(userId, issued.tokenId(), ttl);
+            // 9. 会话信息（在线用户 ip/lastActiveAt 富化；best-effort）+ 登录日志（成功，AC-1）
+            sessionRedis.writeSessionInfo(issued.tokenId(), clientIp, issued.issuedAt(), ttl);
+            loginLogRecorder.record(LoginLogRecorder.Entry.capture(normalized, UserTokenIssuer.CHANNEL_B,
+                    clientIp, userAgent, true, null));
+            return new AdminTokenIssued(issued.token(), "Bearer", issued.expiresAt(), userId,
+                    profile.username(), profile.nickname());
+        } catch (BizException ex) {
+            // 失败亦记日志（AC-1）；failReason=业务错误码（含 LoginGuard 判定结果映射的 ACCOUNT_LOCKED）
+            loginLogRecorder.record(LoginLogRecorder.Entry.capture(normalized, UserTokenIssuer.CHANNEL_B,
+                    clientIp, userAgent, false, ex.errorCode().code()));
+            throw ex;
         }
-        // 3. 画像查询（事务外远程调用，Q-D06/Q-D08；404 → 统一失败）
-        AuthProfileView profile = authProfileGateway.findByUsername(normalized);
-        // 4. 租户一致性（多租户口径：SysUser.tenantId 存租户代码；不匹配按统一失败，不泄露归属差异 FR-005）
-        if (!normalizedTenant.equals(profile.tenantId())) {
-            throw new BizException(AuthError.LOGIN_FAILED);
-        }
-        // 5. 账号状态
-        if (EnableStatus.DISABLED.name().equals(profile.status())) {
-            throw new BizException(AuthError.ACCOUNT_DISABLED);
-        }
-        Long userId = Long.parseLong(profile.userId());
-        // 6. 凭据校验（未设密码与密码错误统一失败，FR-005）
-        AuthCredential credential = credentialRepository.findByUserId(userId);
-        if (credential == null || !passwordEncoder.matches(password, credential.getPasswordHash())) {
-            boolean locked = loginGuard.recordFailure(normalized);
-            throw new BizException(locked ? AuthError.ACCOUNT_LOCKED : AuthError.LOGIN_FAILED);
-        }
-        loginGuard.clearFailures(normalized);
-        // 7. 单会话互踢（DB 底账置 KICKED；撤销集写入 best-effort，Q-003）
-        kickPreviousSessions(userId);
-        // 8. 签发（jti=会话 tokenId；claims 契约见 4.1）+ 会话底账 + 单会话索引
-        UserTokenIssuer.IssuedToken issued = tokenIssuer.issue(userId, profile.tenantId(), profile.roles());
-        sessionRecorder.record(issued.tokenId(), userId, profile.tenantId(), UserTokenIssuer.CHANNEL_B,
-                issued.issuedAt(), issued.expiresAt());
-        long ttl = Math.max(1, Duration.between(Instant.now(), issued.expiresAt()).toSeconds());
-        sessionRedis.indexSession(userId, issued.tokenId(), ttl);
-        return new AdminTokenIssued(issued.token(), "Bearer", issued.expiresAt(), userId,
-                profile.username(), profile.nickname());
     }
 
     /** 互踢：旧活跃会话置 KICKED（事务）→ 撤销集写入（事务外，失败降级 WARN 不阻断登录）。 */

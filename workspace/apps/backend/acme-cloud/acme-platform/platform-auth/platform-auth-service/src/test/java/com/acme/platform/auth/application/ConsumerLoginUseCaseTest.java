@@ -7,6 +7,7 @@ import com.acme.platform.auth.config.AuthTokenProperties;
 import com.acme.platform.auth.domain.AuthConsumerAccount;
 import com.acme.platform.auth.domain.ConsumerStatus;
 import com.acme.platform.auth.infrastructure.redis.CaptchaRedis;
+import com.acme.platform.auth.infrastructure.redis.SessionRedis;
 import com.acme.platform.auth.infrastructure.repository.AuthConsumerAccountRepository;
 import com.acme.platform.auth.internal.token.UserTokenIssuer;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,8 @@ class ConsumerLoginUseCaseTest {
     private final CaptchaRedis captchaRedis = mock(CaptchaRedis.class);
     private final AuthConsumerAccountRepository accountRepository = mock(AuthConsumerAccountRepository.class);
     private final SessionRecorder sessionRecorder = mock(SessionRecorder.class);
+    private final SessionRedis sessionRedis = mock(SessionRedis.class);
+    private final LoginLogRecorder loginLogRecorder = mock(LoginLogRecorder.class);
 
     private ConsumerLoginUseCase useCase;
 
@@ -46,14 +49,14 @@ class ConsumerLoginUseCaseTest {
         AuthTokenProperties properties = new AuthTokenProperties();
         properties.setHmacSecret(SECRET);
         useCase = new ConsumerLoginUseCase(captchaRedis, accountRepository, sessionRecorder,
-                new UserTokenIssuer(properties), properties);
+                sessionRedis, new UserTokenIssuer(properties), properties, loginLogRecorder);
     }
 
     @Test
     void wrongCaptchaRejected() {
         when(captchaRedis.verify(PHONE, "000000")).thenReturn(false);
         when(captchaRedis.exists(PHONE)).thenReturn(true);
-        assertError(() -> useCase.login(PHONE, "000000"), AuthError.CAPTCHA_INVALID);
+        assertError(() -> useCase.login(PHONE, "000000", "10.0.0.1", "JUnit"), AuthError.CAPTCHA_INVALID);
         verify(accountRepository, never()).findByPhone(any());
     }
 
@@ -61,7 +64,7 @@ class ConsumerLoginUseCaseTest {
     void missingCaptchaDistinguishedAsExpired() {
         when(captchaRedis.verify(PHONE, "000000")).thenReturn(false);
         when(captchaRedis.exists(PHONE)).thenReturn(false);
-        assertError(() -> useCase.login(PHONE, "000000"), AuthError.CAPTCHA_EXPIRED);
+        assertError(() -> useCase.login(PHONE, "000000", "10.0.0.1", "JUnit"), AuthError.CAPTCHA_EXPIRED);
     }
 
     @Test
@@ -72,7 +75,7 @@ class ConsumerLoginUseCaseTest {
         when(accountRepository.save(any(AuthConsumerAccount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        AppTokenIssued issued = useCase.login(PHONE, "123456");
+        AppTokenIssued issued = useCase.login(PHONE, "123456", "10.0.0.1", "JUnit");
 
         assertThat(issued.accessToken()).isNotBlank();
         assertThat(issued.refreshToken()).isNotBlank();
@@ -95,7 +98,7 @@ class ConsumerLoginUseCaseTest {
         when(accountRepository.save(any(AuthConsumerAccount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        AppTokenIssued issued = useCase.login(PHONE, "123456");
+        AppTokenIssued issued = useCase.login(PHONE, "123456", "10.0.0.1", "JUnit");
         assertThat(issued.accessToken()).isNotBlank();
         assertThat(existing.getLastLoginAt()).isNotNull();
     }
@@ -107,7 +110,7 @@ class ConsumerLoginUseCaseTest {
         disabled.disable();
         when(accountRepository.findByPhone(PHONE)).thenReturn(Optional.of(disabled));
 
-        assertError(() -> useCase.login(PHONE, "123456"), AuthError.CONSUMER_DISABLED);
+        assertError(() -> useCase.login(PHONE, "123456", "10.0.0.1", "JUnit"), AuthError.CONSUMER_DISABLED);
         verify(sessionRecorder, never()).recordConsumer(any(), any(), anyLong(), any(), any(), any(), any());
     }
 

@@ -14,6 +14,8 @@ export const nav = {
     dicts: '字典管理',
     notices: '通知公告',
     audit: '审计事件',
+    loginLogs: '登录日志',
+    onlineUsers: '在线用户',
     settings: '设置',
   },
   header: {

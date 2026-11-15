@@ -13,6 +13,8 @@ export const SYSTEM_ERROR_I18N_KEYS: Record<string, string> = {
   DEPT_HAS_USERS: 'depts.errors.deptHasUsers',
   POSITION_IN_USE: 'positions.errors.positionInUse',
   DATA_SCOPE_INVALID: 'roles.scope.invalid',
+  SESSION_NOT_FOUND: 'onlineUsers.errors.sessionNotFound',
+  REVOKE_SUPERADMIN_FORBIDDEN: 'onlineUsers.errors.revokeSuperadminForbidden',
 };
 
 /** 系统域失败的用户可读文案：命中已知错误码 → 转译；尾部附错误码（转译提示口径对齐 notify-errors）。 */

@@ -10,6 +10,15 @@ public final class SystemPermissions {
     /** 凭据管理（认证域 Admin 端点，权限目录平台级统一登记）。 */
     public static final String AUTH_CREDENTIAL_MANAGE = "auth:credential:manage";
 
+    /** 登录日志查询（认证域 Admin 端点；REQ-20261114-120105 登录安全域）。 */
+    public static final String AUTH_LOGIN_LOG_LIST = "auth:loginlog:list";
+
+    /** 在线用户查询（认证域 Admin 端点；REQ-20261114-120105 登录安全域）。 */
+    public static final String AUTH_ONLINE_LIST = "auth:online:list";
+
+    /** 在线用户踢下线（认证域 Admin 端点；REQ-20261114-120105 登录安全域）。 */
+    public static final String AUTH_ONLINE_REVOKE = "auth:online:revoke";
+
     /** 用户管理。 */
     public static final String USER_LIST = "system:user:list";
     public static final String USER_CREATE = "system:user:create";

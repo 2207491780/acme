@@ -25,11 +25,16 @@ public class AuthorizationGateway {
 
     /** 要求当前主体具备权限点，未授权抛 PERMISSION_DENIED（403）。 */
     public void requirePermission(String permissionCode) {
-        ContractResult<Boolean> result = authorizationClient.hasPermission(permissionCode);
-        Boolean granted = result == null ? null : result.data();
-        if (!Boolean.TRUE.equals(granted)) {
+        if (!hasPermission(permissionCode)) {
             throw new BizException(new CrossDomainPermissionDenied());
         }
+    }
+
+    /** 权限点布尔判定（调用方组合判定场景用；判定不可达按未授权口径 fail-closed）。 */
+    public boolean hasPermission(String permissionCode) {
+        ContractResult<Boolean> result = authorizationClient.hasPermission(permissionCode);
+        Boolean granted = result == null ? null : result.data();
+        return Boolean.TRUE.equals(granted);
     }
 
     /** 凭据管理权限快捷判定（架构设计 4.6）。 */

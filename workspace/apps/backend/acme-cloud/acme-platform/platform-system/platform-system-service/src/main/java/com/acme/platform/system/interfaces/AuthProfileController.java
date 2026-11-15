@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * 登录认证画像内部接口（架构设计 3.3；不经网关对外，openapi 不登记）：
  * 服务间调用经 framework-security 内部令牌校验（11.6.1）；404 错误信封由全局异常映射产出。
@@ -23,5 +25,11 @@ public class AuthProfileController {
     @GetMapping("/internal/v1/auth-profiles")
     public Result<AuthProfileView> findByUsername(@RequestParam("username") String username) {
         return Result.ok(authProfileUseCase.findByUsername(username));
+    }
+
+    /** 按 userId 批量画像（REQ-20261114-120105：在线用户列表 username/超管判定富化）。 */
+    @GetMapping("/internal/v1/auth-profiles/batch")
+    public Result<List<AuthProfileView>> findByUserIds(@RequestParam("userIds") List<Long> userIds) {
+        return Result.ok(authProfileUseCase.findByUserIds(userIds));
     }
 }

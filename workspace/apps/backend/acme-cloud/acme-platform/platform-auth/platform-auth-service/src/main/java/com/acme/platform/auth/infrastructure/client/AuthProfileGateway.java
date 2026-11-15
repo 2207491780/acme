@@ -9,6 +9,10 @@ import com.acme.platform.system.api.ContractResult;
 import com.acme.platform.system.api.SystemErrorCodes;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -40,6 +44,33 @@ public class AuthProfileGateway {
                 throw new BizException(AuthError.LOGIN_FAILED);
             }
             throw ex;
+        } finally {
+            UserContext.bind(previous);
+        }
+    }
+
+    /**
+     * 按 userId 批量查画像（REQ-20261114-120105：在线用户列表 username / 超管判定富化）；
+     * 以服务身份主体调用（Q-D08 同口径）。查不到的 userId 不在结果中（展示缺省处理）。
+     */
+    public Map<Long, AuthProfileView> findByUserIds(Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        UserContext previous = UserContext.get();
+        UserContext.bind(new UserContext(SERVICE_IDENTITY, Set.of()));
+        try {
+            ContractResult<List<AuthProfileView>> result = authProfileClient.findByUserIds(List.copyOf(userIds));
+            List<AuthProfileView> profiles = result.payload();
+            Map<Long, AuthProfileView> mapped = new HashMap<>();
+            for (AuthProfileView profile : profiles == null ? List.<AuthProfileView>of() : profiles) {
+                try {
+                    mapped.put(Long.parseLong(profile.userId()), profile);
+                } catch (NumberFormatException ignored) {
+                    // 画像 userId 非数值（脏数据）：跳过，不影响其余条目
+                }
+            }
+            return mapped;
         } finally {
             UserContext.bind(previous);
         }

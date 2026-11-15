@@ -15,6 +15,7 @@ import com.acme.platform.system.infrastructure.repository.SysUserRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRoleRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -59,6 +60,32 @@ public class AuthProfileUseCase {
         }
         return new AuthProfileView(String.valueOf(user.getId()), user.getUsername(), user.getNickname(),
                 user.getTenantId(), effectiveStatus(user).name(), roleCodes);
+    }
+
+    /**
+     * 按 userId 批量查认证画像（REQ-20261114-120105：在线用户列表 username/超管判定富化）；
+     * 不存在的 userId 不产生条目（消费方按缺省展示处理）。角色解析复用单查口径。
+     */
+    @IgnoreTenant("online-user-profile-lookup")
+    public List<AuthProfileView> findByUserIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> distinct = userIds.stream().distinct().toList();
+        List<AuthProfileView> views = new ArrayList<>(distinct.size());
+        for (SysUser user : userRepository.findAllById(distinct)) {
+            Set<String> roleCodes = new LinkedHashSet<>();
+            List<Long> roleIds = userRoleRepository.findByUserId(user.getId()).stream()
+                    .map(SysUserRole::getRoleId).toList();
+            if (!roleIds.isEmpty()) {
+                for (SysRole role : roleRepository.findAllById(roleIds)) {
+                    roleCodes.add(role.getRoleCode());
+                }
+            }
+            views.add(new AuthProfileView(String.valueOf(user.getId()), user.getUsername(), user.getNickname(),
+                    user.getTenantId(), effectiveStatus(user).name(), roleCodes));
+        }
+        return views;
     }
 
     /** 生效状态：用户或所属租户任一停用即停用（停用级联，登录链统一拒绝口径）。 */

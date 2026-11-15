@@ -73,6 +73,9 @@ public class AdminRenewUseCase {
                 UserTokenIssuer.CHANNEL_B, issued.issuedAt(), issued.expiresAt());
         long ttl = Math.max(1, Duration.between(Instant.now(), issued.expiresAt()).toSeconds());
         sessionRedis.indexSession(verified.userId(), issued.tokenId(), ttl);
+        // REQ-20261114-120105：会话信息随换代迁移（ip 沿用，lastActiveAt=本次续约时点）
+        sessionRedis.readSessionInfo(verified.tokenId()).ifPresent(info ->
+                sessionRedis.writeSessionInfo(issued.tokenId(), info.ip(), Instant.now(), ttl));
         return new AdminTokenIssued(issued.token(), "Bearer", issued.expiresAt(), verified.userId(),
                 null, null);
     }

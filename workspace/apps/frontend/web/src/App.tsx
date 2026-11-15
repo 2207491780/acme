@@ -10,6 +10,7 @@ import {
   DownOutlined,
   FileSearchOutlined,
   GlobalOutlined,
+  HistoryOutlined,
   IdcardOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -45,6 +46,8 @@ import { PermissionsPage } from './pages/PermissionsPage';
 import { MenusPage } from './pages/MenusPage';
 import { DictsPage } from './pages/DictsPage';
 import { AuditPage } from './pages/AuditPage';
+import { LoginLogsPage } from './pages/LoginLogsPage';
+import { OnlineUsersPage } from './pages/OnlineUsersPage';
 import { FilesPage } from './pages/FilesPage';
 import { NoticesPage } from './pages/NoticesPage';
 import { LoginPage } from './pages/LoginPage';
@@ -121,6 +124,8 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   { path: '/dicts', icon: <BookOutlined />, labelKey: 'nav.items.dicts', permission: 'system:dict:list' },
   { path: '/notices', icon: <NotificationOutlined />, labelKey: 'nav.items.notices', permission: 'system:notice:list' },
   { path: '/audit', icon: <FileSearchOutlined />, labelKey: 'nav.items.audit', permission: 'infra:audit:list' },
+  { path: '/login-logs', icon: <HistoryOutlined />, labelKey: 'nav.items.loginLogs', permission: 'auth:loginlog:list' },
+  { path: '/online-users', icon: <TeamOutlined />, labelKey: 'nav.items.onlineUsers', permission: 'auth:online:list' },
   { path: '/settings', icon: <SettingOutlined />, labelKey: 'nav.items.settings' },
 ];
 
@@ -524,6 +529,26 @@ export function App() {
                   <PageBoundary>
                     <PermissionGate permission="infra:audit:list">
                       <AuditPage />
+                    </PermissionGate>
+                  </PageBoundary>
+                )}
+              />
+              <Route
+                path="/login-logs"
+                element={(
+                  <PageBoundary>
+                    <PermissionGate permission="auth:loginlog:list">
+                      <LoginLogsPage />
+                    </PermissionGate>
+                  </PageBoundary>
+                )}
+              />
+              <Route
+                path="/online-users"
+                element={(
+                  <PageBoundary>
+                    <PermissionGate permission="auth:online:list">
+                      <OnlineUsersPage />
                     </PermissionGate>
                   </PageBoundary>
                 )}

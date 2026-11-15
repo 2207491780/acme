@@ -7,6 +7,8 @@ import com.acme.platform.auth.infrastructure.mapper.AuthSessionMapper;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -36,5 +38,12 @@ public class AuthSessionRepositoryImpl extends FlexRepositorySupport<AuthSession
         return mapper().selectListByQuery(QueryWrapper.create()
                 .where(AuthSession::getUserId).eq(userId)
                 .and(AuthSession::getStatus).eq(status));
+    }
+
+    @Override
+    public List<AuthSession> findActiveNotExpiredBefore(Instant now) {
+        return mapper().selectListByQuery(QueryWrapper.create()
+                .where(AuthSession::getStatus).eq(SessionStatus.ACTIVE)
+                .and(AuthSession::getExpiresAt).gt(now));
     }
 }

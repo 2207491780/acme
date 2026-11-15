@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 会话底账记录器（架构设计 4.4）：DB 写收敛事务（10.2.1 仅覆盖本服务库；事务内无远程调用 M-05——
@@ -86,6 +87,30 @@ public class SessionRecorder {
         sessionRepository.saveAll(actives);
         return actives.stream().map(session -> new RevocableToken(session.getTokenId(),
                 session.getExpiresAt())).toList();
+    }
+
+    /** 活跃且未过期会话集合（REQ-20261114-120105 在线用户列表数据源，AC-3 过期会话不出现）。 */
+    @Transactional(readOnly = true)
+    public List<AuthSession> activeNotExpired() {
+        return sessionRepository.findActiveNotExpiredBefore(Instant.now());
+    }
+
+    /**
+     * 按 tokenId 定位可踢会话（REQ-20261114-120105 踢下线）：
+     * 缺失 / 已终态 / 已过期均返回 empty（调用方统一映射 SESSION_NOT_FOUND）。
+     */
+    @Transactional(readOnly = true)
+    public Optional<AuthSession> kickableByTokenId(String tokenId) {
+        return sessionRepository.findByTokenId(tokenId)
+                .filter(session -> !session.isTerminal())
+                .filter(session -> session.getExpiresAt().isAfter(Instant.now()));
+    }
+
+    /** 指定会话置 KICKED（管理端踢下线；底账终态先行，撤销集由调用方在事务外写入）。 */
+    @Transactional
+    public void kick(AuthSession session) {
+        session.markKicked();
+        sessionRepository.save(session);
     }
 
     /** 会话置 LOGOUT；底账缺失（如未及落库的并发登出）不阻断——撤销集为失效唯一判定源。 */

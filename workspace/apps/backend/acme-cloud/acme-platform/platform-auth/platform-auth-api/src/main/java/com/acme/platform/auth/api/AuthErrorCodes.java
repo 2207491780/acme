@@ -41,6 +41,14 @@ public final class AuthErrorCodes {
     /** 刷新令牌无效或已使用（401：一次性轮换，重复使用即拒绝）。 */
     public static final String REFRESH_TOKEN_INVALID = "platform-auth-03-0005";
 
+    // ---- 04 段：登录安全域——在线用户管理（REQ-20261114-120105；业务失败=Result.code≠0，HTTP 200）----
+
+    /** 目标会话不存在（或已过期 / 已终态，按不存在语义统一处理）。 */
+    public static final String SESSION_NOT_FOUND = "platform-auth-04-0001";
+
+    /** 非超管踢超管会话被拒绝（超管互踢允许）。 */
+    public static final String REVOKE_SUPERADMIN_FORBIDDEN = "platform-auth-04-0002";
+
     private AuthErrorCodes() {
     }
 }

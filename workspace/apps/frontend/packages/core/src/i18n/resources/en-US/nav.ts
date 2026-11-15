@@ -14,6 +14,8 @@ export const nav = {
     dicts: 'Dictionaries',
     notices: 'Notices',
     audit: 'Audit Events',
+    loginLogs: 'Login Logs',
+    onlineUsers: 'Online Users',
     settings: 'Settings',
   },
   header: {

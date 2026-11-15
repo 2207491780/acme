@@ -43,7 +43,16 @@ public enum AuthError implements ErrorCode, HttpStatusAware {
     CONSUMER_DISABLED(AuthErrorCodes.CONSUMER_DISABLED, "账号已停用", 403),
 
     /** 刷新令牌无效或已使用（一次性轮换，重复使用即拒绝）。 */
-    REFRESH_TOKEN_INVALID(AuthErrorCodes.REFRESH_TOKEN_INVALID, "刷新令牌无效或已使用", 401);
+    REFRESH_TOKEN_INVALID(AuthErrorCodes.REFRESH_TOKEN_INVALID, "刷新令牌无效或已使用", 401),
+
+    // ---- 04 段：登录安全域——在线用户管理（REQ-20261114-120105）----
+    // 契约 §API：业务失败=Result.code≠0（HTTP 200），故两码 httpStatus 均登记 200（信封承载失败语义）。
+
+    /** 目标会话不存在（缺失 / 已过期 / 已终态统一按不存在处理）。 */
+    SESSION_NOT_FOUND(AuthErrorCodes.SESSION_NOT_FOUND, "会话不存在", 200),
+
+    /** 非超管踢超管会话被拒绝（超管互踢允许）。 */
+    REVOKE_SUPERADMIN_FORBIDDEN(AuthErrorCodes.REVOKE_SUPERADMIN_FORBIDDEN, "无权对超级管理员会话执行踢下线", 200);
 
     private final String code;
     private final String defaultMessage;

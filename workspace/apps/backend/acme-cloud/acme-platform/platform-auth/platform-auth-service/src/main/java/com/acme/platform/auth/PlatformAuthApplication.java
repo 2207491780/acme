@@ -11,6 +11,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
+import com.acme.platform.auth.config.LoginLogRetentionProperties;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /**
@@ -19,8 +21,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
  * 服务间依赖仅 platform-system-api（auth → system 单向，4.4.2）。
  */
 @SpringBootApplication
+@EnableAsync
 @EnableFeignClients(clients = {AuthProfileClient.class, AuthorizationClient.class, TenantClient.class})
-@EnableConfigurationProperties({AuthTokenProperties.class, LoginGuardProperties.class})
+@EnableConfigurationProperties({AuthTokenProperties.class, LoginGuardProperties.class,
+        LoginLogRetentionProperties.class})
 public class PlatformAuthApplication {
 
     public static void main(String[] args) {

@@ -7,6 +7,7 @@ import com.acme.platform.auth.config.AuthTokenProperties;
 import com.acme.platform.auth.domain.AuthConsumerAccount;
 import com.acme.platform.auth.domain.ConsumerStatus;
 import com.acme.platform.auth.infrastructure.redis.CaptchaRedis;
+import com.acme.platform.auth.infrastructure.redis.SessionRedis;
 import com.acme.platform.auth.infrastructure.repository.AuthConsumerAccountRepository;
 import com.acme.platform.auth.internal.token.UserTokenIssuer;
 import org.springframework.stereotype.Service;
@@ -26,44 +27,65 @@ public class ConsumerLoginUseCase {
     private final CaptchaRedis captchaRedis;
     private final AuthConsumerAccountRepository accountRepository;
     private final SessionRecorder sessionRecorder;
+    private final SessionRedis sessionRedis;
     private final UserTokenIssuer tokenIssuer;
     private final AuthTokenProperties.Consumer consumerProperties;
+    private final LoginLogRecorder loginLogRecorder;
 
     public ConsumerLoginUseCase(CaptchaRedis captchaRedis,
                                 AuthConsumerAccountRepository accountRepository,
                                 SessionRecorder sessionRecorder,
+                                SessionRedis sessionRedis,
                                 UserTokenIssuer tokenIssuer,
-                                AuthTokenProperties tokenProperties) {
+                                AuthTokenProperties tokenProperties,
+                                LoginLogRecorder loginLogRecorder) {
         this.captchaRedis = captchaRedis;
         this.accountRepository = accountRepository;
         this.sessionRecorder = sessionRecorder;
+        this.sessionRedis = sessionRedis;
         this.tokenIssuer = tokenIssuer;
         this.consumerProperties = tokenProperties.getConsumer();
+        this.loginLogRecorder = loginLogRecorder;
     }
 
-    /** 验证码登录（验证码一次性消费；错误达阈值作废需重发；账户停用拒绝）。 */
-    public AppTokenIssued login(String phone, String captcha) {
-        if (!captchaRedis.verify(phone, captcha)) {
-            throw new BizException(captchaRedis.exists(phone)
-                    ? AuthError.CAPTCHA_INVALID : AuthError.CAPTCHA_EXPIRED);
-        }
-        AuthConsumerAccount account = accountRepository.findByPhone(phone)
-                .orElseGet(() -> accountRepository.save(new AuthConsumerAccount(phone)));
-        if (account.getStatus() == ConsumerStatus.DISABLED) {
-            throw new BizException(AuthError.CONSUMER_DISABLED);
-        }
-        account.markLogin();
-        accountRepository.save(account);
+    /**
+     * 验证码登录（验证码一次性消费；错误达阈值作废需重发；账户停用拒绝）。
+     * REQ-20261114-120105：成功/失败均记登录日志（C 端 username=手机号，异步落库）；
+     * 会话信息（ip/lastActiveAt）随签发写入供在线用户展示。
+     */
+    public AppTokenIssued login(String phone, String captcha, String clientIp, String userAgent) {
+        try {
+            if (!captchaRedis.verify(phone, captcha)) {
+                throw new BizException(captchaRedis.exists(phone)
+                        ? AuthError.CAPTCHA_INVALID : AuthError.CAPTCHA_EXPIRED);
+            }
+            AuthConsumerAccount account = accountRepository.findByPhone(phone)
+                    .orElseGet(() -> accountRepository.save(new AuthConsumerAccount(phone)));
+            if (account.getStatus() == ConsumerStatus.DISABLED) {
+                throw new BizException(AuthError.CONSUMER_DISABLED);
+            }
+            account.markLogin();
+            accountRepository.save(account);
 
-        UserTokenIssuer.IssuedToken access = tokenIssuer.issue(account.getId(), CONSUMER_TENANT,
-                java.util.Set.of(), UserTokenIssuer.CHANNEL_C, UserTokenIssuer.TOKEN_TYPE_ACCESS,
-                consumerProperties.getAccessTtlSeconds());
-        UserTokenIssuer.IssuedToken refresh = tokenIssuer.issue(account.getId(), CONSUMER_TENANT,
-                java.util.Set.of(), UserTokenIssuer.CHANNEL_C, UserTokenIssuer.TOKEN_TYPE_REFRESH,
-                consumerProperties.getRefreshTtlSeconds());
-        sessionRecorder.recordConsumer(access.tokenId(), refresh.tokenId(), account.getId(), CONSUMER_TENANT,
-                access.issuedAt(), access.expiresAt(), refresh.expiresAt());
-        return new AppTokenIssued(access.token(), refresh.token(),
-                access.expiresAt(), refresh.expiresAt(), account.getId(), phone);
+            UserTokenIssuer.IssuedToken access = tokenIssuer.issue(account.getId(), CONSUMER_TENANT,
+                    java.util.Set.of(), UserTokenIssuer.CHANNEL_C, UserTokenIssuer.TOKEN_TYPE_ACCESS,
+                    consumerProperties.getAccessTtlSeconds());
+            UserTokenIssuer.IssuedToken refresh = tokenIssuer.issue(account.getId(), CONSUMER_TENANT,
+                    java.util.Set.of(), UserTokenIssuer.CHANNEL_C, UserTokenIssuer.TOKEN_TYPE_REFRESH,
+                    consumerProperties.getRefreshTtlSeconds());
+            sessionRecorder.recordConsumer(access.tokenId(), refresh.tokenId(), account.getId(), CONSUMER_TENANT,
+                    access.issuedAt(), access.expiresAt(), refresh.expiresAt());
+            long ttl = Math.max(1, java.time.Duration.between(java.time.Instant.now(),
+                    access.expiresAt()).toSeconds());
+            sessionRedis.writeSessionInfo(access.tokenId(), clientIp, access.issuedAt(), ttl);
+            loginLogRecorder.record(LoginLogRecorder.Entry.capture(phone, UserTokenIssuer.CHANNEL_C,
+                    clientIp, userAgent, true, null));
+            return new AppTokenIssued(access.token(), refresh.token(),
+                    access.expiresAt(), refresh.expiresAt(), account.getId(), phone);
+        } catch (BizException ex) {
+            loginLogRecorder.record(LoginLogRecorder.Entry.capture(phone, UserTokenIssuer.CHANNEL_C,
+                    clientIp, userAgent, false, ex.errorCode().code()));
+            throw ex;
+        }
     }
 }

@@ -8,6 +8,7 @@ import com.acme.framework.job.support.TaskRegistry;
 import com.acme.framework.job.support.TaskTrigger;
 import com.acme.framework.storage.config.StorageProperties;
 import com.acme.platform.infra.InfraError;
+import com.acme.platform.infra.config.LoginLogRetentionProperties;
 import com.acme.platform.infra.domain.JobExecution;
 import com.acme.platform.infra.infrastructure.repository.JobExecutionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +60,7 @@ class JobUseCaseTest {
         registry = new TaskRegistry();
         jobExecutionRepository = mock(JobExecutionRepository.class);
         useCase = new JobUseCase(registry, new TaskTrigger(registry),
-                jobExecutionRepository, new StorageProperties());
+                jobExecutionRepository, new StorageProperties(), new LoginLogRetentionProperties());
     }
 
     private void registerTask(Object target) throws NoSuchMethodException {

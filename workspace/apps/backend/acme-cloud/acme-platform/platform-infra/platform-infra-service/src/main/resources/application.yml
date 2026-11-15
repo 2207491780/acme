@@ -64,6 +64,9 @@ server:
   port: 9880
 
 acme:
+  login-log:
+    # 清理任务 cron（REQ-20261114-120105；retention-days 归 platform-auth，C 方案 schema 独占）
+    retention-cron: "0 30 3 * * *"
   storage:
     # 文件服务存储选型（REQ-20261114-071607）：type=local 为缺省（本地 dev 无对象存储中间件；
     # 生产经同一接口显式切 minio/oss）。落盘根目录经环境注入（env-stack dev overlay 持久卷挂载）。

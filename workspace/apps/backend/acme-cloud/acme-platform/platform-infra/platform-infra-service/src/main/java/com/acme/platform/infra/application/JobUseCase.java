@@ -7,9 +7,11 @@ import com.acme.framework.job.support.TaskRegistry;
 import com.acme.framework.job.support.TaskTrigger;
 import com.acme.framework.storage.config.StorageProperties;
 import com.acme.platform.infra.InfraError;
+import com.acme.platform.infra.config.LoginLogRetentionProperties;
 import com.acme.platform.infra.domain.JobExecution;
 import com.acme.platform.infra.infrastructure.repository.JobExecutionRepository;
 import com.acme.platform.infra.internal.job.FileRetentionCleanupJob;
+import com.acme.platform.infra.internal.job.LoginLogRetentionCleanupJob;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -29,20 +31,25 @@ public class JobUseCase {
     /** 注册表描述目录（TaskDefinition 之外的展示元数据；新增任务同步登记）。 */
     private static final Map<String, String> DESCRIPTIONS = Map.of(
             FileRetentionCleanupJob.JOB_KEY,
-            "文件保留期清理：物理删除软删超期 sys_file 及其对象（acme.storage.upload.retention-days）");
+            "文件保留期清理：物理删除软删超期 sys_file 及其对象（acme.storage.upload.retention-days）",
+            LoginLogRetentionCleanupJob.JOB_KEY,
+            "登录日志保留期清理：物理删除软删超期 sys_login_log（acme.login-log.retention-days）");
 
     private final TaskRegistry taskRegistry;
     private final TaskTrigger taskTrigger;
     private final JobExecutionRepository jobExecutionRepository;
     private final StorageProperties storageProperties;
+    private final LoginLogRetentionProperties loginLogRetentionProperties;
 
     public JobUseCase(TaskRegistry taskRegistry, TaskTrigger taskTrigger,
                       JobExecutionRepository jobExecutionRepository,
-                      StorageProperties storageProperties) {
+                      StorageProperties storageProperties,
+                      LoginLogRetentionProperties loginLogRetentionProperties) {
         this.taskRegistry = taskRegistry;
         this.taskTrigger = taskTrigger;
         this.jobExecutionRepository = jobExecutionRepository;
         this.storageProperties = storageProperties;
+        this.loginLogRetentionProperties = loginLogRetentionProperties;
     }
 
     /** 注册表列表（key/description/cron/enabled + 最近一次执行摘要，按 key 稳定排序）。 */
@@ -77,7 +84,7 @@ public class JobUseCase {
     private JobView toView(TaskDefinition definition) {
         String key = definition.taskId();
         boolean catalogued = DESCRIPTIONS.containsKey(key);
-        String cron = catalogued ? storageProperties.getUpload().getRetentionCron() : null;
+        String cron = catalogued ? cronOf(key) : null;
         // enabled = 注册在案且调度 cron 可用（本服务任务集经 @AcmeTask 收集，注册即调度语义）
         boolean enabled = catalogued && cron != null && !cron.isBlank();
         JobView.LastExecution last = jobExecutionRepository.findLatest(key)
@@ -87,5 +94,16 @@ public class JobUseCase {
         return new JobView(key,
                 DESCRIPTIONS.getOrDefault(key, definition.accessPoint()),
                 cron, enabled, last);
+    }
+
+    /** 调度 cron 来源（各任务配置前缀独立；未知任务无 cron）。 */
+    private String cronOf(String jobKey) {
+        if (FileRetentionCleanupJob.JOB_KEY.equals(jobKey)) {
+            return storageProperties.getUpload().getRetentionCron();
+        }
+        if (LoginLogRetentionCleanupJob.JOB_KEY.equals(jobKey)) {
+            return loginLogRetentionProperties.getRetentionCron();
+        }
+        return null;
     }
 }

@@ -6,6 +6,7 @@ import com.acme.platform.auth.application.AdminRenewUseCase;
 import com.acme.platform.auth.application.ImageCaptchaUseCase;
 import com.acme.platform.auth.application.LoginUseCase;
 import com.acme.platform.auth.application.LogoutUseCase;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,11 +44,14 @@ public class AuthTokenController {
         return imageCaptchaUseCase.generate();
     }
 
-    /** 登录并签发 B 端访问令牌（公开端点；前置图形验证码一次性校验 + 租户一致性校验）。 */
+    /** 登录并签发 B 端访问令牌（公开端点；前置图形验证码一次性校验 + 租户一致性校验）。
+     *  REQ-20261114-120105：客户端 ip/ua 随登录捕获入登录日志与会话信息。 */
     @PostMapping("/tokens")
-    public AdminTokenIssued login(@Valid @RequestBody AdminLoginRequest request) {
+    public AdminTokenIssued login(@Valid @RequestBody AdminLoginRequest request,
+                                  HttpServletRequest servletRequest) {
         return loginUseCase.login(request.tenantCode(), request.username(), request.password(),
-                request.captchaId(), request.captchaCode());
+                request.captchaId(), request.captchaCode(),
+                ClientRequests.resolveIp(servletRequest), ClientRequests.resolveUserAgent(servletRequest));
     }
 
     /** 自续约（滑动会话，login-renew）：携带当前 Bearer 访问令牌换取同 claims 新令牌；

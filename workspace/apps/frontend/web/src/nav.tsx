@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { MenuProps } from 'antd';
-import { AppstoreOutlined, ApartmentOutlined, BookOutlined, DashboardOutlined, FileSearchOutlined, FolderOutlined, IdcardOutlined, MenuOutlined, PartitionOutlined, SafetyCertificateOutlined, SettingOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, ApartmentOutlined, BookOutlined, DashboardOutlined, FileSearchOutlined, FolderOutlined, HistoryOutlined, IdcardOutlined, MenuOutlined, PartitionOutlined, SafetyCertificateOutlined, SettingOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from '@ant-design/icons';
 import type { AdminMenuView } from '@acme/core';
 
 /**
@@ -39,6 +39,8 @@ const MENU_ICON_MAP: Record<string, ReactNode> = {
   menus: <MenuOutlined />,
   dicts: <BookOutlined />,
   audit: <FileSearchOutlined />,
+  loginlogs: <HistoryOutlined />,
+  onlineusers: <TeamOutlined />,
   files: <FolderOutlined />,
   settings: <SettingOutlined />,
 };

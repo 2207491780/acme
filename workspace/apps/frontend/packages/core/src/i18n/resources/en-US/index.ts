@@ -14,6 +14,8 @@ import { menus } from './menus';
 import { dicts } from './dicts';
 import { notices } from './notices';
 import { audit } from './audit';
+import { loginLogs } from './loginLogs';
+import { onlineUsers } from './onlineUsers';
 import { files } from './files';
 import { settings } from './settings';
 import { components } from './components';
@@ -36,6 +38,8 @@ export const enUS = {
   dicts,
   notices,
   audit,
+  loginLogs,
+  onlineUsers,
   files,
   settings,
   components,
