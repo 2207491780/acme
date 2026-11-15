@@ -25,7 +25,10 @@ public enum GatewayError implements ErrorCode, HttpStatusAware {
     BAD_REQUEST("SYS-03-0005", "请求参数不合法", 400),
 
     /** 越端访问（FR-019 异常分支，8.8：403；5.1.1 示例列登记随实现说明）。 */
-    CHANNEL_MISMATCH("SYS-03-0006", "端别与路由不匹配", 403);
+    CHANNEL_MISMATCH("SYS-03-0006", "端别与路由不匹配", 403),
+
+    /** 聚合文档关闭（REQ-20261114-120106，AC-1：acme.doc.enabled=false 时文档端点 404）。 */
+    DOC_DISABLED("SYS-03-0007", "接口文档已关闭", 404);
 
     private final String code;
     private final String defaultMessage;

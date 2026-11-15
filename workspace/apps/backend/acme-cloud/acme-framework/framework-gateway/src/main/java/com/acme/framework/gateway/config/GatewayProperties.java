@@ -25,6 +25,8 @@ public class GatewayProperties {
 
     private final Gray gray = new Gray();
 
+    private final Xss xss = new Xss();
+
     private final RequestLog requestLog = new RequestLog();
 
     public boolean isEnabled() {
@@ -53,6 +55,10 @@ public class GatewayProperties {
 
     public Gray getGray() {
         return gray;
+    }
+
+    public Xss getXss() {
+        return xss;
     }
 
     public RequestLog getRequestLog() {
@@ -278,11 +284,32 @@ public class GatewayProperties {
         }
     }
 
-    /** 灰度（FR-023，8.6：复用 SCG 原生路由谓词）。 */
+    /**
+     * 灰度（FR-023，8.6：复用 SCG 原生路由谓词；REQ-20261114-120106 增补用户选择器）：
+     * 命中规则（用户白名单 + 按比例确定性哈希）在网关侧判定，命中注入 {@link #header}={@code on} 标记头，
+     * 由既有 SCG 路由谓词（Header 断言）消费；规则经 Nacos 配置中心动态刷新（属性重绑定后逐请求生效）。
+     */
     public static class Gray {
+
+        /** 灰度用户选择器开关（REQ-20261114-120106，默认 false：不注入标记头，行为与未引入一致）。 */
+        private boolean enabled = false;
 
         /** 灰度标记头（8.6，默认 X-Acme-Gray）。 */
         private String header = "X-Acme-Gray";
+
+        /** 用户白名单（userId 精确匹配，默认空）。 */
+        private List<String> users = new ArrayList<>();
+
+        /** 灰度比例（0-100，确定性哈希分桶，同用户恒定命中/恒定不命中；0=全不命中）。 */
+        private int percent = 0;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
 
         public String getHeader() {
             return header;
@@ -290,6 +317,62 @@ public class GatewayProperties {
 
         public void setHeader(String header) {
             this.header = header;
+        }
+
+        public List<String> getUsers() {
+            return users;
+        }
+
+        public void setUsers(List<String> users) {
+            this.users = users == null ? new ArrayList<>() : users;
+        }
+
+        public int getPercent() {
+            return percent;
+        }
+
+        public void setPercent(int percent) {
+            this.percent = percent;
+        }
+    }
+
+    /**
+     * XSS 清洗（REQ-20261114-120106）：query/form 字段 HTML 实体转义；JSON body 默认不转义
+     * （保护公告富文本等业务，REQ-20261114-120102 确认记录②）；仅配置的字段黑名单强制转义。
+     */
+    public static class Xss {
+
+        /** 清洗开关（默认 true）。 */
+        private boolean enabled = true;
+
+        /** 豁免路径（Ant 风格；命中的请求整体原样透传，默认空）。 */
+        private List<String> exemptPaths = new ArrayList<>();
+
+        /** JSON body 字段黑名单（顶层字段名；命中字段的字符串值/字符串数组元素强制转义，默认空=JSON 不处理）。 */
+        private List<String> escapeFields = new ArrayList<>();
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public List<String> getExemptPaths() {
+            return exemptPaths;
+        }
+
+        public void setExemptPaths(List<String> exemptPaths) {
+            this.exemptPaths = exemptPaths == null ? new ArrayList<>() : exemptPaths;
+        }
+
+        public List<String> getEscapeFields() {
+            return escapeFields;
+        }
+
+        public void setEscapeFields(List<String> escapeFields) {
+            this.escapeFields = escapeFields == null ? new ArrayList<>() : escapeFields;
         }
     }
 

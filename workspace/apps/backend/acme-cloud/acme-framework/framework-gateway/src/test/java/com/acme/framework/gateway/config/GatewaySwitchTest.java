@@ -50,6 +50,13 @@ class GatewaySwitchTest {
         assertThat(properties.getRatelimit().getFallback().isEnabled()).isTrue();
         assertThat(properties.getRatelimit().getFallback().getQuotaPerMinute()).isEqualTo(60);
         assertThat(properties.getGray().getHeader()).isEqualTo("X-Acme-Gray");
+        // REQ-20261114-120106：灰度用户选择器默认关闭（行为与未引入一致）、XSS 清洗默认开启
+        assertThat(properties.getGray().isEnabled()).isFalse();
+        assertThat(properties.getGray().getUsers()).isEmpty();
+        assertThat(properties.getGray().getPercent()).isZero();
+        assertThat(properties.getXss().isEnabled()).isTrue();
+        assertThat(properties.getXss().getExemptPaths()).isEmpty();
+        assertThat(properties.getXss().getEscapeFields()).isEmpty();
         assertThat(properties.getRequestLog().isEnabled()).isTrue();
     }
 

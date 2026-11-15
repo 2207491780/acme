@@ -9,11 +9,13 @@ import com.acme.framework.gateway.internal.NeverRevokedTokenChecker;
 import com.acme.framework.gateway.internal.RateLimiters;
 import com.acme.framework.gateway.interceptor.AuthFilter;
 import com.acme.framework.gateway.interceptor.GatewayErrorWebExceptionHandler;
+import com.acme.framework.gateway.interceptor.GrayUserFilter;
 import com.acme.framework.gateway.interceptor.InjectIdentityFilter;
 import com.acme.framework.gateway.interceptor.RateLimitFilter;
 import com.acme.framework.gateway.interceptor.RequestLogFilter;
 import com.acme.framework.gateway.interceptor.RevocationCheckFilter;
 import com.acme.framework.gateway.interceptor.StripSpoofedHeadersFilter;
+import com.acme.framework.gateway.interceptor.XssCleanFilter;
 import com.acme.framework.gateway.interceptor.TraceWebFilter;
 import com.acme.framework.gateway.support.UserTokenRevocationChecker;
 import com.acme.framework.gateway.support.UserTokenVerifier;
@@ -85,6 +87,21 @@ public class GatewayAutoConfiguration extends AcmeModuleAutoConfiguration {
     @Bean
     public StripSpoofedHeadersFilter stripSpoofedHeadersFilter() {
         return new StripSpoofedHeadersFilter();
+    }
+
+    /** XSS 清洗过滤器（REQ-20261114-120106：query/form HTML 实体转义；JSON body 默认不转义；豁免路径可配）。 */
+    @Bean
+    @ConditionalOnProperty(prefix = "acme.gateway.xss", name = "enabled", havingValue = "true",
+            matchIfMissing = true)
+    public XssCleanFilter xssCleanFilter(GatewayProperties properties) {
+        return new XssCleanFilter(properties.getXss());
+    }
+
+    /** 灰度用户选择器（REQ-20261114-120106：白名单+比例确定性哈希，命中注入灰度标记头；默认关闭）。 */
+    @Bean
+    @ConditionalOnProperty(prefix = "acme.gateway.gray", name = "enabled", havingValue = "true")
+    public GrayUserFilter grayUserFilter(GatewayProperties properties) {
+        return new GrayUserFilter(properties.getGray());
     }
 
     @Bean

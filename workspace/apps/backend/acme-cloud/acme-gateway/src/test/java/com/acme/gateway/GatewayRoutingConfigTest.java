@@ -4,11 +4,13 @@ import com.acme.framework.core.support.RateLimitOnError;
 import com.acme.framework.gateway.config.GatewayProperties;
 import com.acme.framework.gateway.support.UserTokenRevocationChecker;
 import com.acme.gateway.auth.RedisUserTokenRevocationChecker;
+import com.acme.gateway.doc.GatewayDocProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinitionLocator;
+import org.springframework.core.env.Environment;
 
 import java.util.List;
 import java.util.Set;
@@ -37,6 +39,12 @@ class GatewayRoutingConfigTest {
     @Autowired
     private UserTokenRevocationChecker revocationChecker;
 
+    @Autowired
+    private GatewayDocProperties docProperties;
+
+    @Autowired
+    private Environment environment;
+
     @Test
     void routesRegisteredByCapabilityDomainWithLbUri() {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
@@ -46,9 +54,11 @@ class GatewayRoutingConfigTest {
         // platform-infra 增补经 platform-infra-audit 拆分评审；
         // platform-auth-app 为 C 端双端前缀路由，consumer-auth-refresh-dataperm；
         // platform-system-ws 为 WS 实时推送路由，REQ-20261114-120102）；
+        // 三条聚合文档转发路由（REQ-20261114-120106、AC-2）；
         // business-content / business-content-app 内容域双端路由已随业务域下线移除
         assertThat(ids).containsExactlyInAnyOrder("platform-auth", "platform-system", "platform-infra",
-                "platform-auth-app", "platform-system-ws");
+                "platform-auth-app", "platform-system-ws",
+                "platform-auth-doc", "platform-system-doc", "platform-infra-doc");
         RouteDefinition auth = routes.stream()
                 .filter(r -> r.getId().equals("platform-auth")).findFirst().orElseThrow();
         assertThat(auth.getUri().toString()).isEqualTo("lb://platform-auth");
@@ -86,5 +96,35 @@ class GatewayRoutingConfigTest {
         assertThat(revocationChecker).isInstanceOf(RedisUserTokenRevocationChecker.class);
         assertThat(gatewayProperties.getRevocation().isEnabled()).isTrue();
         assertThat(gatewayProperties.getRevocation().getOnError()).isEqualTo(RateLimitOnError.FAIL_OPEN);
+    }
+
+    @Test
+    void aggregatedDocRoutesForwardToPlatformServices() {
+        // REQ-20261114-120106、AC-1/AC-2：/v3/api-docs/{service} → lb://platform-{service}，SetPath 归位 openapi 端点
+        List<String> docRouteIds = List.of("platform-auth-doc", "platform-system-doc", "platform-infra-doc");
+        List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
+        assertThat(routes).isNotNull();
+        for (String id : docRouteIds) {
+            RouteDefinition doc = routes.stream().filter(r -> r.getId().equals(id)).findFirst().orElseThrow();
+            String service = id.substring(0, id.length() - "-doc".length());
+            assertThat(doc.getUri().toString()).isEqualTo("lb://" + service);
+            assertThat(doc.getPredicates().stream()
+                    .anyMatch(p -> "Path".equals(p.getName())
+                            && ("/v3/api-docs/" + service.substring("platform-".length())).equals(p.getArgs().get("_genkey_0"))))
+                    .as("路由 %s 应以 Path=/v3/api-docs/{service} 为谓词", id).isTrue();
+            assertThat(doc.getFilters().stream()
+                    .anyMatch(f -> "SetPath".equals(f.getName()) && "/v3/api-docs".equals(f.getArgs().get("_genkey_0"))))
+                    .as("路由 %s 应以 SetPath=/v3/api-docs 归位路径", id).isTrue();
+        }
+    }
+
+    @Test
+    void aggregatedDocSwitchDefaultsOnWithGroupedUi() {
+        // REQ-20261114-120106、AC-1：acme.doc.enabled 单一配置源（默认 true）；
+        // /docs UI 端点启用且按 auth/system/infra 分组下拉；网关自身 openapi 产出关闭
+        assertThat(docProperties.isEnabled()).isTrue();
+        assertThat(environment.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("true");
+        assertThat(environment.getProperty("springdoc.swagger-ui.path")).isEqualTo("/docs");
+        assertThat(environment.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
     }
 }

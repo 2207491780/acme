@@ -21,3 +21,8 @@ patches:
     target:
       kind: Deployment
       name: platform-infra
+  # REQ-20261114-120106：灰度用户选择器样例规则（裁决⑤：文件配置下发；关闭则删本补丁）
+  - path: gateway-gray-sample-patch.yaml
+    target:
+      kind: Deployment
+      name: acme-gateway
