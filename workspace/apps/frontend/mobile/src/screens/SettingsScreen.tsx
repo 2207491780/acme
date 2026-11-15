@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { Accent } from '@acme/core';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/authStore';
+import { useMeStore } from '../store/meStore';
 import { authApi } from '../api/auth';
 import { useAccent } from '../hooks';
 import { Card, Screen, Title, Eyebrow, Muted, Tag, Button } from '../components/ui';
@@ -55,6 +56,7 @@ export function SettingsScreen() {
       .catch(() => undefined) // 登出幂等：令牌已失效也清空本地会话回登录屏
       .finally(() => {
         clearSession();
+        useMeStore.getState().clear();
         setLogoutFlash('已退出登录');
       });
   };

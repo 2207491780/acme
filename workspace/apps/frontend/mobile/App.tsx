@@ -4,7 +4,10 @@ import { SafeAreaView, StatusBar, View, Text, Pressable, Platform, StyleSheet } 
 import { ACTIVE_STATUSES } from '@acme/core';
 import { useStore } from './src/store/useStore';
 import { useAuthStore } from './src/store/authStore';
+import { useMeStore } from './src/store/meStore';
 import { startAuthRenewal } from './src/api/client';
+import { initMobileStorage } from './src/utils/storage';
+import { hydrateDicts } from './src/use-dict';
 import { useAccent } from './src/hooks';
 import { palette, onAccent } from './src/theme';
 import type { TabKey } from './src/nav';
@@ -34,12 +37,35 @@ export default function App() {
   const session = useAuthStore((s) => s.session);
   const hydrated = useAuthStore((s) => s.hydrated);
   const hydrate = useAuthStore((s) => s.hydrate);
+  // 业务态持久化（REQ-20261114-120110 AC-3）：AsyncStorage 异步灌入同步镜像后重载
+  // store（loadState/loadQuery 经 parse-state/isQuery 运行时校验），完成前不渲染主界面
+  const [businessReady, setBusinessReady] = useState(false);
 
   useEffect(() => {
     void hydrate();
     const stopRenewal = startAuthRenewal();
+    // 业务态持久化（REQ-20261114-120110 AC-3/AMB-5）：AsyncStorage 灌入同步镜像后重载
+    // store（loadState/loadQuery 经 parse-state/isQuery 运行时校验），字典缓存同步灌回；
+    // 就绪前不渲染主界面
+    void initMobileStorage().then(() => {
+      hydrateDicts();
+      useStore.getState().reloadState();
+      setBusinessReady(true);
+    });
     return stopRenewal;
   }, [hydrate]);
+
+  // 画像加载（AC-2，与 web 同构）：登录态建立即拉取服务端画像（401 由 client 续约/清会话，
+  // 403 由 meStore 清会话回登录屏）。依赖收敛为 isAuthed：滑动续约会整体替换 session 对象，
+  // 以 session 为依赖会导致每次续约重复拉取 me。
+  const isAuthed = session != null;
+  useEffect(() => {
+    if (isAuthed) {
+      void useMeStore.getState().load();
+    } else {
+      useMeStore.getState().clear();
+    }
+  }, [isAuthed]);
 
   useEffect(() => {
     if (!motion) return;
@@ -47,7 +73,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [dispatch, motion]);
 
-  if (!hydrated) {
+  if (!hydrated || !businessReady) {
     return (
       <SafeAreaView style={styles.root}>
         <StatusBar barStyle="light-content" backgroundColor={palette.bg} />

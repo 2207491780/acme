@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   View,
@@ -39,23 +40,35 @@ export function Button({
 }) {
   const accent = useAccent();
   const onAccent = useOnAccent();
+  const [pressed, setPressed] = useState(false);
   const bg = variant === 'primary' ? accent : 'transparent';
   const fg = variant === 'primary' ? onAccent : variant === 'danger' ? TONE_COLOR.danger : palette.text2;
   const border = variant === 'primary' ? accent : variant === 'danger' ? `${TONE_COLOR.danger}66` : palette.border;
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       disabled={disabled}
       accessibilityState={{ disabled: !!disabled }}
-      style={({ pressed }) => [
+      // style 用静态数组（禁函数式 style）：RN 无碍，且组件级测试的 RN 宿主替身把
+      // props 透传到 DOM 元素，函数式 style 会被 react-dom 拒绝。
+      style={[
         styles.btn,
         small && styles.btnSmall,
         { backgroundColor: bg, borderColor: border },
-        pressed && !disabled && { opacity: 0.65 },
         disabled && { opacity: 0.4 },
       ]}
     >
-      <Text style={[styles.btnText, { color: fg }, small && { fontSize: 12 }]}>{label}</Text>
+      <Text
+        style={[
+          styles.btnText,
+          { color: fg, opacity: pressed && !disabled ? 0.65 : 1 },
+          small && { fontSize: 12 },
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }

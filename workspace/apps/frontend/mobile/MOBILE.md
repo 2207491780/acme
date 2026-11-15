@@ -23,9 +23,11 @@ mobile/
 │   ├── nav.ts              # TabKey / ScreenProps
 │   ├── theme.ts            # 与 Web 一致的设计令牌（强调色/语义色/平台色）
 │   ├── hooks.ts            # useAccent / useOnAccent
-│   ├── store/useStore.ts   # Zustand 包裹 core reducer（与 Web 同构）
-│   ├── utils/storage.ts    # StorageLike 内存适配器（生产接 AsyncStorage）
-│   ├── components/         # ui.tsx（Card/Tag/Button/ProgressBar…）/ icons.tsx（纯 View 矢量图标）
+│   ├── store/useStore.ts   # Zustand 包裹 core reducer（与 Web 同构）+ 筛选态持久化
+│   ├── store/meStore.ts    # 服务端画像镜像 store（语义对齐 core meStore；AMB-2/4 裁决）
+│   ├── utils/storage.ts    # 业务态 AsyncStorage 持久化（同步镜像 + 写穿透 + initMobileStorage 冷启动 hydrate）
+│   ├── components/         # ui.tsx（Card/Tag/Button/ProgressBar…）/ PermissionGate（screen 级权限门禁）/ icons.tsx（纯 View 矢量图标）
+│   ├── use-dict.ts         # 字典消费 hook（core useDict 镜像 + AsyncStorage 缓存持久化；AMB-4 裁决）
 │   └── screens/            # Dashboard / Releases / Apps / Settings
 └── tests/                  # Vitest：store（9 用例）/ theme（2 用例）
 ```
@@ -33,7 +35,8 @@ mobile/
 ## 复用边界
 
 - 业务逻辑全部来自 `@acme/core`，经 Metro `extraNodeModules` 指向 `../packages/core/src`，与 Web 共享同一 reducer/选择器/种子。
-- store 与 Web 同构：Zustand 包裹 core 的 `reduce`/`loadState`/`saveState`，仅替换存储适配器（脚手架用内存态，生产启动时由 AsyncStorage 异步 hydrate）。
+- store 与 Web 同构：Zustand 包裹 core 的 `reduce`/`loadState`/`saveState`，存储适配器为
+  AsyncStorage（同步镜像 + 异步写穿透；启动经 `initMobileStorage` 冷启动 hydrate，会话仍走 expo-secure-store）。
 - 不复用 Web 的 DOM/AntD 代码，也不复用 Electron 主进程/预加载。
 - 图标用纯 `View` 组合绘制，不引入未登记的图标依赖。
 
