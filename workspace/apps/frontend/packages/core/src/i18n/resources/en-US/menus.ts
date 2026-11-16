@@ -40,7 +40,7 @@ export const menus = {
     component: 'Component',
     componentPlaceholder: 'Optional, component identifier',
     icon: 'Icon',
-    iconPlaceholder: 'Optional, icon identifier',
+    iconPlaceholder: 'Optional, search or pick an icon',
     sortOrder: 'Order',
     sortOrderRequired: 'Please enter the order number',
     visible: 'Visibility',

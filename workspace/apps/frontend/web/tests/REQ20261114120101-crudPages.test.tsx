@@ -480,3 +480,57 @@ for (const spec of SPECS) {
     }
   });
 }
+
+// ————— Menus 图标选择器（图标库选择替代手输标识） —————
+describe('REQ20261114120101 Menus 图标选择器', () => {
+  const menusSpec = SPECS.find((s) => s.key === 'Menus')!;
+
+  /** 图标 Select 容器（label 关联 combobox → 上溯 .ant-select）。 */
+  const iconSelectOf = (dialog: HTMLElement) => {
+    const input = within(dialog).getByLabelText('图标');
+    expect(input.getAttribute('role'), '图标字段应为选择器而非手输框').toBe('combobox');
+    return input.closest('.ant-select') as HTMLElement;
+  };
+
+  it('should_submit_selected_icon_when_menu_created', async () => {
+    const { fetchMock } = await renderPage(menusSpec, ['system:menu:list', 'system:menu:create']);
+    await findByAnyText(menusSpec.anchors);
+    fireEvent.click((await screen.findAllByText(ADD_BUTTON))[0]);
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(dialogTextboxes(dialog)[0]!, { target: { value: '图标菜单X' } });
+
+    // 中文关键词搜索（注册表 keywords）→ 点选可见选项内容节点（rc-select virtual 口径：
+    // 同文本另有隐藏 a11y 镜像 div[role=option]，无 onClick，须按内容容器甄别）
+    const iconInput = within(dialog).getByLabelText('图标');
+    fireEvent.mouseDown(iconInput);
+    fireEvent.change(iconInput, { target: { value: '通知' } });
+    const bellNodes = await screen.findAllByText('bell');
+    const bellOption = bellNodes.find((el) => el.closest('.ant-select-item-option-content'));
+    expect(bellOption, '搜索「通知」未命中 bell 可见选项').toBeTruthy();
+    fireEvent.click(bellOption!);
+    await waitFor(() => {
+      expect(iconSelectOf(dialog).querySelector('.ant-select-selection-item')?.textContent ?? '').toContain('bell');
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
+    await waitFor(() => {
+      const posts = callsOf(fetchMock, 'POST', menusSpec.pathPart);
+      expect(posts).toHaveLength(1);
+      expect(parseBody(posts[0]?.body).icon).toBe('bell');
+    });
+  });
+
+  it('should_prefill_icon_select_when_menu_edited', async () => {
+    const spec: PageSpec = {
+      ...menusSpec,
+      rows: menusSpec.rows.map((r) => (r.id === '3303' ? { ...r, icon: 'dashboard' } : r)),
+    };
+    await renderPage(spec, ['system:menu:list', 'system:menu:update']);
+    const rowEl = await findRowByText('报表中心');
+    fireEvent.click(await within(rowEl).findByText(EDIT_BUTTON));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => {
+      expect(iconSelectOf(dialog).querySelector('.ant-select-selection-item')?.textContent ?? '').toContain('dashboard');
+    });
+  });
+});

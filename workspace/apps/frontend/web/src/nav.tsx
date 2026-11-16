@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { MenuProps } from 'antd';
-import { AppstoreOutlined, ApartmentOutlined, BookOutlined, DashboardOutlined, FileSearchOutlined, FolderOutlined, HistoryOutlined, IdcardOutlined, MenuOutlined, PartitionOutlined, SafetyCertificateOutlined, SettingOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from '@ant-design/icons';
 import type { AdminMenuView } from '@acme/core';
+import { resolveMenuIcon } from './menuIcons';
 
 /**
  * 侧边导航动态化（REQ-20261114-120101，AC-7）：
@@ -23,35 +23,6 @@ interface NavNode {
   icon: ReactNode;
   label: string;
   children?: NavNode[];
-}
-
-/** 菜单 icon 标识 → 图标（种子外标识统一回退，不猜新图标）。 */
-const MENU_ICON_MAP: Record<string, ReactNode> = {
-  dashboard: <DashboardOutlined />,
-  releases: <UnorderedListOutlined />,
-  apps: <AppstoreOutlined />,
-  tenants: <ApartmentOutlined />,
-  users: <UserOutlined />,
-  roles: <TeamOutlined />,
-  depts: <PartitionOutlined />,
-  positions: <IdcardOutlined />,
-  permissions: <SafetyCertificateOutlined />,
-  menus: <MenuOutlined />,
-  dicts: <BookOutlined />,
-  audit: <FileSearchOutlined />,
-  loginlogs: <HistoryOutlined />,
-  onlineusers: <TeamOutlined />,
-  files: <FolderOutlined />,
-  settings: <SettingOutlined />,
-};
-
-const FALLBACK_ICON = <AppstoreOutlined />;
-
-function resolveMenuIcon(icon: string | null): ReactNode {
-  if (!icon) {
-    return FALLBACK_ICON;
-  }
-  return MENU_ICON_MAP[icon.toLowerCase()] ?? FALLBACK_ICON;
 }
 
 /** 单节点转换：visible=false / DISABLED / permissionCode 无权限 → 剔除；目录需保有意向子节点。 */

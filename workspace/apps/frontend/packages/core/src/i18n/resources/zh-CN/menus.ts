@@ -40,7 +40,7 @@ export const menus = {
     component: '组件',
     componentPlaceholder: '选填，组件标识',
     icon: '图标',
-    iconPlaceholder: '选填，图标标识',
+    iconPlaceholder: '选填，搜索或选择图标',
     sortOrder: '排序',
     sortOrderRequired: '请输入排序号',
     visible: '可见',

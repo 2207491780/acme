@@ -2,11 +2,24 @@ import { useState } from 'react';
 import { App, Button, Form, Input, InputNumber, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import { ApiError, systemApi, useCrud, useMeStore, type AdminMenuView } from '@acme/core';
+import { ApiError, SPACING, systemApi, useCrud, useMeStore, type AdminMenuView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
+import { MENU_ICON_OPTIONS } from '../menuIcons';
 
 const { Text } = Typography;
+
+/** 图标下拉选项：图标+标识回显，搜索匹配标识与中文关键词（注册表与导航渲染同源）。 */
+const ICON_SELECT_OPTIONS = MENU_ICON_OPTIONS.map(({ code, icon, keywords }) => ({
+  value: code,
+  label: (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: SPACING.sm }}>
+      {icon}
+      <span>{code}</span>
+    </span>
+  ),
+  keywords: `${code} ${keywords}`,
+}));
 
 interface MenuFormValues {
   parentId?: string;
@@ -195,7 +208,13 @@ export function MenusPage() {
           <Input placeholder={t('menus.form.componentPlaceholder')} autoComplete="off" />
         </Form.Item>
         <Form.Item name="icon" label={t('menus.form.icon')} rules={[{ max: 64, message: t('common.validation.maxLength', { max: 64 }) }]}>
-          <Input placeholder={t('menus.form.iconPlaceholder')} autoComplete="off" />
+          <Select
+            allowClear
+            showSearch
+            placeholder={t('menus.form.iconPlaceholder')}
+            optionFilterProp="keywords"
+            options={ICON_SELECT_OPTIONS}
+          />
         </Form.Item>
         <Form.Item name="sortOrder" label={t('menus.form.sortOrder')} rules={[{ required: true, message: t('menus.form.sortOrderRequired') }]}>
           <InputNumber min={0} max={9999} style={{ width: '100%' }} />
