@@ -9,14 +9,15 @@ const { Text } = Typography;
 
 interface SystemConfigFormValues {
   watermarkEnabled: boolean;
+  captchaEnabled: boolean;
   lockIdleTimeoutMs: number;
 }
 
 /**
- * 系统配置（REQ-20261116-230354，AC-5/AC-6）：租户级安全策略管理页。
- * GET 认证即可读（页面不设权限门禁）；保存能力按 system:config:update fail-closed——
- * 无权限时表单只读且不渲染保存按钮。保存经 useSystemConfigStore.update（version 乐观锁），
- * 成功即时联动全局水印/闲置锁屏；冲突透出后端文案并提示刷新重试。
+ * 系统配置（REQ-20261116-230354，AC-5/AC-6；REQ-20261117-011514 增登录验证码开关）：
+ * 租户级安全策略管理页。GET 认证即可读（页面不设权限门禁）；保存能力按 system:config:update
+ * fail-closed——无权限时表单只读且不渲染保存按钮。保存经 useSystemConfigStore.update
+ * （version 乐观锁），成功即时联动全局水印/闲置锁屏；冲突透出后端文案并提示刷新重试。
  */
 export function SystemConfigPage() {
   const { t } = useTranslation();
@@ -25,6 +26,7 @@ export function SystemConfigPage() {
   const canUpdate = permissions.includes('system:config:update');
 
   const watermarkEnabled = useSystemConfigStore((s) => s.watermarkEnabled);
+  const captchaEnabled = useSystemConfigStore((s) => s.captchaEnabled);
   const lockIdleTimeoutMs = useSystemConfigStore((s) => s.lockIdleTimeoutMs);
   const version = useSystemConfigStore((s) => s.version);
 
@@ -38,8 +40,8 @@ export function SystemConfigPage() {
 
   // store → 表单同步（引导加载/保存成功/手动刷新后取最新值与版本）
   useEffect(() => {
-    form.setFieldsValue({ watermarkEnabled, lockIdleTimeoutMs });
-  }, [form, watermarkEnabled, lockIdleTimeoutMs, version]);
+    form.setFieldsValue({ watermarkEnabled, captchaEnabled, lockIdleTimeoutMs });
+  }, [form, watermarkEnabled, captchaEnabled, lockIdleTimeoutMs, version]);
 
   const submit = async () => {
     const values = await form.validateFields();
@@ -76,6 +78,14 @@ export function SystemConfigPage() {
             label={t('systemConfig.watermark')}
             valuePropName="checked"
             extra={t('systemConfig.watermarkDesc')}
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name="captchaEnabled"
+            label={t('systemConfig.captcha')}
+            valuePropName="checked"
+            extra={t('systemConfig.captchaDesc')}
           >
             <Switch />
           </Form.Item>

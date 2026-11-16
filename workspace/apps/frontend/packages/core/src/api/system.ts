@@ -49,10 +49,21 @@ export interface AdminMeView {
   menus: AdminMenuView[];
 }
 
-/** 租户系统配置视图（契约对齐 AdminSystemConfigView，REQ-20261116-230354；version 乐观锁字符串）。 */
+/** 租户系统配置视图（契约对齐 AdminSystemConfigView，REQ-20261116-230354；version 乐观锁字符串）。
+ *  REQ-20261117-011514 扩展 captchaEnabled（缺省视图=false）。 */
 export interface AdminSystemConfigView {
   watermarkEnabled: boolean;
+  /** 登录图形验证码开关（REQ-20261117-011514；无配置行缺省 false）。 */
+  captchaEnabled: boolean;
   /** 闲置锁屏时长（毫秒），0 = 关闭；合法值 0/60000/300000/900000。 */
+  lockIdleTimeoutMs: number;
+  version: string;
+}
+
+/** 租户系统配置更新载荷（契约对齐 AdminSystemConfigUpdate；version 乐观锁字符串）。 */
+export interface AdminSystemConfigUpdate {
+  watermarkEnabled: boolean;
+  captchaEnabled: boolean;
   lockIdleTimeoutMs: number;
   version: string;
 }
@@ -148,10 +159,10 @@ export const systemApi = {
   me: (): Promise<AdminMeView> => apiFetch<AdminMeView>('/admin/v1/system/me'),
 
   // ---- 租户系统配置（REQ-20261116-230354；GET 认证即可，PUT 需 system:config:update） ----
-  /** 读取当前租户配置（无配置行返回缺省 true/0/"0"）。 */
+  /** 读取当前租户配置（无配置行返回缺省 true/false/0/"0"，REQ-20261117-011514 captchaEnabled=false）。 */
   configGet: (): Promise<AdminSystemConfigView> => apiFetch<AdminSystemConfigView>('/admin/v1/system/config'),
   /** 更新当前租户配置（upsert；version 乐观锁，成功 version+1）。 */
-  configUpdate: (payload: { watermarkEnabled: boolean; lockIdleTimeoutMs: number; version: string }): Promise<AdminSystemConfigView> =>
+  configUpdate: (payload: AdminSystemConfigUpdate): Promise<AdminSystemConfigView> =>
     apiFetch<AdminSystemConfigView>('/admin/v1/system/config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

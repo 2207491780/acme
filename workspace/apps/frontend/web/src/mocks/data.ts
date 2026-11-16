@@ -57,8 +57,9 @@ export const me = {
   menus: [] as AdminMenuView[],
 };
 
-/** 租户系统配置种子（REQ-20261116-230354）：缺省=水印开/闲置锁屏关/version "0"。 */
-export const systemConfig: AdminSystemConfigView = { watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0' };
+/** 租户系统配置种子（REQ-20261116-230354）：缺省=水印开/闲置锁屏关/version "0"；
+ *  REQ-20261117-011514 增验证码开关（V16 内置默认关闭）。 */
+export const systemConfig: AdminSystemConfigView = { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' };
 
 export const tenants: AdminTenantView[] = [
   { id: '1', tenantCode: 'acme', tenantName: 'ACME 总部', status: 'ENABLED', remark: null, createdAt: '2026-01-01T00:00:00Z', version: '0' },

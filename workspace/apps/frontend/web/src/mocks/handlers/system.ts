@@ -93,12 +93,13 @@ export const systemHandlers = [
   // ---- me ----
   http.get('/admin/v1/system/me', () => ok({ ...db.me, menus: store.menus })),
 
-  // ---- 租户系统配置（REQ-20261116-230354） ----
+  // ---- 租户系统配置（REQ-20261116-230354；REQ-20261117-011514 增 captchaEnabled） ----
   http.get('/admin/v1/system/config', () => ok(store.systemConfig)),
   http.put('/admin/v1/system/config', async ({ request }) => {
     const body = await bodyOf(request);
     const idle = body.lockIdleTimeoutMs;
-    if (typeof body.watermarkEnabled !== 'boolean' || typeof idle !== 'number' || ![0, 60_000, 300_000, 900_000].includes(idle)) {
+    if (typeof body.watermarkEnabled !== 'boolean' || typeof body.captchaEnabled !== 'boolean'
+      || typeof idle !== 'number' || ![0, 60_000, 300_000, 900_000].includes(idle)) {
       return fail('PARAM_INVALID', '配置参数非法：闲置时长仅支持 0/1/5/15 分钟', 200);
     }
     if (body.version !== store.systemConfig.version) {
@@ -106,6 +107,7 @@ export const systemHandlers = [
     }
     store.systemConfig = {
       watermarkEnabled: body.watermarkEnabled,
+      captchaEnabled: body.captchaEnabled,
       lockIdleTimeoutMs: idle,
       version: String(Number(store.systemConfig.version) + 1),
     };

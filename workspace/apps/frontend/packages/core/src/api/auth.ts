@@ -13,13 +13,19 @@ export interface CaptchaData {
   imageBase64Data: string;
 }
 
-/** B 端登录提交（契约对齐 AdminLoginRequest）。 */
+/** 验证码策略视图（契约对齐 CaptchaPolicyView，REQ-20261117-011514：按 tenantCode 返回当前生效值，
+ *  无配置行=false；下游不可用后端 fail-closed 返回 true）。 */
+export interface CaptchaPolicyView {
+  captchaEnabled: boolean;
+}
+
+/** B 端登录提交（契约对齐 AdminLoginRequest；REQ-20261117-011514：租户策略关时验证码字段整体省略）。 */
 export interface LoginPayload {
   tenantCode: string;
   username: string;
   password: string;
-  captchaId: string;
-  captchaCode: string;
+  captchaId?: string;
+  captchaCode?: string;
 }
 
 /** 令牌签发结果（契约对齐 AdminTokenIssued；expiresAt 为 ISO-8601 字符串）。 */
@@ -70,6 +76,13 @@ export const authApi = {
   /** 启用租户清单（公开端点；登录页可搜索下拉数据源）。 */
   tenants: (): Promise<TenantSummary[]> =>
     apiFetch<TenantSummary[]>('/admin/v1/auth/tenants', { method: 'GET' }, { auth: false }),
+  /** 验证码策略（公开端点，REQ-20261117-011514；登录页显隐/提交依据；tenantCode 空白→400 参数错误）。 */
+  captchaPolicy: (tenantCode: string): Promise<CaptchaPolicyView> =>
+    apiFetch<CaptchaPolicyView>(
+      `/admin/v1/auth/captcha-policy?tenantCode=${encodeURIComponent(tenantCode)}`,
+      { method: 'GET' },
+      { auth: false },
+    ),
   /** 图形验证码（公开端点；captchaId 登录时原样回传）。 */
   captcha: (): Promise<CaptchaData> =>
     apiFetch<CaptchaData>('/admin/v1/auth/captcha', { method: 'GET' }, { auth: false }),

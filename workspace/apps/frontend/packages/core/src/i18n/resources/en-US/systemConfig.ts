@@ -1,4 +1,5 @@
-/** en-US system config resource pack (REQ-20261116-230354: tenant-level security policy). */
+/** en-US system config resource pack (REQ-20261116-230354: tenant-level security policy;
+ *  REQ-20261117-011514 adds the login captcha switch). */
 export const systemConfig = {
   head: {
     eyebrow: 'System',
@@ -8,6 +9,8 @@ export const systemConfig = {
   title: 'Security policies',
   watermark: 'Global watermark',
   watermarkDesc: 'Overlay page content with the signed-in account watermark, enforced for all members',
+  captcha: 'Login captcha',
+  captchaDesc: 'Require an image captcha at sign-in, enforced for all members of this tenant',
   idleLock: 'Auto-lock on idle',
   idleLockDesc: 'Lock the screen after being idle for the configured duration, enforced for all members (Off = never auto-lock)',
   idleOff: 'Off',

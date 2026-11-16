@@ -170,7 +170,7 @@ afterEach(() => {
 
 describe('REQ20261116230354 AC-6 菜单显隐（me().menus 驱动）', () => {
   it('should_hideSystemConfigMenu_when_meMenusLackConfigNode', async () => {
-    await renderShell(['system:user:list'], false, { watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0' });
+    await renderShell(['system:user:list'], false, { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' });
     // 外壳就绪锚：既有菜单「用户中心」可见
     await waitFor(() => expect(menuText()).toContain('用户中心'));
     expect(menuText()).not.toContain('系统配置');
@@ -179,7 +179,7 @@ describe('REQ20261116230354 AC-6 菜单显隐（me().menus 驱动）', () => {
   it('should_showSystemConfigMenu_when_meMenusContainConfigNode', async () => {
     await renderShell(
       ['system:user:list', 'system:config:list'], true,
-      { watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0' },
+      { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' },
     );
     await waitFor(() => expect(menuText()).toContain('系统配置'));
   });
@@ -189,7 +189,7 @@ describe('REQ20261116230354 AC-7 全局水印强制生效（DOM）', () => {
   it('should_renderGlobalWatermark_when_tenantWatermarkEnabled', async () => {
     const { container } = await renderShell(
       ['system:config:list', 'system:config:update'], true,
-      { watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0' },
+      { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' },
     );
     await waitFor(() => expect(watermarkDivs(container).length).toBeGreaterThan(0));
   });
@@ -197,14 +197,15 @@ describe('REQ20261116230354 AC-7 全局水印强制生效（DOM）', () => {
   it('should_notRenderGlobalWatermark_when_tenantWatermarkDisabled', async () => {
     const { container } = await renderShell(
       ['system:config:list', 'system:config:update'], true,
-      { watermarkEnabled: false, lockIdleTimeoutMs: 0, version: '0' },
+      { watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' },
     );
     // 引导完成锚：租户配置已加载且为禁用态，再断言水印不存在
     await waitFor(() => {
       expect(useSystemConfigStore.getState().loaded).toBe(true);
       expect(useSystemConfigStore.getState().watermarkEnabled).toBe(false);
     });
-    await screen.findByRole('switch');
+    // 页面就绪锚：REQ-20261117-011514 后配置页含水印+验证码双开关，按 label 定位避免多元素歧义
+    await screen.findByLabelText(/全局水印/);
     expect(watermarkDivs(container)).toHaveLength(0);
   });
 });

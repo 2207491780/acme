@@ -1,4 +1,4 @@
-/** zh-CN 系统配置页资源包（REQ-20261116-230354：租户级安全策略）。 */
+/** zh-CN 系统配置页资源包（REQ-20261116-230354：租户级安全策略；REQ-20261117-011514 增验证码开关）。 */
 export const systemConfig = {
   head: {
     eyebrow: 'System',
@@ -8,6 +8,8 @@ export const systemConfig = {
   title: '安全策略',
   watermark: '全局水印',
   watermarkDesc: '以当前登录账号水印覆盖页面内容，对全员生效',
+  captcha: '登录验证码',
+  captchaDesc: '登录时要求输入图形验证码，对本租户全员生效',
   idleLock: '闲置自动锁屏',
   idleLockDesc: '无操作达到时长后锁定屏幕，对全员生效（关闭=不自动锁屏）',
   idleOff: '关闭',

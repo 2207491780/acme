@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, App, Button, Card, Checkbox, Divider, Form, Input, Select, Space, Typography } from 'antd';
 import { ApartmentOutlined, GlobalOutlined, LockOutlined, ReloadOutlined, SafetyCertificateOutlined, ThunderboltOutlined, UserOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -17,7 +17,9 @@ interface LoginFormValues {
 }
 
 /** 登录页（login-ui）：Acme SaaS 云平台多租户登录。
- *  按原型（认证域 L1）与后端契约实现：租户可搜索下拉（/auth/tenants）、图形验证码
+ *  按原型（认证域 L1）与后端契约实现：租户可搜索下拉（/auth/tenants）、验证码策略
+ *  （/auth/captcha-policy，REQ-20261117-011514：所选租户确定后查询；策略关不渲染验证码输入框、
+ *  不请求图形验证码接口、提交体不含验证码字段；策略请求失败按「开启」fail-closed）、图形验证码
  *  （/auth/captcha，data-URI 直接渲染、点击刷新）、表单校验、加载/错误/成功态；
  *  成功后会话写入 authStore 并跳转概览（记住我 → localStorage 持久化）。
  *  文案经 i18n 资源包（REQ-20261114-120103，login 域）。 */
@@ -29,11 +31,17 @@ export function LoginPage() {
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [tenantsLoading, setTenantsLoading] = useState(true);
   const [tenantsError, setTenantsError] = useState<string | null>(null);
+  /** 所选租户验证码策略：null=查询在途/未定（fail-closed：提交仍要求验证码，但输入框与图形码请求暂缓）。 */
+  const [captchaPolicyOn, setCaptchaPolicyOn] = useState<boolean | null>(null);
   const [captcha, setCaptcha] = useState<CaptchaData | null>(null);
   const [captchaLoading, setCaptchaLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form] = Form.useForm<LoginFormValues>();
+  // 所选租户（默认租户确定 + 用户切换）驱动策略查询
+  const tenantCode = Form.useWatch('tenantCode', form);
+  // 竞态护栏：仅最新一次策略查询可落状态（快速切换租户时旧响应作废）
+  const policyRequestRef = useRef('');
 
   // 开发阶段便利性：dev server 下预填超管默认凭据（生产构建不含，见 loginDefaults.ts）
   const devDefaults = loginFormDefaults(import.meta.env.DEV);
@@ -72,10 +80,47 @@ export function LoginPage() {
       .finally(() => setCaptchaLoading(false));
   }, [t]);
 
+  const loadCaptchaPolicy = useCallback((code: string) => {
+    policyRequestRef.current = code;
+    setCaptchaPolicyOn(null);
+    setCaptcha(null);
+    authApi.captchaPolicy(code)
+      .then((policy) => {
+        if (policyRequestRef.current === code) {
+          setCaptchaPolicyOn(policy.captchaEnabled === true);
+        }
+      })
+      .catch(() => {
+        // 策略查询失败（网络/5xx）→ fail-closed 视为开启（契约确认记录②，与后端语义一致）
+        if (policyRequestRef.current === code) {
+          setCaptchaPolicyOn(true);
+        }
+      });
+  }, []);
+
   useEffect(() => {
     loadTenants();
-    loadCaptcha();
-  }, [loadTenants, loadCaptcha]);
+  }, [loadTenants]);
+
+  // 租户切换（含默认租户确定）→ 重新查询策略；无选中租户 → 策略回到未定态
+  useEffect(() => {
+    if (tenantCode) {
+      loadCaptchaPolicy(tenantCode);
+    } else {
+      policyRequestRef.current = '';
+      setCaptchaPolicyOn(null);
+      setCaptcha(null);
+    }
+  }, [tenantCode, loadCaptchaPolicy]);
+
+  // 策略开 → 请求图形验证码；策略关/未定 → 不请求图形码接口（契约确认记录③）
+  useEffect(() => {
+    if (captchaPolicyOn) {
+      loadCaptcha();
+    } else {
+      setCaptcha(null);
+    }
+  }, [captchaPolicyOn, loadCaptcha]);
 
   const refreshCaptcha = useCallback(() => {
     setError(null);
@@ -83,7 +128,9 @@ export function LoginPage() {
   }, [loadCaptcha]);
 
   const onFinish = (values: LoginFormValues) => {
-    if (!captcha) {
+    // fail-closed：策略未定为关一律要求验证码（含策略查询在途）
+    const captchaRequired = captchaPolicyOn !== false;
+    if (captchaRequired && !captcha) {
       setError(t('login.errors.captchaNotReady'));
       return;
     }
@@ -93,8 +140,8 @@ export function LoginPage() {
       tenantCode: values.tenantCode,
       username: values.username,
       password: values.password,
-      captchaId: captcha.captchaId,
-      captchaCode: values.captchaCode,
+      // 策略关 → 提交体不含 captchaId/captchaCode（契约确认记录③）
+      ...(captchaRequired && captcha ? { captchaId: captcha.captchaId, captchaCode: values.captchaCode } : {}),
     })
       .then((issued) => {
         const remember = form.getFieldValue('remember') as boolean | undefined;
@@ -107,13 +154,17 @@ export function LoginPage() {
           tenantCode: values.tenantCode,
         }, remember ?? false);
         message.success(t('login.welcome', { name: issued.nickname || issued.username }));
-        // 登录成功后刷新验证码（一次性消费已完成，避免回退页复用）
-        loadCaptcha();
+        // 登录成功后刷新验证码（一次性消费已完成，避免回退页复用；策略关不请求验证码接口）
+        if (captchaPolicyOn) {
+          loadCaptcha();
+        }
         navigate('/', { replace: true });
       })
       .catch((ex: unknown) => {
         setError(ex instanceof ApiError ? ex.message : t('login.errors.loginFailed'));
-        loadCaptcha();
+        if (captchaPolicyOn) {
+          loadCaptcha();
+        }
       })
       .finally(() => setSubmitting(false));
   };
@@ -223,36 +274,41 @@ export function LoginPage() {
               >
                 <Input.Password prefix={<LockOutlined style={{ color: 'var(--muted)' }} />} placeholder={t('login.form.password')} autoComplete="current-password" />
               </Form.Item>
-              <Form.Item
-                name="captchaCode"
-                label={t('login.form.captcha')}
-                rules={[
-                  { required: true, message: t('login.form.captchaRequired') },
-                  { min: 4, max: 4, message: t('login.form.captchaLength') },
-                ]}
-                style={{ marginBottom: 12 }}
-              >
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input placeholder={t('login.form.captchaInput')} maxLength={4} aria-label={t('login.form.captcha')} />
-                  <Button
-                    onClick={refreshCaptcha}
-                    style={{ width: 118, paddingInline: 8, userSelect: 'none' }}
-                    title={t('login.form.captchaRefreshTitle')}
-                    disabled={captchaLoading}
-                  >
-                    {captcha
-                      ? (
-                        <img
-                          src={captcha.imageBase64Data}
-                          alt={t('login.form.captchaImageAlt')}
-                          style={{ height: 26, display: 'block' }}
-                        />
-                      )
-                      : <ReloadOutlined />}
-                    <ReloadOutlined style={{ marginLeft: 4, color: 'var(--muted)' }} />
-                  </Button>
-                </Space.Compact>
-              </Form.Item>
+              {/* 验证码策略关（REQ-20261117-011514）→ 不渲染验证码输入框；preserve=false
+                  保证租户切换卸载时清残留输入 */}
+              {captchaPolicyOn && (
+                <Form.Item
+                  name="captchaCode"
+                  label={t('login.form.captcha')}
+                  rules={[
+                    { required: true, message: t('login.form.captchaRequired') },
+                    { min: 4, max: 4, message: t('login.form.captchaLength') },
+                  ]}
+                  style={{ marginBottom: 12 }}
+                  preserve={false}
+                >
+                  <Space.Compact style={{ width: '100%' }}>
+                    <Input placeholder={t('login.form.captchaInput')} maxLength={4} aria-label={t('login.form.captcha')} />
+                    <Button
+                      onClick={refreshCaptcha}
+                      style={{ width: 118, paddingInline: 8, userSelect: 'none' }}
+                      title={t('login.form.captchaRefreshTitle')}
+                      disabled={captchaLoading}
+                    >
+                      {captcha
+                        ? (
+                          <img
+                            src={captcha.imageBase64Data}
+                            alt={t('login.form.captchaImageAlt')}
+                            style={{ height: 26, display: 'block' }}
+                          />
+                        )
+                        : <ReloadOutlined />}
+                      <ReloadOutlined style={{ marginLeft: 4, color: 'var(--muted)' }} />
+                    </Button>
+                  </Space.Compact>
+                </Form.Item>
+              )}
               <Form.Item name="remember" valuePropName="checked" style={{ marginBottom: 18 }}>
                 <Checkbox>{t('login.form.remember')}</Checkbox>
               </Form.Item>

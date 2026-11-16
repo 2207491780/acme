@@ -1,13 +1,23 @@
 import { http } from 'msw';
 import { CAPTCHA_IMAGE_DATA } from '../data';
-import { bodyOf, empty, ok } from '../utils';
+import { bodyOf, empty, fail, ok, urlOf } from '../utils';
 
-/** 认证域 handler（login-tenant-select / login-guard-captcha / 登录 / 登出 / 滑动续约）。 */
+/** 认证域 handler（login-tenant-select / login-guard-captcha / 登录 / 登出 / 滑动续约）。
+ *  REQ-20261117-011514 增验证码策略公开端点。 */
 export const authHandlers = [
   http.get('/admin/v1/auth/tenants', () => ok([
     { tenantCode: 'acme', tenantName: 'ACME 总部' },
     { tenantCode: 'beta', tenantName: 'Beta 试点' },
   ])),
+  // 验证码策略（REQ-20261117-011514，公开端点）：mock 全租户默认关闭（与后端 V16 内置默认一致）；
+  // tenantCode 空白 → 400 参数错误（契约口径）
+  http.get('/admin/v1/auth/captcha-policy', ({ request }) => {
+    const tenantCode = urlOf(request).searchParams.get('tenantCode') ?? '';
+    if (!tenantCode.trim()) {
+      return fail('PARAM_INVALID', 'tenantCode 不能为空', 400);
+    }
+    return ok({ captchaEnabled: false });
+  }),
   http.get('/admin/v1/auth/captcha', () => ok({
     captchaId: 'captcha-mock-1',
     imageBase64Data: CAPTCHA_IMAGE_DATA,
