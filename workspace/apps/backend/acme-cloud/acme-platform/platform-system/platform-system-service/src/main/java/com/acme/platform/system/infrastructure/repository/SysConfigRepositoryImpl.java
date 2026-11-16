@@ -21,4 +21,10 @@ public class SysConfigRepositoryImpl extends FlexRepositorySupport<SysConfig>
     public Optional<SysConfig> findCurrent() {
         return Optional.ofNullable(mapper().selectOneByQuery(QueryWrapper.create()));
     }
+
+    @Override
+    public Optional<SysConfig> findByTenantCode(String tenantCode) {
+        return Optional.ofNullable(mapper().selectOneByQuery(
+                QueryWrapper.create().where(SysConfig::getTenantId).eq(tenantCode)));
+    }
 }

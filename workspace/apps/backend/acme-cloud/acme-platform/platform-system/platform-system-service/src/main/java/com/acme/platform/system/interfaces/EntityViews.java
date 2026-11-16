@@ -128,15 +128,15 @@ public final class EntityViews {
                 item.getItemValue(), item.getSortOrder(), item.getStatus(), item.getVersion());
     }
 
-    /** 租户级系统配置视图（REQ-20261116-230354）。 */
+    /** 租户级系统配置视图（REQ-20261116-230354；captchaEnabled 口径 REQ-20261117-011514）。 */
     public static AdminSystemConfigView systemConfigView(SysConfig config) {
-        return new AdminSystemConfigView(config.getWatermarkEnabled(), config.getLockIdleTimeoutMs(),
-                config.getVersion());
+        return new AdminSystemConfigView(config.getWatermarkEnabled(), config.getCaptchaEnabled(),
+                config.getLockIdleTimeoutMs(), config.getVersion());
     }
 
-    /** 无配置行租户的缺省视图（契约确认记录④：水印开 / 闲置锁屏关 / version "0"）。 */
+    /** 无配置行租户的缺省视图（契约确认记录④：水印开 / 验证码关 / 闲置锁屏关 / version "0"）。 */
     public static AdminSystemConfigView systemConfigDefaultView() {
-        return new AdminSystemConfigView(true, 0, 0L);
+        return new AdminSystemConfigView(true, false, 0, 0L);
     }
 
     /** 通知公告视图（REQ-20261114-120102）。 */

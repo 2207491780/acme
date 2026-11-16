@@ -118,14 +118,43 @@ class SystemApiContractTest {
 
     @Test
     void systemConfigViewSerializesVersionAsString() {
-        // REQ-20261116-230354：缺省视图 wire 形态 { watermarkEnabled:true, lockIdleTimeoutMs:0, version:"0" }
-        AdminSystemConfigView view = new AdminSystemConfigView(true, 0, 0L);
+        // REQ-20261116-230354：缺省视图 wire 形态 { watermarkEnabled:true, captchaEnabled:false,
+        // lockIdleTimeoutMs:0, version:"0" }（captchaEnabled 口径 REQ-20261117-011514）
+        AdminSystemConfigView view = new AdminSystemConfigView(true, false, 0, 0L);
         String json = mapper.writeValueAsString(view);
         assertThat(json).contains("\"watermarkEnabled\":true");
+        assertThat(json).contains("\"captchaEnabled\":false");
         assertThat(json).contains("\"lockIdleTimeoutMs\":0");
         assertThat(json).contains("\"version\":\"0\"");
         AdminSystemConfigView back = mapper.readValue(json, AdminSystemConfigView.class);
         assertThat(back).isEqualTo(view);
+    }
+
+    @Test
+    void captchaPolicyViewSerializesBoolean() {
+        // REQ-20261117-011514：验证码策略视图 wire 形态 { captchaEnabled:true|false }
+        CaptchaPolicyView enabled = new CaptchaPolicyView(true);
+        String json = mapper.writeValueAsString(enabled);
+        assertThat(json).contains("\"captchaEnabled\":true");
+        CaptchaPolicyView back = mapper.readValue(json, CaptchaPolicyView.class);
+        assertThat(back).isEqualTo(enabled);
+    }
+
+    @Test
+    void systemConfigClientContractMetadataLocked() throws Exception {
+        // REQ-20261117-011514：验证码策略内部契约（Feign 元数据锁定；模式同 TenantClient）
+        FeignClient feignClient = SystemConfigClient.class.getAnnotation(FeignClient.class);
+        assertThat(feignClient).isNotNull();
+        assertThat(feignClient.name()).isEqualTo("platform-system");
+        assertThat(feignClient.contextId()).isEqualTo("systemConfigClient");
+
+        Method method = SystemConfigClient.class.getMethod("findCaptchaPolicy", String.class);
+        GetMapping getMapping = method.getAnnotation(GetMapping.class);
+        assertThat(getMapping).isNotNull();
+        assertThat(getMapping.value()).containsExactly("/internal/v1/system-configs/captcha-policy");
+        Parameter parameter = method.getParameters()[0];
+        assertThat(parameter.getAnnotation(RequestParam.class).value()).isEqualTo("tenantId");
+        assertThat(method.getReturnType()).isEqualTo(ContractResult.class);
     }
 
     @Test

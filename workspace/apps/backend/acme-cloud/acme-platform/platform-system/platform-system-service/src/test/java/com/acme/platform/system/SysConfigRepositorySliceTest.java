@@ -3,6 +3,7 @@ package com.acme.platform.system;
 import com.acme.common.context.TenantContext;
 import com.acme.common.core.BizException;
 import com.acme.framework.flex.support.FlexError;
+import com.acme.platform.system.application.SystemConfigUseCase;
 import com.acme.platform.system.domain.SysConfig;
 import com.acme.platform.system.infrastructure.repository.SysConfigRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 租户级系统配置仓储切片测试（REQ-20261116-230354，H2 内存库 + MyBatis-Flex 真实 SQL 面，
  * 装配口径同 {@link FlexRepositorySliceTest}）：AC-1 租户隔离（@TenantId 自动过滤）、
  * AC-2 乐观锁底座（版本 +1 / 陈旧 0 行转 STALE_WRITE）、审计与租户列填充。
+ * REQ-20261117-011514：captcha_enabled 列缺省 false；按租户代码直查经用例 @IgnoreTenant 旁路生效。
  */
 @SpringBootTest(classes = PlatformSystemApplication.class, properties = {
         "spring.config.import=",
@@ -29,6 +31,9 @@ class SysConfigRepositorySliceTest {
 
     @Autowired
     SysConfigRepository configRepository;
+
+    @Autowired
+    SystemConfigUseCase systemConfigUseCase;
 
     @Autowired
     JdbcTemplate jdbcTemplate;
@@ -50,14 +55,15 @@ class SysConfigRepositorySliceTest {
     @Test
     void findCurrentReturnsOnlyOwnTenantRow() {
         TenantContext.bind(new TenantContext("cfg-a"));
-        configRepository.save(new SysConfig(false, 60_000));
+        configRepository.save(new SysConfig(false, false, 60_000));
         TenantContext.bind(new TenantContext("cfg-b"));
-        configRepository.save(new SysConfig(true, 900_000));
+        configRepository.save(new SysConfig(true, true, 900_000));
 
         TenantContext.bind(new TenantContext("cfg-a"));
         SysConfig a = configRepository.findCurrent().orElseThrow();
         assertThat(a.getTenantId()).isEqualTo("cfg-a");
         assertThat(a.getWatermarkEnabled()).isFalse();
+        assertThat(a.getCaptchaEnabled()).isFalse();
         assertThat(a.getLockIdleTimeoutMs()).isEqualTo(60_000);
         assertThat(configRepository.findAll()).hasSize(1);
 
@@ -65,6 +71,7 @@ class SysConfigRepositorySliceTest {
         SysConfig b = configRepository.findCurrent().orElseThrow();
         assertThat(b.getTenantId()).isEqualTo("cfg-b");
         assertThat(b.getWatermarkEnabled()).isTrue();
+        assertThat(b.getCaptchaEnabled()).isTrue();
         assertThat(b.getLockIdleTimeoutMs()).isEqualTo(900_000);
         assertThat(configRepository.findAll()).hasSize(1);
 
@@ -76,7 +83,7 @@ class SysConfigRepositorySliceTest {
     @Test
     void findCurrentEmptyWhenTenantHasNoRow() {
         TenantContext.bind(new TenantContext("cfg-a"));
-        configRepository.save(new SysConfig(true, 0));
+        configRepository.save(new SysConfig(true, false, 0));
         TenantContext.bind(new TenantContext("cfg-empty"));
         assertThat(configRepository.findCurrent()).isEmpty();
     }
@@ -86,7 +93,7 @@ class SysConfigRepositorySliceTest {
     @Test
     void saveInsertFillsAuditTenantAndVersion() {
         TenantContext.bind(new TenantContext("cfg-a"));
-        SysConfig saved = configRepository.save(new SysConfig(true, 0));
+        SysConfig saved = configRepository.save(new SysConfig(true, false, 0));
         assertThat(saved.getId()).isNotNull();
         assertThat(saved.getTenantId()).isEqualTo("cfg-a");
         assertThat(saved.getVersion()).isEqualTo(0L);
@@ -99,7 +106,7 @@ class SysConfigRepositorySliceTest {
     @Test
     void saveUpdateBumpsVersionInEntityAndDatabase() {
         TenantContext.bind(new TenantContext("cfg-a"));
-        SysConfig saved = configRepository.save(new SysConfig(true, 0));
+        SysConfig saved = configRepository.save(new SysConfig(true, false, 0));
         saved.setWatermarkEnabled(false);
         saved.setLockIdleTimeoutMs(60_000);
         SysConfig updated = configRepository.save(saved);
@@ -111,7 +118,7 @@ class SysConfigRepositorySliceTest {
     @Test
     void saveWithStaleVersionThrowsStaleWrite() {
         TenantContext.bind(new TenantContext("cfg-a"));
-        SysConfig saved = configRepository.save(new SysConfig(true, 0));
+        SysConfig saved = configRepository.save(new SysConfig(true, false, 0));
         saved.setWatermarkEnabled(false);
         configRepository.save(saved);
         // 库中 version=1；实体版本回拨为 0 → 0 行 → STALE_WRITE
@@ -120,5 +127,35 @@ class SysConfigRepositorySliceTest {
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                         .isEqualTo(FlexError.STALE_WRITE));
+    }
+
+    // ---------- REQ-20261117-011514：captcha_enabled 列缺省与跨租户策略直查 ----------
+
+    @Test
+    void should_defaultCaptchaEnabledToFalse_when_rowInsertedWithoutColumn() {
+        // 迁移缺省口径（AC-1）：存量语义的插入（不带新列）落库后 captcha_enabled=false
+        TenantContext.bind(new TenantContext("cfg-legacy"));
+        jdbcTemplate.update("""
+                insert into sys_config (id, tenant_id, watermark_enabled, lock_idle_timeout_ms,
+                                        created_at, created_by, updated_at, updated_by, version, deleted)
+                values (990001, 'cfg-legacy', true, 0, now(), 'slice', now(), 'slice', 0, false)
+                """);
+        SysConfig legacy = configRepository.findCurrent().orElseThrow();
+        assertThat(legacy.getCaptchaEnabled()).isFalse();
+        assertThat(systemConfigUseCase.findCaptchaPolicyByTenant("cfg-legacy").captchaEnabled()).isFalse();
+    }
+
+    @Test
+    void should_findRowByTenantCodeAcrossTenants_when_useCaseBypassesTenantFilter() {
+        TenantContext.bind(new TenantContext("cfg-a"));
+        configRepository.save(new SysConfig(true, true, 0));
+        TenantContext.bind(new TenantContext("cfg-b"));
+        configRepository.save(new SysConfig(false, false, 0));
+
+        // 会话租户 cfg-b 查询 cfg-a 策略（@IgnoreTenant 旁路）：tenant_id 列存租户代码，直查命中
+        assertThat(systemConfigUseCase.findCaptchaPolicyByTenant("cfg-a").captchaEnabled()).isTrue();
+        assertThat(systemConfigUseCase.findCaptchaPolicyByTenant("cfg-b").captchaEnabled()).isFalse();
+        // 无行租户返回缺省关闭
+        assertThat(systemConfigUseCase.findCaptchaPolicyByTenant("cfg-missing").captchaEnabled()).isFalse();
     }
 }

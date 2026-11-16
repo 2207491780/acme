@@ -176,20 +176,23 @@ class SystemApiSurfaceTest {
     void systemConfigControllerFullSurface() throws Exception {
         // REQ-20261116-230354 系统配置接口全表面（GET 缺省/有行 + PUT 委托 + 权限标注口径）
         SystemConfigUseCase useCase = mock(SystemConfigUseCase.class);
-        SysConfig config = new SysConfig(false, 60_000);
+        SysConfig config = new SysConfig(false, true, 60_000);
         config.setVersion(3L);
         when(useCase.findCurrent()).thenReturn(Optional.of(config));
         when(useCase.update(any())).thenReturn(config);
         SystemConfigController controller = new SystemConfigController(useCase, mock(GlobalExceptionTranslator.class));
 
         assertThat(controller.get().watermarkEnabled()).isFalse();
+        assertThat(controller.get().captchaEnabled()).isTrue();
         assertThat(controller.get().lockIdleTimeoutMs()).isEqualTo(60_000);
         assertThat(controller.get().version()).isEqualTo(3L);
-        assertThat(controller.update(new AdminSystemConfigUpdate(true, 0, 3L)).version()).isEqualTo(3L);
+        assertThat(controller.update(new AdminSystemConfigUpdate(true, false, 0, 3L)).version()).isEqualTo(3L);
 
         when(useCase.findCurrent()).thenReturn(Optional.empty());
         AdminSystemConfigView defaults = controller.get();
         assertThat(defaults.watermarkEnabled()).isTrue();
+        // REQ-20261117-011514：无行缺省视图验证码缺省关闭
+        assertThat(defaults.captchaEnabled()).isFalse();
         assertThat(defaults.lockIdleTimeoutMs()).isZero();
         assertThat(defaults.version()).isEqualTo(0L);
 
@@ -199,6 +202,25 @@ class SystemApiSurfaceTest {
                 .isEqualTo(com.acme.platform.system.api.SystemPermissions.CONFIG_UPDATE);
         assertThat(SystemConfigController.class.getMethod("get")
                 .getAnnotation(com.acme.platform.system.security.RequirePermission.class)).isNull();
+    }
+
+    @Test
+    void internalSystemConfigControllerReturnsPolicyEnvelope() {
+        // REQ-20261117-011514 captcha-policy 内部端点全表面（有行透传 / 无行缺省 false；Result 信封）
+        SystemConfigUseCase useCase = mock(SystemConfigUseCase.class);
+        when(useCase.findCaptchaPolicyByTenant("acme"))
+                .thenReturn(new com.acme.platform.system.api.CaptchaPolicyView(true));
+        when(useCase.findCaptchaPolicyByTenant("empty"))
+                .thenReturn(new com.acme.platform.system.api.CaptchaPolicyView(false));
+        InternalSystemConfigController controller = new InternalSystemConfigController(useCase);
+
+        var enabled = controller.captchaPolicy("acme");
+        assertThat(enabled.getSuccess()).isTrue();
+        assertThat(enabled.getData().captchaEnabled()).isTrue();
+
+        var disabled = controller.captchaPolicy("empty");
+        assertThat(disabled.getSuccess()).isTrue();
+        assertThat(disabled.getData().captchaEnabled()).isFalse();
     }
 
     @Test
@@ -214,7 +236,8 @@ class SystemApiSurfaceTest {
             org.mockito.Mockito.doThrow(new BizException(error)).when(useCase).update(any());
             var result = mvc.perform(put("/admin/v1/system/config")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"watermarkEnabled\":true,\"lockIdleTimeoutMs\":0,\"version\":\"0\"}"))
+                            .content("{\"watermarkEnabled\":true,\"captchaEnabled\":false,"
+                                    + "\"lockIdleTimeoutMs\":0,\"version\":\"0\"}"))
                     .andReturn();
             assertThat(result.getResponse().getStatus())
                     .isEqualTo(error == SystemError.PERMISSION_DENIED ? 403 : 200);
@@ -481,6 +504,11 @@ class SystemApiSurfaceTest {
         assertThat(EntityViews.deptView(root).children()).isEmpty();
         SysPosition position = new SysPosition("engineer", "工程师", EnableStatus.ENABLED);
         assertThat(EntityViews.positionView(position).positionCode()).isEqualTo("engineer");
+        // REQ-20261117-011514：系统配置视图 captchaEnabled 透传 + 缺省视图缺省关闭
+        SysConfig config = new SysConfig(false, true, 60_000);
+        assertThat(EntityViews.systemConfigView(config).captchaEnabled()).isTrue();
+        assertThat(EntityViews.systemConfigDefaultView().captchaEnabled()).isFalse();
+        assertThat(EntityViews.systemConfigDefaultView().watermarkEnabled()).isTrue();
     }
 
     @Test

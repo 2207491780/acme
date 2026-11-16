@@ -135,6 +135,7 @@ CREATE TABLE sys_config (
     id                   BIGINT PRIMARY KEY,
     tenant_id            VARCHAR(64) NOT NULL,
     watermark_enabled    BOOLEAN     NOT NULL DEFAULT TRUE,
+    captcha_enabled      BOOLEAN     NOT NULL DEFAULT FALSE,
     lock_idle_timeout_ms INTEGER     NOT NULL DEFAULT 0,
     created_at           TIMESTAMP   NOT NULL,
     created_by           VARCHAR(64) NOT NULL,

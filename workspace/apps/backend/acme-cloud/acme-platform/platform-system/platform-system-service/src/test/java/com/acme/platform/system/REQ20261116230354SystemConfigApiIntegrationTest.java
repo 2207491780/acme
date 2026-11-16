@@ -116,6 +116,8 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
         JsonNode a = call(get("/admin/v1/system/config"), "9001", "tenant-a", Set.of("super_admin"));
         assertThat(a.path("code").asText()).isEqualTo("0");
         assertThat(a.path("data").path("watermarkEnabled").asBoolean()).isFalse();
+        // REQ-20261117-011514：种子行未带新列 → 迁移缺省 false
+        assertThat(a.path("data").path("captchaEnabled").asBoolean()).isFalse();
         assertThat(a.path("data").path("lockIdleTimeoutMs").asInt()).isEqualTo(60_000);
         assertThat(a.path("data").path("version").asText()).isEqualTo("3");
 
@@ -138,30 +140,33 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
         // 无行缺省 version="0"：upsert 建行（created 行 version=0，沿用既有 create 口径）
         JsonNode created = call(put("/admin/v1/system/config")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(configBody(false, 60_000, "0"))));
+                .content(JSON.writeValueAsString(configBody(false, true, 60_000, "0"))));
         assertThat(created.path("code").asText()).isEqualTo("0");
         assertThat(created.path("data").path("watermarkEnabled").asBoolean()).isFalse();
+        assertThat(created.path("data").path("captchaEnabled").asBoolean()).isTrue();
         assertThat(created.path("data").path("lockIdleTimeoutMs").asInt()).isEqualTo(60_000);
         assertThat(created.path("data").path("version").asText()).isEqualTo("0");
 
-        // 匹配 version=0 修改两项 → 值更新且 version=1
+        // 匹配 version=0 修改三项 → 值更新且 version=1
         JsonNode updated = call(put("/admin/v1/system/config")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(configBody(true, 300_000, "0"))));
+                .content(JSON.writeValueAsString(configBody(true, false, 300_000, "0"))));
         assertThat(updated.path("code").asText()).isEqualTo("0");
         assertThat(updated.path("data").path("watermarkEnabled").asBoolean()).isTrue();
+        assertThat(updated.path("data").path("captchaEnabled").asBoolean()).isFalse();
         assertThat(updated.path("data").path("lockIdleTimeoutMs").asInt()).isEqualTo(300_000);
         assertThat(updated.path("data").path("version").asText()).isEqualTo("1");
 
         // 再 PUT 携带旧 version=0 → 业务失败 code≠0，值不回改
         JsonNode stale = call(put("/admin/v1/system/config")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(configBody(false, 0, "0"))));
+                .content(JSON.writeValueAsString(configBody(false, true, 0, "0"))));
         assertThat(stale.path("success").asBoolean()).isFalse();
         assertThat(stale.path("code").asText()).isNotEqualTo("0");
 
         JsonNode after = call(get("/admin/v1/system/config"));
         assertThat(after.path("data").path("watermarkEnabled").asBoolean()).isTrue();
+        assertThat(after.path("data").path("captchaEnabled").asBoolean()).isFalse();
         assertThat(after.path("data").path("lockIdleTimeoutMs").asInt()).isEqualTo(300_000);
         assertThat(after.path("data").path("version").asText()).isEqualTo("1");
     }
@@ -172,7 +177,7 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
     void should_rejectPutWith403AndAllowGet_when_roleLacksConfigUpdate() throws Exception {
         MvcResult rejected = perform(put("/admin/v1/system/config")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(configBody(false, 60_000, "0"))),
+                .content(JSON.writeValueAsString(configBody(false, false, 60_000, "0"))),
                 "9003", "default", Set.of("req230354-unbound-role"));
         assertThat(rejected.getResponse().getStatus()).isEqualTo(403);
         assertThat(bodyOf(rejected).path("code").asText()).isEqualTo(PERMISSION_DENIED);
@@ -189,12 +194,14 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
         JsonNode defaults = call(get("/admin/v1/system/config"));
         assertThat(defaults.path("code").asText()).isEqualTo("0");
         assertThat(defaults.path("data").path("watermarkEnabled").asBoolean()).isTrue();
+        // REQ-20261117-011514：无行缺省视图验证码缺省关闭（AC-5 口径）
+        assertThat(defaults.path("data").path("captchaEnabled").asBoolean()).isFalse();
         assertThat(defaults.path("data").path("lockIdleTimeoutMs").asInt()).isZero();
         assertThat(defaults.path("data").path("version").asText()).isEqualTo("0");
 
         JsonNode invalid = call(put("/admin/v1/system/config")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(configBody(true, 123, "0"))));
+                .content(JSON.writeValueAsString(configBody(true, false, 123, "0"))));
         assertThat(invalid.path("success").asBoolean()).isFalse();
         assertThat(invalid.path("code").asText()).isEqualTo(CONFIG_INVALID);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_config", Long.class))
@@ -224,7 +231,7 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
         for (int timeout : new int[]{0, 60_000, 300_000, 900_000}) {
             JsonNode updated = call(put("/admin/v1/system/config")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(JSON.writeValueAsString(configBody(true, timeout, version))));
+                    .content(JSON.writeValueAsString(configBody(true, false, timeout, version))));
             assertThat(updated.path("code").asText()).isEqualTo("0");
             assertThat(updated.path("data").path("lockIdleTimeoutMs").asInt()).isEqualTo(timeout);
             version = updated.path("data").path("version").asText();
@@ -278,9 +285,11 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
                 id, tenantId, watermark, idleTimeoutMs, version);
     }
 
-    private static Map<String, Object> configBody(boolean watermarkEnabled, int lockIdleTimeoutMs, String version) {
+    private static Map<String, Object> configBody(boolean watermarkEnabled, boolean captchaEnabled,
+                                                  int lockIdleTimeoutMs, String version) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("watermarkEnabled", watermarkEnabled);
+        body.put("captchaEnabled", captchaEnabled);
         body.put("lockIdleTimeoutMs", lockIdleTimeoutMs);
         body.put("version", version);
         return body;

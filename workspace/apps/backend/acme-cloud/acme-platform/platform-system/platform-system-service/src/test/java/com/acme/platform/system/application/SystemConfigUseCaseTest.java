@@ -3,6 +3,7 @@ package com.acme.platform.system.application;
 import com.acme.common.core.BizException;
 import com.acme.framework.web.support.WebError;
 import com.acme.platform.system.SystemError;
+import com.acme.platform.system.api.CaptchaPolicyView;
 import com.acme.platform.system.api.dto.AdminSystemConfigUpdate;
 import com.acme.platform.system.domain.SysConfig;
 import com.acme.platform.system.infrastructure.repository.SysConfigRepository;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.when;
 /**
  * 租户级系统配置用例单元测试（REQ-20261116-230354，纯 JUnit 无 Spring）：
  * AC-2 乐观锁（匹配 +1 / 陈旧拒绝）、AC-4 缺省态 upsert 与时长取值集校验。
+ * REQ-20261117-011514：captchaEnabled 开关随 upsert 全量生效、无行缺省视图缺省关闭（AC-4/AC-5 口径）。
  * save 桩镜像 FlexRepositorySupport 语义：更新成功版本 +1 回填实体。
  */
 class SystemConfigUseCaseTest {
@@ -31,7 +33,7 @@ class SystemConfigUseCaseTest {
 
     @Test
     void findCurrentDelegatesToRepository() {
-        SysConfig config = new SysConfig(true, 0);
+        SysConfig config = new SysConfig(true, false, 0);
         when(repository.findCurrent()).thenReturn(Optional.of(config));
         assertThat(useCase.findCurrent()).contains(config);
     }
@@ -43,9 +45,10 @@ class SystemConfigUseCaseTest {
         when(repository.findCurrent()).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        SysConfig created = useCase.update(new AdminSystemConfigUpdate(false, 60_000, 0L));
+        SysConfig created = useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, 0L));
 
         assertThat(created.getWatermarkEnabled()).isFalse();
+        assertThat(created.getCaptchaEnabled()).isTrue();
         assertThat(created.getLockIdleTimeoutMs()).isEqualTo(60_000);
         verify(repository).save(any(SysConfig.class));
     }
@@ -54,7 +57,7 @@ class SystemConfigUseCaseTest {
     void updateRejectsNonZeroVersionWhenAbsent() {
         when(repository.findCurrent()).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, 60_000, 1L)))
+        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, false, 60_000, 1L)))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                         .isEqualTo(WebError.CONCURRENCY_CONFLICT));
@@ -65,7 +68,7 @@ class SystemConfigUseCaseTest {
 
     @Test
     void updateAppliesNewValuesAndBumpsVersionWhenVersionMatches() {
-        SysConfig current = new SysConfig(true, 0);
+        SysConfig current = new SysConfig(true, false, 0);
         current.setVersion(3L);
         when(repository.findCurrent()).thenReturn(Optional.of(current));
         when(repository.save(any())).thenAnswer(invocation -> {
@@ -74,25 +77,27 @@ class SystemConfigUseCaseTest {
             return entity;
         });
 
-        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(false, 900_000, 3L));
+        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(false, true, 900_000, 3L));
 
         assertThat(updated.getWatermarkEnabled()).isFalse();
+        assertThat(updated.getCaptchaEnabled()).isTrue();
         assertThat(updated.getLockIdleTimeoutMs()).isEqualTo(900_000);
         assertThat(updated.getVersion()).isEqualTo(4L);
     }
 
     @Test
     void updateRejectsStaleVersionWithoutTouchingRow() {
-        SysConfig current = new SysConfig(true, 0);
+        SysConfig current = new SysConfig(true, false, 0);
         current.setVersion(3L);
         when(repository.findCurrent()).thenReturn(Optional.of(current));
 
-        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, 60_000, 2L)))
+        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, 2L)))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                         .isEqualTo(WebError.CONCURRENCY_CONFLICT));
         verify(repository, never()).save(any());
         assertThat(current.getWatermarkEnabled()).isTrue();
+        assertThat(current.getCaptchaEnabled()).isFalse();
         assertThat(current.getLockIdleTimeoutMs()).isZero();
     }
 
@@ -101,7 +106,7 @@ class SystemConfigUseCaseTest {
     @Test
     void updateRejectsIdleTimeoutOutsideAllowedSet() {
         for (int invalid : new int[]{123, -1, 60_001, 1_800_000}) {
-            assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(true, invalid, 0L)))
+            assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(true, false, invalid, 0L)))
                     .isInstanceOf(BizException.class)
                     .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                             .isEqualTo(SystemError.SYSTEM_CONFIG_INVALID));
@@ -111,14 +116,44 @@ class SystemConfigUseCaseTest {
 
     @Test
     void updateAcceptsAllAllowedIdleTimeouts() {
-        SysConfig current = new SysConfig(true, 0);
+        SysConfig current = new SysConfig(true, false, 0);
         current.setVersion(0L);
         when(repository.findCurrent()).thenReturn(Optional.of(current));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         for (int allowed : new int[]{0, 60_000, 300_000, 900_000}) {
-            SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, allowed, 0L));
+            SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, allowed, 0L));
             assertThat(updated.getLockIdleTimeoutMs()).isEqualTo(allowed);
         }
+    }
+
+    // ---------- REQ-20261117-011514：captchaEnabled 开关与缺省策略视图 ----------
+
+    @Test
+    void should_persistCaptchaEnabledSwitch_when_putUpdatesExistingRow() {
+        SysConfig current = new SysConfig(true, true, 0);
+        current.setVersion(1L);
+        when(repository.findCurrent()).thenReturn(Optional.of(current));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, 0, 1L));
+
+        assertThat(updated.getCaptchaEnabled()).isFalse();
+        assertThat(updated.getWatermarkEnabled()).isTrue();
+    }
+
+    @Test
+    void should_returnDisabledPolicy_when_tenantHasNoConfigRow() {
+        when(repository.findByTenantCode("default")).thenReturn(Optional.empty());
+
+        assertThat(useCase.findCaptchaPolicyByTenant("default")).isEqualTo(new CaptchaPolicyView(false));
+    }
+
+    @Test
+    void should_returnRowPolicyValue_when_tenantHasConfigRow() {
+        SysConfig enabled = new SysConfig(true, true, 0);
+        when(repository.findByTenantCode("acme")).thenReturn(Optional.of(enabled));
+
+        assertThat(useCase.findCaptchaPolicyByTenant("acme")).isEqualTo(new CaptchaPolicyView(true));
     }
 }
