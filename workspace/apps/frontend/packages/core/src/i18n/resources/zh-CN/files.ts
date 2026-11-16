@@ -44,5 +44,11 @@ export const files = {
   },
   errors: {
     loadFailed: '文件清单加载失败',
+    quotaExceeded: '租户存储配额已超限，请清理文件或联系管理员调整配额',
+    imageInvalid: '图片无效或尺寸超出限制，请更换合规图片',
+    ticketInvalid: '直传票据已失效，请重新上传',
+    sizeMismatch: '文件大小与直传记录不一致，请重新上传',
+    objectMissing: '存储对象不存在或已被清理，请重新上传',
+    presignUnsupported: '当前存储类型不支持直传，请联系管理员',
   },
 };

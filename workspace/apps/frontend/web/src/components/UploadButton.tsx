@@ -5,8 +5,8 @@ import type { ButtonProps } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import { App as AntApp } from 'antd';
 import {
-  FILE_ENDPOINTS,
-  transferErrorMessage,
+  uploadErrorMessage,
+  uploadDirect,
   uploadFormData,
   useMeStore,
   type FileView,
@@ -31,9 +31,10 @@ export interface UploadButtonProps {
 }
 
 /**
- * 通用上传按钮（AntD5 展示层，REQ-20261114-120101）：
- * 既有 fetch/FormData（无新依赖）；上传在途以按钮 loading 反馈进度；
- * FILE_SIZE_EXCEEDED / FILE_TYPE_REJECTED 等错误码统一转译提示。
+ * 通用上传按钮（AntD5 展示层，REQ-20261114-120101；REQ-20261117-045754 直传）：
+ * 文件域主链路走 uploadDirect（preparation → PUT → completion），preparation 端点不存在
+ * （404/501）自动回退既有 multipart；显式传入业务 url 时维持 multipart（业务端点无直传端点）；
+ * 上传在途以按钮 loading 反馈进度；直传/既有错误码统一经 uploadErrorMessage 转译提示。
  */
 export function UploadButton({
   url,
@@ -68,11 +69,14 @@ export function UploadButton({
     }
     setUploading(true);
     try {
-      const uploaded = await uploadFormData<FileView>(url ?? FILE_ENDPOINTS.base, file, { bizType, bizId });
+      // 业务端点（显式 url）无直传三段端点 → 维持 multipart；文件域（缺省）走直传链（内含 404/501 回退）
+      const uploaded = url
+        ? await uploadFormData<FileView>(url, file, { bizType, bizId })
+        : await uploadDirect(file, { bizType, bizId });
       message.success(t('files.toast.uploadSuccess', { name: uploaded.originalName ?? file.name }));
       onUploaded?.(uploaded);
     } catch (ex: unknown) {
-      message.error(transferErrorMessage(ex, t('common.errors.operationFailed')));
+      message.error(uploadErrorMessage(ex, t('common.errors.operationFailed')));
     } finally {
       setUploading(false);
     }

@@ -106,6 +106,27 @@ const setupFilesApi = (opts: { uploadFailCode?: string } = {}) => {
     if (r.method === 'GET' && p.includes(FILES_PATH_PART)) {
       return envelope({ records: state.rows, total: state.rows.length });
     }
+    // 直传三段（REQ-20261117-045754）：preparation → 票据 PUT → completion；业务失败码挂 preparation
+    // （与真实后端校验链一致：空/大小/白名单/配额在 preparation 拒绝），404/501 以外不触发 multipart 回退
+    if (r.method === 'POST' && p.includes('/files/direct-upload-preparations')) {
+      if (opts.uploadFailCode) return failureEnvelope(opts.uploadFailCode, opts.uploadFailCode);
+      return envelope({
+        objectKey: 'files/acme/2026/11/17/t-mock-9003.bin',
+        uploadUrl: '/admin/v1/infra/files/direct-uploads/t-mock-9003',
+        method: 'PUT',
+        headers: { 'Content-Type': 'text/plain' },
+        expiresInSeconds: 300,
+        ticket: 't-mock-9003',
+      });
+    }
+    if (r.method === 'PUT' && p.includes('/files/direct-uploads/')) {
+      return new Response(null, { status: 200 });
+    }
+    if (r.method === 'POST' && p.includes('/files/direct-upload-completions')) {
+      const created = fileRow('9003', '上传成功.txt', 'text/plain');
+      state.rows = [...state.rows, created];
+      return envelope(created);
+    }
     if (r.method === 'POST' && p.includes(FILES_PATH_PART)) {
       if (opts.uploadFailCode) return failureEnvelope(opts.uploadFailCode, opts.uploadFailCode);
       const created = fileRow('9003', '上传成功.txt', 'text/plain');
@@ -209,13 +230,14 @@ describe('REQ20261114120101 FilesPage（AC-4 / AC-5）', () => {
     const file = pickFile('上传.txt', 'text/plain');
     fireEvent.change(input, { target: { files: [file] } });
 
-    // 上传走既有端点：POST /admin/v1/infra/files，multipart 参数名 file（裁决⑦）
+    // 直传链（REQ-20261117-045754 AC-8）：preparation POST → 票据 PUT 原始字节 → completion POST
     await waitFor(() => {
-      const posts = callsOf(fetchMock, 'POST');
-      expect(posts).toHaveLength(1);
-      const body = posts[0]?.body;
-      expect(body).toBeInstanceOf(FormData);
-      expect((body as FormData).get('file')).toBeTruthy();
+      const puts = callsOf(fetchMock, 'PUT', '/direct-uploads/');
+      expect(puts).toHaveLength(1);
+      expect(puts[0]?.body).toBeInstanceOf(File);
+    });
+    await waitFor(() => {
+      expect(callsOf(fetchMock, 'POST', '/direct-upload-completions')).toHaveLength(1);
     });
     // 成功刷新列表：数据驱动断言（等 reload 的二次 GET）
     await waitFor(() => {

@@ -44,5 +44,11 @@ export const files = {
   },
   errors: {
     loadFailed: 'Failed to load files',
+    quotaExceeded: 'Tenant storage quota exceeded; free up space or ask the administrator to raise the quota',
+    imageInvalid: 'Invalid image or image size exceeds the limit; please use a compliant image',
+    ticketInvalid: 'Direct upload ticket has expired; please upload again',
+    sizeMismatch: 'File size does not match the upload record; please upload again',
+    objectMissing: 'Storage object is missing or has been cleaned up; please upload again',
+    presignUnsupported: 'Direct upload is not supported by the current storage type; contact the administrator',
   },
 };

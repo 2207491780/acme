@@ -292,6 +292,30 @@ export async function apiFetchRaw(
   return res;
 }
 
+/** rawPut 请求选项（对象存储直传 REQ-20261117-045754）。 */
+export interface RawPutOptions {
+  /** 请求体 Content-Type（直传链路取 preparation.headers 的 Content-Type 口径；缺省由宿主推断）。 */
+  contentType?: string;
+  /** 是否携带 Authorization（缺省 true：LOCAL 票据同源端点走既有认证面；
+   *  MINIO/OSS 预签名外域 URL 必须显式 false——认证在签名 query，带 Authorization 会与签名冲突）。 */
+  auth?: boolean;
+  /** 附加请求头（preparation.headers 除 Content-Type 外的签名要求头，逐键透传）。 */
+  headers?: Record<string, string>;
+}
+
+/**
+ * 原始字节 PUT（对象存储直传 REQ-20261117-045754）：不解析信封、原样返回 Response；
+ * 同源鉴权与 401 单飞续约复用 apiFetchRaw。错误码解析由调用方（file-transfer.uploadDirect）处理。
+ */
+export async function rawPut(path: string, body: BodyInit, options: RawPutOptions = {}): Promise<Response> {
+  const { contentType, auth = true, headers } = options;
+  const merged = new Headers(headers);
+  if (contentType) {
+    merged.set('Content-Type', contentType);
+  }
+  return apiFetchRaw(path, { method: 'PUT', body, headers: merged }, { auth });
+}
+
 /**
  * 续约守护循环（login-renew）：每 30s 巡检，令牌将在 2 分钟内过期即滑动续约；
  * 续约失败且已实际过期 → 清会话回登录页。返回停止函数（App 卸载时清理）。
