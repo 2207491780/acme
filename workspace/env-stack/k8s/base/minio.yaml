@@ -1,0 +1,81 @@
+# MinIO —— 对象存储（REQ-20261117-045754 交付物）：单实例演示规模（无分布式纠删），数据面为
+# S3 兼容 API（platform-infra acme.storage.type=minio 适配器对接）。
+# ⚠️ 本清单为 REQ-20261117-045754 交付，**未部署未实测**；当前各环境默认不启用（base kustomization
+#    已登记但 overlays 未开启存储面）。启用前先做数据面验证（见 ENV-STACK.md「对象存储」小节）：
+#    1. 在 /opt/acme/<env>/app.env 增加 MINIO_ROOT_USER / MINIO_ROOT_PASSWORD 键（deploy.sh 注入为
+#       acme-app-secrets；缺键时本清单凭据 env 解析失败，属预期防误开）；
+#    2. 客户端经 9000 端口（S3 API）；同源反代与 acme.storage.* 配置口径见 ENV-STACK.md。
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: 9000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+spec:
+  serviceName: minio
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth # 官方镜像不经过该 secret，统一注入以兼容私有 mirror 场景
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2024-01-31T20-20-33Z
+          command: [sh, -c]
+          args:
+            - exec minio server /data
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef: { name: acme-app-secrets, key: MINIO_ROOT_USER }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: acme-app-secrets, key: MINIO_ROOT_PASSWORD }
+          ports:
+            - containerPort: 9000
+              name: s3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            exec:
+              command: [sh, -c, curl -sf http://127.0.0.1:9000/minio/health/ready]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [sh, -c, curl -sf http://127.0.0.1:9000/minio/health/live]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              memory: 384Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 2Gi

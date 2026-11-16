@@ -3,9 +3,15 @@
 # 部署审批走二期 CI 的 GitHub Environments required reviewers（决策 2026-11-13-06）
 #
 # REQ-20261114-071607 platform-infra 文件服务 storage root：prod 暂不启用（避免误开本地盘写入）——
-# 生产存储选型确认（本地盘 PVC 或切 minio/oss 对象存储）后，照抄 dev/test overlay 的
-# platform-infra-storage.yaml + platform-infra-storage-patch.yaml 并挂到本文件 resources/patches。
+# 生产存储选型确认后，照抄 dev/test overlay 的 platform-infra-storage.yaml +
+# platform-infra-storage-patch.yaml 并挂到本文件 resources/patches。
 # 未注入 ACME_STORAGE_LOCAL_ROOT_DIR 时 platform-infra 启动即失败（fail-fast，属预期防误开）。
+#
+# REQ-20261117-045754 存储选型更新：MinIO 清单已就绪（base/minio.yaml，StatefulSet+SVC+PVC，交付
+# 未部署未实测）——prod 启用＝ uncomment base kustomization resources 中的 minio.yaml 登记＋在
+# /opt/acme/prod/app.env 增加 MINIO_ROOT_USER/MINIO_ROOT_PASSWORD 键＋platform-infra 的
+# acme.storage.* 切 minio（Nacos data-id 配置，ENV-STACK.md「对象存储」小节）＋同源反代
+# （web/nginx.conf 注释样例）。
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: acme-prod

@@ -68,6 +68,13 @@ sh "$ENVSTACK/scripts/seed-nacos.sh" "$ENV"
 for sts in postgres redis nacos; do
   kubectl -n "$NS" rollout status "statefulset/$sts" --timeout=300s
 done
+# REQ-20261117-045754：minio 清单已交付但存量环境默认未部署——硬编码进等待清单会让未部署环境
+# rollout 超时致部署失败，改为存在性判断后再等待（已部署则照常等待并保持失败外抛）
+if kubectl -n "$NS" get statefulset minio >/dev/null 2>&1; then
+  kubectl -n "$NS" rollout status "statefulset/minio" --timeout=300s
+else
+  echo "ℹ️ minio 未部署（REQ-20261117-045754 交付未启用），跳过 rollout 等待"
+fi
 for dep in acme-gateway platform-auth platform-infra platform-system acme-web; do
   kubectl -n "$NS" rollout status "deployment/$dep" --timeout=600s
 done

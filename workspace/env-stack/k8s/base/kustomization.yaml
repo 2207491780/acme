@@ -7,6 +7,11 @@ resources:
   - postgres.yaml
   - redis.yaml
   - nacos.yaml
+  # REQ-20261117-045754 交付（未部署未实测）：MinIO 清单就绪（base/minio.yaml），缺省不启用——
+  # 登记以注释形态在册，启用＝取消下行注释＋在 /opt/acme/<env>/app.env 增加 MINIO_ROOT_USER/
+  # MINIO_ROOT_PASSWORD 键＋platform-infra 的 acme.storage.* 切 minio（ENV-STACK.md「对象存储」）；
+  # 启用前先做数据面验证（建桶 + 上传/下载回环 + 同源反代回环）
+  # - minio.yaml
   - gateway.yaml
   - platform-auth.yaml
   - platform-infra.yaml
