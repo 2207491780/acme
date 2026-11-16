@@ -48,7 +48,7 @@
 
 ## 6. CodeBuddy（腾讯）
 
-- **读什么**：根 `CODEBUDDY.md`（引用存根；缺省时工具会自动回退读 `AGENTS.md`，双保险）。
+- **读什么**：根 `CODEBUDDY.md`（引用存根；缺省时工具会自动回退读 `AGENTS.md`，双保险）；`.codebuddy/agents/` 有本机派生子代理（`.ai/agents/` 公共池全量镜像 + `/req` 命令；`.codebuddy/` git 忽略、localOnly——缺失跳过校验、存在必须一致，见 `.ai/tools/codebuddy/CODEBUDDY-CLI.md`）。
 - **冒烟**：Craft/Ask 模式问通用测试句。
 - **维护配置**：说意图 + 点名手册。
 
@@ -87,7 +87,8 @@
 |---|---|---|---|---|
 | Claude Code | `CLAUDE.md` + `.claude/` | ✅ | ✅ | 不必（自动） |
 | Gemini CLI | `GEMINI.md` + `.gemini/` | ✅ | — | 可省 |
-| Codex / Cursor / Copilot / Trae / Qoder / ZCode / CodeBuddy / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
+| CodeBuddy | `CODEBUDDY.md` + `.codebuddy/`（本机 localOnly） | ✅（公共池镜像） | — | **建议加** |
+| Codex / Cursor / Copilot / Trae / Qoder / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
 
 ## 排障
 

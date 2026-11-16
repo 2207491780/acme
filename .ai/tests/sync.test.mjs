@@ -493,6 +493,67 @@ test('should_treat_missing_local_only_target_as_ok_in_check_but_mismatch_as_fail
   fails(run(repo, ['--check']), /与 \.ai\/ 不同步/);
 });
 
+test('should_mirror_pools_into_local_only_codebuddy_target', async (t) => {
+  // CodeBuddy 纳管（ADR 2026-11-17-01）：公共池 agents/commands 全量镜像到 .codebuddy/（localOnly，
+  // 口径同 zcode）；tools 专属源的目录说明文件照常前置「生成产物」标头。
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/agents/helper.md', '# Helper\n');
+  await put(repo, '.ai/commands/review.md', '# Review command\n');
+  await put(repo, '.ai/tools/codebuddy/CODEBUDDY-CLI.md', '# CodeBuddy dir\n');
+  succeeds(run(repo));
+  assert.match(await readFile(join(repo, '.codebuddy/agents/helper.md'), 'utf8'), /派生自 \.ai\/agents\/helper\.md/);
+  assert.match(await readFile(join(repo, '.codebuddy/commands/review.md'), 'utf8'), /派生自 \.ai\/commands\/review\.md/);
+  assert.match(await readFile(join(repo, '.codebuddy/CODEBUDDY-CLI.md'), 'utf8'), /生成产物/);
+  // localOnly 三段语义：缺失跳过 → 重建 → 漂移判错
+  await rm(join(repo, '.codebuddy'), { recursive: true });
+  const ok = run(repo, ['--check']);
+  succeeds(ok);
+  assert.match(ok.stdout, /跳过校验/);
+  succeeds(run(repo));
+  await put(repo, '.codebuddy/agents/helper.md', '# drifted\n');
+  fails(run(repo, ['--check']), /与 \.ai\/ 不同步/);
+});
+
+test('should_fail_when_ci_inline_ai_paths_drift_from_single_list', async (t) => {
+  // AI 路径单一清单（ADR 2026-11-17-01）：ci.yml 的 AI_PATHS 内联副本与 .ai/hooks/ai-paths.list
+  // 不一致时，sync 与 --check 都必须失败（未写入任何产物）。
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/hooks/ai-paths.list', '# AI paths\n.ai\n.ai-memory\n:(glob)**/AGENTS.md\n');
+  const ci = [
+    'name: ci',
+    'on: push',
+    'jobs:',
+    '  mirror-sync:',
+    '    steps:',
+    '      - run: |',
+    '          AI_PATHS=(',
+    '            .ai .ai-memory',
+    '            :(glob)**/AGENTS.md',
+    '          )',
+    '      - run: git diff --exit-code origin/a origin/b -- "${AI_PATHS[@]}"',
+  ].join('\n');
+  await put(repo, '.ai/ci/ci.yml', ci);
+  succeeds(run(repo));
+  succeeds(run(repo, ['--check']));
+  await put(repo, '.ai/ci/ci.yml', ci.replace('.ai .ai-memory', '.ai'));
+  const before = await snapshot(repo);
+  fails(run(repo), /AI_PATHS 内联清单与 \.ai\/hooks\/ai-paths\.list 不一致/);
+  fails(run(repo, ['--check']), /AI_PATHS 内联清单与 \.ai\/hooks\/ai-paths\.list 不一致/);
+  assert.deepEqual(await snapshot(repo), before);
+});
+
+test('should_fail_when_only_one_of_ai_paths_list_or_ci_present', async (t) => {
+  // 清单与 ci.yml 是结构配套：真实仓库恒同时在位；最小 fixture 两者皆缺则跳过校验（向后兼容），
+  // 单缺任一即报错，避免半套结构静默漏检。
+  const { repo } = await fixture(t);
+  succeeds(run(repo)); // 两者皆缺（最小 fixture）：跳过
+  await put(repo, '.ai/hooks/ai-paths.list', '.ai\n');
+  fails(run(repo), /缺少 \.ai\/ci\/ci\.yml/);
+  await rm(join(repo, '.ai/hooks/ai-paths.list'));
+  await put(repo, '.ai/ci/ci.yml', 'name: ci\n');
+  fails(run(repo), /缺少 \.ai\/hooks\/ai-paths\.list/);
+});
+
 test('should_accept_environment_file_pointer_when_valid_yaml_name', async (t) => {
   const { repo } = await fixture(t);
   for (const yaml of [

@@ -75,6 +75,10 @@ const TOOLS = [
   // ZCode 的 agents/commands 引用存根（正文指针指向 .ai/ 公共池源）；.zcode/ 本身 git 忽略、不入库，
   // 故标记 localOnly：--check 对缺失不判错（全新检出/CI 无该目录），存在必须一致（防漂移）。
   { key: 'zcode', doc: 'ZCODE.md', target: '.zcode', localOnly: true },
+  // CodeBuddy：用户本机工具，.codebuddy/ git 忽略、不入库（此前为游离于治理外的手抄 agent 副本，
+  // 孤儿检测不可见）→ 以 localOnly 派生键纳管（口径同 zcode）；除 tools 专属源外，公共池
+  // agents/commands 全量镜像进 .codebuddy/（mirrorPools；ADR 2026-11-17-01）。
+  { key: 'codebuddy', doc: 'CODEBUDDY-CLI.md', target: '.codebuddy', localOnly: true, mirrorPools: ['agents', 'commands'] },
 ];
 
 /** 本机派生目标（git 忽略、不入库）前缀：--check 缺失不判错；sync 时照常写本机。 */
@@ -285,6 +289,46 @@ const LINK_FLAG = process.argv.includes('--links') || process.env.AI_SYNC_LINK =
 /** 链接模式：CLI --links / AI_SYNC_LINK=1 优先；否则取配置 entryMode（缺省 stub）。 */
 const USE_LINKS = LINK_FLAG || config.engine.entryMode === 'symlink';
 
+// ---- 0c. AI 路径单一清单一致性（ADR 2026-11-17-01）：.ai/hooks/ai-paths.list 是唯一事实源，
+//      pre-commit 与 mirror-check.mjs 直接消费；.ai/ci/ci.yml 的 mirror-sync 作业因 Actions YAML
+//      难以共享文件常量而保留内联副本，此处强制其与本清单逐条（含顺序）一致，不一致即失败。
+//      真实仓库两件套恒在；最小 fixture（两者皆缺）跳过，单缺即报错（结构性缺失）。
+const AI_PATHS_LIST = '.ai/hooks/ai-paths.list';
+function parseAiPathsList(text) {
+  const paths = text.split('\n').map((l) => l.replace(/\r$/, '').trim()).filter((l) => l && !l.startsWith('#'));
+  if (!paths.length) throw new Error(`${AI_PATHS_LIST} 无有效条目（每行一条，# 开头为注释）`);
+  return paths;
+}
+/** 提取 ci.yml 中 AI_PATHS=( ...) 内联清单：按空白拆 token、去 shell 引号，保留顺序。 */
+function extractCiInlineAiPaths(ciText) {
+  const m = ciText.match(/AI_PATHS=\(\n([\s\S]*?)\n[ \t]*\)/);
+  if (!m) throw new Error('.ai/ci/ci.yml 缺少 mirror-sync 作业的 AI_PATHS=(...) 内联清单（应与 .ai/hooks/ai-paths.list 逐条一致）');
+  return m[1]
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'))
+    .join('\n')
+    .split(/\s+/)
+    .map((t) => (t.startsWith("'") && t.endsWith("'") ? t.slice(1, -1) : t));
+}
+{
+  const hasList = await inspectPath(join(AI, 'hooks', 'ai-paths.list'));
+  const hasCi = await inspectPath(join(AI, 'ci', 'ci.yml'));
+  if (hasList || hasCi) {
+    if (!hasList) throw new Error('.ai/ci/ci.yml 在位但缺少 .ai/hooks/ai-paths.list（AI 路径单一清单）');
+    if (!hasCi) throw new Error('.ai/hooks/ai-paths.list 在位但缺少 .ai/ci/ci.yml（镜像内联清单无法校验）');
+    const list = parseAiPathsList(norm(await readFile(join(AI, 'hooks', 'ai-paths.list'), 'utf8')));
+    const inline = extractCiInlineAiPaths(norm(await readFile(join(AI, 'ci', 'ci.yml'), 'utf8')));
+    if (inline.join('\n') !== list.join('\n')) {
+      throw new Error(
+        `.ai/ci/ci.yml 的 AI_PATHS 内联清单与 ${AI_PATHS_LIST} 不一致（唯一事实源为后者）：\n` +
+          `  清单：${list.join(' ')}\n  内联：${inline.join(' ')}\n` +
+          '修复：按 .ai/hooks/ai-paths.list 同步 ci.yml 内联清单后重跑。'
+      );
+    }
+  }
+}
+
 /** 期望集：根相对路径（正斜杠）→ 规范化内容 */
 const expected = new Map();
 /** 链接集：根相对路径 → { target, fallback }（symlink 可用时用链接，否则写 fallback 内容） */
@@ -424,6 +468,15 @@ for (const p of POOLS) {
 }
 for (const t of TOOLS) {
   await derive(join(AI, 'tools', t.key), t.target, `.ai/tools/${t.key}/`, { placardDoc: t.doc });
+  // mirrorPools：把跨工具公共池全量镜像进该工具目录（localOnly 本机目标；ADR 2026-11-17-01）。
+  // 池目录说明文件（AGENT-POOL.md 等）与 POOLS 循环同样排除；无格式适配（frontmatter 与 Claude 同构）。
+  // 与 .ai/tools/<key>/ 同名同路径源会经 destinations 登记簿触发「派生目标冲突」，防止双源写同一文件。
+  for (const pool of t.mirrorPools ?? []) {
+    const poolDef = POOLS.find((p) => p.src === pool);
+    await derive(join(AI, pool), `${t.target}/${pool}`, `.ai/${pool}/`, {
+      excludeDocs: poolDef ? [poolDef.doc] : [],
+    });
+  }
 }
 for (const e of EXTRA) {
   // CI-GUIDE.md 是目录说明，不派生到 .github/workflows/

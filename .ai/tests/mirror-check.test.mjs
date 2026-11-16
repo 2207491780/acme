@@ -66,7 +66,22 @@ test('should_fail_when_support_branch_missing', async (t) => {
 
   const r = run(repo);
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /找不到 ai-coding-support/);
+  // 缺分支报错 UX（遗留项 2026-11-14-#4）：点名缺失分支 + 给出补救指引
+  assert.match(r.stderr, /缺少策略分支 ai-coding-support/);
+  assert.match(r.stderr, /补救/);
+  assert.match(r.stderr, /git fetch origin/);
+});
+
+test('should_fall_back_to_branch_head_when_args_are_null_oid_of_any_length', async (t) => {
+  // 空 SHA 入参不硬编码长度（遗留项 2026-11-14-#3）：64 位零值（SHA-256 仓库口径）同样回退本地分支 HEAD
+  const { repo, g } = await makeRepo(t);
+  await seedAiConfig(repo, g, { ai: 'A\n', app: 'v1\n' });
+  g(['checkout', '-q', '-b', 'ai-coding-support']);
+  g(['checkout', '-q', 'acme-foundation']);
+
+  const r = run(repo, ['0'.repeat(64), '0'.repeat(64)]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /镜像一致/);
 });
 
 test('should_compare_pushed_sha_when_provided', async (t) => {

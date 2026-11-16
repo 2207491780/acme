@@ -5,7 +5,15 @@
 #   ③ 两条策略分支（acme-foundation / ai-coding-support）AI 路径必须一致——推前本地预检，防 mirror-sync 事后红灯；
 #   ④ 策略分支不允许删除；更新既有远端提交必须快进（拦截强推）。
 # 口径见 .ai/rules/git-workflow.md 与 .ai-memory/playbooks/parallel-dev.md。启用：node .ai/hooks/enable.mjs
-zero=0000000000000000000000000000000000000000
+
+# 空 SHA（null OID）判定：全 0 字符串，不硬编码长度（遗留项修复：40 位写死在 SHA-256 仓库下
+# 删除检测失效——64 位零值不等于 40 位零值常量）。git 只输出小写十六进制，合法提交不可能是全 0。
+is_null_oid() {
+  case "$1" in
+    '' | *[!0]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
 status=0
 main_sha=''
 support_sha=''
@@ -17,7 +25,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       continue
       ;;
     refs/heads/feat/*|refs/heads/fix/*)
-      if [ "$local_sha" != "$zero" ] && [ "${ACME_ALLOW_BRANCH_PUSH:-0}" != "1" ]; then
+      if ! is_null_oid "$local_sha" && [ "${ACME_ALLOW_BRANCH_PUSH:-0}" != "1" ]; then
         echo "推送被拒绝：$remote_ref 是任务分支，默认只留本地；确需远端存档请显式 ACME_ALLOW_BRANCH_PUSH=1 再推。"
         status=1
         continue
@@ -30,7 +38,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
       support_sha=$local_sha
       ;;
   esac
-  if [ "$local_sha" = "$zero" ]; then
+  if is_null_oid "$local_sha"; then
     case "$remote_ref" in
       refs/heads/acme-foundation|refs/heads/ai-coding-support)
         echo "推送被拒绝：策略分支 $remote_ref 不允许删除。"
@@ -40,7 +48,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     esac
   fi
   # 更新既有远端提交（删除时 local_sha 为零值，跳过快进检查）
-  if [ "$remote_sha" != "$zero" ] && [ "$local_sha" != "$zero" ]; then
+  if ! is_null_oid "$remote_sha" && ! is_null_oid "$local_sha"; then
     if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" >/dev/null 2>&1; then
       echo "推送被拒绝：$remote_ref 非快进，会丢弃远端已有提交。请先拉取合并；确需重写历史请与团队沟通后人工执行。"
       status=1

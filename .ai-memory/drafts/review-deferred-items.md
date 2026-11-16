@@ -33,8 +33,14 @@
 
 1. ~~根部入口孤儿检测与 scopes 覆盖警示~~ ✅ 已解决：孤儿扫描扩展到根部（非递归）与 scopes 同级目录（新增 2 用例，顺带修复 inspectPath 根路径返回 null）；SCOPED-RULES.md 已补「路径即仓库路径」覆盖警示。
 2. ~~commit-msg 不校验 `Assisted-by` trailer~~ ✅ 已收口：规则注明「暂无机器校验，PR 描述审查把关」（git-workflow.md）。
-3. pre-push 零值 SHA 硬编码 40 位（SHA-256 仓库下删除检测失效）：仓库切 sha256 时一并处理。**仍遗留**。
-4. mirror-sync 作业对「对端分支不存在」报 git diff 128 笼统失败：首次接线期提示优化。**仍遗留**。
+3. ~~pre-push 零值 SHA 硬编码 40 位（SHA-256 仓库下删除检测失效）~~ ✅ 已修复（2026-11-17）：pre-push 改为
+   「全 0 字符串」判定 null OID（`is_null_oid`，不限哈希长度）；mirror-check.mjs 的入参全零回退判定同步改为
+   `/^0+$/`；SHA-256 沙箱回归用例落 `.ai/tests/hooks.test.mjs`（策略分支删除拦截 / 任务分支合法删除放行）。
+   提交待填。
+4. ~~mirror-sync 作业对「对端分支不存在」报 git diff 128 笼统失败~~ ✅ 已解决（2026-11-17）：CI mirror-sync
+   作业先 `git rev-parse --verify` 探测两条远端引用，缺失即 `::error` 明示缺哪个分支与补救命令（不再落到
+   git diff 128 笼统报错）；本地 `.ai/hooks/mirror-check.mjs` 缺分支报错同次明确（点名缺失分支 + 补救指引）。
+   提交待填。
 5. ~~parallel-dev.md 与 ADR 03 的暂存清单口径不一致~~ ✅ 已解决：pre-commit 清单补 `.ai-memory` 与镜像/CI 三层统一（ADR-22 以新记录修正 ADR-03 表述）。
 
 ## ui-prototype（归档区）

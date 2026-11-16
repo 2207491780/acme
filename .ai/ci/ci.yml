@@ -38,14 +38,24 @@ jobs:
           fetch-depth: 0
       - name: 校验 AI 路径两分支一致
         run: |
-          git diff --stat origin/ai-coding-support origin/acme-foundation -- \
-            .ai .ai-memory .github .claude .cursor .gemini .trae .qoder \
-            AGENTS.md CLAUDE.md GEMINI.md CODEBUDDY.md .gitignore \
+          # AI 路径内联清单：唯一事实源为 .ai/hooks/ai-paths.list，本副本必须与之逐条（含顺序）一致，
+          # 由 .ai/sync.mjs 在派生/校验时强制、.ai/tests/ai-paths.test.mjs 回归锁定（ADR 2026-11-17-01）；
+          # GitHub Actions YAML 难以共享文件常量，故内联。.zcode/、.codebuddy/ 为 localOnly 本机目标，不入清单。
+          AI_PATHS=(
+            .ai .ai-memory .github .claude .cursor .gemini .trae .qoder .gitignore
+            AGENTS.md CLAUDE.md GEMINI.md CODEBUDDY.md
             ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md'
-          git diff --exit-code origin/ai-coding-support origin/acme-foundation -- \
-            .ai .ai-memory .github .claude .cursor .gemini .trae .qoder \
-            AGENTS.md CLAUDE.md GEMINI.md CODEBUDDY.md .gitignore \
-            ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md' || {
+          )
+          # 对端分支缺失（首次接线期）不再落到 git diff 128 笼统报错：明确指缺哪个分支、如何补救
+          # （口径同 .ai/hooks/mirror-check.mjs：无法确认一致性不得放行）。
+          for ref in origin/ai-coding-support origin/acme-foundation; do
+            if ! git rev-parse --verify --quiet "$ref" >/dev/null 2>&1; then
+              echo "::error::远端缺少 $ref——镜像一致性无法判定，不得放行。补救：两条策略分支用同一条命令推送使对端在位（git push origin acme-foundation ai-coding-support）后重跑；若对端被误删，先恢复该分支再推。"
+              exit 1
+            fi
+          done
+          git diff --stat origin/ai-coding-support origin/acme-foundation -- "${AI_PATHS[@]}"
+          git diff --exit-code origin/ai-coding-support origin/acme-foundation -- "${AI_PATHS[@]}" || {
             echo "::error::AI 配置在两分支间存在差异——请把未镜像的一方对齐到另一方后重推。"
             exit 1
           }
