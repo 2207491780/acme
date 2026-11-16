@@ -28,12 +28,13 @@ export interface LoginPayload {
   captchaCode?: string;
 }
 
-/** 令牌签发结果（契约对齐 AdminTokenIssued；expiresAt 为 ISO-8601 字符串）。 */
+/** 令牌签发结果（契约对齐 AdminTokenIssued；expiresAt 为 ISO-8601 字符串）。
+ *  userId 为字符串化雪花 ID（wire string，防 JS Number 精度丢失），勿改回 number。 */
 export interface TokenIssued {
   accessToken: string;
   tokenType: string;
   expiresAt: string;
-  userId: number;
+  userId: string;
   username: string;
   nickname: string | null;
 }

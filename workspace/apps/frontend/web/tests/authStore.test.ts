@@ -17,7 +17,7 @@ describe('authStore', () => {
   const session = (expiresAtMs = Date.now() + 1_800_000) => ({
     accessToken: 'token-1',
     expiresAtMs,
-    userId: 1,
+    userId: '1',
     username: 'admin',
     nickname: '管理员',
     tenantCode: 'default',

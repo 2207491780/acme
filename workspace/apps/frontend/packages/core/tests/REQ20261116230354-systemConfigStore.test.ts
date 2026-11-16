@@ -231,7 +231,7 @@ describe('REQ20261116230354 AC-9 lockStore 回归', () => {
   it('should_clearPasscodeUnlockAndClearSession_when_forgotPasscode', () => {
     useAuthStore.getState().setSession({
       accessToken: 'token-1', expiresAtMs: Date.now() + 1_800_000,
-      userId: 1001, username: 'admin', nickname: null, tenantCode: 'default',
+      userId: '1001', username: 'admin', nickname: null, tenantCode: 'default',
     }, false);
     useLockStore.getState().setPasscode('1234');
     useLockStore.getState().lock();

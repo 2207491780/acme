@@ -28,12 +28,13 @@ export const authApi = {
     apiFetch<void>('/app/v1/auth/tokens/current', { method: 'DELETE' }, { emptyAsSuccess: true }),
 };
 
-/** 令牌签发结果（契约对齐 AppTokenIssued；expiresAt / refreshExpiresAt 为 ISO-8601）。 */
+/** 令牌签发结果（契约对齐 AppTokenIssued；expiresAt / refreshExpiresAt 为 ISO-8601）。
+ *  userId 为字符串化雪花 ID（wire string，防 JS Number 精度丢失）。 */
 export interface AppTokenIssued {
   accessToken: string;
   refreshToken: string;
   expiresAt: string;
   refreshExpiresAt: string;
-  userId: number;
+  userId: string;
   phone: string;
 }

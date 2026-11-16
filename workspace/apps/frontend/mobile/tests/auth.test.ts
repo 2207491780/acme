@@ -23,7 +23,7 @@ describe('mobile auth', () => {
     refreshToken: 'refresh-1',
     expiresAt: new Date(Date.now() + 7_200_000).toISOString(),
     refreshExpiresAt: new Date(Date.now() + 12_096_000_000).toISOString(),
-    userId: 7,
+    userId: '7',
     phone: '13800138000',
   });
 
@@ -41,7 +41,7 @@ describe('mobile auth', () => {
       refreshToken: 'refresh-1',
       accessExpiresAtMs: Date.now() + 1_800_000,
       refreshExpiresAtMs: Date.now() + 12_096_000_000,
-      userId: 7,
+      userId: '7',
       phone: '13800138000',
     });
   }
@@ -115,7 +115,7 @@ describe('mobile auth', () => {
       refreshToken: 'refresh-1',
       accessExpiresAtMs: Date.now() + 1_800_000,
       refreshExpiresAtMs: Date.now() + 12_096_000_000,
-      userId: 7,
+      userId: '7',
       phone: '13800138000',
     };
     secureMem.set('acme.auth.session.v1', JSON.stringify(broken));
@@ -130,7 +130,7 @@ describe('mobile auth', () => {
       refreshToken: 'refresh-1',
       accessExpiresAtMs: Date.now() + 1_800_000,
       refreshExpiresAtMs: Date.now() + 12_096_000_000,
-      userId: 7,
+      userId: '7',
       phone: '13800138000',
     };
     secureMem.set('acme.auth.session.v1', JSON.stringify(valid));

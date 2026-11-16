@@ -31,7 +31,7 @@ const session = (accessToken = 'access-1') => ({
   refreshToken: 'refresh-1',
   accessExpiresAtMs: Date.now() + 1_800_000,
   refreshExpiresAtMs: Date.now() + 12_096_000_000,
-  userId: 7,
+  userId: '7',
   phone: '13800138000',
 });
 
@@ -78,7 +78,7 @@ describe('REQ20261114120110 SecureStore 会话回归（AC-4）', () => {
     expect(useAuthStore.getState().hydrated).toBe(true);
     expect(useAuthStore.getState().session?.accessToken).toBe('access-1');
     expect(useAuthStore.getState().session?.refreshToken).toBe('refresh-1');
-    expect(useAuthStore.getState().session?.userId).toBe(7);
+    expect(useAuthStore.getState().session?.userId).toBe('7');
     expect(useAuthStore.getState().session?.phone).toBe('13800138000');
   });
 

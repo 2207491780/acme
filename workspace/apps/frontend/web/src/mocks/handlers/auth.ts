@@ -29,7 +29,7 @@ export const authHandlers = [
       accessToken: 'mock-access-token',
       tokenType: 'Bearer',
       expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
-      userId: 1001,
+      userId: '1001',
       username,
       nickname: '超级管理员',
     });

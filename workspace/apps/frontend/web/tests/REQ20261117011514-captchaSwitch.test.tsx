@@ -104,7 +104,7 @@ const setupLoginApi = (options: { policies?: Record<string, boolean>; policyFail
       return envelope({
         accessToken: 'mock-token', tokenType: 'Bearer',
         expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
-        userId: 1001, username: String(body.username ?? 'admin'), nickname: '超级管理员',
+        userId: '1001', username: String(body.username ?? 'admin'), nickname: '超级管理员',
       });
     }
     return envelope(null);

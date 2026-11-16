@@ -1,13 +1,14 @@
 import { create } from 'zustand';
 import { secureDelete, secureGet, secureSet } from '../api/secureStore';
 
-/** C 端登录会话（login-app）：双令牌 + 主体；过期时间为本地 epoch 毫秒。 */
+/** C 端登录会话（login-app）：双令牌 + 主体；过期时间为本地 epoch 毫秒；
+ *  userId 为字符串化雪花 ID，与 wire 口径一致。 */
 export interface AuthSession {
   accessToken: string;
   refreshToken: string;
   accessExpiresAtMs: number;
   refreshExpiresAtMs: number;
-  userId: number;
+  userId: string;
   phone: string;
 }
 
@@ -47,8 +48,8 @@ function isValidSession(value: unknown): value is AuthSession {
     typeof s.refreshExpiresAtMs === 'number' &&
     Number.isFinite(s.refreshExpiresAtMs) &&
     s.refreshExpiresAtMs > 0 &&
-    typeof s.userId === 'number' &&
-    Number.isFinite(s.userId) &&
+    typeof s.userId === 'string' &&
+    s.userId.length > 0 &&
     typeof s.phone === 'string' &&
     s.phone.length > 0
   );

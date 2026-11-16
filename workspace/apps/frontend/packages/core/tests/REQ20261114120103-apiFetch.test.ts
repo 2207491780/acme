@@ -68,7 +68,7 @@ const seedWebSession = () => {
   useAuthStore.getState().setSession({
     accessToken: 'expired-token',
     expiresAtMs: Date.now() + 1_800_000,
-    userId: 1001,
+    userId: '1001',
     username: 'admin',
     nickname: null,
     tenantCode: 'default',

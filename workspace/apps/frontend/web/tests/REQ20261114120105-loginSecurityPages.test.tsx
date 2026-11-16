@@ -290,7 +290,7 @@ describe('REQ20261114120105 401 清会话跳登录（AC-4 前端半句，TL 裁�
     useAuthStore.getState().setSession({
       accessToken: 'token-1',
       expiresAtMs: Date.now() + 1_800_000,
-      userId: 1001,
+      userId: '1001',
       username: 'admin',
       nickname: null,
       tenantCode: 'default',

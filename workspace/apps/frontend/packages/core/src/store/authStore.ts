@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 
-/** 登录会话（login-state：令牌 + 主体 + 租户；expiresAtMs 为本地 epoch 毫秒）。 */
+/** 登录会话（login-state：令牌 + 主体 + 租户；expiresAtMs 为本地 epoch 毫秒；
+ *  userId 为字符串化雪花 ID，与 wire 口径一致，恢复校验同口径）。 */
 export interface AuthSession {
   accessToken: string;
   expiresAtMs: number;
-  userId: number;
+  userId: string;
   username: string;
   nickname: string | null;
   tenantCode: string;
@@ -40,8 +41,8 @@ function isValidSession(value: unknown): value is AuthSession {
     typeof s.expiresAtMs === 'number' &&
     Number.isFinite(s.expiresAtMs) &&
     s.expiresAtMs > 0 &&
-    typeof s.userId === 'number' &&
-    Number.isFinite(s.userId) &&
+    typeof s.userId === 'string' &&
+    s.userId.length > 0 &&
     typeof s.username === 'string' &&
     s.username.length > 0 &&
     (s.nickname === null || typeof s.nickname === 'string') &&

@@ -24,7 +24,7 @@ describe('meStore', () => {
     useAuthStore.getState().setSession({
       accessToken: 'token-1',
       expiresAtMs: Date.now() + 1_800_000,
-      userId: 1001,
+      userId: '1001',
       username: 'admin',
       nickname: null,
       tenantCode: 'default',
