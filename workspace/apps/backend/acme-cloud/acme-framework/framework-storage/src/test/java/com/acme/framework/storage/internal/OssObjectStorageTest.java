@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import com.aliyun.oss.model.GeneratePresignedUrlRequest;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -63,6 +65,37 @@ class OssObjectStorageTest {
         storage().put(new StorageObject(ObjectKey.of("ns", "f.txt"),
                 new ByteArrayInputStream("hi".getBytes()), 2, "text/plain"));
         assertThat(calls).containsExactly("putObject");
+    }
+
+    @Test
+    void presignUploadGeneratesPutUrlWithContentTypeSigned() {
+        // 直传预签名契约（REQ-20261117-045754 AC-5）：GeneratePresignedUrlRequest(Method.PUT) +
+        // ContentType 参与签名（客户端 PUT 须带同值头），有效期 = presign-ttl
+        StorageProperties properties = new StorageProperties();
+        properties.setBucket("acme");
+        properties.setPresignTtl(java.time.Duration.ofMinutes(15));
+        List<Object> captured = new ArrayList<>();
+        OSS stub = (OSS) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[] {OSS.class}, (proxy, method, args) -> {
+                    calls.add(method.getName());
+                    if (args != null && args.length > 0) {
+                        captured.add(args[0]);
+                    }
+                    return new URL("https://oss.example.com/acme/x?signature=abc");
+                });
+        OssObjectStorage storage = new OssObjectStorage(stub, properties);
+
+        ObjectKey key = ObjectKey.of("files", "a.png", java.time.LocalDate.of(2026, 11, 17));
+        String url = storage.presignUpload(key, "image/png", 7);
+
+        assertThat(url).isEqualTo("https://oss.example.com/acme/x?signature=abc");
+        assertThat(calls).containsExactly("generatePresignedUrl");
+        GeneratePresignedUrlRequest request = (GeneratePresignedUrlRequest) captured.get(0);
+        assertThat(request.getMethod()).isEqualTo(com.aliyun.oss.HttpMethod.PUT);
+        assertThat(request.getBucketName()).isEqualTo("acme");
+        assertThat(request.getKey()).isEqualTo(key.path());
+        assertThat(request.getContentType()).isEqualTo("image/png");
+        assertThat(request.getExpiration()).isAfter(new Date(System.currentTimeMillis() - 1000L));
     }
 
     @Test

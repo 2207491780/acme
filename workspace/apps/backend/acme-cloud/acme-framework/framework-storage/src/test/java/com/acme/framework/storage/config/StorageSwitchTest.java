@@ -48,6 +48,9 @@ class StorageSwitchTest {
                     assertThat(properties.getReadTimeout()).isEqualTo(Duration.ofSeconds(30));
                     assertThat(properties.getUpload().getMaxSize().toMegabytes()).isEqualTo(10);
                     assertThat(properties.getUpload().getRetentionDays()).isEqualTo(7);
+                    // 直传配额与图片像素上限缺省（REQ-20261117-045754 确认③④）
+                    assertThat(properties.getUpload().getMaxImagePx()).isEqualTo(4096);
+                    assertThat(properties.getQuota().getDefaultBytes()).isEqualTo(1073741824L);
                     assertThat(context).hasSingleBean(ObjectStorage.class);
                     assertThat(context.getBean(ObjectStorage.class)).isInstanceOf(LocalObjectStorage.class);
                 });

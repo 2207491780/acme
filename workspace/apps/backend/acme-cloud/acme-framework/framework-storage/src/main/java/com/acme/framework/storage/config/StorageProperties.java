@@ -48,6 +48,8 @@ public class StorageProperties {
 
     private final Upload upload = new Upload();
 
+    private final Quota quota = new Quota();
+
     /** 适配器类型。 */
     public enum Type {
         /** 本地盘实现（缺省；REQ-20261114-071607 本地 dev 无对象存储中间件）。 */
@@ -154,6 +156,10 @@ public class StorageProperties {
         return upload;
     }
 
+    public Quota getQuota() {
+        return quota;
+    }
+
     /** 本地盘实现配置（type=local；REQ-20261114-071607）。 */
     public static class Local {
 
@@ -196,6 +202,9 @@ public class StorageProperties {
         /** 清理任务 cron（缺省每日 03:00）。 */
         private String retentionCron = "0 0 3 * * *";
 
+        /** 图片像素上限（宽或高任一超限即拒绝；REQ-20261117-045754 确认④，缺省 4096）。 */
+        private int maxImagePx = 4096;
+
         public DataSize getMaxSize() {
             return maxSize;
         }
@@ -226,6 +235,29 @@ public class StorageProperties {
 
         public void setRetentionCron(String retentionCron) {
             this.retentionCron = retentionCron;
+        }
+
+        public int getMaxImagePx() {
+            return maxImagePx;
+        }
+
+        public void setMaxImagePx(int maxImagePx) {
+            this.maxImagePx = maxImagePx;
+        }
+    }
+
+    /** 租户配额（REQ-20261117-045754 确认③：sys_file 未删行 size 总和 + 本次 ≤ 配额；并发上传下为近似护栏）。 */
+    public static class Quota {
+
+        /** 单租户存储总配额字节（0=不限；缺省 1073741824=1GiB）。 */
+        private long defaultBytes = 1073741824L;
+
+        public long getDefaultBytes() {
+            return defaultBytes;
+        }
+
+        public void setDefaultBytes(long defaultBytes) {
+            this.defaultBytes = defaultBytes;
         }
     }
 }

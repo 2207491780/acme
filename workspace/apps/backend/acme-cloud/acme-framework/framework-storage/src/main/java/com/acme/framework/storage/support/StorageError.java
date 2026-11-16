@@ -24,7 +24,22 @@ public enum StorageError implements ErrorCode, HttpStatusAware {
     BUCKET_UNAVAILABLE("SYS-15-0005", "对象存储桶不可用", 500),
 
     /** 本地盘根目录配置缺失（type=local 必配；REQ-20261114-071607）。 */
-    LOCAL_ROOT_DIR_MISSING("SYS-15-0006", "本地存储根目录配置缺失", 500);
+    LOCAL_ROOT_DIR_MISSING("SYS-15-0006", "本地存储根目录配置缺失", 500),
+
+    /** 租户存储配额超出（413；REQ-20261117-045754 确认③，并发上传下为近似护栏）。 */
+    QUOTA_EXCEEDED("SYS-15-0007", "租户存储配额已超出", 413),
+
+    /** 图片文件无效（不可解码或像素超上限，400；REQ-20261117-045754 确认④）。 */
+    IMAGE_INVALID("SYS-15-0008", "图片文件无效或超出像素上限", 400),
+
+    /** 直传票据无效（不存在/过期/已消费/租户或操作者不符，400；REQ-20261117-045754 确认⑥）。 */
+    TICKET_INVALID("SYS-15-0009", "直传票据无效或已失效", 400),
+
+    /** 直传完成对象大小与登记不一致（容差 0，400；REQ-20261117-045754 确认⑥）。 */
+    SIZE_MISMATCH("SYS-15-0010", "对象大小与直传登记不一致", 400),
+
+    /** 当前适配器不支持预签名直传（LOCAL 无预签名语义，501；REQ-20261117-045754）。 */
+    PRESIGN_UNSUPPORTED("SYS-15-0011", "当前存储类型不支持预签名直传", 501);
 
     private final String code;
     private final String defaultMessage;

@@ -118,4 +118,15 @@ class LocalObjectStorageTest {
         assertThatThrownBy(() -> storage.exists(escaping))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void presignUploadIsUnsupportedWithPRESIGN_UNSUPPORTED() {
+        // 直传预签名缺省语义（REQ-20261117-045754 确认①）：LOCAL 无预签名，缺省实现显式失败
+        assertThatThrownBy(() -> storage.presignUpload(ObjectKey.of("files", "a.txt"), "text/plain", 1))
+                .isInstanceOfSatisfying(BizException.class,
+                        ex -> assertThat(ex.errorCode()).isEqualTo(StorageError.PRESIGN_UNSUPPORTED));
+        assertThatThrownBy(() -> storage.presignUpload(ObjectKey.of("files", "a.txt"), null, 1))
+                .isInstanceOfSatisfying(BizException.class,
+                        ex -> assertThat(ex.errorCode()).isEqualTo(StorageError.PRESIGN_UNSUPPORTED));
+    }
 }

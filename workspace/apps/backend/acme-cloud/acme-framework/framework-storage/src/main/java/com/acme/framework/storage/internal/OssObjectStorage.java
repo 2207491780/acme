@@ -1,8 +1,10 @@
 package com.acme.framework.storage.internal;
 
 import com.aliyun.oss.ClientBuilderConfiguration;
+import com.aliyun.oss.HttpMethod;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
+import com.aliyun.oss.model.GeneratePresignedUrlRequest;
 import com.acme.framework.storage.config.StorageProperties;
 import com.acme.framework.storage.support.ObjectKey;
 import com.acme.framework.storage.support.ObjectStorage;
@@ -82,6 +84,28 @@ public class OssObjectStorage implements ObjectStorage {
                 return url.toString();
             }
             return properties.getEndpoint() + "/" + properties.getBucket() + "/" + key.path();
+        } catch (Exception ex) {
+            throw SdkExceptionTranslator.translateOss(ex);
+        }
+    }
+
+    /**
+     * 直传预签名 PUT URL（REQ-20261117-045754）：GeneratePresignedUrlRequest(Method.PUT) +
+     * {@code setContentType}——OSS SDK 将 Content-Type 纳入签名字符串，客户端 PUT 必须携带同值头。
+     */
+    @Override
+    public String presignUpload(ObjectKey key, String contentType, long size) {
+        try {
+            Date expiration = new Date(System.currentTimeMillis()
+                    + Math.max(properties.getPresignTtl().toMillis(), 1000L));
+            GeneratePresignedUrlRequest request =
+                    new GeneratePresignedUrlRequest(properties.getBucket(), key.path(), HttpMethod.PUT);
+            request.setExpiration(expiration);
+            if (contentType != null && !contentType.isBlank()) {
+                request.setContentType(contentType);
+            }
+            URL url = client.generatePresignedUrl(request);
+            return url.toString();
         } catch (Exception ex) {
             throw SdkExceptionTranslator.translateOss(ex);
         }

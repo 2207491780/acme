@@ -6,6 +6,7 @@ import com.acme.framework.storage.support.ObjectKey;
 import com.acme.framework.storage.support.ObjectStorage;
 import com.acme.framework.storage.support.StorageError;
 import com.acme.framework.storage.support.StorageObject;
+import com.google.common.collect.ImmutableMultimap;
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
@@ -113,6 +114,28 @@ public class MinioObjectStorage implements ObjectStorage {
                         .build());
             }
             return properties.getEndpoint() + "/" + properties.getBucket() + "/" + key.path();
+        } catch (Exception ex) {
+            throw SdkExceptionTranslator.translateMinio(ex);
+        }
+    }
+
+    /**
+     * 直传预签名 PUT URL（REQ-20261117-045754）：SDK 8.5.12 正确姿势——Content-Type 经
+     * {@code extraHeaders} 参与签名（presignV4 对 canonical headers 签名，content-type 不在忽略清单），
+     * 客户端 PUT 必须携带同值头，否则 SignatureDoesNotMatch；有效期取 {@code presign-ttl}。
+     */
+    @Override
+    public String presignUpload(ObjectKey key, String contentType, long size) {
+        try {
+            GetPresignedObjectUrlArgs.Builder builder = GetPresignedObjectUrlArgs.builder()
+                    .method(Method.PUT)
+                    .bucket(properties.getBucket())
+                    .object(key.path())
+                    .expiry((int) Math.max(properties.getPresignTtl().getSeconds(), 1));
+            if (contentType != null && !contentType.isBlank()) {
+                builder.extraHeaders(ImmutableMultimap.of("Content-Type", contentType));
+            }
+            return client.getPresignedObjectUrl(builder.build());
         } catch (Exception ex) {
             throw SdkExceptionTranslator.translateMinio(ex);
         }

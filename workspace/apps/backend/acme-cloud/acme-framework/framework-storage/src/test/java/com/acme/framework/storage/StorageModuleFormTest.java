@@ -55,6 +55,12 @@ class StorageModuleFormTest {
         assertThat(StorageError.NETWORK_FAILURE.code()).isEqualTo("SYS-15-0004");
         assertThat(StorageError.BUCKET_UNAVAILABLE.code()).isEqualTo("SYS-15-0005");
         assertThat(StorageError.LOCAL_ROOT_DIR_MISSING.code()).isEqualTo("SYS-15-0006");
+        // 直传与配额族码续编（REQ-20261117-045754：SYS-15 段 0007 起）
+        assertThat(StorageError.QUOTA_EXCEEDED.code()).isEqualTo("SYS-15-0007");
+        assertThat(StorageError.IMAGE_INVALID.code()).isEqualTo("SYS-15-0008");
+        assertThat(StorageError.TICKET_INVALID.code()).isEqualTo("SYS-15-0009");
+        assertThat(StorageError.SIZE_MISMATCH.code()).isEqualTo("SYS-15-0010");
+        assertThat(StorageError.PRESIGN_UNSUPPORTED.code()).isEqualTo("SYS-15-0011");
     }
 
     private static File mainClassesDir() {
