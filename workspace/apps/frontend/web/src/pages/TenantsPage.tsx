@@ -86,18 +86,18 @@ export function TenantsPage() {
   };
 
   const columns: ColumnsType<AdminTenantView> = [
-    { title: t('tenants.columns.tenantCode'), dataIndex: 'tenantCode', key: 'tenantCode', width: 160 },
-    { title: t('tenants.columns.tenantName'), dataIndex: 'tenantName', key: 'tenantName' },
+    { title: t('tenants.columns.tenantCode'), dataIndex: 'tenantCode', key: 'tenantCode', minWidth: 160, fixed: 'left' },
+    { title: t('tenants.columns.tenantName'), dataIndex: 'tenantName', key: 'tenantName', minWidth: 160 },
     {
-      title: t('tenants.columns.status'), dataIndex: 'status', key: 'status', width: 100,
+      title: t('tenants.columns.status'), dataIndex: 'status', key: 'status', minWidth: 100,
       render: (status: AdminTenantView['status']) => (
         <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>
       ),
     },
-    { title: t('tenants.columns.remark'), dataIndex: 'remark', key: 'remark', ellipsis: true, render: (v: string | null) => v ?? '—' },
-    { title: t('tenants.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', width: 180, render: (v: string) => formatDate(v) },
+    { title: t('tenants.columns.remark'), dataIndex: 'remark', key: 'remark', minWidth: 200, ellipsis: true, render: (v: string | null) => v ?? '—' },
+    { title: t('tenants.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', minWidth: 180, render: (v: string) => formatDate(v) },
     {
-      title: t('tenants.columns.actions'), key: 'actions', width: 180,
+      title: t('tenants.columns.actions'), key: 'actions', minWidth: 180, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:tenant:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('common.actions.edit')}</Button> : null}

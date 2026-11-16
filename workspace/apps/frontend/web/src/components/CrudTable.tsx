@@ -120,6 +120,7 @@ export function CrudTable<T extends object, F extends Record<string, string | un
         size={size}
         onRow={onRow}
         rowClassName={rowClassName}
+        scroll={{ x: 'max-content' }}
         pagination={paged ? {
           current: crud.page,
           pageSize: crud.size,

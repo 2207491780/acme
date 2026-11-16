@@ -46,17 +46,17 @@ export function LoginLogsPage() {
   });
 
   const columns: ColumnsType<AdminLoginLogView> = [
-    { title: t('loginLogs.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', width: 170, render: (v: string) => formatDate(v) },
-    { title: t('loginLogs.columns.username'), dataIndex: 'username', key: 'username', width: 140, render: (v: string) => <Text code>{v}</Text> },
-    { title: t('loginLogs.columns.userType'), dataIndex: 'userType', key: 'userType', width: 80, render: (v: string) => <Tag>{v}</Tag> },
-    { title: t('loginLogs.columns.ip'), dataIndex: 'ip', key: 'ip', width: 130 },
-    { title: t('loginLogs.columns.userAgent'), dataIndex: 'userAgent', key: 'userAgent', ellipsis: true },
+    { title: t('loginLogs.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', minWidth: 170, fixed: 'left', render: (v: string) => formatDate(v) },
+    { title: t('loginLogs.columns.username'), dataIndex: 'username', key: 'username', minWidth: 140, render: (v: string) => <Text code>{v}</Text> },
+    { title: t('loginLogs.columns.userType'), dataIndex: 'userType', key: 'userType', minWidth: 80, render: (v: string) => <Tag>{v}</Tag> },
+    { title: t('loginLogs.columns.ip'), dataIndex: 'ip', key: 'ip', minWidth: 130 },
+    { title: t('loginLogs.columns.userAgent'), dataIndex: 'userAgent', key: 'userAgent', minWidth: 240, ellipsis: true },
     {
-      title: t('loginLogs.columns.result'), dataIndex: 'result', key: 'result', width: 100,
+      title: t('loginLogs.columns.result'), dataIndex: 'result', key: 'result', minWidth: 100,
       render: (v: string) => <Tag color={v === 'SUCCESS' ? 'success' : 'error'}>{v}</Tag>,
     },
-    { title: t('loginLogs.columns.failReason'), dataIndex: 'failReason', key: 'failReason', ellipsis: true, render: (v: string | null) => v ?? '—' },
-    { title: t('loginLogs.columns.traceId'), dataIndex: 'traceId', key: 'traceId', width: 140, ellipsis: true, render: (v: string | null) => (v ? <Text code style={{ fontSize: 11 }}>{v.slice(0, 12)}…</Text> : '—') },
+    { title: t('loginLogs.columns.failReason'), dataIndex: 'failReason', key: 'failReason', minWidth: 200, ellipsis: true, render: (v: string | null) => v ?? '—' },
+    { title: t('loginLogs.columns.traceId'), dataIndex: 'traceId', key: 'traceId', minWidth: 140, ellipsis: true, render: (v: string | null) => (v ? <Text code style={{ fontSize: 11 }}>{v.slice(0, 12)}…</Text> : '—') },
   ];
 
   return (

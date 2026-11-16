@@ -47,13 +47,13 @@ export function AuditPage() {
   });
 
   const columns: ColumnsType<AdminAuditEventView> = [
-    { title: t('audit.columns.occurredAt'), dataIndex: 'occurredAt', key: 'occurredAt', width: 170, render: (v: string) => formatDate(v) },
-    { title: t('audit.columns.operatorId'), dataIndex: 'operatorId', key: 'operatorId', width: 140, render: (v: string) => <Text code>{v}</Text> },
-    { title: t('audit.columns.channel'), dataIndex: 'channel', key: 'channel', width: 70, render: (v: string) => <Tag>{v}</Tag> },
-    { title: t('audit.columns.action'), dataIndex: 'action', key: 'action', width: 180, render: (v: string) => <Text code>{v}</Text> },
-    { title: t('audit.columns.target'), key: 'target', width: 200, render: (_, record) => (record.targetId ? `${record.targetType}:${record.targetId}` : record.targetType) },
-    { title: t('audit.columns.content'), dataIndex: 'content', key: 'content', ellipsis: true },
-    { title: t('audit.columns.traceId'), dataIndex: 'traceId', key: 'traceId', width: 140, ellipsis: true, render: (v: string) => (v ? <Text code style={{ fontSize: 11 }}>{v.slice(0, 12)}…</Text> : '—') },
+    { title: t('audit.columns.occurredAt'), dataIndex: 'occurredAt', key: 'occurredAt', minWidth: 170, fixed: 'left', render: (v: string) => formatDate(v) },
+    { title: t('audit.columns.operatorId'), dataIndex: 'operatorId', key: 'operatorId', minWidth: 140, render: (v: string) => <Text code>{v}</Text> },
+    { title: t('audit.columns.channel'), dataIndex: 'channel', key: 'channel', minWidth: 70, render: (v: string) => <Tag>{v}</Tag> },
+    { title: t('audit.columns.action'), dataIndex: 'action', key: 'action', minWidth: 180, render: (v: string) => <Text code>{v}</Text> },
+    { title: t('audit.columns.target'), key: 'target', minWidth: 200, render: (_, record) => (record.targetId ? `${record.targetType}:${record.targetId}` : record.targetType) },
+    { title: t('audit.columns.content'), dataIndex: 'content', key: 'content', minWidth: 240, ellipsis: true },
+    { title: t('audit.columns.traceId'), dataIndex: 'traceId', key: 'traceId', minWidth: 140, ellipsis: true, render: (v: string) => (v ? <Text code style={{ fontSize: 11 }}>{v.slice(0, 12)}…</Text> : '—') },
   ];
 
   return (

@@ -210,16 +210,16 @@ export function UsersPage() {
   };
 
   const columns: ColumnsType<AdminUserView> = [
-    { title: t('users.columns.username'), dataIndex: 'username', key: 'username', width: 160 },
-    { title: t('users.columns.nickname'), dataIndex: 'nickname', key: 'nickname', render: (v: string | null) => v ?? '—' },
+    { title: t('users.columns.username'), dataIndex: 'username', key: 'username', minWidth: 160, fixed: 'left' },
+    { title: t('users.columns.nickname'), dataIndex: 'nickname', key: 'nickname', minWidth: 120, render: (v: string | null) => v ?? '—' },
     {
-      title: t('users.columns.status'), dataIndex: 'status', key: 'status', width: 90,
+      title: t('users.columns.status'), dataIndex: 'status', key: 'status', minWidth: 90,
       render: (status: AdminUserView['status']) => (
         <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('users.status.enabled') : t('users.status.disabled')}</Tag>
       ),
     },
     {
-      title: t('users.columns.roles'), dataIndex: 'roleIds', key: 'roleIds',
+      title: t('users.columns.roles'), dataIndex: 'roleIds', key: 'roleIds', minWidth: 160,
       render: (_, record) => {
         const names = record.roleIds
           .map((id) => roles.find((r) => r.id === id)?.roleName ?? roles.find((r) => r.id === id)?.roleCode)
@@ -227,9 +227,9 @@ export function UsersPage() {
         return names.length ? <Space size={4} wrap>{names.map((n) => <Tag key={n as string}>{n as string}</Tag>)}</Space> : '—';
       },
     },
-    { title: t('users.columns.updatedAt'), dataIndex: 'updatedAt', key: 'updatedAt', width: 180, render: (v: string) => formatDate(v) },
+    { title: t('users.columns.updatedAt'), dataIndex: 'updatedAt', key: 'updatedAt', minWidth: 180, render: (v: string) => formatDate(v) },
     {
-      title: t('users.columns.actions'), key: 'actions', width: 300,
+      title: t('users.columns.actions'), key: 'actions', minWidth: 300, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:user:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('users.actions.edit')}</Button> : null}

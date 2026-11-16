@@ -113,16 +113,16 @@ export function DeptsPage() {
   };
 
   const columns: ColumnsType<AdminDeptView> = [
-    { title: t('depts.columns.deptName'), dataIndex: 'deptName', key: 'deptName' },
+    { title: t('depts.columns.deptName'), dataIndex: 'deptName', key: 'deptName', minWidth: 200, fixed: 'left' },
     {
-      title: t('depts.columns.status'), dataIndex: 'status', key: 'status', width: 90,
+      title: t('depts.columns.status'), dataIndex: 'status', key: 'status', minWidth: 90,
       render: (status: AdminDeptView['status']) => (
         <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>
       ),
     },
-    { title: t('depts.columns.sortOrder'), dataIndex: 'sortOrder', key: 'sortOrder', width: 80 },
+    { title: t('depts.columns.sortOrder'), dataIndex: 'sortOrder', key: 'sortOrder', minWidth: 80 },
     {
-      title: t('depts.columns.actions'), key: 'actions', width: 160,
+      title: t('depts.columns.actions'), key: 'actions', minWidth: 160, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:dept:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('depts.actions.edit')}</Button> : null}

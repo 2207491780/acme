@@ -161,14 +161,14 @@ export function DictsPage() {
   };
 
   const typeColumns: ColumnsType<AdminDictTypeView> = [
-    { title: t('dicts.types.columns.dictCode'), dataIndex: 'dictCode', key: 'dictCode', width: 150 },
-    { title: t('dicts.types.columns.dictName'), dataIndex: 'dictName', key: 'dictName' },
+    { title: t('dicts.types.columns.dictCode'), dataIndex: 'dictCode', key: 'dictCode', minWidth: 150, fixed: 'left' },
+    { title: t('dicts.types.columns.dictName'), dataIndex: 'dictName', key: 'dictName', minWidth: 160 },
     {
-      title: t('dicts.types.columns.status'), dataIndex: 'status', key: 'status', width: 80,
+      title: t('dicts.types.columns.status'), dataIndex: 'status', key: 'status', minWidth: 80,
       render: (v: AdminDictTypeView['status']) => <Tag color={v === 'ENABLED' ? 'success' : 'default'}>{v === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>,
     },
     {
-      title: t('dicts.types.columns.actions'), key: 'actions', width: 150,
+      title: t('dicts.types.columns.actions'), key: 'actions', minWidth: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:dict:update') ? (
@@ -187,11 +187,11 @@ export function DictsPage() {
   ];
 
   const itemColumns: ColumnsType<AdminDictItemView> = [
-    { title: t('dicts.items.columns.itemLabel'), dataIndex: 'itemLabel', key: 'itemLabel' },
-    { title: t('dicts.items.columns.itemValue'), dataIndex: 'itemValue', key: 'itemValue', render: (v: string) => <Text code>{v}</Text> },
-    { title: t('dicts.items.columns.sortOrder'), dataIndex: 'sortOrder', key: 'sortOrder', width: 70 },
+    { title: t('dicts.items.columns.itemLabel'), dataIndex: 'itemLabel', key: 'itemLabel', minWidth: 160, fixed: 'left' },
+    { title: t('dicts.items.columns.itemValue'), dataIndex: 'itemValue', key: 'itemValue', minWidth: 140, render: (v: string) => <Text code>{v}</Text> },
+    { title: t('dicts.items.columns.sortOrder'), dataIndex: 'sortOrder', key: 'sortOrder', minWidth: 70 },
     {
-      title: t('dicts.items.columns.actions'), key: 'actions', width: 150,
+      title: t('dicts.items.columns.actions'), key: 'actions', minWidth: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:dict:update') ? (
@@ -249,6 +249,7 @@ export function DictsPage() {
             loading={itemsLoading}
             size="small"
             pagination={false}
+            scroll={{ x: 'max-content' }}
           />
         )}
       </Card>

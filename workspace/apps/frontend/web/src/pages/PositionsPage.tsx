@@ -99,17 +99,17 @@ export function PositionsPage() {
   };
 
   const columns: ColumnsType<AdminPositionView> = [
-    { title: t('positions.columns.positionCode'), dataIndex: 'positionCode', key: 'positionCode', width: 160 },
-    { title: t('positions.columns.positionName'), dataIndex: 'positionName', key: 'positionName' },
+    { title: t('positions.columns.positionCode'), dataIndex: 'positionCode', key: 'positionCode', minWidth: 160, fixed: 'left' },
+    { title: t('positions.columns.positionName'), dataIndex: 'positionName', key: 'positionName', minWidth: 160 },
     {
-      title: t('positions.columns.status'), dataIndex: 'status', key: 'status', width: 90,
+      title: t('positions.columns.status'), dataIndex: 'status', key: 'status', minWidth: 90,
       render: (status: AdminPositionView['status']) => (
         <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>
       ),
     },
-    { title: t('positions.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', width: 180, render: (v: string) => formatDate(v) },
+    { title: t('positions.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', minWidth: 180, render: (v: string) => formatDate(v) },
     {
-      title: t('positions.columns.actions'), key: 'actions', width: 160,
+      title: t('positions.columns.actions'), key: 'actions', minWidth: 160, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:position:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('positions.actions.edit')}</Button> : null}

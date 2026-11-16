@@ -89,9 +89,9 @@ export function NoticesPage() {
   };
 
   const columns: ColumnsType<AdminNoticeView> = [
-    { title: t('notices.columns.title'), dataIndex: 'title', key: 'title' },
+    { title: t('notices.columns.title'), dataIndex: 'title', key: 'title', minWidth: 200, fixed: 'left' },
     {
-      title: t('notices.columns.status'), dataIndex: 'status', key: 'status', width: 90,
+      title: t('notices.columns.status'), dataIndex: 'status', key: 'status', minWidth: 90,
       render: (v: NoticeStatus) => {
         const meta = {
           DRAFT: { color: 'default' },
@@ -102,11 +102,11 @@ export function NoticesPage() {
       },
     },
     {
-      title: t('notices.columns.publishAt'), dataIndex: 'publishAt', key: 'publishAt', width: 170,
+      title: t('notices.columns.publishAt'), dataIndex: 'publishAt', key: 'publishAt', minWidth: 170,
       render: (v: string | null) => formatDate(v),
     },
     {
-      title: t('notices.columns.actions'), key: 'actions', width: 230,
+      title: t('notices.columns.actions'), key: 'actions', minWidth: 230, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:notice:update') && record.status !== 'PUBLISHED' ? (

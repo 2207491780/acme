@@ -90,15 +90,15 @@ export function PermissionsPage() {
   };
 
   const columns: ColumnsType<AdminPermissionView> = [
-    { title: t('permissions.columns.permissionCode'), dataIndex: 'permissionCode', key: 'permissionCode', width: 220 },
-    { title: t('permissions.columns.permissionName'), dataIndex: 'permissionName', key: 'permissionName' },
-    { title: t('permissions.columns.permissionType'), dataIndex: 'permissionType', key: 'permissionType', width: 110, render: (v: string) => <Tag>{v}</Tag> },
+    { title: t('permissions.columns.permissionCode'), dataIndex: 'permissionCode', key: 'permissionCode', minWidth: 220, fixed: 'left' },
+    { title: t('permissions.columns.permissionName'), dataIndex: 'permissionName', key: 'permissionName', minWidth: 160 },
+    { title: t('permissions.columns.permissionType'), dataIndex: 'permissionType', key: 'permissionType', minWidth: 110, render: (v: string) => <Tag>{v}</Tag> },
     {
-      title: t('permissions.columns.http'), key: 'http', width: 220,
+      title: t('permissions.columns.http'), key: 'http', minWidth: 220,
       render: (_, record) => (record.httpMethod ? <Text code>{record.httpMethod} {record.httpPath}</Text> : '—'),
     },
     {
-      title: t('permissions.columns.actions'), key: 'actions', width: 140,
+      title: t('permissions.columns.actions'), key: 'actions', minWidth: 140, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:permission:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('permissions.actions.edit')}</Button> : null}

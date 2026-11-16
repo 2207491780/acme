@@ -44,13 +44,13 @@ export function OnlineUsersPage() {
   };
 
   const columns: ColumnsType<AdminOnlineUserView> = [
-    { title: t('onlineUsers.columns.username'), dataIndex: 'username', key: 'username', width: 160, render: (v: string) => <Text code>{v}</Text> },
-    { title: t('onlineUsers.columns.userType'), dataIndex: 'userType', key: 'userType', width: 80, render: (v: string) => <Tag>{v}</Tag> },
-    { title: t('onlineUsers.columns.ip'), dataIndex: 'ip', key: 'ip', width: 140 },
-    { title: t('onlineUsers.columns.loginAt'), dataIndex: 'loginAt', key: 'loginAt', width: 170, render: (v: string) => formatDate(v) },
-    { title: t('onlineUsers.columns.lastActiveAt'), dataIndex: 'lastActiveAt', key: 'lastActiveAt', width: 170, render: (v: string) => formatDate(v) },
+    { title: t('onlineUsers.columns.username'), dataIndex: 'username', key: 'username', minWidth: 160, fixed: 'left', render: (v: string) => <Text code>{v}</Text> },
+    { title: t('onlineUsers.columns.userType'), dataIndex: 'userType', key: 'userType', minWidth: 80, render: (v: string) => <Tag>{v}</Tag> },
+    { title: t('onlineUsers.columns.ip'), dataIndex: 'ip', key: 'ip', minWidth: 140 },
+    { title: t('onlineUsers.columns.loginAt'), dataIndex: 'loginAt', key: 'loginAt', minWidth: 170, render: (v: string) => formatDate(v) },
+    { title: t('onlineUsers.columns.lastActiveAt'), dataIndex: 'lastActiveAt', key: 'lastActiveAt', minWidth: 170, render: (v: string) => formatDate(v) },
     {
-      title: t('onlineUsers.columns.actions'), key: 'actions', width: 120,
+      title: t('onlineUsers.columns.actions'), key: 'actions', minWidth: 120, fixed: 'right',
       render: (_, record) => (
         crud.can('auth:online:revoke') ? (
           <Popconfirm

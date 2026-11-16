@@ -221,17 +221,17 @@ export function RolesPage() {
   };
 
   const columns: ColumnsType<AdminRoleView> = [
-    { title: t('roles.columns.roleCode'), dataIndex: 'roleCode', key: 'roleCode', width: 180 },
-    { title: t('roles.columns.roleName'), dataIndex: 'roleName', key: 'roleName' },
+    { title: t('roles.columns.roleCode'), dataIndex: 'roleCode', key: 'roleCode', minWidth: 180, fixed: 'left' },
+    { title: t('roles.columns.roleName'), dataIndex: 'roleName', key: 'roleName', minWidth: 140 },
     {
-      title: t('roles.columns.status'), dataIndex: 'status', key: 'status', width: 90,
+      title: t('roles.columns.status'), dataIndex: 'status', key: 'status', minWidth: 90,
       render: (status: AdminRoleView['status']) => (
         <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>
       ),
     },
-    { title: t('roles.columns.remark'), dataIndex: 'remark', key: 'remark', ellipsis: true, render: (v: string | null) => v ?? '—' },
+    { title: t('roles.columns.remark'), dataIndex: 'remark', key: 'remark', minWidth: 200, ellipsis: true, render: (v: string | null) => v ?? '—' },
     {
-      title: t('roles.columns.actions'), key: 'actions', width: 380,
+      title: t('roles.columns.actions'), key: 'actions', minWidth: 380, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:role:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('roles.actions.edit')}</Button> : null}

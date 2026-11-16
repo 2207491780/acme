@@ -78,9 +78,9 @@ export function ExcelImportButton({
   };
 
   const errorColumns: ColumnsType<ImportReportError> = [
-    { title: t('files.import.columns.row'), dataIndex: 'row', key: 'row', width: 70 },
-    { title: t('files.import.columns.field'), dataIndex: 'field', key: 'field', width: 140, render: (v: string | null) => v ?? '—' },
-    { title: t('files.import.columns.reason'), dataIndex: 'message', key: 'message' },
+    { title: t('files.import.columns.row'), dataIndex: 'row', key: 'row', minWidth: 70 },
+    { title: t('files.import.columns.field'), dataIndex: 'field', key: 'field', minWidth: 140, render: (v: string | null) => v ?? '—' },
+    { title: t('files.import.columns.reason'), dataIndex: 'message', key: 'message', minWidth: 240 },
   ];
 
   return (
@@ -124,7 +124,7 @@ export function ExcelImportButton({
             dataSource={report.errors}
             size="small"
             pagination={false}
-            scroll={{ y: 320 }}
+            scroll={{ x: 'max-content', y: 320 }}
           />
         ) : (
           <Text type="secondary">{t('files.import.allValid')}</Text>

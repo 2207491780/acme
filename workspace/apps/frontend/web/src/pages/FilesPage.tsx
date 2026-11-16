@@ -71,16 +71,16 @@ export function FilesPage() {
   };
 
   const columns: ColumnsType<FileView> = [
-    { title: t('files.columns.originalName'), dataIndex: 'originalName', key: 'originalName', ellipsis: true },
-    { title: t('files.columns.size'), dataIndex: 'size', key: 'size', width: 110, render: (v: number) => formatFileSize(Number(v)) },
-    { title: t('files.columns.contentType'), dataIndex: 'contentType', key: 'contentType', width: 150, render: (v: string) => <Text code style={{ fontSize: 11 }}>{v}</Text> },
+    { title: t('files.columns.originalName'), dataIndex: 'originalName', key: 'originalName', minWidth: 220, fixed: 'left', ellipsis: true },
+    { title: t('files.columns.size'), dataIndex: 'size', key: 'size', minWidth: 110, render: (v: number) => formatFileSize(Number(v)) },
+    { title: t('files.columns.contentType'), dataIndex: 'contentType', key: 'contentType', minWidth: 150, render: (v: string) => <Text code style={{ fontSize: 11 }}>{v}</Text> },
     {
-      title: t('files.columns.biz'), key: 'biz', width: 150,
+      title: t('files.columns.biz'), key: 'biz', minWidth: 150,
       render: (_, record) => (record.bizType ? <Tag>{`${record.bizType}${record.bizId ? `:${record.bizId}` : ''}`}</Tag> : '—'),
     },
-    { title: t('files.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', width: 180, render: (v: string) => formatDate(v) },
+    { title: t('files.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', minWidth: 180, render: (v: string) => formatDate(v) },
     {
-      title: t('files.columns.actions'), key: 'actions', width: 160,
+      title: t('files.columns.actions'), key: 'actions', minWidth: 160, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('infra:file:download') ? (

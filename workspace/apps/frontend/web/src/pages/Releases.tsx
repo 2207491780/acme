@@ -70,7 +70,8 @@ export function Releases() {
     {
       title: t('releases.columns.dragTitle'),
       key: 'drag',
-      width: 34,
+      minWidth: 34,
+      fixed: 'left',
       render: () => (
         <span className="drag-handle" title={t('releases.columns.dragHint')}>
           <HolderOutlined />
@@ -80,6 +81,8 @@ export function Releases() {
     {
       title: t('releases.columns.release'),
       key: 'title',
+      minWidth: 220,
+      fixed: 'left',
       render: (_, r) => (
         <div>
           <Text strong>{r.title}</Text>
@@ -90,6 +93,7 @@ export function Releases() {
     {
       title: t('releases.columns.app'),
       key: 'app',
+      minWidth: 140,
       render: (_, r) => {
         const app = state.apps.find((a) => a.id === r.appId);
         return (
@@ -100,13 +104,13 @@ export function Releases() {
         );
       },
     },
-    { title: t('releases.columns.version'), key: 'version', render: (_, r) => <Tag color="processing">v{r.version}</Tag> },
-    { title: t('releases.columns.env'), key: 'env', render: (_, r) => <EnvTag env={r.env} /> },
-    { title: t('releases.columns.status'), key: 'status', render: (_, r) => <StatusTag status={r.status} /> },
+    { title: t('releases.columns.version'), key: 'version', minWidth: 100, render: (_, r) => <Tag color="processing">v{r.version}</Tag> },
+    { title: t('releases.columns.env'), key: 'env', minWidth: 90, render: (_, r) => <EnvTag env={r.env} /> },
+    { title: t('releases.columns.status'), key: 'status', minWidth: 100, render: (_, r) => <StatusTag status={r.status} /> },
     {
       title: t('releases.columns.progress'),
       key: 'progress',
-      width: 130,
+      minWidth: 130,
       render: (_, r) => (
         <Progress
           percent={r.progress}
@@ -116,16 +120,18 @@ export function Releases() {
         />
       ),
     },
-    { title: t('releases.columns.owner'), key: 'owner', dataIndex: 'owner' },
+    { title: t('releases.columns.owner'), key: 'owner', dataIndex: 'owner', minWidth: 100 },
     {
       title: t('releases.columns.updated'),
       key: 'updated',
+      minWidth: 120,
       render: (_, r) => <Tooltip title={fmtFull(r.updatedAt)}><span>{relTime(r.updatedAt)}</span></Tooltip>,
     },
     {
       title: t('releases.columns.actions'),
       key: 'actions',
-      width: 120,
+      minWidth: 120,
+      fixed: 'right',
       render: (_, r) => {
         const next = NEXT_STATUS[r.status];
         return (
@@ -235,7 +241,7 @@ export function Releases() {
         columns={columns}
         dataSource={data}
         pagination={false}
-        scroll={{ x: 900 }}
+        scroll={{ x: 'max-content' }}
         components={{ body: { row: DraggableRow } }}
         rowSelection={{ selectedRowKeys: selection, onChange: (keys) => setSelection(keys as string[]) }}
         onRow={(record) => ({

@@ -126,18 +126,18 @@ export function MenusPage() {
   };
 
   const columns: ColumnsType<AdminMenuView> = [
-    { title: t('menus.columns.menuName'), dataIndex: 'menuName', key: 'menuName' },
-    { title: t('menus.columns.menuType'), dataIndex: 'menuType', key: 'menuType', width: 110, render: (v: string) => <Tag color={v === 'DIRECTORY' ? 'processing' : 'success'}>{v === 'DIRECTORY' ? t('menus.type.directory') : t('menus.type.menu')}</Tag> },
-    { title: t('menus.columns.path'), dataIndex: 'path', key: 'path', ellipsis: true, render: (v: string | null) => v ?? '—' },
-    { title: t('menus.columns.component'), dataIndex: 'component', key: 'component', ellipsis: true, render: (v: string | null) => v ?? '—' },
-    { title: t('menus.columns.permissionCode'), dataIndex: 'permissionCode', key: 'permissionCode', ellipsis: true, render: (v: string | null) => (v ? <Text code>{v}</Text> : '—') },
-    { title: t('menus.columns.sortOrder'), dataIndex: 'sortOrder', key: 'sortOrder', width: 70 },
+    { title: t('menus.columns.menuName'), dataIndex: 'menuName', key: 'menuName', minWidth: 200, fixed: 'left' },
+    { title: t('menus.columns.menuType'), dataIndex: 'menuType', key: 'menuType', minWidth: 110, render: (v: string) => <Tag color={v === 'DIRECTORY' ? 'processing' : 'success'}>{v === 'DIRECTORY' ? t('menus.type.directory') : t('menus.type.menu')}</Tag> },
+    { title: t('menus.columns.path'), dataIndex: 'path', key: 'path', minWidth: 180, ellipsis: true, render: (v: string | null) => v ?? '—' },
+    { title: t('menus.columns.component'), dataIndex: 'component', key: 'component', minWidth: 200, ellipsis: true, render: (v: string | null) => v ?? '—' },
+    { title: t('menus.columns.permissionCode'), dataIndex: 'permissionCode', key: 'permissionCode', minWidth: 200, ellipsis: true, render: (v: string | null) => (v ? <Text code>{v}</Text> : '—') },
+    { title: t('menus.columns.sortOrder'), dataIndex: 'sortOrder', key: 'sortOrder', minWidth: 70 },
     {
-      title: t('menus.columns.visible'), dataIndex: 'visible', key: 'visible', width: 80,
+      title: t('menus.columns.visible'), dataIndex: 'visible', key: 'visible', minWidth: 80,
       render: (v: boolean | null) => (v === false ? <Tag>{t('common.status.hidden')}</Tag> : <Tag color="success">{t('common.status.visible')}</Tag>),
     },
     {
-      title: t('menus.columns.actions'), key: 'actions', width: 180,
+      title: t('menus.columns.actions'), key: 'actions', minWidth: 180, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           {crud.can('system:menu:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('menus.actions.edit')}</Button> : null}
