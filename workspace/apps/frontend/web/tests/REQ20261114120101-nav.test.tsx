@@ -193,3 +193,26 @@ describe('REQ20261114120101 导航动态化（AC-7）', () => {
     });
   });
 });
+
+// ————— App shell 布局：整页视口定高、内容区内部滚动（复用整棵 App 渲染 harness） —————
+describe('App shell 布局：内容区视口内自滚', () => {
+  it('should_scroll_content_inside_viewport_when_desktop_layout', async () => {
+    await renderApp(HELD_PERMS, MENUS);
+    await waitFor(() => {
+      expect(menuItemCount()).toBeGreaterThanOrEqual(2);
+    });
+
+    const content = document.querySelector('main.ant-layout-content') as HTMLElement;
+    expect(content).toBeTruthy();
+    expect(content.style.overflow).toBe('auto');
+    expect(content.style.minHeight).toBe('0');
+    const column = content.closest('.ant-layout') as HTMLElement;
+    expect(column.style.height).toBe('100%');
+    expect(column.style.overflow).toBe('hidden');
+    const shell = column.parentElement as HTMLElement;
+    expect(shell.style.height).toBe('100vh');
+    expect(shell.style.overflow).toBe('hidden');
+    const header = column.querySelector('header.ant-layout-header') as HTMLElement;
+    expect(header.style.flexShrink).toBe('0');
+  });
+});

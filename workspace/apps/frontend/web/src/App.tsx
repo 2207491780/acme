@@ -361,7 +361,7 @@ export function App() {
 
   const shell = (
     <>
-      <Layout style={{ minHeight: '100vh' }}>
+      <Layout style={{ height: '100vh', overflow: 'hidden' }}>
         {!isMobile && (
           <Sider
             collapsible
@@ -374,8 +374,8 @@ export function App() {
             {renderNav(!collapsed)}
           </Sider>
         )}
-        <Layout>
-          <Header style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 20 }}>
+        <Layout style={{ height: '100%', minWidth: 0, overflow: 'hidden' }}>
+          <Header style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 20, flexShrink: 0 }}>
             <Button
               type="text"
               icon={isMobile || collapsed ? <MenuOutlined /> : <MenuFoldOutlined />}
@@ -459,7 +459,8 @@ export function App() {
               {!isMobile && t('nav.header.create')}
             </Button>
           </Header>
-          <Content style={{ padding: isMobile ? '16px 14px 88px' : '24px 30px 60px' }}>
+          {/* 内容区视口内自滚：minHeight 0 解除 flex 子项最小尺寸约束，整页高度不随内容撑大 */}
+          <Content style={{ padding: isMobile ? '16px 14px 88px' : '24px 30px 60px', flex: 1, minHeight: 0, overflow: 'auto' }}>
             {(storageError || storageConflict) && (
               <Alert
                 type="warning"
