@@ -481,15 +481,22 @@ for (const spec of SPECS) {
   });
 }
 
-// ————— Menus 图标选择器（图标库选择替代手输标识） —————
+// ————— Menus 图标方格选择器（注册表选择替代手输标识，AntD/Lucide 双源） —————
 describe('REQ20261114120101 Menus 图标选择器', () => {
   const menusSpec = SPECS.find((s) => s.key === 'Menus')!;
 
-  /** 图标 Select 容器（label 关联 combobox → 上溯 .ant-select）。 */
-  const iconSelectOf = (dialog: HTMLElement) => {
-    const input = within(dialog).getByLabelText('图标');
-    expect(input.getAttribute('role'), '图标字段应为选择器而非手输框').toBe('combobox');
-    return input.closest('.ant-select') as HTMLElement;
+  /** 图标触发器（Form.Item label 经 id 关联到 button）。 */
+  const iconTriggerOf = (dialog: HTMLElement) => {
+    const trigger = within(dialog).getByLabelText('图标');
+    expect(trigger.tagName, '图标字段应为方格选择器触发器').toBe('BUTTON');
+    return trigger;
+  };
+
+  /** 打开方格面板并按关键词检索（Popover 渲染在 body 层，用 screen 查询）。 */
+  const openAndSearch = async (dialog: HTMLElement, keyword: string) => {
+    fireEvent.click(iconTriggerOf(dialog));
+    const search = await screen.findByPlaceholderText(/搜索图标/);
+    fireEvent.change(search, { target: { value: keyword } });
   };
 
   it('should_submit_selected_icon_when_menu_created', async () => {
@@ -499,17 +506,11 @@ describe('REQ20261114120101 Menus 图标选择器', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(dialogTextboxes(dialog)[0]!, { target: { value: '图标菜单X' } });
 
-    // 中文关键词搜索（注册表 keywords）→ 点选可见选项内容节点（rc-select virtual 口径：
-    // 同文本另有隐藏 a11y 镜像 div[role=option]，无 onClick，须按内容容器甄别）
-    const iconInput = within(dialog).getByLabelText('图标');
-    fireEvent.mouseDown(iconInput);
-    fireEvent.change(iconInput, { target: { value: '通知' } });
-    const bellNodes = await screen.findAllByText('bell');
-    const bellOption = bellNodes.find((el) => el.closest('.ant-select-item-option-content'));
-    expect(bellOption, '搜索「通知」未命中 bell 可见选项').toBeTruthy();
-    fireEvent.click(bellOption!);
+    // 中文关键词搜索 → 点选方格单元（aria-label=标识）
+    await openAndSearch(dialog, '通知');
+    fireEvent.click(await screen.findByRole('button', { name: 'bell' }));
     await waitFor(() => {
-      expect(iconSelectOf(dialog).querySelector('.ant-select-selection-item')?.textContent ?? '').toContain('bell');
+      expect(iconTriggerOf(dialog).textContent ?? '').toContain('bell');
     });
 
     fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
@@ -520,7 +521,28 @@ describe('REQ20261114120101 Menus 图标选择器', () => {
     });
   });
 
-  it('should_prefill_icon_select_when_menu_edited', async () => {
+  it('should_submit_lucide_icon_when_lucide_cell_picked', async () => {
+    const { fetchMock } = await renderPage(menusSpec, ['system:menu:list', 'system:menu:create']);
+    await findByAnyText(menusSpec.anchors);
+    fireEvent.click((await screen.findAllByText(ADD_BUTTON))[0]);
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(dialogTextboxes(dialog)[0]!, { target: { value: '图标菜单Y' } });
+
+    await openAndSearch(dialog, '猫');
+    fireEvent.click(await screen.findByRole('button', { name: 'lucide-cat' }));
+    await waitFor(() => {
+      expect(iconTriggerOf(dialog).textContent ?? '').toContain('lucide-cat');
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
+    await waitFor(() => {
+      const posts = callsOf(fetchMock, 'POST', menusSpec.pathPart);
+      expect(posts).toHaveLength(1);
+      expect(parseBody(posts[0]?.body).icon).toBe('lucide-cat');
+    });
+  });
+
+  it('should_prefill_icon_trigger_when_menu_edited', async () => {
     const spec: PageSpec = {
       ...menusSpec,
       rows: menusSpec.rows.map((r) => (r.id === '3303' ? { ...r, icon: 'dashboard' } : r)),
@@ -530,7 +552,33 @@ describe('REQ20261114120101 Menus 图标选择器', () => {
     fireEvent.click(await within(rowEl).findByText(EDIT_BUTTON));
     const dialog = await screen.findByRole('dialog');
     await waitFor(() => {
-      expect(iconSelectOf(dialog).querySelector('.ant-select-selection-item')?.textContent ?? '').toContain('dashboard');
+      expect(iconTriggerOf(dialog).textContent ?? '').toContain('dashboard');
+    });
+  });
+
+  it('should_clear_icon_when_clear_affordance_clicked', async () => {
+    const spec: PageSpec = {
+      ...menusSpec,
+      rows: menusSpec.rows.map((r) => (r.id === '3303' ? { ...r, icon: 'dashboard' } : r)),
+    };
+    const { fetchMock } = await renderPage(spec, ['system:menu:list', 'system:menu:update']);
+    const rowEl = await findRowByText('报表中心');
+    fireEvent.click(await within(rowEl).findByText(EDIT_BUTTON));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() => {
+      expect(iconTriggerOf(dialog).textContent ?? '').toContain('dashboard');
+    });
+
+    fireEvent.click(within(dialog).getByLabelText('清除图标'));
+    await waitFor(() => {
+      expect(iconTriggerOf(dialog).textContent ?? '').not.toContain('dashboard');
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
+    await waitFor(() => {
+      const puts = callsOf(fetchMock, 'PUT', menusSpec.pathPart);
+      expect(puts).toHaveLength(1);
+      expect(parseBody(puts[0]?.body).icon).toBeUndefined();
     });
   });
 });

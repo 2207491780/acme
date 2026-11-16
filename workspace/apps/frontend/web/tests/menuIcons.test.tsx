@@ -40,4 +40,16 @@ describe('menuIcons 注册表', () => {
   it('should_resolve_case_insensitively_when_code_mixed_case', () => {
     expect(resolveMenuIcon('BELL')).toBe(resolveMenuIcon('bell'));
   });
+
+  it('should_group_by_source_when_lucide_registry_added', () => {
+    const antd = MENU_ICON_OPTIONS.filter((o) => o.source === 'antd');
+    const lucide = MENU_ICON_OPTIONS.filter((o) => o.source === 'lucide');
+    expect(antd.length).toBe(200);
+    expect(lucide.length).toBeGreaterThanOrEqual(200);
+    expect(lucide.every((o) => o.code.startsWith('lucide-'))).toBe(true);
+    expect(antd.every((o) => !o.code.startsWith('lucide-'))).toBe(true);
+    const cat = lucide.find((o) => o.code === 'lucide-cat');
+    expect(cat, 'lucide-cat 未注册').toBeTruthy();
+    expect(resolveMenuIcon('LUCIDE-CAT')).toBe(cat!.icon);
+  });
 });
