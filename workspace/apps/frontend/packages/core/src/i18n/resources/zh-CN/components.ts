@@ -19,6 +19,12 @@ export const components = {
     unlock: '解锁',
     unlockFailed: '解锁失败，请重试',
     forgot: '忘记口令？重新登录',
+    setDesc: '首次锁屏：设置锁屏口令后解锁',
+    setPlaceholder: '请输入新锁屏口令',
+    confirmPlaceholder: '请再次输入锁屏口令',
+    set: '设置口令',
+    setEmpty: '口令不能为空',
+    setMismatch: '两次输入的口令不一致',
   },
   notification: {
     center: '通知中心',

@@ -19,6 +19,12 @@ export const components = {
     unlock: 'Unlock',
     unlockFailed: 'Unlock failed, please try again',
     forgot: 'Forgot passcode? Sign in again',
+    setDesc: 'First lock: set a passcode to unlock',
+    setPlaceholder: 'Enter new lock passcode',
+    confirmPlaceholder: 'Re-enter lock passcode',
+    set: 'Set passcode',
+    setEmpty: 'Passcode cannot be empty',
+    setMismatch: 'Passcodes do not match',
   },
   notification: {
     center: 'Notification center',

@@ -16,6 +16,8 @@
  *   A-19 「忘记口令」入口（文案正则 /忘记/）点击后：清除会话（useAuthStore）并跳转
  *        '#/login'（hash 路由；登录路径未契约化 → TL 门禁对齐）。
  *   A-20 复用 core 侧 A-5/A-6 的 useLockStore 表面（setPasscode/lock/unlock）。
+ *   A-21 锁屏态且无口令时遮罩转「设置口令」形态（两个 password 输入 + /设置口令/ 按钮），
+ *        设置成功后保持 locked=true 并切换为解锁形态（消除「锁定不要求口令、解锁却要求」死局）。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -89,7 +91,7 @@ beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   useAuthStore.getState().clear();
-  (useLockStore.setState as unknown as (partial: Record<string, unknown>) => void)({ locked: false });
+  (useLockStore.setState as unknown as (partial: Record<string, unknown>) => void)({ locked: false, passcode: '' });
   stubBrowserGaps();
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -102,7 +104,7 @@ afterEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   useAuthStore.getState().clear();
-  (useLockStore.setState as unknown as (partial: Record<string, unknown>) => void)({ locked: false });
+  (useLockStore.setState as unknown as (partial: Record<string, unknown>) => void)({ locked: false, passcode: '' });
 });
 
 // ————— AC-4 —————
@@ -144,5 +146,78 @@ describe('REQ20261114120112 锁屏遮罩（AC-4）', () => {
     fireEvent.click(screen.getByText(/忘记/)); // 忘记口令入口（A-19）
     await waitFor(() => expect(window.location.hash).toBe('#/login')); // 重新登录路径
     await waitFor(() => expect(hasSession()).toBe(false)); // 会话清除
+  });
+});
+
+// ————— AC-4：锁屏态无口令 → 就地设置（A-21） —————
+describe('REQ20261114120112 锁屏口令就地设置（AC-4 / A-21）', () => {
+  /** seed 会话 + 无口令直接上锁（复现「锁定不要求口令、解锁却要求」场景）。 */
+  const lockWithoutPasscode = () => {
+    seedSession();
+    act(() => {
+      lockApi().lock();
+    });
+  };
+
+  const passwordInputs = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('input[type="password"]'));
+
+  const fillSetupForm = (container: HTMLElement, code: string, confirm: string) => {
+    const inputs = passwordInputs(container);
+    expect(inputs.length, 'A-21：无口令锁屏态应提供新口令+确认两个输入').toBe(2);
+    fireEvent.change(inputs[0], { target: { value: code } });
+    fireEvent.change(inputs[1], { target: { value: confirm } });
+  };
+
+  it('should_show_setup_form_when_locked_without_passcode', () => {
+    lockWithoutPasscode();
+    const { container } = render(<AntApp><HashRouter><LockScreenOverlay /></HashRouter></AntApp>);
+    expect(passwordInputs(container).length, 'A-21：应为设置形态（两个输入）').toBe(2);
+    expect(screen.getByRole('button', { name: /设置口令/ })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /解\s*锁/ }), 'A-21：无口令时不应出现解锁按钮').toBeNull();
+  });
+
+  it('should_reject_empty_passcode_on_setup', async () => {
+    lockWithoutPasscode();
+    render(<AntApp><HashRouter><LockScreenOverlay /></HashRouter></AntApp>);
+    fireEvent.click(screen.getByRole('button', { name: /设置口令/ }));
+    expect(await screen.findByText(/不能为空/)).not.toBeNull();
+    expect(isLocked()).toBe(true);
+    expect(useLockStore.getState().passcode).toBe('');
+  });
+
+  it('should_reject_setup_when_confirm_mismatch', async () => {
+    lockWithoutPasscode();
+    const { container } = render(<AntApp><HashRouter><LockScreenOverlay /></HashRouter></AntApp>);
+    fillSetupForm(container, '4242', '4243');
+    fireEvent.click(screen.getByRole('button', { name: /设置口令/ }));
+    expect(await screen.findByText(/不一致/)).not.toBeNull();
+    expect(isLocked()).toBe(true);
+    expect(useLockStore.getState().passcode).toBe('');
+  });
+
+  it('should_store_passcode_and_stay_locked_after_setup', async () => {
+    lockWithoutPasscode();
+    const { container } = render(<AntApp><HashRouter><LockScreenOverlay /></HashRouter></AntApp>);
+    fillSetupForm(container, '4242', '4242');
+    fireEvent.click(screen.getByRole('button', { name: /设置口令/ }));
+    await waitFor(() => expect(useLockStore.getState().passcode).toBe('4242'));
+    expect(isLocked(), 'A-21：设置后应保持锁屏').toBe(true);
+    await waitFor(() => {
+      expect(passwordInputs(container).length, 'A-21：设置后应切换为解锁形态（单输入）').toBe(1);
+    });
+    expect(screen.getByRole('button', { name: /解\s*锁/ })).not.toBeNull();
+  });
+
+  it('should_unlock_with_newly_set_passcode', async () => {
+    lockWithoutPasscode();
+    const { container } = render(<AntApp><HashRouter><LockScreenOverlay /></HashRouter></AntApp>);
+    fillSetupForm(container, '4242', '4242');
+    fireEvent.click(screen.getByRole('button', { name: /设置口令/ }));
+    await waitFor(() => expect(passwordInputs(container).length).toBe(1));
+    typePasscode(container, '4242');
+    fireEvent.click(screen.getByRole('button', { name: /解\s*锁/ }));
+    await waitFor(() => expect(isLocked()).toBe(false));
+    await waitFor(() => expect(container.querySelector('input[type="password"]')).toBeNull());
   });
 });
