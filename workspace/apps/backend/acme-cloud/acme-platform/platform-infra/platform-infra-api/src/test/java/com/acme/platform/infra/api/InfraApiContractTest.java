@@ -54,5 +54,11 @@ class InfraApiContractTest {
         assertThat(InfraErrorCodes.EXCEL_PARSE_FAILED).isEqualTo("EXCEL_PARSE_FAILED");
         assertThat(InfraErrorCodes.JOB_ALREADY_RUNNING).isEqualTo("JOB_ALREADY_RUNNING");
         assertThat(InfraErrorCodes.JOB_NOT_FOUND).isEqualTo("JOB_NOT_FOUND");
+        // REQ-20261117-045754 直传五码：契约 §API 失败码符号字面量（配额字面量取确认记录③ STORAGE_ 前缀）
+        assertThat(InfraErrorCodes.STORAGE_QUOTA_EXCEEDED).isEqualTo("STORAGE_QUOTA_EXCEEDED");
+        assertThat(InfraErrorCodes.IMAGE_INVALID).isEqualTo("IMAGE_INVALID");
+        assertThat(InfraErrorCodes.TICKET_INVALID).isEqualTo("TICKET_INVALID");
+        assertThat(InfraErrorCodes.SIZE_MISMATCH).isEqualTo("SIZE_MISMATCH");
+        assertThat(InfraErrorCodes.STORAGE_OBJECT_MISSING).isEqualTo("STORAGE_OBJECT_MISSING");
     }
 }

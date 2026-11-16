@@ -34,6 +34,21 @@ public final class InfraErrorCodes {
     /** 任务不存在（404：jobKey 未注册，REQ-20261114-071607）。 */
     public static final String JOB_NOT_FOUND = "JOB_NOT_FOUND";
 
+    /** 租户存储配额超出（413：quota.defaultBytes 口径，REQ-20261117-045754 确认③）。 */
+    public static final String STORAGE_QUOTA_EXCEEDED = "STORAGE_QUOTA_EXCEEDED";
+
+    /** 图片文件无效（400：不可解码或像素超 max-image-px，REQ-20261117-045754 确认④）。 */
+    public static final String IMAGE_INVALID = "IMAGE_INVALID";
+
+    /** 直传票据无效（400：不存在/过期/已消费/租户或操作者不符，REQ-20261117-045754 确认⑥）。 */
+    public static final String TICKET_INVALID = "TICKET_INVALID";
+
+    /** 直传完成对象大小与登记不一致（400：容差 0，REQ-20261117-045754 确认⑥）。 */
+    public static final String SIZE_MISMATCH = "SIZE_MISMATCH";
+
+    /** 直传完成对象缺失（404：对象未上传或已被清理，REQ-20261117-045754 §API）。 */
+    public static final String STORAGE_OBJECT_MISSING = "STORAGE_OBJECT_MISSING";
+
     private InfraErrorCodes() {
     }
 }

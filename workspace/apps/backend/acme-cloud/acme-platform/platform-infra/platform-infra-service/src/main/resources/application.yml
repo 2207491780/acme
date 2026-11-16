@@ -85,6 +85,12 @@ acme:
       retention-days: 7
       # 清理任务 cron（缺省每日 03:00）
       retention-cron: "0 0 3 * * *"
+      # 图片像素上限（image/* 可解码且宽高 ≤ 上限，REQ-20261117-045754 确认④；缺省 4096）
+      # max-image-px: 4096
+    # 租户存储配额（REQ-20261117-045754 确认③；缺省 1073741824=1GiB，0=不限；
+    # 口径=该租户 sys_file 未删行 size 总和＋本次大小，并发上传下为近似护栏）
+    # quota:
+    #   default-bytes: 1073741824
   security:
     # 本服务无公开业务端点（探针与指标面经服务端口直连，网关不路由）
     public-paths:

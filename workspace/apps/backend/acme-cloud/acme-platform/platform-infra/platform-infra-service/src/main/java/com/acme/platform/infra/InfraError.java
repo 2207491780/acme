@@ -34,7 +34,22 @@ public enum InfraError implements ErrorCode, HttpStatusAware {
     JOB_ALREADY_RUNNING(InfraErrorCodes.JOB_ALREADY_RUNNING, "任务正在执行", 409),
 
     /** 任务不存在（jobKey 未注册）。 */
-    JOB_NOT_FOUND(InfraErrorCodes.JOB_NOT_FOUND, "任务不存在", 404);
+    JOB_NOT_FOUND(InfraErrorCodes.JOB_NOT_FOUND, "任务不存在", 404),
+
+    /** 租户存储配额超出（413；REQ-20261117-045754 确认③，并发上传下为近似护栏）。 */
+    STORAGE_QUOTA_EXCEEDED(InfraErrorCodes.STORAGE_QUOTA_EXCEEDED, "租户存储配额已超出", 413),
+
+    /** 图片文件无效（不可解码或像素超上限，400；REQ-20261117-045754 确认④）。 */
+    IMAGE_INVALID(InfraErrorCodes.IMAGE_INVALID, "图片文件无效或超出像素上限", 400),
+
+    /** 直传票据无效（不存在/过期/已消费/租户或操作者不符，400；REQ-20261117-045754 确认⑥）。 */
+    TICKET_INVALID(InfraErrorCodes.TICKET_INVALID, "直传票据无效或已失效", 400),
+
+    /** 直传完成对象大小与登记不一致（容差 0，400；REQ-20261117-045754 确认⑥）。 */
+    SIZE_MISMATCH(InfraErrorCodes.SIZE_MISMATCH, "对象大小与直传登记不一致", 400),
+
+    /** 直传完成对象缺失（404；REQ-20261117-045754 §API STORAGE_OBJECT_MISSING 语义）。 */
+    STORAGE_OBJECT_MISSING(InfraErrorCodes.STORAGE_OBJECT_MISSING, "直传对象缺失", 404);
 
     private final String code;
     private final String defaultMessage;
