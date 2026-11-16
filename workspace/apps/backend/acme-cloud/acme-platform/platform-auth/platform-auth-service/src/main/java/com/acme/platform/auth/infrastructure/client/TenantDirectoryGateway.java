@@ -2,6 +2,7 @@ package com.acme.platform.auth.infrastructure.client;
 
 import com.acme.common.context.UserContext;
 import com.acme.platform.system.api.TenantClient;
+import com.acme.platform.system.api.TenantInternalView;
 import com.acme.platform.system.api.TenantSummary;
 import org.springframework.stereotype.Component;
 
@@ -9,7 +10,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 租户目录网关（login-tenant-select）：登录页租户下拉数据源，
+ * 租户目录网关（login-tenant-select / REQ-20261117-025200）：登录页租户下拉数据源
+ * 与租户 by-code 校验数据源（登录过期校验 / 切换目标校验共用契约，确认记录③④），
  * 以服务身份主体调用（Q-D08，同 AuthProfileGateway 口径）；下游错误透传（可观测不掩盖故障）。
  */
 @Component
@@ -28,6 +30,21 @@ public class TenantDirectoryGateway {
         try {
             List<TenantSummary> tenants = tenantClient.listEnabled().payload();
             return tenants == null ? List.of() : tenants;
+        } finally {
+            UserContext.bind(previous);
+        }
+    }
+
+    /**
+     * 按租户代码查租户详情（REQ-20261117-025200，确认记录③④；服务身份主体调用）。
+     * 未知租户由下游返回 404 错误信封（TENANT_NOT_FOUND），经 framework-feign 错误解码
+     * 抛 BizException 透传调用方（登录链统一映射 LOGIN_FAILED / 切换链统一映射 TENANT_SWITCH_FAILED）。
+     */
+    public TenantInternalView findByCode(String tenantCode) {
+        UserContext previous = UserContext.get();
+        UserContext.bind(new UserContext(AuthProfileGateway.SERVICE_IDENTITY, Set.of()));
+        try {
+            return tenantClient.findByCode(tenantCode).payload();
         } finally {
             UserContext.bind(previous);
         }

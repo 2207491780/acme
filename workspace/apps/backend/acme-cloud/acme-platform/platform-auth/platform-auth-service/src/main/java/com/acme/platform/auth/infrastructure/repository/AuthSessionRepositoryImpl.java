@@ -46,4 +46,13 @@ public class AuthSessionRepositoryImpl extends FlexRepositorySupport<AuthSession
                 .where(AuthSession::getStatus).eq(SessionStatus.ACTIVE)
                 .and(AuthSession::getExpiresAt).gt(now));
     }
+
+    @Override
+    public List<AuthSession> findByTenantIdAndStatusAndExpiresAtAfter(String tenantId, SessionStatus status,
+                                                                      Instant now) {
+        return mapper().selectListByQuery(QueryWrapper.create()
+                .where(AuthSession::getTenantId).eq(tenantId)
+                .and(AuthSession::getStatus).eq(status)
+                .and(AuthSession::getExpiresAt).gt(now));
+    }
 }

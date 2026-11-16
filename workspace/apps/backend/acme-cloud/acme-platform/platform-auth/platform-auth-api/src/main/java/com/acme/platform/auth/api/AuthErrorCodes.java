@@ -49,6 +49,14 @@ public final class AuthErrorCodes {
     /** 非超管踢超管会话被拒绝（超管互踢允许）。 */
     public static final String REVOKE_SUPERADMIN_FORBIDDEN = "platform-auth-04-0002";
 
+    // ---- 05 段：超管跨租户切换（REQ-20261117-025200 确认记录④）----
+
+    /** 非内置超管不允许跨租户切换（403 权限语义；前置经 system 内部鉴权面实查内置角色）。 */
+    public static final String TENANT_SWITCH_FORBIDDEN = "platform-auth-05-0001";
+
+    /** 切换目标租户不可用（未知 / 停用 / 已过期统一口径，不泄露目标租户存在性差异）。 */
+    public static final String TENANT_SWITCH_FAILED = "platform-auth-05-0002";
+
     private AuthErrorCodes() {
     }
 }

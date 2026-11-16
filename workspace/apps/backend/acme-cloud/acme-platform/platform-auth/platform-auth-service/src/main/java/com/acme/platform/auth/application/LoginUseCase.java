@@ -6,6 +6,7 @@ import com.acme.platform.auth.api.AdminTokenIssued;
 import com.acme.platform.auth.domain.AuthCredential;
 import com.acme.platform.auth.infrastructure.client.AuthProfileGateway;
 import com.acme.platform.auth.infrastructure.client.SystemConfigGateway;
+import com.acme.platform.auth.infrastructure.client.TenantDirectoryGateway;
 import com.acme.platform.auth.infrastructure.redis.LoginGuardRedis;
 import com.acme.platform.auth.infrastructure.redis.SessionRedis;
 import com.acme.platform.auth.infrastructure.repository.AuthCredentialRepository;
@@ -13,6 +14,7 @@ import com.acme.platform.auth.internal.token.UserTokenIssuer;
 import com.acme.platform.system.api.AuthProfileView;
 import com.acme.platform.system.api.CaptchaPolicyView;
 import com.acme.platform.system.api.EnableStatus;
+import com.acme.platform.system.api.TenantInternalView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -29,6 +31,8 @@ import java.util.List;
  * REQ-20261117-011514：第 1 步验证码改按租户策略条件校验——按客户端声称的 tenantCode 实时查开关，
  * 关闭时跳过校验（C 端短信验证码路径不涉及）；策略查询失败 fail-closed 视为开启（AC-6）；
  * 声称租户与账号归属不匹配由既有第 4 步统一失败兜底，不产生绕过面（确认记录②）。
+ * REQ-20261117-025200：第 4.5 步追加租户有效期校验（by-code 实查目录，服务身份）——
+ * 非 ENABLED 或已过期统一 LOGIN_FAILED（确认记录③），目录查询失败 fail-closed（登录面从严）。
  */
 @Service
 public class LoginUseCase {
@@ -45,6 +49,7 @@ public class LoginUseCase {
     private final ImageCaptchaUseCase imageCaptchaUseCase;
     private final LoginLogRecorder loginLogRecorder;
     private final SystemConfigGateway systemConfigGateway;
+    private final TenantDirectoryGateway tenantDirectoryGateway;
 
     public LoginUseCase(AuthProfileGateway authProfileGateway,
                         AuthCredentialRepository credentialRepository,
@@ -55,7 +60,8 @@ public class LoginUseCase {
                         BCryptPasswordEncoder passwordEncoder,
                         ImageCaptchaUseCase imageCaptchaUseCase,
                         LoginLogRecorder loginLogRecorder,
-                        SystemConfigGateway systemConfigGateway) {
+                        SystemConfigGateway systemConfigGateway,
+                        TenantDirectoryGateway tenantDirectoryGateway) {
         this.authProfileGateway = authProfileGateway;
         this.credentialRepository = credentialRepository;
         this.loginGuard = loginGuard;
@@ -66,6 +72,7 @@ public class LoginUseCase {
         this.imageCaptchaUseCase = imageCaptchaUseCase;
         this.loginLogRecorder = loginLogRecorder;
         this.systemConfigGateway = systemConfigGateway;
+        this.tenantDirectoryGateway = tenantDirectoryGateway;
     }
 
     /**
@@ -99,6 +106,10 @@ public class LoginUseCase {
             if (!normalizedTenant.equals(profile.tenantId())) {
                 throw new BizException(AuthError.LOGIN_FAILED);
             }
+            // 4.5 租户有效期校验（REQ-20261117-025200 确认记录③，FR-005）：by-code 实查租户目录
+            //     （服务身份，复用切换目标校验同一契约）；非 ENABLED 或已过期统一 LOGIN_FAILED 不泄露差异；
+            //     目录查询失败 fail-closed 视为不可登录（登录面从严，WARN 记录）
+            verifyTenantLoginable(normalizedTenant);
             // 5. 账号状态
             if (EnableStatus.DISABLED.name().equals(profile.status())) {
                 throw new BizException(AuthError.ACCOUNT_DISABLED);
@@ -144,6 +155,28 @@ public class LoginUseCase {
         } catch (RuntimeException ex) {
             log.warn("验证码策略查询失败，fail-closed 视为开启：tenantCode={}", tenantCode, ex);
             return true;
+        }
+    }
+
+    /**
+     * 租户可登录性校验（REQ-20261117-025200 确认记录③）：by-code 实查租户目录——
+     * 非 ENABLED（停用级联第二道闸，与画像 effectiveStatus 同语义）或 expiresAt 非 null 且已过期
+     * 统一 LOGIN_FAILED（FR-005 不泄露租户状态差异）；目录查询失败 fail-closed 视为不可登录
+     * （登录面从严，WARN 记录）。
+     */
+    private void verifyTenantLoginable(String tenantCode) {
+        TenantInternalView tenant;
+        try {
+            tenant = tenantDirectoryGateway.findByCode(tenantCode);
+        } catch (RuntimeException ex) {
+            log.warn("租户目录查询失败，登录 fail-closed 拒绝：tenantCode={}", tenantCode, ex);
+            throw new BizException(AuthError.LOGIN_FAILED);
+        }
+        Instant now = Instant.now();
+        if (tenant == null
+                || !EnableStatus.ENABLED.name().equals(tenant.status())
+                || (tenant.expiresAt() != null && tenant.expiresAt().isBefore(now))) {
+            throw new BizException(AuthError.LOGIN_FAILED);
         }
     }
 

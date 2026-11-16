@@ -89,6 +89,21 @@ public class SessionRecorder {
                 session.getExpiresAt())).toList();
     }
 
+    /**
+     * 指定租户全部活跃且未过期会话置 KICKED，返回待撤销清单
+     * （REQ-20261117-025200 租户停用批量撤销数据源，确认记录①：枚举撤销，
+     * 过期会话不进底账改写——网关 exp 校验兜底失效）；无会话返回空清单（未知租户幂等 0/0）。
+     */
+    @Transactional
+    public List<RevocableToken> kickTenantActiveSessions(String tenantId) {
+        List<AuthSession> actives = sessionRepository.findByTenantIdAndStatusAndExpiresAtAfter(
+                tenantId, SessionStatus.ACTIVE, Instant.now());
+        actives.forEach(AuthSession::markKicked);
+        sessionRepository.saveAll(actives);
+        return actives.stream().map(session -> new RevocableToken(session.getTokenId(),
+                session.getExpiresAt())).toList();
+    }
+
     /** 活跃且未过期会话集合（REQ-20261114-120105 在线用户列表数据源，AC-3 过期会话不出现）。 */
     @Transactional(readOnly = true)
     public List<AuthSession> activeNotExpired() {

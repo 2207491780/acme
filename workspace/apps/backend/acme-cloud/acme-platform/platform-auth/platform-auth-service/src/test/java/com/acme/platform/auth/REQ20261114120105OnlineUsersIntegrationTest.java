@@ -13,10 +13,12 @@ import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.InternalTokenVerifier;
 import com.acme.platform.auth.application.ImageCaptchaUseCase;
 import com.acme.platform.auth.infrastructure.client.AuthProfileGateway;
+import com.acme.platform.auth.infrastructure.client.TenantDirectoryGateway;
 import com.acme.platform.auth.infrastructure.redis.LoginGuardRedis;
 import com.acme.platform.auth.infrastructure.redis.SessionRedis;
 import com.acme.platform.system.api.AuthProfileView;
 import com.acme.platform.system.api.SystemErrorCodes;
+import com.acme.platform.system.api.TenantInternalView;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -140,6 +142,10 @@ class REQ20261114120105OnlineUsersIntegrationTest {
     @MockitoBean
     private AuthProfileGateway authProfileGateway;
 
+    /** 租户目录桩（REQ-20261117-025200 确认记录③）：登录第 4.5 步 by-code 实查，default 租户启用未过期。 */
+    @MockitoBean
+    private TenantDirectoryGateway tenantDirectoryGateway;
+
     /** 权限判定桩件（AMB-4）：默认全放行；AC-6 用例内改桩全拒绝。 */
     @MockitoBean
     private com.acme.platform.auth.infrastructure.client.AuthorizationGateway authorizationGateway;
@@ -155,6 +161,9 @@ class REQ20261114120105OnlineUsersIntegrationTest {
         // 登录画像（单查）；列表 username 解析/超管判定走批量画像（TL 裁决确认记录⑤，backend 交付口径）
         when(authProfileGateway.findByUsername("admin")).thenReturn(
                 new AuthProfileView("1", "admin", "超级管理员", "default", "ENABLED", Set.of("super_admin")));
+        // REQ-20261117-025200：登录租户有效期校验数据源——default 租户启用且未过期
+        when(tenantDirectoryGateway.findByCode("default")).thenReturn(
+                new TenantInternalView("default", "默认租户", "ENABLED", null));
         when(authProfileGateway.findByUserIds(any())).thenReturn(Map.of(
                 1L, new AuthProfileView("1", "admin", "超级管理员", "default", "ENABLED", Set.of("super_admin"))));
         when(authorizationGateway.hasPermission(anyString())).thenReturn(true);

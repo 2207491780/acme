@@ -43,6 +43,37 @@ class AuthApiContractTest {
         assertThat(AuthErrorCodes.CAPTCHA_EXPIRED).isEqualTo("platform-auth-03-0003");
         assertThat(AuthErrorCodes.CONSUMER_DISABLED).isEqualTo("platform-auth-03-0004");
         assertThat(AuthErrorCodes.REFRESH_TOKEN_INVALID).isEqualTo("platform-auth-03-0005");
+        // 05 段：超管跨租户切换（REQ-20261117-025200 确认记录④）
+        assertThat(AuthErrorCodes.TENANT_SWITCH_FORBIDDEN).isEqualTo("platform-auth-05-0001");
+        assertThat(AuthErrorCodes.TENANT_SWITCH_FAILED).isEqualTo("platform-auth-05-0002");
+    }
+
+    @Test
+    void tenantSessionRevokeClientContractMetadataLocked() throws Exception {
+        // REQ-20261117-025200 确认记录②：撤销契约声明于本模块（提供方 auth，消费方 system），
+        // Feign 元数据锁定；信封复用 platform-system-api ContractResult（LoginLogCleanupClient 先例）
+        org.springframework.cloud.openfeign.FeignClient feignClient =
+                TenantSessionRevokeClient.class.getAnnotation(
+                        org.springframework.cloud.openfeign.FeignClient.class);
+        assertThat(feignClient).isNotNull();
+        assertThat(feignClient.name()).isEqualTo("platform-auth");
+        assertThat(feignClient.contextId()).isEqualTo("tenantSessionRevokeClient");
+
+        var method = TenantSessionRevokeClient.class.getMethod("revokeByTenant",
+                TenantSessionRevokeRequest.class);
+        var postMapping = method.getAnnotation(org.springframework.web.bind.annotation.PostMapping.class);
+        assertThat(postMapping).isNotNull();
+        assertThat(postMapping.value()).containsExactly("/internal/v1/tenant-sessions/revocations");
+        assertThat(method.getReturnType()).isEqualTo(
+                com.acme.platform.system.api.ContractResult.class);
+        // 计数字段 int（wire 面向服务间，不经 Long→String 序列化）
+        var view = new TenantSessionRevokeView(2, 1);
+        assertThat(view.revokedCount()).isEqualTo(2);
+        assertThat(view.failedCount()).isEqualTo(1);
+        assertThat(TenantSessionRevokeView.empty()).isEqualTo(new TenantSessionRevokeView(0, 0));
+        // 公开站点配置视图（确认记录⑤）：仅页脚两字段 + 缺省视图
+        assertThat(TenantPublicConfigView.defaultValue())
+                .isEqualTo(new TenantPublicConfigView(null, false));
     }
 
     @Test

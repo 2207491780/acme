@@ -19,4 +19,10 @@ public interface AuthSessionRepository extends FlexRepository<AuthSession> {
 
     /** 活跃且未过期会话集合（REQ-20261114-120105 在线用户列表数据源，AC-3 过期会话不出现）。 */
     List<AuthSession> findActiveNotExpiredBefore(Instant now);
+
+    /**
+     * 指定租户活跃且未过期会话集合（REQ-20261117-025200 租户停用批量撤销数据源，确认记录①：
+     * tenant_id 归属列 + status=ACTIVE + 未过期；tenant_id 存租户代码，全局定位不过滤）。
+     */
+    List<AuthSession> findByTenantIdAndStatusAndExpiresAtAfter(String tenantId, SessionStatus status, Instant now);
 }

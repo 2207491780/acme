@@ -9,6 +9,8 @@ import com.acme.platform.system.api.SystemErrorCodes;
 import com.acme.platform.system.api.SystemPermissions;
 import org.springframework.stereotype.Component;
 
+import java.util.Set;
+
 /**
  * 跨域权限判定网关（FR-008 接口级权限点在 auth 域的执行面）：
  * 调用方主体（经网关注入的内部令牌 claims）经 platform-system 判定；未授权抛
@@ -35,6 +37,18 @@ public class AuthorizationGateway {
         ContractResult<Boolean> result = authorizationClient.hasPermission(permissionCode);
         Boolean granted = result == null ? null : result.data();
         return Boolean.TRUE.equals(granted);
+    }
+
+    /**
+     * 当前主体实查内置角色编码集（REQ-20261117-025200 超管跨租户切换前置校验，确认记录④）。
+     * 不重绑上下文——当前主体（userId + roles）经内部令牌透传（InternalTokenRequestInterceptor
+     * 取当前 UserContext 签发），system 侧以 roles 为查询键实查内置角色行（roles 不作信任锚）。
+     * 查询不可达 / 空信封按空集处理（fail-closed 判定由调用方承担）。
+     */
+    public Set<String> currentBuiltinRoles() {
+        ContractResult<Set<String>> result = authorizationClient.currentBuiltinRoles();
+        Set<String> roles = result == null ? null : result.data();
+        return roles == null ? Set.of() : roles;
     }
 
     /** 凭据管理权限快捷判定（架构设计 4.6）。 */

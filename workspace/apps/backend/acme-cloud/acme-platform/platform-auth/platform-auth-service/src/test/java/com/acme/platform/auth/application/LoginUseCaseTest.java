@@ -49,6 +49,8 @@ class LoginUseCaseTest {
     private final ImageCaptchaUseCase imageCaptchaUseCase = mock(ImageCaptchaUseCase.class);
     private final LoginLogRecorder loginLogRecorder = mock(LoginLogRecorder.class);
     private final SystemConfigGateway systemConfigGateway = mock(SystemConfigGateway.class);
+    private final com.acme.platform.auth.infrastructure.client.TenantDirectoryGateway tenantDirectoryGateway =
+            mock(com.acme.platform.auth.infrastructure.client.TenantDirectoryGateway.class);
     private final org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder encoder =
             new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(10);
 
@@ -67,9 +69,12 @@ class LoginUseCaseTest {
         properties.setTtlSeconds(1800);
         useCase = new LoginUseCase(authProfileGateway, credentialRepository, loginGuard, sessionRedis,
                 sessionRecorder, new UserTokenIssuer(properties), encoder, imageCaptchaUseCase,
-                loginLogRecorder, systemConfigGateway);
+                loginLogRecorder, systemConfigGateway, tenantDirectoryGateway);
         // 既有用例基线：策略开启（REQ-20261117-011514 前的全局强制口径）；策略用例可覆盖
         when(systemConfigGateway.findCaptchaPolicy(anyString())).thenReturn(new CaptchaPolicyView(true));
+        // REQ-20261117-025200 基线：租户目录 by-code 实查——default 租户启用且未过期（用例可覆盖）
+        when(tenantDirectoryGateway.findByCode(anyString())).thenReturn(
+                new com.acme.platform.system.api.TenantInternalView("default", "默认租户", "ENABLED", null));
     }
 
     private AuthProfileView profile(String status) {
@@ -266,5 +271,65 @@ class LoginUseCaseTest {
                         .isEqualTo(AuthError.CAPTCHA_EXPIRED.code()));
         verify(imageCaptchaUseCase).verify(CAPTCHA_ID, CAPTCHA_CODE);
         verify(authProfileGateway, never()).findByUsername(anyString());
+    }
+
+    // ---------- REQ-20261117-025200 确认记录③：租户有效期校验（AC-5 后半） ----------
+
+    @Test
+    void should_rejectExpiredTenantLoginWithUnifiedFailure_when_expiresAtBeforeNow() {
+        // AC-5 后半：租户已过期 → 统一 LOGIN_FAILED（FR-005 不泄露租户状态差异），不签发会话
+        stubLoginSuccessPath();
+        when(tenantDirectoryGateway.findByCode("default")).thenReturn(
+                new com.acme.platform.system.api.TenantInternalView("default", "默认租户", "ENABLED",
+                        Instant.now().minusSeconds(3600)));
+        assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE,
+                "10.0.0.1", "JUnit"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.LOGIN_FAILED.code()));
+        // 过期校验在凭据校验后、互踢前：不触发互踢与会话底账（失败登录日志照既有口径记录）
+        verify(sessionRecorder, never()).kickActiveSessions(anyLong());
+        verify(sessionRecorder, never()).record(anyString(), anyLong(), anyString(), anyString(),
+                any(Instant.class), any(Instant.class));
+    }
+
+    @Test
+    void should_rejectDisabledTenantLoginWithUnifiedFailure_when_tenantNotEnabled() {
+        // 停用租户登录拒绝（停用级联第二道闸 + 撤销契约兜底）：统一 LOGIN_FAILED
+        stubLoginSuccessPath();
+        when(tenantDirectoryGateway.findByCode("default")).thenReturn(
+                new com.acme.platform.system.api.TenantInternalView("default", "默认租户", "DISABLED", null));
+        assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE,
+                "10.0.0.1", "JUnit"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.LOGIN_FAILED.code()));
+    }
+
+    @Test
+    void should_failClosedRejectLogin_when_tenantDirectoryQueryFails() {
+        // 目录查询失败 fail-closed（登录面从严，WARN 记录）：凭据正确亦拒绝，不产生会话
+        stubLoginSuccessPath();
+        when(tenantDirectoryGateway.findByCode("default"))
+                .thenThrow(new IllegalStateException("downstream unavailable"));
+        assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE,
+                "10.0.0.1", "JUnit"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.LOGIN_FAILED.code()));
+        verify(sessionRecorder, never()).record(anyString(), anyLong(), anyString(), anyString(),
+                any(Instant.class), any(Instant.class));
+    }
+
+    @Test
+    void should_rejectUnknownTenantLoginWithUnifiedFailure_when_tenantCodeMissingInDirectory() {
+        // 目录缺失（脏数据）统一 LOGIN_FAILED：与 FR-005 不泄露存在性差异口径一致
+        stubLoginSuccessPath();
+        when(tenantDirectoryGateway.findByCode("default")).thenReturn(null);
+        assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE,
+                "10.0.0.1", "JUnit"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.LOGIN_FAILED.code()));
     }
 }

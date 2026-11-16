@@ -52,7 +52,15 @@ public enum AuthError implements ErrorCode, HttpStatusAware {
     SESSION_NOT_FOUND(AuthErrorCodes.SESSION_NOT_FOUND, "会话不存在", 200),
 
     /** 非超管踢超管会话被拒绝（超管互踢允许）。 */
-    REVOKE_SUPERADMIN_FORBIDDEN(AuthErrorCodes.REVOKE_SUPERADMIN_FORBIDDEN, "无权对超级管理员会话执行踢下线", 200);
+    REVOKE_SUPERADMIN_FORBIDDEN(AuthErrorCodes.REVOKE_SUPERADMIN_FORBIDDEN, "无权对超级管理员会话执行踢下线", 200),
+
+    // ---- 05 段：超管跨租户切换（REQ-20261117-025200 确认记录④）----
+
+    /** 非内置超管不允许跨租户切换（前置经 system 内部鉴权面实查内置角色，roles 不作信任锚）。 */
+    TENANT_SWITCH_FORBIDDEN(AuthErrorCodes.TENANT_SWITCH_FORBIDDEN, "无权执行跨租户切换", 403),
+
+    /** 切换目标租户不可用（未知 / 停用 / 已过期统一口径，不泄露目标租户存在性差异）。 */
+    TENANT_SWITCH_FAILED(AuthErrorCodes.TENANT_SWITCH_FAILED, "目标租户不可用，无法切换", 409);
 
     private final String code;
     private final String defaultMessage;

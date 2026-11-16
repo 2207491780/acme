@@ -24,6 +24,8 @@ acme:
     public-paths:
       - /admin/v1/auth/tokens
       - /admin/v1/auth/captcha-policy
+      # 公开站点配置豁免（REQ-20261117-025200 确认记录⑤；与主配置/网关豁免清单一致）
+      - /admin/v1/auth/public-config
     token:
       hmac-secret: auth-it-secret-0123456789abcdef
   auth:
