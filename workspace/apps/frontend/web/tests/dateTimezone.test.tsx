@@ -33,11 +33,14 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-/** 当日 00:30 UTC 的瞬时：UTC+8 落「今天」，UTC-5 落「昨天」——分桶随时区移动。 */
-const boundaryInstant = () => {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 30)).toISOString();
-};
+/**
+ * 「上海今天＋纽约昨天」的单解窗口依赖当前时刻：仅当「现在」落在当日 UTC 05:00–16:00
+ * （上海当日 13:00 起至次日 00:00 前）前提才成立，按真实时钟锚定会在其余窗口恒红。
+ * 故冻结「现在」到固定瞬时（12:00 UTC = 上海 20:00 / 纽约 07:00，同日），前提在任何宿主时间恒成立。
+ */
+const FROZEN_NOW = '2026-11-17T12:00:00Z';
+/** 冻结时刻当日 00:30 UTC 的瞬时：上海（UTC+8）落「今天」，纽约（UTC-5）落「昨天」。 */
+const BOUNDARY_INSTANT = '2026-11-17T00:30:00Z';
 
 const seedSingleRelease = (updatedAt: string) => {
   const base = seedState();
@@ -50,20 +53,27 @@ const trendValues = (option: Record<string, unknown> | null): number[] =>
 
 describe('Dashboard 趋势图按所选时区分桶', () => {
   it('should_shift_day_bucket_when_timezone_switched', () => {
-    seedSingleRelease(boundaryInstant());
-    act(() => {
-      useTimezoneStore.getState().setTimezone('Asia/Shanghai');
-    });
-    const { result } = renderHook(() => useDashboardCharts());
-    // 上海（UTC+8）：00:30 UTC = 当日 08:30 → 计入今天（末桶）
-    expect(trendValues(result.current.trend).at(-1)).toBe(1);
+    // 仅冻结 Date（定时器保持真实），消除宿主时钟对分桶前提的窗口依赖
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date(FROZEN_NOW));
+      seedSingleRelease(BOUNDARY_INSTANT);
+      act(() => {
+        useTimezoneStore.getState().setTimezone('Asia/Shanghai');
+      });
+      const { result } = renderHook(() => useDashboardCharts());
+      // 上海（UTC+8）：00:30 UTC = 当日 08:30 → 计入今天（末桶）
+      expect(trendValues(result.current.trend).at(-1)).toBe(1);
 
-    act(() => {
-      useTimezoneStore.getState().setTimezone('America/New_York');
-    });
-    // 纽约（UTC-5）：00:30 UTC = 前一日 19:30 → 计入昨天（倒数第二桶），今天清零
-    expect(trendValues(result.current.trend).at(-1)).toBe(0);
-    expect(trendValues(result.current.trend).at(-2)).toBe(1);
+      act(() => {
+        useTimezoneStore.getState().setTimezone('America/New_York');
+      });
+      // 纽约（UTC-5）：00:30 UTC = 前一日 19:30 → 计入昨天（倒数第二桶），今天清零
+      expect(trendValues(result.current.trend).at(-1)).toBe(0);
+      expect(trendValues(result.current.trend).at(-2)).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
