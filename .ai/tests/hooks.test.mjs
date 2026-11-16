@@ -11,7 +11,7 @@ const HOOKS = join(root, '.ai/hooks');
 const ZERO = '0'.repeat(40);
 
 // 沙箱固定落在仓库 .ai-tmp/（不入库）；每个用例独占目录，用例结束即清理。
-async function makeRepo(t, { withHooks = false } = {}) {
+async function makeRepo(t, { withHooks = false, sha256 = false } = {}) {
   const sandbox = await mkdtemp(join(tempRoot, 'hooks-test-'));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   const repo = join(sandbox, 'repo');
@@ -23,7 +23,7 @@ async function makeRepo(t, { withHooks = false } = {}) {
     }
   }
   const g = (args) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
-  g(['init', '-q']);
+  g(['init', '-q', ...(sha256 ? ['--object-format=sha256'] : [])]);
   g(['config', 'user.email', 'hook-test@example.com']);
   g(['config', 'user.name', 'hook-test']);
   g(['checkout', '-q', '-b', 'main']); // 沙箱 init 默认分支可能是 master，显式对齐受保护分支名
@@ -105,14 +105,20 @@ test('should_exempt_when_merge_is_in_progress', async (t) => {
 // ---- pre-commit ----
 
 test('should_cover_ai_memory_in_precommit_staging_list_consistent_with_mirror', async (t) => {
-  // 口径统一回归（ADR 2026-11-14-22）：pre-commit 暂存清单必须与 mirror-check/CI mirror-sync 同含 .ai-memory；
-  // iFlow 已裁撤（ADR 2026-11-14-21），清单不得再含 .iflow。
+  // 口径统一回归（ADR 2026-11-14-22、2026-11-17-01）：暂存清单唯一事实源为 .ai/hooks/ai-paths.list，
+  // pre-commit 必须逐行读取该文件（清单与 mirror-check/CI mirror-sync 同口径由 sync.mjs + ai-paths.test.mjs 锁定）；
+  // iFlow 已裁撤（ADR 2026-11-14-21），localOnly 本机目标（.zcode/.codebuddy）不入清单。
   const source = await readFile(join(HOOKS, 'pre-commit'), 'utf8');
-  const listBlock = source.split('\n').filter((l) => l.startsWith('set -- ') || l.startsWith('  AGENTS.md') || l.startsWith("  ':(glob)"));
-  assert.ok(listBlock.length >= 2, 'pre-commit 应包含 set -- 暂存清单（含续行）');
-  const list = listBlock.join('\n');
-  assert.match(list, /\.ai-memory/, '暂存清单应包含 .ai-memory（与镜像口径一致）');
-  assert.doesNotMatch(list, /\.iflow/, '暂存清单不应包含已裁撤的 .iflow');
+  assert.match(source, /ai-paths\.list/, 'pre-commit 应读取 .ai/hooks/ai-paths.list（AI 路径单一清单）');
+  assert.match(source, /while IFS= read -r line/, 'pre-commit 应逐行读取清单文件');
+  const list = (await readFile(join(HOOKS, 'ai-paths.list'), 'utf8'))
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'));
+  assert.ok(list.length >= 15, `清单应含全部既有路径（当前 ${list.length} 条）`);
+  assert.ok(list.includes('.ai-memory'), '清单应包含 .ai-memory（与镜像口径一致）');
+  assert.doesNotMatch(list.join('\n'), /\.iflow/, '清单不应包含已裁撤的 .iflow');
+  assert.doesNotMatch(list.join('\n'), /\.zcode|\.codebuddy/, '清单不应包含 localOnly 本机目标（不入库）');
 });
 
 // ---- pre-push ----
@@ -188,6 +194,23 @@ test('should_reject_when_deleting_policy_branch', async (t) => {
   const r = prePush(repo, `(delete) ${ZERO} refs/heads/ai-coding-support ${base}\n`);
   assert.equal(r.status, 1);
   assert.match(r.stdout, /不允许删除/);
+});
+
+test('should_reject_when_deleting_policy_branch_in_sha256_repo', async (t) => {
+  // SHA-256 回归（遗留项 2026-11-14-#3）：零值 SHA 不再硬编码 40 位——64 位零值同样触发策略分支删除拦截
+  const { repo, g } = await makeRepo(t, { sha256: true });
+  const { base } = await prepareHistory(repo, g);
+  const r = prePush(repo, `(delete) ${'0'.repeat(64)} refs/heads/ai-coding-support ${base}\n`);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /不允许删除/);
+});
+
+test('should_pass_when_deleting_remote_feature_branch_in_sha256_repo', async (t) => {
+  // SHA-256 回归（遗留项 2026-11-14-#3）：任务分支合法删除在 64 位零值下必须放行（旧 40 位写死会误判为更新、落入非快进报错）
+  const { repo, g } = await makeRepo(t, { sha256: true });
+  const { base } = await prepareHistory(repo, g);
+  const r = prePush(repo, `(delete) ${'0'.repeat(64)} refs/heads/feat/1-old ${base}\n`);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
 // 在 sandbox 内造出两条策略分支，diverge=true 时让 ai-coding-support 的 AI 路径与主线不同。

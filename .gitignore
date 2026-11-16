@@ -2,7 +2,7 @@
 #  ACME 项目 .gitignore —— 通用多语言开发忽略规则
 #  重要约定：
 #   · .ai/ 是 AI 配置唯一事实源，其派生产物（.claude/ .cursor/ .gemini/
-#     .iflow/ .trae/ .qoder/ .github/ 等）需要入库，切勿整体忽略。
+#     .trae/ .qoder/ .github/ 等）需要入库，切勿整体忽略。
 #   · .ai-tmp/ 内容不入库，仅保留说明文件 ABOUT.md。
 #   · 安全红线：密钥 / 凭证 / .env 一律不入库（公开模板用 .env.example）。
 #   · 需要入库却被忽略的文件，用 git add -f 强制添加。
@@ -14,6 +14,8 @@ AGENTS.local.md
 CLAUDE.local.md
 # ZCode 本地数据（工作流草稿、会话态等）
 .zcode/
+# CodeBuddy 本机数据（agents/commands 由 .ai/ 派生、localOnly 不入库；teams/ 工具自管理）
+.codebuddy/
 .ai-memory/drafts/*.local.md
 
 # --- AI 临时文件（内容不入库，仅说明文件 ABOUT.md 入库） ---

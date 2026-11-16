@@ -11,6 +11,19 @@
 node .ai/sync.mjs
 ```
 
+## 目录索引
+
+| 子目录 | 工具 | 派生目标 | 说明 |
+|---|---|---|---|
+| `claude/` | Claude Code | `.claude/` | 目录说明 + 私有配置 |
+| `cursor/` | Cursor | `.cursor/` | 目录说明 + 私有配置 |
+| `gemini/` | Gemini CLI | `.gemini/` | 目录说明 + 私有配置（命令为手工 TOML） |
+| `trae/` | 字节 Trae | `.trae/` | 目录说明 + 私有配置 |
+| `qoder/` | 阿里 Qoder | `.qoder/` | 目录说明 + 私有配置 |
+| `github/` | GitHub Copilot | `.github/` | 目录说明 + instructions |
+| `zcode/` | 智谱 ZCode | `.zcode/` | localOnly（git 忽略、不入库）：agents/commands 引用存根 |
+| `codebuddy/` | 腾讯 CodeBuddy | `.codebuddy/` | localOnly（git 忽略、不入库）：目录说明；agents/commands 由 `.ai/agents/`、`.ai/commands/` 公共池全量镜像（`mirrorPools`，ADR 2026-11-17-01） |
+
 ## 说明
 
 - 子目录的说明文件（如 `CLAUDE-CODE.md`）会派生为工具目录内同名文件，「⚙️ 生成产物」标头由引擎自动前置，**无需手写**。

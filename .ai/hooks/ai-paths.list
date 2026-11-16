@@ -1,0 +1,23 @@
+# AI 路径单一清单（唯一事实源）—— .ai/hooks/pre-commit（暂存完整性）与 .ai/hooks/mirror-check.mjs
+# （镜像预检）逐行读取本文件；.ai/ci/ci.yml 的 mirror-sync 作业因 Actions YAML 难以共享文件常量
+# 而保留内联副本（AI_PATHS=(...)），一致性由 .ai/sync.mjs 在派生/校验时强制、.ai/tests/ai-paths.test.mjs
+# 回归锁定（ADR 2026-11-14-21/22、2026-11-17-01）。
+# 口径要点：iFlow 已裁撤（不再列 .iflow）；.ai-memory 属镜像范围；.zcode/、.codebuddy/ 为 localOnly
+# 本机目标（git 忽略、不入库），不入本清单。本清单自身位于 .ai/hooks/ 下，由首条 .ai 路径覆盖其
+# 「必须完整暂存」检查。
+# 格式：LF、每行一条、# 开头为注释、条目原样作为 git pathspec 传递（如 :(glob)**/AGENTS.md）。
+.ai
+.ai-memory
+.github
+.claude
+.cursor
+.gemini
+.trae
+.qoder
+.gitignore
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+CODEBUDDY.md
+:(glob)**/AGENTS.md
+:(glob)**/CLAUDE.md

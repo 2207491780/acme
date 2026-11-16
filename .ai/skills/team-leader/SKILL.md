@@ -22,13 +22,11 @@ description: ACME 契约驱动的多代理开发流程（Team Leader 执行卡�
 | **III-GATE→TEST** | 门禁清单全跑（见下）→ FAIL 打回循环 → 全过出人工复核清单 | 每项 PASS/SKIP(原因)/FAIL；phase=III-REVIEW |
 | **III-REVIEW→DONE** | 复核清单交用户 → 用户确认后**按授权分级取得合并指令** → 主树合并（优先快进）→ 合并后验证 → 可选 cloud-dev 冒烟（Redis 租约窗口 + conversational-cd）→ 报告 → `worktree.mjs remove` | 合并验证通过；phase=DONE |
 
-## 门禁清单（III-GATE，统一输出 `PASS / SKIP(原因) / FAIL(细节)`，存在 FAIL 禁止前进）
+## 门禁清单（III-GATE）
 
-1. 三向一致：前端调用路径 = 后端 Controller 路径 = `acme-gateway/src/main/resources/application.yml` 路由；
-2. AC 覆盖率：每条 AC ≥1 用例（对照 tester 映射）；
-3. 契约机器层：`node .ai/skills/team-leader/scripts/check-contract.mjs contracts/{REQ-ID}.md`；
-4. 本地测试：frontend `pnpm typecheck && pnpm test && pnpm build`（+desktop check）；backend `acme-cloud/` 下 `mvn test`（Maven 不在 PATH；PG 集成需 Docker，**跳过≠验证，合并前必须在有 Docker 环境跑过**）；
-5. 跨需求冲突：`contracts/*.md` 的 `apis` 清单互查（并行需求的接口/迁移号不得冲突）。
+五项门禁（1 三向一致 / 2 AC 覆盖率 / 3 契约机器层 / 4 本地测试 / 5 跨需求冲突）——
+完整判定细则（脚本命令、判据、PG/Redis 集成口径）唯一权威：`.ai-memory/playbooks/multi-agent.md`「阶段三 门禁与测试」门禁表，本卡不展开（防两处漂移）。
+统一输出 `PASS / SKIP(原因) / FAIL(细节)`：存在 FAIL 禁止前进；SKIP 必须列入阶段报告，且「PG/Redis 集成必须跑过」不适用 SKIP 豁免。
 
 ## 打回循环
 
