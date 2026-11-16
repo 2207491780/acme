@@ -1,4 +1,5 @@
-/** zh-CN 系统配置页资源包（REQ-20261116-230354：租户级安全策略；REQ-20261117-011514 增验证码开关）。 */
+/** zh-CN 系统配置页资源包（REQ-20261116-230354：租户级安全策略；REQ-20261117-011514 增验证码开关；
+ *  REQ-20261117-025200 增页脚版权卡）。 */
 export const systemConfig = {
   head: {
     eyebrow: 'System',
@@ -16,6 +17,12 @@ export const systemConfig = {
   idle1: '1 分钟',
   idle5: '5 分钟',
   idle15: '15 分钟',
+  footerTitle: '页脚版权',
+  footerCopyright: '页脚版权文案',
+  footerCopyrightPlaceholder: '如 © 2026 ACME 云平台',
+  footerCopyrightDesc: '展示在应用内页脚与登录页页脚的版权声明（≤255 字符）；留空不展示文案',
+  footerVisible: '显示页脚版权',
+  footerVisibleDesc: '开启后按上方文案在本租户应用内页脚与登录页页脚展示',
   saved: '系统配置保存成功，全员下次加载生效',
   readOnly: '当前账号无修改权限（system:config:update），仅可查看。',
   reload: '刷新配置',

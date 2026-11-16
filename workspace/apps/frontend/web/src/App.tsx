@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Watermark } from 'antd';
+import { Alert, App as AntApp, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Watermark } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
@@ -34,7 +34,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, authApi, effectiveTimezone, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TimezonePref } from '@acme/core';
+import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
 import dayjs from 'dayjs';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
@@ -147,6 +147,7 @@ const LOCALE_LABEL_KEYS: Record<AppLocale, string> = {
 
 export function App() {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const screens = Grid.useBreakpoint();
@@ -163,6 +164,10 @@ export function App() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
+  // 超管跨租户切换（REQ-20261117-025200）：目标租户目录（用户菜单展开时拉取）+ 切换中防重复点击
+  const [switchTargets, setSwitchTargets] = useState<TenantSummary[]>([]);
+  const [switchTargetsLoading, setSwitchTargetsLoading] = useState(false);
+  const [switchingTenant, setSwitchingTenant] = useState(false);
   const searchRef = useRef<InputRef>(null);
 
   // 登录态（login-state / login-renew）：未登录渲染独立登录页；已登录进入控制台并启动滑动续约
@@ -172,15 +177,18 @@ export function App() {
 
   // 会话恢复校验（p1-me-sync）：进入应用即拉取服务端画像（me 401 由 client 续约/清会话处理）。
   // 依赖收敛为 isAuthed：滑动续约会整体替换 session 对象，以 session 为依赖会导致每次续约重复拉取 me。
-  // 租户系统配置（REQ-20261116-230354）随会话就绪加载（水印显隐 + 闲置锁屏时长强制生效）；
-  // 登出/会话失效复位为缺省（水印开/闲置关）并解除闲置计时。
+  // 租户系统配置（REQ-20261116-230354）随会话就绪加载（水印显隐 + 闲置锁屏时长 + 页脚版权强制生效）；
+  // 登出/会话失效复位为缺省（水印开/验证码关/闲置关/页脚不显示）并解除闲置计时。
   useEffect(() => {
     if (isAuthed) {
       void useMeStore.getState().load();
       void useSystemConfigStore.getState().load();
     } else {
       useMeStore.getState().clear();
-      useSystemConfigStore.setState({ watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0', loaded: false });
+      useSystemConfigStore.setState({
+        watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
+        footerCopyright: null, footerVisible: false, version: '0', loaded: false,
+      });
       useLockStore.getState().setIdleTimeoutMs(0);
     }
   }, [isAuthed]);
@@ -226,6 +234,9 @@ export function App() {
   // 全屏 / 水印（REQ-20261116-230354，AC-7）：显隐由租户系统配置强制决定（个人设置项已移除）
   const { isFullscreen, enter: enterFullscreen, exit: exitFullscreen } = useFullscreen();
   const watermarkEnabled = useSystemConfigStore((s) => s.watermarkEnabled);
+  // 应用内页脚版权（REQ-20261117-025200，AC-10）：显隐由租户配置强制决定（visible 且文案非空才渲染）
+  const footerVisible = useSystemConfigStore((s) => s.footerVisible);
+  const footerCopyright = useSystemConfigStore((s) => s.footerCopyright);
 
   // 闲置锁屏（AC-8）：时长由租户配置经 systemConfigStore 副作用武装（setIdleTimeoutMs）；
   // 此处仅注册用户活动打点（重置计时）与卸载清理
@@ -254,6 +265,38 @@ export function App() {
   const me = useMeStore((s) => s.me);
   const displayName = me?.user.nickname || me?.user.username || session?.nickname || session?.username || '';
   const rolesText = me?.roles.join(t('nav.userMenu.rolesSeparator')) || t('nav.userMenu.rolesLoading');
+  // 超管跨租户切换入口（REQ-20261117-025200）：仅 super_admin 可见（me.roles 前端判断 + 后端 403 兜底）
+  const isSuperAdmin = me?.roles.includes('super_admin') ?? false;
+  // 目标租户目录 = 登录下拉同源 listEnabled 公开端点（只含 ENABLED 且未过期）；此处仅过滤当前租户自身。
+  // 目录加载失败 → 子菜单空态（非关键面，不阻塞用户菜单其余项）。
+  const loadSwitchTargets = () => {
+    if (switchTargetsLoading) {
+      return;
+    }
+    setSwitchTargetsLoading(true);
+    authApi.tenants()
+      .then((list) => {
+        const safeList = Array.isArray(list) ? list : [];
+        setSwitchTargets(safeList.filter((item) => item.tenantCode !== session?.tenantCode));
+      })
+      .catch(() => setSwitchTargets([]))
+      .finally(() => setSwitchTargetsLoading(false));
+  };
+  const tenantSwitchGroup: MenuProps['items'] = [
+    {
+      key: 'tenant-switch',
+      icon: <ApartmentOutlined />,
+      label: t('nav.userMenu.tenantSwitch'),
+      disabled: switchingTenant,
+      children: switchTargetsLoading && switchTargets.length === 0
+        ? [{ key: 'tenant-switch-loading', label: t('nav.userMenu.tenantSwitchLoading'), disabled: true }]
+        : switchTargets.map((item) => ({
+          key: `tenant-switch-${item.tenantCode}`,
+          label: `${item.tenantName}（${item.tenantCode}）`,
+          disabled: switchingTenant,
+        })),
+    },
+  ];
   const userMenuItems: MenuProps['items'] = [
     { key: 'who', label: t('nav.userMenu.tenantLabel', { name: displayName, tenant: session?.tenantCode ?? '' }), disabled: true },
     {
@@ -261,6 +304,7 @@ export function App() {
       label: t('nav.userMenu.rolesLabel', { roles: rolesText }),
       disabled: true,
     },
+    ...(isSuperAdmin ? tenantSwitchGroup : []),
     { type: 'divider' },
     { key: 'logout', icon: <LogoutOutlined />, label: t('nav.userMenu.logout'), danger: true },
   ];
@@ -324,9 +368,41 @@ export function App() {
       handleLogout();
       return;
     }
+    if (key.startsWith('tenant-switch-')) {
+      handleTenantSwitch(key.slice('tenant-switch-'.length));
+      return;
+    }
     if (key.startsWith('locale-')) {
       setLocale(key.slice('locale-'.length) as AppLocale);
     }
+  };
+
+  // 超管跨租户切换（REQ-20261117-025200）：签发目标租户新令牌并整体替换会话（remember 沿用当前值）；
+  // 旧会话被互踢属预期（切换即签新会话）；新租户画像与租户级配置随新会话重新加载；成功后回概览。
+  const handleTenantSwitch = (targetTenantCode: string) => {
+    if (switchingTenant) {
+      return;
+    }
+    setSwitchingTenant(true);
+    authApi.tenantSwitch(targetTenantCode)
+      .then((issued) => {
+        useAuthStore.getState().setSession({
+          accessToken: issued.accessToken,
+          expiresAtMs: Date.parse(issued.expiresAt),
+          userId: issued.userId,
+          username: issued.username,
+          nickname: issued.nickname,
+          tenantCode: targetTenantCode,
+        }, useAuthStore.getState().remember);
+        void useMeStore.getState().load();
+        void useSystemConfigStore.getState().load();
+        message.success(t('nav.userMenu.tenantSwitchSuccess', { tenant: targetTenantCode }));
+        go('/');
+      })
+      .catch((ex: unknown) => {
+        message.error(ex instanceof ApiError ? ex.message : t('nav.userMenu.tenantSwitchFailed'));
+      })
+      .finally(() => setSwitchingTenant(false));
   };
 
   // 导航按权限过滤（p2-admin）：me 未加载时先全部隐藏，加载后按权限码展示（fail-closed）
@@ -496,6 +572,12 @@ export function App() {
                 items: userMenuItems,
                 onClick: onUserMenuClick,
               }}
+              onOpenChange={(open) => {
+                // 菜单展开时才拉取目标租户目录（公开端点，轻量）；仅超管需要
+                if (open && isSuperAdmin) {
+                  loadSwitchTargets();
+                }
+              }}
             >
               <Button type="text" aria-label={t('nav.header.openUserMenu')} style={{ paddingInline: 6 }}>
                 <Space size={6}>
@@ -661,6 +743,9 @@ export function App() {
               <Route path="/settings" element={<PageBoundary><Settings /></PageBoundary>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            {/* 应用内页脚版权（REQ-20261117-025200，AC-10）：租户配置 footerVisible 且文案非空才渲染
+                （文案空串/null 一律不渲染空标签）；普通文档流不遮挡内容，水印覆盖属预期 */}
+            {footerVisible && footerCopyright ? <footer className="app-foot">{footerCopyright}</footer> : null}
           </Content>
         </Layout>
       </Layout>

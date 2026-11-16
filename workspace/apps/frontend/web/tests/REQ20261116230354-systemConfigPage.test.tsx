@@ -71,6 +71,8 @@ const setupConfigApi = (initial: AdminSystemConfigView) => {
       state.watermarkEnabled = Boolean(body.watermarkEnabled);
       state.captchaEnabled = Boolean(body.captchaEnabled);
       state.lockIdleTimeoutMs = Number(body.lockIdleTimeoutMs);
+      state.footerCopyright = (body.footerCopyright as string | null) ?? null;
+      state.footerVisible = body.footerVisible === true;
       state.version = String(Number(state.version) + 1);
       return envelope({ ...state });
     }
@@ -151,7 +153,7 @@ describe('REQ20261116230354 AC-5 系统配置管理页', () => {
   it('should_saveAndPersistNewValues_when_adminUpdatesConfig', async () => {
     const { fetchMock } = await renderPage(
       ['system:config:list', 'system:config:update'],
-      { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' },
+      { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' },
     );
 
     // 表单回填缺省值：水印 Switch 开（REQ-20261117-011514 后页面为双 Switch，按 label 定位）
@@ -170,7 +172,7 @@ describe('REQ20261116230354 AC-5 系统配置管理页', () => {
     await waitFor(() => {
       const puts = callsOf(fetchMock, 'PUT');
       expect(puts).toHaveLength(1);
-      expect(parseBody(puts[0]?.body)).toEqual({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 300000, version: '0' });
+      expect(parseBody(puts[0]?.body)).toEqual({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 300000, footerCopyright: null, footerVisible: false, version: '0' });
     });
 
     // 持久化：卸载后重新加载页面，GET 回读仍为新值（桩 state 已被 PUT 更新）
@@ -190,7 +192,7 @@ describe('REQ20261116230354 AC-5 系统配置管理页', () => {
         return failureEnvelope('数据已被他人修改，请刷新后重试');
       }
       if (r.url.pathname.includes('/system/config')) {
-        return envelope({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' });
+        return envelope({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' });
       }
       return envelope(null);
     });
@@ -209,13 +211,13 @@ describe('REQ20261116230354 AC-5 系统配置管理页', () => {
 
 describe('REQ20261116230354 AC-6 保存能力 fail-closed', () => {
   it('should_notRenderSave_when_onlyListPermission', async () => {
-    await renderPage(['system:config:list'], { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' });
+    await renderPage(['system:config:list'], { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' });
     await screen.findByLabelText(/全局水印/);
     expect(screen.queryByRole('button', { name: SAVE_BUTTON })).toBeNull();
   });
 
   it('should_notRenderSave_when_noPermissions', async () => {
-    await renderPage([], { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' });
+    await renderPage([], { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' });
     // 无任何权限直达路由：保存能力不渲染（fail-closed，crud.can 模式）
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: SAVE_BUTTON })).toBeNull();

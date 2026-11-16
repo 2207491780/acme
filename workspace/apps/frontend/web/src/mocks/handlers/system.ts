@@ -93,7 +93,7 @@ export const systemHandlers = [
   // ---- me ----
   http.get('/admin/v1/system/me', () => ok({ ...db.me, menus: store.menus })),
 
-  // ---- 租户系统配置（REQ-20261116-230354；REQ-20261117-011514 增 captchaEnabled） ----
+  // ---- 租户系统配置（REQ-20261116-230354；REQ-20261117-011514 增 captchaEnabled；REQ-20261117-025200 增页脚版权） ----
   http.get('/admin/v1/system/config', () => ok(store.systemConfig)),
   http.put('/admin/v1/system/config', async ({ request }) => {
     const body = await bodyOf(request);
@@ -109,6 +109,11 @@ export const systemHandlers = [
       watermarkEnabled: body.watermarkEnabled,
       captchaEnabled: body.captchaEnabled,
       lockIdleTimeoutMs: idle,
+      // 页脚版权（REQ-20261117-025200）：文案可空（空串归一 null），≤255；显隐布尔
+      footerCopyright: typeof body.footerCopyright === 'string' && body.footerCopyright.length > 0 && body.footerCopyright.length <= 255
+        ? body.footerCopyright
+        : null,
+      footerVisible: body.footerVisible === true,
       version: String(Number(store.systemConfig.version) + 1),
     };
     return ok(store.systemConfig);
@@ -127,6 +132,10 @@ export const systemHandlers = [
     const created = {
       id: genId(), tenantCode: body.tenantCode, tenantName: body.tenantName,
       status: 'ENABLED' as const, remark: (body.remark as string | undefined) ?? null,
+      // 租户档案三新字段（REQ-20261117-025200）：可空；expiresAt ISO-8601，null=长期
+      contactName: (body.contactName as string | null | undefined) ?? null,
+      contactPhone: (body.contactPhone as string | null | undefined) ?? null,
+      expiresAt: (body.expiresAt as string | null | undefined) ?? null,
       createdAt: nowIso(), version: '0',
     };
     store.tenants = [created, ...store.tenants];
@@ -143,6 +152,10 @@ export const systemHandlers = [
       ...target,
       tenantName: typeof body.tenantName === 'string' ? body.tenantName : target.tenantName,
       remark: (body.remark as string | null) ?? target.remark,
+      // 租户档案三新字段（REQ-20261117-025200）：随体透传（null=清空/长期）
+      contactName: (body.contactName as string | null | undefined) ?? null,
+      contactPhone: (body.contactPhone as string | null | undefined) ?? null,
+      expiresAt: (body.expiresAt as string | null | undefined) ?? null,
       version: String(Number(target.version) + 1),
     };
     store.tenants = store.tenants.map((tenant) => (tenant.id === id ? updated : tenant));

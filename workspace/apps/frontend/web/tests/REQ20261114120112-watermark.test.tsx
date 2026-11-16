@@ -111,7 +111,7 @@ const seedSession = () => {
 };
 
 /** 服务端租户配置 fixture（A-15：持久化语义的承载面，可被用例改写为关闭态）。 */
-let configFixture: AdminSystemConfigView = { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' };
+let configFixture: AdminSystemConfigView = { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' };
 
 const renderAppAt = async (hash: string) => {
   seedSession();
@@ -150,7 +150,7 @@ beforeEach(() => {
   window.sessionStorage.clear();
   // store 为模块级单例：复位缺省态（A-13），防上一用例关闭态跨用例残留
   useSystemConfigStore.setState({ watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0', loaded: false });
-  configFixture = { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' };
+  configFixture = { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' };
   useAuthStore.getState().clear();
   useMeStore.getState().clear();
   fillTextSpy.mockClear();
@@ -193,7 +193,7 @@ describe('REQ20261114120112 全局水印（AC-3）', () => {
     await renderAppAt('#/dashboard');
     await waitFor(() => expect(watermarkLayer(document.body)).not.toBeNull());
     // 服务端持久化（A-15）：租户配置行已为关闭态 → 刷新/重新登录经 load() 加载生效
-    configFixture = { watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '1' };
+    configFixture = { watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '1' };
     await act(async () => { await useSystemConfigStore.getState().load(); });
     expect(useSystemConfigStore.getState().watermarkEnabled).toBe(false);
     await waitFor(() => expect(watermarkLayer(document.body)).toBeNull());

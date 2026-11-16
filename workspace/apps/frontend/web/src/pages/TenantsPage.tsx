@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { App, Button, Form, Input, Popconfirm, Space, Tag, Typography } from 'antd';
+import { App, Button, DatePicker, Form, Input, Popconfirm, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs, { type Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import { ApiError, formatDate, systemApi, useCrud, useMeStore, type AdminTenantView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
@@ -14,6 +15,10 @@ interface TenantFormValues {
   tenantCode: string;
   tenantName: string;
   remark?: string;
+  /** 联系人/联系电话/有效期（REQ-20261117-025200；expiresAt 表单态为 Dayjs，提交转 ISO 字符串，清空=null 长期）。 */
+  contactName?: string;
+  contactPhone?: string;
+  expiresAt?: Dayjs | null;
 }
 
 /** 租户管理（p2-admin）：分页/搜索/新建/改名/启停；无删除能力——停用代替（FR-007）。
@@ -45,23 +50,42 @@ export function TenantsPage() {
 
   const openEdit = (record: AdminTenantView) => {
     setEditing(record);
-    form.setFieldsValue({ tenantCode: record.tenantCode, tenantName: record.tenantName, remark: record.remark ?? undefined });
+    form.setFieldsValue({
+      tenantCode: record.tenantCode,
+      tenantName: record.tenantName,
+      remark: record.remark ?? undefined,
+      contactName: record.contactName ?? undefined,
+      contactPhone: record.contactPhone ?? undefined,
+      expiresAt: record.expiresAt ? dayjs(record.expiresAt) : undefined,
+    });
     setCreating(false);
   };
 
   const submit = async () => {
     const values = await form.validateFields();
+    // 三新字段归一：文本 trim 空串→null；expiresAt Dayjs→ISO-8601 字符串，清空=null（长期）
+    const profile = {
+      contactName: values.contactName?.trim() || null,
+      contactPhone: values.contactPhone?.trim() || null,
+      expiresAt: values.expiresAt ? values.expiresAt.toISOString() : null,
+    };
     setSubmitting(true);
     try {
       if (editing) {
         await systemApi.tenantUpdate(editing.id, {
           tenantName: values.tenantName,
           remark: values.remark,
+          ...profile,
           version: editing.version,
         });
         message.success(t('tenants.form.updated'));
       } else {
-        await systemApi.tenantCreate(values);
+        await systemApi.tenantCreate({
+          tenantCode: values.tenantCode,
+          tenantName: values.tenantName,
+          remark: values.remark,
+          ...profile,
+        });
         message.success(t('tenants.form.created'));
       }
       setEditing(null);
@@ -94,6 +118,8 @@ export function TenantsPage() {
         <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>
       ),
     },
+    { title: t('tenants.columns.contact'), dataIndex: 'contactName', key: 'contactName', minWidth: 120, ellipsis: true, render: (v: string | null) => v ?? '—' },
+    { title: t('tenants.columns.expiresAt'), dataIndex: 'expiresAt', key: 'expiresAt', minWidth: 180, render: (v: string | null) => formatDate(v) },
     { title: t('tenants.columns.remark'), dataIndex: 'remark', key: 'remark', minWidth: 200, ellipsis: true, render: (v: string | null) => v ?? '—' },
     { title: t('tenants.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', minWidth: 180, render: (v: string) => formatDate(v) },
     {
@@ -163,6 +189,24 @@ export function TenantsPage() {
         </Form.Item>
         <Form.Item name="remark" label={t('tenants.form.remark')} rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}>
           <Input.TextArea placeholder={t('common.validation.optional')} rows={2} />
+        </Form.Item>
+        {/* 租户档案三新字段（REQ-20261117-025200）：联系人/联系电话/有效期（清空=长期） */}
+        <Form.Item
+          name="contactName"
+          label={t('tenants.form.contact')}
+          rules={[{ max: 64, message: t('common.validation.maxLength', { max: 64 }) }]}
+        >
+          <Input placeholder={t('tenants.form.contactPlaceholder')} maxLength={64} autoComplete="off" />
+        </Form.Item>
+        <Form.Item
+          name="contactPhone"
+          label={t('tenants.form.contactPhone')}
+          rules={[{ max: 32, message: t('common.validation.maxLength', { max: 32 }) }]}
+        >
+          <Input placeholder={t('tenants.form.contactPhonePlaceholder')} maxLength={32} autoComplete="off" />
+        </Form.Item>
+        <Form.Item name="expiresAt" label={t('tenants.form.expiresAt')} extra={t('tenants.form.expiresAtExtra')}>
+          <DatePicker style={{ width: '100%' }} allowClear placeholder={t('common.validation.optional')} />
         </Form.Item>
         {editing ? (
           <Text type="secondary" style={{ fontSize: 12 }}>

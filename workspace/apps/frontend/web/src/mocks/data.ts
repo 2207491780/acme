@@ -58,12 +58,24 @@ export const me = {
 };
 
 /** 租户系统配置种子（REQ-20261116-230354）：缺省=水印开/闲置锁屏关/version "0"；
- *  REQ-20261117-011514 增验证码开关（V16 内置默认关闭）。 */
-export const systemConfig: AdminSystemConfigView = { watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, version: '0' };
+ *  REQ-20261117-011514 增验证码开关（V16 内置默认关闭）；
+ *  REQ-20261117-025200 增页脚版权（V17 内置默认 copyright=null/visible=false）。 */
+export const systemConfig: AdminSystemConfigView = {
+  watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
+  footerCopyright: null, footerVisible: false, version: '0',
+};
 
 export const tenants: AdminTenantView[] = [
-  { id: '1', tenantCode: 'acme', tenantName: 'ACME 总部', status: 'ENABLED', remark: null, createdAt: '2026-01-01T00:00:00Z', version: '0' },
-  { id: '2', tenantCode: 'beta', tenantName: 'Beta 试点', status: 'ENABLED', remark: null, createdAt: '2026-01-02T00:00:00Z', version: '0' },
+  {
+    id: '1', tenantCode: 'acme', tenantName: 'ACME 总部', status: 'ENABLED', remark: null,
+    contactName: '平台管理员', contactPhone: '13800000000', expiresAt: null,
+    createdAt: '2026-01-01T00:00:00Z', version: '0',
+  },
+  {
+    id: '2', tenantCode: 'beta', tenantName: 'Beta 试点', status: 'ENABLED', remark: null,
+    contactName: null, contactPhone: null, expiresAt: null,
+    createdAt: '2026-01-02T00:00:00Z', version: '0',
+  },
 ];
 
 export const users: AdminUserView[] = [

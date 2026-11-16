@@ -3,7 +3,7 @@ import { Alert, App, Button, Card, Checkbox, Divider, Form, Input, Select, Space
 import { ApartmentOutlined, GlobalOutlined, LockOutlined, ReloadOutlined, SafetyCertificateOutlined, ThunderboltOutlined, UserOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ApiError, authApi, useAuthStore, type CaptchaData, type TenantSummary } from '@acme/core';
+import { ApiError, authApi, useAuthStore, type CaptchaData, type TenantPublicConfigView, type TenantSummary } from '@acme/core';
 import { loginFormDefaults } from './loginDefaults';
 
 const { Text } = Typography;
@@ -33,6 +33,9 @@ export function LoginPage() {
   const [tenantsError, setTenantsError] = useState<string | null>(null);
   /** 所选租户验证码策略：null=查询在途/未定（fail-closed：提交仍要求验证码，但输入框与图形码请求暂缓）。 */
   const [captchaPolicyOn, setCaptchaPolicyOn] = useState<boolean | null>(null);
+  /** 所选租户页脚版权（REQ-20261117-025200）：独立于验证码策略的公开配置查询；
+   *  null=查询在途/失败/未选中租户（失败静默不显示，页脚非关键面）。 */
+  const [footerConfig, setFooterConfig] = useState<TenantPublicConfigView | null>(null);
   const [captcha, setCaptcha] = useState<CaptchaData | null>(null);
   const [captchaLoading, setCaptchaLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -42,6 +45,8 @@ export function LoginPage() {
   const tenantCode = Form.useWatch('tenantCode', form);
   // 竞态护栏：仅最新一次策略查询可落状态（快速切换租户时旧响应作废）
   const policyRequestRef = useRef('');
+  // 页脚版权竞态护栏：独立于策略请求（独立 state/独立请求，可并行发起，REQ-20261117-025200）
+  const footerRequestRef = useRef('');
 
   // 开发阶段便利性：dev server 下预填超管默认凭据（生产构建不含，见 loginDefaults.ts）
   const devDefaults = loginFormDefaults(import.meta.env.DEV);
@@ -112,6 +117,28 @@ export function LoginPage() {
       setCaptcha(null);
     }
   }, [tenantCode, loadCaptchaPolicy]);
+
+  // 页脚版权（REQ-20261117-025200）：随所选租户独立查询 public-config（不影响既有验证码策略链路）；
+  // 请求失败静默不显示（页脚非关键面，不进 tenantsError/Alert）
+  useEffect(() => {
+    if (!tenantCode) {
+      footerRequestRef.current = '';
+      setFooterConfig(null);
+      return;
+    }
+    footerRequestRef.current = tenantCode;
+    authApi.publicConfig(tenantCode)
+      .then((config) => {
+        if (footerRequestRef.current === tenantCode) {
+          setFooterConfig(config);
+        }
+      })
+      .catch(() => {
+        if (footerRequestRef.current === tenantCode) {
+          setFooterConfig(null);
+        }
+      });
+  }, [tenantCode]);
 
   // 策略开 → 请求图形验证码；策略关/未定 → 不请求图形码接口（契约确认记录③）
   useEffect(() => {
@@ -324,6 +351,11 @@ export function LoginPage() {
             </Form>
           </Card>
         </div>
+        {/* 登录页页脚版权（REQ-20261117-025200 AC-10）：所选租户 public-config 显隐，
+            visible 且文案非空才渲染（空串/null 不渲染空标签） */}
+        {footerConfig?.footerVisible && footerConfig.footerCopyright ? (
+          <footer className="app-foot" style={{ marginTop: 24 }}>{footerConfig.footerCopyright}</footer>
+        ) : null}
       </div>
     </div>
   );

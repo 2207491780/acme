@@ -19,6 +19,13 @@ export interface CaptchaPolicyView {
   captchaEnabled: boolean;
 }
 
+/** 租户公开站点配置视图（契约对齐 TenantPublicConfigView，REQ-20261117-025200：仅暴露页脚两字段；
+ *  无行/未知租户 → 缺省（null,false）；登录页页脚显隐依据，非安全面 fail-open）。 */
+export interface TenantPublicConfigView {
+  footerCopyright: string | null;
+  footerVisible: boolean;
+}
+
 /** B 端登录提交（契约对齐 AdminLoginRequest；REQ-20261117-011514：租户策略关时验证码字段整体省略）。 */
 export interface LoginPayload {
   tenantCode: string;
@@ -87,6 +94,22 @@ export const authApi = {
   /** 图形验证码（公开端点；captchaId 登录时原样回传）。 */
   captcha: (): Promise<CaptchaData> =>
     apiFetch<CaptchaData>('/admin/v1/auth/captcha', { method: 'GET' }, { auth: false }),
+  /** 公开站点配置（公开端点，REQ-20261117-025200；登录页页脚显隐依据，解包口径同 captchaPolicy；
+   *  无行/未知租户后端返回缺省（null,false），system 不可用 fail-open 亦缺省）。 */
+  publicConfig: (tenantCode: string): Promise<TenantPublicConfigView> =>
+    apiFetch<TenantPublicConfigView>(
+      `/admin/v1/auth/public-config?tenantCode=${encodeURIComponent(tenantCode)}`,
+      { method: 'GET' },
+      { auth: false },
+    ),
+  /** 超管跨租户切换（认证端点，REQ-20261117-025200；非超管 403，目标租户未知/停用/过期业务错误码）。
+   *  成功=签发目标租户新令牌并互踢旧会话；返回 AdminTokenIssued（userId wire string，同 login）。 */
+  tenantSwitch: (targetTenantCode: string): Promise<TokenIssued> =>
+    apiFetch<TokenIssued>('/admin/v1/auth/tenant-switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetTenantCode }),
+    }),
   /** 登录（公开端点；成功签发 B 端 JWS 访问令牌，默认 30 分钟短会话）。 */
   login: (payload: LoginPayload): Promise<TokenIssued> =>
     apiFetch<TokenIssued>('/admin/v1/auth/tokens', {

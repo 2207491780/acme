@@ -50,13 +50,18 @@ export interface AdminMeView {
 }
 
 /** 租户系统配置视图（契约对齐 AdminSystemConfigView，REQ-20261116-230354；version 乐观锁字符串）。
- *  REQ-20261117-011514 扩展 captchaEnabled（缺省视图=false）。 */
+ *  REQ-20261117-011514 扩展 captchaEnabled（缺省视图=false）。
+ *  REQ-20261117-025200 扩展页脚版权两字段（缺省视图 copyright=null/visible=false，未配置不显示）。 */
 export interface AdminSystemConfigView {
   watermarkEnabled: boolean;
   /** 登录图形验证码开关（REQ-20261117-011514；无配置行缺省 false）。 */
   captchaEnabled: boolean;
   /** 闲置锁屏时长（毫秒），0 = 关闭；合法值 0/60000/300000/900000。 */
   lockIdleTimeoutMs: number;
+  /** 页脚版权文案（REQ-20261117-025200；≤255，可空——null/空串均不渲染页脚）。 */
+  footerCopyright: string | null;
+  /** 页脚显隐开关（REQ-20261117-025200；无配置行缺省 false）。 */
+  footerVisible: boolean;
   version: string;
 }
 
@@ -65,16 +70,25 @@ export interface AdminSystemConfigUpdate {
   watermarkEnabled: boolean;
   captchaEnabled: boolean;
   lockIdleTimeoutMs: number;
+  /** 页脚版权文案（REQ-20261117-025200；≤255，可空）。 */
+  footerCopyright: string | null;
+  /** 页脚显隐开关（REQ-20261117-025200）。 */
+  footerVisible: boolean;
   version: string;
 }
 
-/** 租户视图（契约对齐 AdminTenantView；id/version 序列化为字符串）。 */
+/** 租户视图（契约对齐 AdminTenantView；id/version 序列化为字符串）。
+ *  REQ-20261117-025200 扩展联系人/联系电话/有效期（可空；expiresAt ISO-8601 字符串，null=长期）。 */
 export interface AdminTenantView {
   id: string;
   tenantCode: string;
   tenantName: string;
   status: 'ENABLED' | 'DISABLED';
   remark: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  /** 有效期（ISO-8601 字符串；null=长期；过期租户登录被拒，存量允许过去时间）。 */
+  expiresAt: string | null;
   createdAt: string;
   version: string;
 }
@@ -173,15 +187,15 @@ export const systemApi = {
   /** 租户分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */
   tenantList: (page: number, size: number, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminTenantView>> =>
     apiFetch<PageResult<AdminTenantView>>(`/admin/v1/system/tenants?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
-  /** 新建租户（tenantCode 全局唯一且不可改）。 */
-  tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string }): Promise<AdminTenantView> =>
+  /** 新建租户（tenantCode 全局唯一且不可改；REQ-20261117-025200 增联系人/联系电话/有效期，可空=长期）。 */
+  tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null }): Promise<AdminTenantView> =>
     apiFetch<AdminTenantView>('/admin/v1/system/tenants', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }),
-  /** 租户改名/备注（version 乐观锁）。 */
-  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; version: string }): Promise<AdminTenantView> =>
+  /** 租户改名/备注/联系人/有效期（version 乐观锁）。 */
+  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; version: string }): Promise<AdminTenantView> =>
     apiFetch<AdminTenantView>(`/admin/v1/system/tenants/${tenantId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
