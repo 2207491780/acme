@@ -3,9 +3,11 @@ import type { ReactNode } from 'react';
 import { App, Button, Card, Col, Input, Row, Select, Space, Switch, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
+  CalendarOutlined,
   CloudDownloadOutlined,
   DatabaseOutlined,
   DownloadOutlined,
+  FieldTimeOutlined,
   GlobalOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
@@ -13,8 +15,19 @@ import {
   ThunderboltOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import type { Accent, AppLocale } from '@acme/core';
-import { SUPPORTED_LOCALES, useLocaleStore, useLockStore, useUiPrefsStore } from '@acme/core';
+import type { Accent, AppLocale, DateFormatTemplate, TimezonePref } from '@acme/core';
+import {
+  DATE_FORMAT_TEMPLATES,
+  formatDate,
+  SUPPORTED_LOCALES,
+  SUPPORTED_TIMEZONES,
+  useDateFormatStore,
+  useLocaleStore,
+  useLockStore,
+  useTimezoneStore,
+  useUiPrefsStore,
+} from '@acme/core';
+import dayjs from 'dayjs';
 import { useStore } from '../store/useStore';
 import { PageHead } from '../components/PageHead';
 import { ACCENTS, ACCENT_ORDER } from '../theme';
@@ -260,14 +273,16 @@ export function Settings() {
               }
             />
             <SettingRow label={t('settings.runtime.label')} desc={runtime.info} control={<Text style={{ color: 'var(--accent)' }}>{runtime.badge}</Text>} />
-            <SettingRow
-              label={t('settings.language.label')}
-              desc={t('settings.language.desc')}
-              control={
-                <LanguageSelect />
-              }
-            />
           </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <LanguageCard />
+        </Col>
+        <Col xs={24} lg={12}>
+          <TimezoneCard />
+        </Col>
+        <Col xs={24} lg={12}>
+          <DateFormatCard />
         </Col>
       </Row>
       {platform === 'desktop' && window.acmeDesktop?.checkUpdates && (
@@ -356,7 +371,16 @@ function SecurityCard() {
   );
 }
 
-/** 语言切换入口（Settings；locale 经 useLocaleStore 持久化并联动 i18n/日期 formatter）。 */
+/** 语言卡片（独立小节；locale 经 useLocaleStore 持久化并联动 i18n/日期 formatter）。 */
+function LanguageCard() {
+  const { t } = useTranslation();
+  return (
+    <Card title={<Space><GlobalOutlined style={{ color: 'var(--accent)' }} /> {t('settings.language.title')}</Space>} style={{ height: '100%' }}>
+      <SettingRow label={t('settings.language.label')} desc={t('settings.language.desc')} control={<LanguageSelect />} />
+    </Card>
+  );
+}
+
 function LanguageSelect() {
   const { t } = useTranslation();
   const locale = useLocaleStore((s) => s.locale);
@@ -369,6 +393,75 @@ function LanguageSelect() {
       aria-label={t('settings.language.label')}
       suffixIcon={<GlobalOutlined />}
       options={SUPPORTED_LOCALES.map((value) => ({ value, label: t(LOCALE_LABEL_KEYS[value]) }))}
+    />
+  );
+}
+
+/** 时区卡片（独立小节；经 useTimezoneStore 持久化并联动日期 formatter，全站日期随所选时区展示）。 */
+function TimezoneCard() {
+  const { t } = useTranslation();
+  return (
+    <Card title={<Space><FieldTimeOutlined style={{ color: 'var(--accent)' }} /> {t('settings.timezone.title')}</Space>} style={{ height: '100%' }}>
+      <SettingRow label={t('settings.timezone.label')} desc={t('settings.timezone.desc')} control={<TimezoneSelect />} />
+    </Card>
+  );
+}
+
+function TimezoneSelect() {
+  const { t } = useTranslation();
+  const timezone = useTimezoneStore((s) => s.timezone);
+  const setTimezone = useTimezoneStore((s) => s.setTimezone);
+  return (
+    <Select<TimezonePref>
+      style={{ width: 210 }}
+      value={timezone}
+      onChange={(next) => setTimezone(next)}
+      aria-label={t('settings.timezone.label')}
+      options={SUPPORTED_TIMEZONES.map((value) => ({
+        value,
+        label:
+          value === 'system'
+            ? t('settings.timezone.system')
+            : value === 'UTC'
+              ? 'UTC'
+              : `${t(`settings.timezone.zones.${value}`)} (UTC${dayjs().tz(value).format('Z')})`,
+      }))}
+    />
+  );
+}
+
+/** 日期格式卡片（独立小节；模板偏好经 useDateFormatStore 持久化，示例随语言/时区/模板即时联动）。 */
+function DateFormatCard() {
+  const { t } = useTranslation();
+  // 订阅模板/语言/时区变更：示例经全局 formatter 取值，需随其重渲染
+  useDateFormatStore((s) => s.template);
+  useLocaleStore((s) => s.locale);
+  useTimezoneStore((s) => s.timezone);
+  return (
+    <Card title={<Space><CalendarOutlined style={{ color: 'var(--accent)' }} /> {t('settings.dateFormat.title')}</Space>} style={{ height: '100%' }}>
+      <SettingRow label={t('settings.dateFormat.label')} desc={t('settings.dateFormat.desc')} control={<DateFormatSelect />} />
+      <div style={{ paddingTop: 12 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.dateFormat.preview')}：</Text>
+        <Text style={{ color: 'var(--accent)' }}>{formatDate(Date.now())}</Text>
+      </div>
+    </Card>
+  );
+}
+
+function DateFormatSelect() {
+  const { t } = useTranslation();
+  const template = useDateFormatStore((s) => s.template);
+  const setTemplate = useDateFormatStore((s) => s.setTemplate);
+  return (
+    <Select<DateFormatTemplate>
+      style={{ width: 210 }}
+      value={template}
+      onChange={(next) => setTemplate(next)}
+      aria-label={t('settings.dateFormat.label')}
+      options={DATE_FORMAT_TEMPLATES.map((value) => ({
+        value,
+        label: value === 'auto' ? t('settings.dateFormat.auto') : value,
+      }))}
     />
   );
 }

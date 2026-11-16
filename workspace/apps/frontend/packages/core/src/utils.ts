@@ -1,4 +1,5 @@
 import type { Platform, Env, Status, Tone } from './types';
+import { formatDate, getDateLocale, type DateLocale } from './date-format';
 
 export const esc = (value: unknown): string =>
   String(value ?? '').replace(/[&<>"']/g, (ch) =>
@@ -22,23 +23,44 @@ export function fmtDate(iso: string): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** 完整日期时间展示：委托统一日期 formatter（随全局 locale 切换模板）。 */
 export function fmtFull(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return formatDate(iso);
 }
+
+/** 相对时间文案模板（zh-CN / en-US，随全局日期 locale 切换）。 */
+const REL_TIME_TEXT: Record<DateLocale, {
+  now: string;
+  minute: (n: number) => string;
+  hour: (n: number) => string;
+  day: (n: number) => string;
+}> = {
+  'zh-CN': {
+    now: '刚刚',
+    minute: (n) => `${n} 分钟前`,
+    hour: (n) => `${n} 小时前`,
+    day: (n) => `${n} 天前`,
+  },
+  'en-US': {
+    now: 'just now',
+    minute: (n) => `${n} minute${n > 1 ? 's' : ''} ago`,
+    hour: (n) => `${n} hour${n > 1 ? 's' : ''} ago`,
+    day: (n) => `${n} day${n > 1 ? 's' : ''} ago`,
+  },
+};
 
 export function relTime(iso: string, now: number = Date.now()): string {
   const diff = now - new Date(iso).getTime();
   if (Number.isNaN(diff)) return '—';
+  const text = REL_TIME_TEXT[getDateLocale()];
   const min = Math.floor(diff / 60000);
-  if (min < 1) return '刚刚';
-  if (min < 60) return `${min} 分钟前`;
+  if (min < 1) return text.now;
+  if (min < 60) return text.minute(min);
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} 小时前`;
+  if (hr < 24) return text.hour(hr);
   const day = Math.floor(hr / 24);
-  if (day < 30) return `${day} 天前`;
-  return fmtDate(iso);
+  if (day < 30) return text.day(day);
+  return formatDate(iso);
 }
 
 export function isVersion(value: unknown): boolean {

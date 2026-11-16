@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Tooltip, Watermark } from 'antd';
+import { Alert, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Watermark } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
@@ -8,6 +8,7 @@ import {
   BookOutlined,
   DashboardOutlined,
   DownOutlined,
+  FieldTimeOutlined,
   FileSearchOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
@@ -32,7 +33,8 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, authApi, startAuthRenewal, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useUiPrefsStore, type AppLocale } from '@acme/core';
+import { ACTIVE_STATUSES, authApi, effectiveTimezone, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useTimezoneStore, useUiPrefsStore, type AppLocale, type TimezonePref } from '@acme/core';
+import dayjs from 'dayjs';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
 import { createNotifyClient } from './ws/notify-client';
@@ -133,6 +135,12 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   { path: '/online-users', icon: <TeamOutlined />, labelKey: 'nav.items.onlineUsers', permission: 'auth:online:list' },
   { path: '/settings', icon: <SettingOutlined />, labelKey: 'nav.items.settings' },
 ];
+
+/** 顶栏语言菜单展示名（复用 i18n 资源包 nav.userMenu.language*，语言名以自身语言展示）。 */
+const LOCALE_LABEL_KEYS: Record<AppLocale, string> = {
+  'zh-CN': 'nav.userMenu.languageZh',
+  'en-US': 'nav.userMenu.languageEn',
+};
 
 export function App() {
   const { t } = useTranslation();
@@ -246,16 +254,6 @@ export function App() {
       disabled: true,
     },
     { type: 'divider' },
-    {
-      key: 'locale',
-      icon: <GlobalOutlined />,
-      label: t('nav.userMenu.language'),
-      children: [
-        { key: 'locale-zh-CN', label: t('nav.userMenu.languageZh') },
-        { key: 'locale-en-US', label: t('nav.userMenu.languageEn') },
-      ],
-    },
-    { type: 'divider' },
     { key: 'logout', icon: <LogoutOutlined />, label: t('nav.userMenu.logout'), danger: true },
   ];
 
@@ -274,7 +272,10 @@ export function App() {
     ) : (
       n.label
     );
+  const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
+  const timezone = useTimezoneStore((s) => s.timezone);
+  const setTimezone = useTimezoneStore((s) => s.setTimezone);
   const dynamicNav = useMemo(
     () => (me && (me.menus?.length ?? 0) > 0 ? buildDynamicNav(me.menus, me.permissions, (_label, entry) => labelOf(entry)) : null),
     // labelOf 依赖 activeCount（发布单活跃数）与 t（语言切换后菜单文案重译），随渲染更新
@@ -418,30 +419,70 @@ export function App() {
               </span>
             )}
             <NotificationBell />
-            <Tooltip title={t('nav.header.toggleTheme')}>
-              <Button
-                type="text"
-                icon={settings.theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
-                onClick={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: settings.theme === 'dark' ? 'light' : 'dark' } })}
-                aria-label={t('nav.header.toggleTheme')}
-              />
-            </Tooltip>
-            <Tooltip title={t('nav.header.lockScreen')}>
-              <Button
-                type="text"
-                icon={<LockOutlined />}
-                onClick={() => useLockStore.getState().lock()}
-                aria-label={t('nav.header.lockScreen')}
-              />
-            </Tooltip>
-            <Tooltip title={isFullscreen ? t('nav.header.exitFullscreen') : t('nav.header.enterFullscreen')}>
-              <Button
-                type="text"
-                icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                onClick={() => (isFullscreen ? exitFullscreen() : enterFullscreen())}
-                aria-label={isFullscreen ? t('nav.header.exitFullscreen') : t('nav.header.enterFullscreen')}
-              />
-            </Tooltip>
+            <Dropdown
+              menu={{
+                items: SUPPORTED_LOCALES.map((value) => ({ key: `locale-${value}`, label: t(LOCALE_LABEL_KEYS[value]) })),
+                selectedKeys: [`locale-${locale}`],
+                onClick: onUserMenuClick,
+              }}
+            >
+              <Button type="text" aria-label={t('nav.header.language')} style={{ paddingInline: 8 }}>
+                <Space size={6}>
+                  <GlobalOutlined />
+                  {!isMobile && <span style={{ fontSize: 12 }}>{locale === 'zh-CN' ? '中' : 'EN'}</span>}
+                </Space>
+              </Button>
+            </Dropdown>
+            <Dropdown
+              menu={{
+                items: SUPPORTED_TIMEZONES.map((value) => ({
+                  key: value,
+                  label:
+                    value === 'system'
+                      ? t('settings.timezone.system')
+                      : value === 'UTC'
+                        ? 'UTC'
+                        : `${t(`settings.timezone.zones.${value}`)} (UTC${dayjs().tz(value).format('Z')})`,
+                })),
+                selectedKeys: [timezone],
+                onClick: ({ key }) => setTimezone(key as TimezonePref),
+              }}
+            >
+              <Button type="text" aria-label={t('nav.header.timezone')} style={{ paddingInline: 8 }}>
+                <Space size={6}>
+                  <FieldTimeOutlined />
+                  {!isMobile && (
+                    <span style={{ fontSize: 12 }}>
+                      UTC{dayjs().tz(effectiveTimezone()).format('Z').slice(0, 3)}
+                    </span>
+                  )}
+                </Space>
+              </Button>
+            </Dropdown>
+            <Button
+              type="text"
+              icon={settings.theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+              onClick={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: settings.theme === 'dark' ? 'light' : 'dark' } })}
+              aria-label={t('nav.header.toggleTheme')}
+            />
+            <Button
+              type="text"
+              icon={<LockOutlined />}
+              onClick={() => useLockStore.getState().lock()}
+              aria-label={t('nav.header.lockScreen')}
+            />
+            <Button
+              type="text"
+              icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+              onClick={() => (isFullscreen ? exitFullscreen() : enterFullscreen())}
+              aria-label={isFullscreen ? t('nav.header.exitFullscreen') : t('nav.header.enterFullscreen')}
+            />
+            <Button
+              type="text"
+              icon={<SettingOutlined />}
+              onClick={() => go('/settings')}
+              aria-label={t('nav.header.settings')}
+            />
             <Dropdown
               menu={{
                 items: userMenuItems,

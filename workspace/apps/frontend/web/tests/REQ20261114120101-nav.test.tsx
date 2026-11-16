@@ -18,11 +18,11 @@
  *   A-25 渲染整棵 App：Dashboard 等伴随请求统一 mock 回空信封，不影响导航断言
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App as AntApp } from 'antd';
 import { HashRouter } from 'react-router-dom';
 import { App } from '../src/App';
-import { useAuthStore, useMeStore } from '@acme/core';
+import { getDateLocale, i18n, useAuthStore, useLocaleStore, useMeStore, useTimezoneStore } from '@acme/core';
 
 vi.setConfig({ testTimeout: 15000 });
 
@@ -215,4 +215,86 @@ describe('App shell 布局：内容区视口内自滚', () => {
     const header = column.querySelector('header.ant-layout-header') as HTMLElement;
     expect(header.style.flexShrink).toBe('0');
   });
+});
+
+// ————— 顶栏语言切换 + 设置入口（语言与主题/锁定同栏；设置不再依赖动态菜单收录） —————
+describe('顶栏语言切换与设置入口', () => {
+  beforeEach(async () => {
+    // 基线钉死 zh-CN（jsdom navigator.language=en-US，防初始语言漂移）
+    await act(async () => {
+      await i18n.changeLanguage('zh-CN');
+    });
+    window.localStorage.clear();
+  });
+
+  afterEach(async () => {
+    await act(async () => {
+      await i18n.changeLanguage('zh-CN');
+    });
+    useTimezoneStore.getState().setTimezone('system');
+  });
+
+  const openHeaderMenu = async (triggerName: string, itemText: string) => {
+    fireEvent.mouseEnter(screen.getByRole('button', { name: triggerName }));
+    // 全套件并行时 hover 弹层渲染可能超过默认 1s 查找窗口，放宽到 5s
+    fireEvent.click(await screen.findByText(itemText, {}, { timeout: 5000 }));
+  };
+
+  it('should_switch_locale_and_date_format_when_header_language_used', async () => {
+    await renderApp(HELD_PERMS, MENUS);
+    await screen.findByText('首页概览');
+
+    await openHeaderMenu('切换语言', 'English');
+    await waitFor(() => {
+      expect(useLocaleStore.getState().locale).toBe('en-US');
+    }, { timeout: 5000 });
+    expect(getDateLocale()).toBe('en-US'); // 日期 formatter 联动
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeTruthy(); // 顶栏文案随语言
+    expect(Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.getItem(window.localStorage.key(i) ?? ''))
+      .some((v) => v?.includes('en-US'))).toBe(true); // locale 持久化
+
+    await openHeaderMenu('Switch language', '简体中文');
+    await waitFor(() => {
+      expect(useLocaleStore.getState().locale).toBe('zh-CN');
+    }, { timeout: 5000 });
+    expect(getDateLocale()).toBe('zh-CN');
+  }, 30000); // 两次切换各含 5s 查找窗口，全套件并行负载下放宽单例时限
+
+  it('should_navigate_to_settings_when_header_settings_clicked', async () => {
+    await renderApp(HELD_PERMS, MENUS);
+    await screen.findByText('首页概览');
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/settings');
+    }, { timeout: 5000 });
+    expect(await screen.findByText('外观', {}, { timeout: 5000 })).toBeTruthy(); // 设置页外观卡片挂载
+  });
+
+  it('should_not_offer_locale_submenu_in_user_menu_when_language_in_header', async () => {
+    await renderApp(HELD_PERMS, MENUS);
+    await screen.findByText('首页概览');
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: '打开用户菜单' }));
+    await screen.findByText('退出登录', {}, { timeout: 5000 });
+    expect(screen.queryByText('语言 / Language')).toBeNull();
+    expect(screen.queryByText('简体中文')).toBeNull();
+  });
+
+  it('should_switch_timezone_when_header_timezone_used', async () => {
+    await renderApp(HELD_PERMS, MENUS);
+    await screen.findByText('首页概览');
+
+    await openHeaderMenu('切换时区', 'UTC');
+    await waitFor(() => {
+      expect(useTimezoneStore.getState().timezone).toBe('UTC');
+    }, { timeout: 5000 });
+    expect(window.localStorage.getItem('acme.timezone.v1')).toContain('UTC');
+    expect(screen.getByRole('button', { name: '切换时区' }).textContent).toContain('UTC+0'); // 顶栏短标签跟随
+
+    await openHeaderMenu('切换时区', '跟随系统');
+    await waitFor(() => {
+      expect(useTimezoneStore.getState().timezone).toBe('system');
+    }, { timeout: 5000 });
+  }, 30000);
 });

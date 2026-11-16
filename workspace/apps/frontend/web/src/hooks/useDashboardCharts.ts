@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import {
   createChartOption,
   metrics,
+  useTimezoneStore,
+  zonedDayjs,
   type AppState,
   type DistributionChartData,
   type TrendChartData,
@@ -28,13 +30,14 @@ const TREND_DAYS = 7;
 function deriveStats(state: AppState): DashboardChartStats {
   const labels: string[] = [];
   const values: number[] = [];
+  // 按生效时区分桶（日期国际化·时区维度）：跨时区时「近 7 日」的日界随所选时区移动
+  const today = zonedDayjs();
   for (let i = TREND_DAYS - 1; i >= 0; i -= 1) {
-    const day = new Date();
-    day.setDate(day.getDate() - i);
-    const key = day.toDateString();
-    labels.push(`${day.getMonth() + 1}/${day.getDate()}`);
+    const day = today.subtract(i, 'day');
+    const key = day.format('YYYY-MM-DD');
+    labels.push(day.format('M/D'));
     values.push(
-      state.releases.filter((r) => new Date(r.updatedAt).toDateString() === key).length,
+      state.releases.filter((r) => zonedDayjs(r.updatedAt).format('YYYY-MM-DD') === key).length,
     );
   }
   const m = metrics(state);
@@ -51,8 +54,9 @@ export function useDashboardCharts(stats?: DashboardChartStats | null): {
 } {
   const state = useStore((s) => s.state);
   const settings = state.settings;
+  const timezone = useTimezoneStore((s) => s.timezone);
   const theme = useMemo(() => themeSnapshot(settings), [settings]);
-  const derived = useMemo(() => deriveStats(state), [state]);
+  const derived = useMemo(() => deriveStats(state), [state, timezone]);
   const source = stats === undefined ? derived : stats;
 
   return useMemo(() => {
