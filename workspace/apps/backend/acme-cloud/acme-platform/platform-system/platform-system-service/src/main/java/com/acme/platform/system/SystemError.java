@@ -113,7 +113,10 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     POSITION_IN_USE(SystemErrorCodes.POSITION_IN_USE, "该岗位已被用户引用，不允许删除", 409),
 
     /** 租户内岗位编码已存在（REQ-20261114-120104 实施增补）。 */
-    POSITION_CODE_DUPLICATED(SystemErrorCodes.POSITION_CODE_DUPLICATED, "岗位编码已存在", 409);
+    POSITION_CODE_DUPLICATED(SystemErrorCodes.POSITION_CODE_DUPLICATED, "岗位编码已存在", 409),
+
+    /** 系统配置闲置锁屏时长取值非法（REQ-20261116-230354，对齐 DATA_SCOPE_INVALID 档位非法先例）。 */
+    SYSTEM_CONFIG_INVALID(SystemErrorCodes.SYSTEM_CONFIG_INVALID, "闲置锁屏时长取值非法", 409);
 
     private final String code;
     private final String defaultMessage;

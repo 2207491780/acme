@@ -80,8 +80,9 @@ class SystemIntegrationTest {
     @Test
     void flywaySeedPresent() {
         // 种子数据（V2 基线 + V3/V4 infra 增补 + V5 内容域增补 + V7 文件/任务/Excel 权限增补
-        // + V8 通知公告/站内信权限增补 + V9 组织架构/数据范围权限增补）：默认租户 / 超管 / super_admin /
-        // 62 权限点（53+9）/ 9 菜单（AC-009 前置；me.menus 语义不动）
+        // + V8 通知公告/站内信权限增补 + V9 组织架构/数据范围权限增补 + V10 登录安全权限增补
+        // + V15 系统配置权限/菜单增补）：默认租户 / 超管 / super_admin /
+        // 67 权限点（62+3+2）/ 10 菜单（AC-009 前置；me.menus 语义不动）
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_tenant where tenant_code='default'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
@@ -89,9 +90,9 @@ class SystemIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_role where role_code='super_admin'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_permission", Long.class)).isEqualTo(62L);
+                "select count(*) from sys_permission", Long.class)).isEqualTo(67L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_menu", Long.class)).isEqualTo(9L);
+                "select count(*) from sys_menu", Long.class)).isEqualTo(10L);
         // REQ-20261114-071607：文件服务/任务调度/Excel demo 权限点种子（接口级 http_method + http_path）
         assertThat(jdbcTemplate.queryForList(
                 "select permission_code from sys_permission where permission_code like 'infra:file:%' "
@@ -123,18 +124,20 @@ class SystemIntegrationTest {
 
     @Test
     void seedScriptReplayIsIdempotent() {
-        // 直接重放 V2/V8/V9 种子 SQL（幂等口径 AC-009：固定主键 + ON CONFLICT DO NOTHING 不产生重复行）
-        jdbcTemplate.execute(readResource("db/migration/V2__seed_baseline.sql"));
-        jdbcTemplate.execute(readResource("db/migration/V8__notice_message_notify.sql"));
-        jdbcTemplate.execute(readResource("db/migration/V9__org_structure_data_scope.sql"));
+        // 重放 V2/V8/V9/V15 的 INSERT 种子语句（幂等口径 AC-009：固定主键 + ON CONFLICT DO NOTHING
+        // 不产生重复行）；DDL 由 Flyway 一次性执行、不在幂等重放范围（裸 CREATE TABLE 重跑必报已存在）
+        replaySeedInserts("db/migration/V2__seed_baseline.sql");
+        replaySeedInserts("db/migration/V8__notice_message_notify.sql");
+        replaySeedInserts("db/migration/V9__org_structure_data_scope.sql");
+        replaySeedInserts("db/migration/V15__system_config.sql");
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_user where username='admin'",
                 Long.class)).isEqualTo(1L);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(62L);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(67L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 46",
-                Long.class)).isEqualTo(17L);
-        // V9 幂等：绑定行 9 条（58-66）与权限点 9 条（54-62）不因重放翻倍
+                Long.class)).isEqualTo(22L);
+        // V9 幂等：绑定行与权限点不因重放翻倍（>=54 含 V9 9 条 + V10 3 条 + V15 2 条）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 54",
-                Long.class)).isEqualTo(9L);
+                Long.class)).isEqualTo(14L);
     }
 
     @Test
@@ -495,6 +498,19 @@ class SystemIntegrationTest {
                 .isInstanceOf(com.acme.common.core.BizException.class);
         assertThat(uHq.getDeptId()).isEqualTo(hq.getId());
         UserContext.clear();
+    }
+
+    /** 按分号切分迁移脚本、剔除 -- 注释行后仅重放 INSERT 语句（种子值不含分号字面量）。 */
+    private void replaySeedInserts(String path) {
+        for (String chunk : readResource(path).split(";")) {
+            String statement = chunk.lines()
+                    .filter(line -> !line.strip().startsWith("--"))
+                    .collect(java.util.stream.Collectors.joining("\n"))
+                    .strip();
+            if (statement.regionMatches(true, 0, "insert", 0, 6)) {
+                jdbcTemplate.execute(statement);
+            }
+        }
     }
 
     private static String readResource(String path) {

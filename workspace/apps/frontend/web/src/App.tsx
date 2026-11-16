@@ -6,6 +6,7 @@ import {
   ApartmentOutlined,
   AppstoreOutlined,
   BookOutlined,
+  ControlOutlined,
   DashboardOutlined,
   DownOutlined,
   FieldTimeOutlined,
@@ -33,7 +34,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, authApi, effectiveTimezone, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useTimezoneStore, useUiPrefsStore, type AppLocale, type TimezonePref } from '@acme/core';
+import { ACTIVE_STATUSES, authApi, effectiveTimezone, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TimezonePref } from '@acme/core';
 import dayjs from 'dayjs';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
@@ -50,6 +51,7 @@ import { PositionsPage } from './pages/PositionsPage';
 import { PermissionsPage } from './pages/PermissionsPage';
 import { MenusPage } from './pages/MenusPage';
 import { DictsPage } from './pages/DictsPage';
+import { SystemConfigPage } from './pages/SystemConfigPage';
 import { AuditPage } from './pages/AuditPage';
 import { LoginLogsPage } from './pages/LoginLogsPage';
 import { OnlineUsersPage } from './pages/OnlineUsersPage';
@@ -129,6 +131,7 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   { path: '/permissions', icon: <SafetyCertificateOutlined />, labelKey: 'nav.items.permissions', permission: 'system:permission:list' },
   { path: '/menus', icon: <MenuOutlined />, labelKey: 'nav.items.menus', permission: 'system:menu:list' },
   { path: '/dicts', icon: <BookOutlined />, labelKey: 'nav.items.dicts', permission: 'system:dict:list' },
+  { path: '/system/config', icon: <ControlOutlined />, labelKey: 'nav.items.systemConfig', permission: 'system:config:list' },
   { path: '/notices', icon: <NotificationOutlined />, labelKey: 'nav.items.notices', permission: 'system:notice:list' },
   { path: '/audit', icon: <FileSearchOutlined />, labelKey: 'nav.items.audit', permission: 'infra:audit:list' },
   { path: '/login-logs', icon: <HistoryOutlined />, labelKey: 'nav.items.loginLogs', permission: 'auth:loginlog:list' },
@@ -169,11 +172,16 @@ export function App() {
 
   // 会话恢复校验（p1-me-sync）：进入应用即拉取服务端画像（me 401 由 client 续约/清会话处理）。
   // 依赖收敛为 isAuthed：滑动续约会整体替换 session 对象，以 session 为依赖会导致每次续约重复拉取 me。
+  // 租户系统配置（REQ-20261116-230354）随会话就绪加载（水印显隐 + 闲置锁屏时长强制生效）；
+  // 登出/会话失效复位为缺省（水印开/闲置关）并解除闲置计时。
   useEffect(() => {
     if (isAuthed) {
       void useMeStore.getState().load();
+      void useSystemConfigStore.getState().load();
     } else {
       useMeStore.getState().clear();
+      useSystemConfigStore.setState({ watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0', loaded: false });
+      useLockStore.getState().setIdleTimeoutMs(0);
     }
   }, [isAuthed]);
 
@@ -215,13 +223,13 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // 全屏 / 水印（REQ-20261114-120112，AC-3/AC-5）：水印开关即时生效（Settings 可关）
+  // 全屏 / 水印（REQ-20261116-230354，AC-7）：显隐由租户系统配置强制决定（个人设置项已移除）
   const { isFullscreen, enter: enterFullscreen, exit: exitFullscreen } = useFullscreen();
-  const watermarkEnabled = useUiPrefsStore((s) => s.watermarkEnabled);
+  const watermarkEnabled = useSystemConfigStore((s) => s.watermarkEnabled);
 
-  // 闲置锁屏（AC-4）：进入应用武装闲置计时（时长来自 UI 偏好，0=关闭）；用户活动打点重置计时
+  // 闲置锁屏（AC-8）：时长由租户配置经 systemConfigStore 副作用武装（setIdleTimeoutMs）；
+  // 此处仅注册用户活动打点（重置计时）与卸载清理
   useEffect(() => {
-    useLockStore.getState().setIdleTimeoutMs(useUiPrefsStore.getState().lockIdleTimeoutMs);
     const onTouch = () => useLockStore.getState().touch();
     document.addEventListener('pointerdown', onTouch);
     document.addEventListener('keydown', onTouch);
@@ -647,6 +655,9 @@ export function App() {
                   </PageBoundary>
                 )}
               />
+              {/* 系统配置（REQ-20261116-230354）：GET 认证即可读，页面不设 PermissionGate；
+                  保存能力在页面内按 system:config:update fail-closed（AC-6） */}
+              <Route path="/system/config" element={<PageBoundary><SystemConfigPage /></PageBoundary>} />
               <Route path="/settings" element={<PageBoundary><Settings /></PageBoundary>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -683,7 +694,7 @@ export function App() {
       <LockScreenOverlay />
     </>
   );
-  // App 级水印（AC-3）：内容=当前用户账号；Settings 关闭（或未登录）立即消失并持久化
+  // App 级水印（AC-7）：内容=当前用户账号；租户配置关闭（或未登录）不渲染
   return watermarkEnabled && session ? (
     <Watermark content={session.username} style={{ minHeight: '100vh' }}>{shell}</Watermark>
   ) : (

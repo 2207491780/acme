@@ -115,6 +115,10 @@ public final class SystemPermissions {
     public static final String MESSAGE_LIST = "system:message:list";
     public static final String MESSAGE_READ = "system:message:read";
 
+    /** 租户级系统配置（REQ-20261116-230354：GET 认证即可读，list 点供菜单显隐；PUT 走 update 点）。 */
+    public static final String CONFIG_LIST = "system:config:list";
+    public static final String CONFIG_UPDATE = "system:config:update";
+
     private SystemPermissions() {
     }
 }

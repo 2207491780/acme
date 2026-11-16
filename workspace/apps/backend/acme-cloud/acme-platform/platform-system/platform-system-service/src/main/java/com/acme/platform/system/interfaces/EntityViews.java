@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.util.TreeBuilder;
 import com.acme.common.util.TreeNode;
+import com.acme.platform.system.domain.SysConfig;
 import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysDictItem;
 import com.acme.platform.system.domain.SysDictType;
@@ -22,6 +23,7 @@ import com.acme.platform.system.api.dto.AdminNoticeView;
 import com.acme.platform.system.api.dto.AdminPermissionView;
 import com.acme.platform.system.api.dto.AdminPositionView;
 import com.acme.platform.system.api.dto.AdminRoleView;
+import com.acme.platform.system.api.dto.AdminSystemConfigView;
 import com.acme.platform.system.api.dto.AdminTenantView;
 import com.acme.platform.system.api.dto.AdminUserView;
 
@@ -124,6 +126,17 @@ public final class EntityViews {
     public static AdminDictItemView dictItemView(SysDictItem item) {
         return new AdminDictItemView(item.getId(), item.getDictTypeId(), item.getItemLabel(),
                 item.getItemValue(), item.getSortOrder(), item.getStatus(), item.getVersion());
+    }
+
+    /** 租户级系统配置视图（REQ-20261116-230354）。 */
+    public static AdminSystemConfigView systemConfigView(SysConfig config) {
+        return new AdminSystemConfigView(config.getWatermarkEnabled(), config.getLockIdleTimeoutMs(),
+                config.getVersion());
+    }
+
+    /** 无配置行租户的缺省视图（契约确认记录④：水印开 / 闲置锁屏关 / version "0"）。 */
+    public static AdminSystemConfigView systemConfigDefaultView() {
+        return new AdminSystemConfigView(true, 0, 0L);
     }
 
     /** 通知公告视图（REQ-20261114-120102）。 */

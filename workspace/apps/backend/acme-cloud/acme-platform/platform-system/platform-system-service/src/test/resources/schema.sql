@@ -130,3 +130,17 @@ CREATE TABLE sys_role_dept (
     deleted    BOOLEAN     NOT NULL,
     CONSTRAINT uk_sys_role_dept UNIQUE (tenant_id, role_id, dept_id)
 );
+
+CREATE TABLE sys_config (
+    id                   BIGINT PRIMARY KEY,
+    tenant_id            VARCHAR(64) NOT NULL,
+    watermark_enabled    BOOLEAN     NOT NULL DEFAULT TRUE,
+    lock_idle_timeout_ms INTEGER     NOT NULL DEFAULT 0,
+    created_at           TIMESTAMP   NOT NULL,
+    created_by           VARCHAR(64) NOT NULL,
+    updated_at           TIMESTAMP   NOT NULL,
+    updated_by           VARCHAR(64) NOT NULL,
+    version              BIGINT      NOT NULL,
+    deleted              BOOLEAN     NOT NULL,
+    CONSTRAINT uk_sys_config_tenant UNIQUE (tenant_id)
+);

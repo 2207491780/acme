@@ -17,6 +17,7 @@ import { audit } from './audit';
 import { loginLogs } from './loginLogs';
 import { onlineUsers } from './onlineUsers';
 import { files } from './files';
+import { systemConfig } from './systemConfig';
 import { settings } from './settings';
 import { components } from './components';
 
@@ -41,6 +42,7 @@ export const enUS = {
   loginLogs,
   onlineUsers,
   files,
+  systemConfig,
   settings,
   components,
 };

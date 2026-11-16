@@ -1,6 +1,9 @@
 /**
- * REQ-20261114-120112 AC-3：全局水印——默认开启、内容=当前用户账号、Settings 关闭后立即
- * 消失并持久化（antd Watermark，零新依赖）。
+ * REQ-20261114-120112 AC-3：全局水印——默认开启、内容=当前用户账号、关闭后立即消失。
+ * REQ-20261116-230354 适配：水印开关由个人偏好（uiPrefsStore，已移除）上收为租户系统配置
+ * （useSystemConfigStore，内存态，引导时经 GET /admin/v1/system/config 加载）；
+ * 「持久化」语义随之改为服务端持久化——本套件以 GET config fixture 承载关闭态，
+ * load() 后重挂载水印保持消失（AC-7 的测试面锚点；新 AC 用例由 tester 并行补充）。
  *
  * 装配照既有范本：
  *   - web/tests/REQ20261114120103-errorBoundary.test.tsx（App 整棵装配：seedSession +
@@ -9,25 +12,24 @@
  *   - jsdom 无 canvas 渲染面 → spy HTMLCanvasElement.prototype.getContext/toDataURL，
  *     以 2D 上下文代理承接（fillText 探针用于断言水印内容=账号）。
  *
- * 【表面假定（REQ20261114120112 套件内连续编号）】
+ * 【表面假定（REQ20261114120112 套件内连续编号；A-13/A-15 随 230354 命名裁定更新）】
  *   A-12 水印=App 级 antd Watermark 包裹内容区（契约变更清单）；水印层判定=inline style
  *        pointer-events:none 且 background-image 为 data:image 的空 div（R3 归因修正：
  *        rc-watermark 实现为纯 background-image 标记层，无 img/canvas 子元素）。
- *   A-13 UI 偏好 store：core barrel 命名导出 useUiPrefsStore（「水印/锁屏设置项进既有
- *        settings 体系」，具体既有 store 名未契约化 → TL 门禁对齐），表面
- *        { watermarkEnabled: boolean; setWatermarkEnabled(v: boolean) }，经 zustand persist
- *        落 localStorage；默认 watermarkEnabled=true（契约「管理端默认开」）。
+ *   A-13 租户配置 store：core barrel 命名导出 useSystemConfigStore（REQ-20261116-230354
+ *        命名裁定），表面 { watermarkEnabled: boolean; lockIdleTimeoutMs: number;
+ *        version: string; loaded: boolean; load(); update() }，内存态不持久化；
+ *        默认 watermarkEnabled=true（契约确认记录④缺省值）。
  *   A-14 水印内容=当前用户账号（契约确认记录②）→ 会话 username 'admin' 经 fillText 落布。
- *   A-15 持久化断言不锁 persist 键名：遍历 localStorage 值包含 '"watermarkEnabled":false'
- *        即判持久化成功；Settings 页面的开关接线由 TL 门禁（AC-6/ui:guide）覆盖，本组
- *        锁定「关闭→立即消失+持久化」的响应链。
+ *   A-15 持久化=服务端（租户配置行）：以 GET /system/config 返回关闭态 fixture + load()
+ *        模拟「他人保存后本人刷新加载」，重挂载水印保持消失；不再断言 localStorage。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { App as AntApp } from 'antd';
 import { HashRouter } from 'react-router-dom';
 import { App } from '../src/App';
-import { useAuthStore, useMeStore, useUiPrefsStore } from '@acme/core';
+import { useAuthStore, useMeStore, useSystemConfigStore, type AdminSystemConfigView } from '@acme/core';
 
 vi.setConfig({ testTimeout: 15000 });
 
@@ -108,6 +110,9 @@ const seedSession = () => {
   }, false);
 };
 
+/** 服务端租户配置 fixture（A-15：持久化语义的承载面，可被用例改写为关闭态）。 */
+let configFixture: AdminSystemConfigView = { watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0' };
+
 const renderAppAt = async (hash: string) => {
   seedSession();
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
@@ -116,6 +121,9 @@ const renderAppAt = async (hash: string) => {
       : new URL((input as Request).url);
     if (url.pathname.endsWith('/me')) {
       return envelope({ user: meUser, roles: ['super_admin'], permissions: HELD_PERMS, menus: MENUS });
+    }
+    if (url.pathname.endsWith('/system/config')) {
+      return envelope(configFixture);
     }
     return envelope(null); // Dashboard 等伴随请求（nav.test A-25 口径）
   }));
@@ -136,18 +144,13 @@ const watermarkLayer = (root: HTMLElement) =>
       /data:image/.test(d.style.backgroundImage || ''),
   ) ?? null;
 
-const prefsApi = () => useUiPrefsStore.getState() as unknown as {
-  watermarkEnabled: boolean;
-  setWatermarkEnabled: (v: boolean) => void;
-};
-
 beforeEach(() => {
   window.location.hash = '';
   window.localStorage.clear();
   window.sessionStorage.clear();
-  // R5 归因：useUiPrefsStore 是模块级单例，上一用例 setWatermarkEnabled(false) 的状态跨用例
-  // 残留 → 「默认开启」前提不成立；storage 清理后重置 store 内存态
-  useUiPrefsStore.getState().setWatermarkEnabled(true);
+  // store 为模块级单例：复位缺省态（A-13），防上一用例关闭态跨用例残留
+  useSystemConfigStore.setState({ watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0', loaded: false });
+  configFixture = { watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0' };
   useAuthStore.getState().clear();
   useMeStore.getState().clear();
   fillTextSpy.mockClear();
@@ -161,16 +164,17 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   window.location.hash = '';
-  window.localStorage.clear(); // 共享环境脏数据清理（A-13 persist 落盘）
+  window.localStorage.clear();
   window.sessionStorage.clear();
   useAuthStore.getState().clear();
   useMeStore.getState().clear();
+  useSystemConfigStore.setState({ watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0', loaded: false });
 });
 
-// ————— AC-3 —————
+// ————— AC-3（230354 后水印源=租户配置，AC-7 同表面） —————
 describe('REQ20261114120112 全局水印（AC-3）', () => {
   it('should_render_account_watermark_when_default_on', async () => {
-    await renderAppAt('#/dashboard'); // 不预设偏好 → 默认开启（A-13）
+    await renderAppAt('#/dashboard'); // 不预设配置 → 缺省开启（A-13）
     await waitFor(() => expect(watermarkLayer(document.body)).not.toBeNull());
     // 内容=当前用户账号（A-14）
     const printed = fillTextSpy.mock.calls.map((c) => String(c[0]));
@@ -180,18 +184,20 @@ describe('REQ20261114120112 全局水印（AC-3）', () => {
   it('should_remove_watermark_immediately_when_setting_disabled', async () => {
     await renderAppAt('#/dashboard');
     await waitFor(() => expect(watermarkLayer(document.body)).not.toBeNull());
-    act(() => { prefsApi().setWatermarkEnabled(false); }); // Settings 关闭（A-15：store 级开关）
+    // 配置关闭（store 级开关；管理页保存经 update() 落同一状态面）
+    act(() => { useSystemConfigStore.setState({ watermarkEnabled: false }); });
     await waitFor(() => expect(watermarkLayer(document.body)).toBeNull()); // 立即消失
   });
 
   it('should_persist_watermark_disabled_when_reloaded', async () => {
     await renderAppAt('#/dashboard');
     await waitFor(() => expect(watermarkLayer(document.body)).not.toBeNull());
-    act(() => { prefsApi().setWatermarkEnabled(false); });
-    // 持久化：localStorage 出现关闭态（不锁 persist 键名，A-15）
-    const persisted = Object.keys(window.localStorage).map((k) => String(window.localStorage.getItem(k)));
-    expect(persisted.some((v) => v.includes('"watermarkEnabled":false'))).toBe(true);
-    // 重挂载控制组：storage 不清 → 水印保持消失
+    // 服务端持久化（A-15）：租户配置行已为关闭态 → 刷新/重新登录经 load() 加载生效
+    configFixture = { watermarkEnabled: false, lockIdleTimeoutMs: 0, version: '1' };
+    await act(async () => { await useSystemConfigStore.getState().load(); });
+    expect(useSystemConfigStore.getState().watermarkEnabled).toBe(false);
+    await waitFor(() => expect(watermarkLayer(document.body)).toBeNull());
+    // 重挂载控制组：引导再次 load() 取服务端关闭态 → 水印保持消失
     cleanup();
     window.location.hash = '#/dashboard';
     render(<AntApp><HashRouter><App /></HashRouter></AntApp>);

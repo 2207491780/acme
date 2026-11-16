@@ -112,6 +112,9 @@ public final class SystemErrorCodes {
     /** 租户内岗位编码已存在（409；REQ-20261114-120104 实施增补：(tenant_id, position_code) 唯一对齐字典先例）。 */
     public static final String POSITION_CODE_DUPLICATED = "platform-system-11-0003";
 
+    /** 系统配置闲置锁屏时长取值非法（409；REQ-20261116-230354，取值集 {0,60000,300000,900000}）。 */
+    public static final String SYSTEM_CONFIG_INVALID = "platform-system-12-0001";
+
     private SystemErrorCodes() {
     }
 }

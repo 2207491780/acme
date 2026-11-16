@@ -25,7 +25,6 @@ import {
   useLocaleStore,
   useLockStore,
   useTimezoneStore,
-  useUiPrefsStore,
 } from '@acme/core';
 import dayjs from 'dayjs';
 import { useStore } from '../store/useStore';
@@ -297,17 +296,12 @@ export function Settings() {
 }
 
 /**
- * 安全与水印（REQ-20261114-120112，AC-3/AC-4）：
- * 水印开关 → useUiPrefsStore（持久化，关闭立即生效）；锁屏口令 → useLockStore
- * （本地会话口令）；闲置锁屏时长 → useUiPrefsStore + useLockStore.setIdleTimeoutMs。
+ * 安全（REQ-20261116-230354）：仅保留锁屏口令（个人本地会话口令，useLockStore）。
+ * 水印开关/闲置锁屏时长已上收为租户系统配置（系统配置页管理，全员强制生效）。
  */
 function SecurityCard() {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const watermarkEnabled = useUiPrefsStore((s) => s.watermarkEnabled);
-  const setWatermarkEnabled = useUiPrefsStore((s) => s.setWatermarkEnabled);
-  const lockIdleTimeoutMs = useUiPrefsStore((s) => s.lockIdleTimeoutMs);
-  const setLockIdleTimeoutMs = useUiPrefsStore((s) => s.setLockIdleTimeoutMs);
   const [passcode, setPasscode] = useState('');
 
   const savePasscode = (value: string) => {
@@ -320,21 +314,11 @@ function SecurityCard() {
     setPasscode(code);
   };
 
-  const onIdleLockChange = (ms: number) => {
-    setLockIdleTimeoutMs(ms);
-    useLockStore.getState().setIdleTimeoutMs(ms); // 立即生效（重新武装闲置定时器）
-  };
-
   return (
     <Card
       title={<Space><SafetyCertificateOutlined style={{ color: 'var(--accent)' }} /> {t('settings.security.title')}</Space>}
       style={{ height: '100%' }}
     >
-      <SettingRow
-        label={t('settings.security.watermark')}
-        desc={t('settings.security.watermarkDesc')}
-        control={<Switch checked={watermarkEnabled} onChange={setWatermarkEnabled} />}
-      />
       <SettingRow
         label={t('settings.security.passcode')}
         desc={t('settings.security.passcodeDesc')}
@@ -347,23 +331,6 @@ function SecurityCard() {
             onChange={(e) => setPasscode(e.target.value)}
             onPressEnter={(e) => savePasscode(e.currentTarget.value)}
             onBlur={(e) => savePasscode(e.target.value)}
-          />
-        }
-      />
-      <SettingRow
-        label={t('settings.security.idleLock')}
-        desc={t('settings.security.idleLockDesc')}
-        control={
-          <Select
-            style={{ width: 120 }}
-            value={lockIdleTimeoutMs}
-            onChange={onIdleLockChange}
-            options={[
-              { value: 0, label: t('settings.security.idleOff') },
-              { value: 60_000, label: t('settings.security.idle1') },
-              { value: 300_000, label: t('settings.security.idle5') },
-              { value: 900_000, label: t('settings.security.idle15') },
-            ]}
           />
         }
       />

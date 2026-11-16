@@ -23,6 +23,8 @@ import com.acme.platform.system.api.dto.AdminRoleIds;
 import com.acme.platform.system.api.dto.AdminRoleUpdate;
 import com.acme.platform.system.api.dto.AdminRoleView;
 import com.acme.platform.system.api.dto.AdminStatusUpdate;
+import com.acme.platform.system.api.dto.AdminSystemConfigUpdate;
+import com.acme.platform.system.api.dto.AdminSystemConfigView;
 import com.acme.platform.system.api.dto.AdminTenantCreate;
 import com.acme.platform.system.api.dto.AdminTenantUpdate;
 import com.acme.platform.system.api.dto.AdminUserCreate;
@@ -36,9 +38,11 @@ import com.acme.platform.system.application.MenuUseCase;
 import com.acme.platform.system.application.PermissionUseCase;
 import com.acme.platform.system.application.PositionUseCase;
 import com.acme.platform.system.application.RoleUseCase;
+import com.acme.platform.system.application.SystemConfigUseCase;
 import com.acme.platform.system.application.TenantInitUseCase;
 import com.acme.platform.system.application.TenantUseCase;
 import com.acme.platform.system.application.UserUseCase;
+import com.acme.platform.system.domain.SysConfig;
 import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysDictItem;
 import com.acme.platform.system.domain.SysDictType;
@@ -50,9 +54,22 @@ import com.acme.platform.system.domain.SysTenant;
 import com.acme.platform.system.domain.SysUser;
 import com.acme.platform.system.api.dto.AdminDeptView;
 import org.junit.jupiter.api.AfterEach;
+import com.acme.common.core.BizException;
+import com.acme.common.core.ErrorCode;
+import com.acme.framework.core.support.PromptLocalizer;
+import com.acme.framework.flex.support.FlexError;
+import com.acme.framework.web.interceptor.GlobalExceptionTranslator;
+import com.acme.framework.web.support.WebError;
+import com.acme.platform.system.SystemError;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -153,6 +170,59 @@ class SystemApiSurfaceTest {
                 "engineer", "高级工程师", EnableStatus.ENABLED, 0L)).positionName()).isEqualTo("高级工程师");
         controller.updateStatus(9L, new AdminStatusUpdate(EnableStatus.DISABLED));
         controller.delete(9L);
+    }
+
+    @Test
+    void systemConfigControllerFullSurface() throws Exception {
+        // REQ-20261116-230354 系统配置接口全表面（GET 缺省/有行 + PUT 委托 + 权限标注口径）
+        SystemConfigUseCase useCase = mock(SystemConfigUseCase.class);
+        SysConfig config = new SysConfig(false, 60_000);
+        config.setVersion(3L);
+        when(useCase.findCurrent()).thenReturn(Optional.of(config));
+        when(useCase.update(any())).thenReturn(config);
+        SystemConfigController controller = new SystemConfigController(useCase, mock(GlobalExceptionTranslator.class));
+
+        assertThat(controller.get().watermarkEnabled()).isFalse();
+        assertThat(controller.get().lockIdleTimeoutMs()).isEqualTo(60_000);
+        assertThat(controller.get().version()).isEqualTo(3L);
+        assertThat(controller.update(new AdminSystemConfigUpdate(true, 0, 3L)).version()).isEqualTo(3L);
+
+        when(useCase.findCurrent()).thenReturn(Optional.empty());
+        AdminSystemConfigView defaults = controller.get();
+        assertThat(defaults.watermarkEnabled()).isTrue();
+        assertThat(defaults.lockIdleTimeoutMs()).isZero();
+        assertThat(defaults.version()).isEqualTo(0L);
+
+        // 权限强制点：PUT 标注 system:config:update；GET 认证即可读（无标注）
+        var putMethod = SystemConfigController.class.getMethod("update", AdminSystemConfigUpdate.class);
+        assertThat(putMethod.getAnnotation(com.acme.platform.system.security.RequirePermission.class).value())
+                .isEqualTo(com.acme.platform.system.api.SystemPermissions.CONFIG_UPDATE);
+        assertThat(SystemConfigController.class.getMethod("get")
+                .getAnnotation(com.acme.platform.system.security.RequirePermission.class)).isNull();
+    }
+
+    @Test
+    void should_return200ForConfigBusinessErrorsAnd403ForPermissionDenial() throws Exception {
+        SystemConfigUseCase useCase = mock(SystemConfigUseCase.class);
+        GlobalExceptionTranslator translator = new GlobalExceptionTranslator(
+                new StaticListableBeanFactory().getBeanProvider(PromptLocalizer.class));
+        var mvc = MockMvcBuilders.standaloneSetup(new SystemConfigController(useCase, translator))
+                .setControllerAdvice(translator).build();
+
+        for (ErrorCode error : List.of(SystemError.SYSTEM_CONFIG_INVALID,
+                WebError.CONCURRENCY_CONFLICT, FlexError.STALE_WRITE, SystemError.PERMISSION_DENIED)) {
+            org.mockito.Mockito.doThrow(new BizException(error)).when(useCase).update(any());
+            var result = mvc.perform(put("/admin/v1/system/config")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"watermarkEnabled\":true,\"lockIdleTimeoutMs\":0,\"version\":\"0\"}"))
+                    .andReturn();
+            assertThat(result.getResponse().getStatus())
+                    .isEqualTo(error == SystemError.PERMISSION_DENIED ? 403 : 200);
+            var body = tools.jackson.databind.json.JsonMapper.builder().build()
+                    .readTree(result.getResponse().getContentAsByteArray());
+            assertThat(body.path("success").asBoolean()).isFalse();
+            assertThat(body.path("code").asText()).isEqualTo(error.code());
+        }
     }
 
     // 菜单树组装需实体 id（TreeBuilder DP-004 非空约定）

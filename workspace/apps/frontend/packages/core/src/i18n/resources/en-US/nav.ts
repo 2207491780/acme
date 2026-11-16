@@ -12,6 +12,7 @@ export const nav = {
     permissions: 'Permissions',
     menus: 'Menus',
     dicts: 'Dictionaries',
+    systemConfig: 'System Config',
     notices: 'Notices',
     audit: 'Audit Events',
     loginLogs: 'Login Logs',

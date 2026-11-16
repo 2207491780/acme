@@ -1,5 +1,5 @@
 import { http } from 'msw';
-import type { AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPositionView, AdminRoleView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
+import type { AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
@@ -80,6 +80,8 @@ const store = {
   dictItems: [...db.dictItems],
   /** 角色数据范围=CUSTOM 时的部门集（sys_role_dept 演示；非 CUSTOM 清空）。 */
   roleDeptIds: {} as Record<string, string[]>,
+  /** 租户系统配置（REQ-20261116-230354；每租户一行的 dev 演示态）。 */
+  systemConfig: { ...db.systemConfig } as AdminSystemConfigView,
 };
 
 let nextId = 10000;
@@ -90,6 +92,25 @@ const nowIso = (): string => new Date().toISOString();
 export const systemHandlers = [
   // ---- me ----
   http.get('/admin/v1/system/me', () => ok({ ...db.me, menus: store.menus })),
+
+  // ---- 租户系统配置（REQ-20261116-230354） ----
+  http.get('/admin/v1/system/config', () => ok(store.systemConfig)),
+  http.put('/admin/v1/system/config', async ({ request }) => {
+    const body = await bodyOf(request);
+    const idle = body.lockIdleTimeoutMs;
+    if (typeof body.watermarkEnabled !== 'boolean' || typeof idle !== 'number' || ![0, 60_000, 300_000, 900_000].includes(idle)) {
+      return fail('PARAM_INVALID', '配置参数非法：闲置时长仅支持 0/1/5/15 分钟', 200);
+    }
+    if (body.version !== store.systemConfig.version) {
+      return fail('VERSION_CONFLICT', '配置已被其他用户修改，请刷新后重试', 200);
+    }
+    store.systemConfig = {
+      watermarkEnabled: body.watermarkEnabled,
+      lockIdleTimeoutMs: idle,
+      version: String(Number(store.systemConfig.version) + 1),
+    };
+    return ok(store.systemConfig);
+  }),
 
   // ---- 租户 ----
   http.get('/admin/v1/system/tenants', ({ request }) => {

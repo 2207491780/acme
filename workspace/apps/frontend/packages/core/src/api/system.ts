@@ -49,6 +49,14 @@ export interface AdminMeView {
   menus: AdminMenuView[];
 }
 
+/** 租户系统配置视图（契约对齐 AdminSystemConfigView，REQ-20261116-230354；version 乐观锁字符串）。 */
+export interface AdminSystemConfigView {
+  watermarkEnabled: boolean;
+  /** 闲置锁屏时长（毫秒），0 = 关闭；合法值 0/60000/300000/900000。 */
+  lockIdleTimeoutMs: number;
+  version: string;
+}
+
 /** 租户视图（契约对齐 AdminTenantView；id/version 序列化为字符串）。 */
 export interface AdminTenantView {
   id: string;
@@ -138,6 +146,17 @@ export interface AdminDictItemView {
 export const systemApi = {
   /** 当前登录者视图（认证即可访问；会话恢复校验 + 身份/角色/权限/菜单引导）。 */
   me: (): Promise<AdminMeView> => apiFetch<AdminMeView>('/admin/v1/system/me'),
+
+  // ---- 租户系统配置（REQ-20261116-230354；GET 认证即可，PUT 需 system:config:update） ----
+  /** 读取当前租户配置（无配置行返回缺省 true/0/"0"）。 */
+  configGet: (): Promise<AdminSystemConfigView> => apiFetch<AdminSystemConfigView>('/admin/v1/system/config'),
+  /** 更新当前租户配置（upsert；version 乐观锁，成功 version+1）。 */
+  configUpdate: (payload: { watermarkEnabled: boolean; lockIdleTimeoutMs: number; version: string }): Promise<AdminSystemConfigView> =>
+    apiFetch<AdminSystemConfigView>('/admin/v1/system/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
 
   // ---- 租户管理（TENANT_* 权限码） ----
   /** 租户分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */

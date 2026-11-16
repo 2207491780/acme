@@ -1,6 +1,7 @@
 package com.acme.platform.system.api;
 
 import com.acme.common.serialization.JsonModules;
+import com.acme.platform.system.api.dto.AdminSystemConfigView;
 import com.acme.platform.system.api.dto.AdminUserView;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -113,6 +114,18 @@ class SystemApiContractTest {
         DataScopeView back = mapper.readValue(json, DataScopeView.class);
         assertThat(back.deptIds()).containsExactly(11L, 22L);
         assertThat(back.userIds()).containsExactly("42");
+    }
+
+    @Test
+    void systemConfigViewSerializesVersionAsString() {
+        // REQ-20261116-230354：缺省视图 wire 形态 { watermarkEnabled:true, lockIdleTimeoutMs:0, version:"0" }
+        AdminSystemConfigView view = new AdminSystemConfigView(true, 0, 0L);
+        String json = mapper.writeValueAsString(view);
+        assertThat(json).contains("\"watermarkEnabled\":true");
+        assertThat(json).contains("\"lockIdleTimeoutMs\":0");
+        assertThat(json).contains("\"version\":\"0\"");
+        AdminSystemConfigView back = mapper.readValue(json, AdminSystemConfigView.class);
+        assertThat(back).isEqualTo(view);
     }
 
     @Test

@@ -9,6 +9,7 @@ import type {
   AdminPermissionView,
   AdminPositionView,
   AdminRoleView,
+  AdminSystemConfigView,
   AdminTenantView,
   AdminUserView,
   FileView,
@@ -49,11 +50,15 @@ export const me = {
     'system:menu:list', 'system:menu:create', 'system:menu:update', 'system:menu:delete',
     'system:dict:list', 'system:dict:create', 'system:dict:update', 'system:dict:delete',
     'system:notice:list', 'system:notice:create', 'system:notice:update', 'system:notice:delete', 'system:notice:publish',
+    'system:config:list', 'system:config:update',
     'system:message:list', 'system:message:read',
     'infra:audit:list', 'infra:file:list', 'infra:file:upload', 'infra:file:download', 'infra:file:delete',
   ],
   menus: [] as AdminMenuView[],
 };
+
+/** 租户系统配置种子（REQ-20261116-230354）：缺省=水印开/闲置锁屏关/version "0"。 */
+export const systemConfig: AdminSystemConfigView = { watermarkEnabled: true, lockIdleTimeoutMs: 0, version: '0' };
 
 export const tenants: AdminTenantView[] = [
   { id: '1', tenantCode: 'acme', tenantName: 'ACME 总部', status: 'ENABLED', remark: null, createdAt: '2026-01-01T00:00:00Z', version: '0' },
@@ -111,6 +116,10 @@ export const menus: AdminMenuView[] = [
       {
         id: 11, parentId: 1, menuName: '用户管理', menuType: 'MENU', path: '/users', component: 'users', icon: 'users',
         sortOrder: 1, visible: true, permissionCode: 'system:user:list', status: 'ENABLED', version: '0', children: [],
+      },
+      {
+        id: 12, parentId: 1, menuName: '系统配置', menuType: 'MENU', path: '/system/config', component: 'system/config/index', icon: 'control',
+        sortOrder: 2, visible: true, permissionCode: 'system:config:list', status: 'ENABLED', version: '0', children: [],
       },
     ],
   },

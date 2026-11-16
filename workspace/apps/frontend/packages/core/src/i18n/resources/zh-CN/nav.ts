@@ -12,6 +12,7 @@ export const nav = {
     permissions: '权限管理',
     menus: '菜单管理',
     dicts: '字典管理',
+    systemConfig: '系统配置',
     notices: '通知公告',
     audit: '审计事件',
     loginLogs: '登录日志',
