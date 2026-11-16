@@ -5,6 +5,7 @@ import com.acme.framework.tenant.support.IgnoreTenant;
 import com.acme.framework.web.support.WebError;
 import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.CaptchaPolicyView;
+import com.acme.platform.system.api.TenantPublicInternalView;
 import com.acme.platform.system.api.dto.AdminSystemConfigUpdate;
 import com.acme.platform.system.domain.SysConfig;
 import com.acme.platform.system.infrastructure.repository.SysConfigRepository;
@@ -19,6 +20,8 @@ import java.util.Set;
  * GET 缺省视图在接口层组装；PUT 校验时长取值集 + 乐观锁（沿用既有 CRUD 口径）。
  * REQ-20261117-011514：captchaEnabled 开关随 upsert 全量生效；内部策略查询按租户代码直查
  * （sys_config.tenant_id 存租户代码，@IgnoreTenant 显式旁路声明 + 审计，12.4.2）。
+ * REQ-20261117-025200 确认记录⑤：页脚版权两字段随 upsert 全量生效（未配置不显示，缺省 null/false）；
+ * 内部 public-view 查询按租户代码直查（仅暴露页脚两字段，不含任何敏感配置）。
  */
 @Service
 public class SystemConfigUseCase {
@@ -47,6 +50,19 @@ public class SystemConfigUseCase {
                 .orElse(new CaptchaPolicyView(false));
     }
 
+    /**
+     * 按租户代码查公开站点配置（REQ-20261117-025200 页脚版权，public-view 内部端点数据源）：
+     * 无配置行返回缺省视图 footerCopyright=null / footerVisible=false（未配置不显示）；
+     * 仅暴露页脚两字段，不含水印 / 验证码 / 锁屏等管理面配置。
+     */
+    @IgnoreTenant("public-view-lookup")
+    public TenantPublicInternalView findPublicViewByTenant(String tenantCode) {
+        return configRepository.findByTenantCode(tenantCode)
+                .map(config -> new TenantPublicInternalView(config.getFooterCopyright(),
+                        Boolean.TRUE.equals(config.getFooterVisible())))
+                .orElse(new TenantPublicInternalView(null, false));
+    }
+
     @Transactional
     public SysConfig update(AdminSystemConfigUpdate request) {
         if (!ALLOWED_IDLE_TIMEOUTS_MS.contains(request.lockIdleTimeoutMs())) {
@@ -59,7 +75,7 @@ public class SystemConfigUseCase {
                 throw new BizException(WebError.CONCURRENCY_CONFLICT);
             }
             return configRepository.save(new SysConfig(request.watermarkEnabled(), request.captchaEnabled(),
-                    request.lockIdleTimeoutMs()));
+                    request.lockIdleTimeoutMs(), request.footerCopyright(), request.footerVisible()));
         }
         if (!request.version().equals(current.getVersion())) {
             throw new BizException(WebError.CONCURRENCY_CONFLICT);
@@ -67,6 +83,8 @@ public class SystemConfigUseCase {
         current.setWatermarkEnabled(request.watermarkEnabled());
         current.setCaptchaEnabled(request.captchaEnabled());
         current.setLockIdleTimeoutMs(request.lockIdleTimeoutMs());
+        current.setFooterCopyright(request.footerCopyright());
+        current.setFooterVisible(request.footerVisible());
         return configRepository.save(current);
     }
 }

@@ -119,15 +119,86 @@ class SystemApiContractTest {
     @Test
     void systemConfigViewSerializesVersionAsString() {
         // REQ-20261116-230354：缺省视图 wire 形态 { watermarkEnabled:true, captchaEnabled:false,
-        // lockIdleTimeoutMs:0, version:"0" }（captchaEnabled 口径 REQ-20261117-011514）
-        AdminSystemConfigView view = new AdminSystemConfigView(true, false, 0, 0L);
+        // lockIdleTimeoutMs:0, footerCopyright:null, footerVisible:false, version:"0" }
+        // （captchaEnabled 口径 REQ-20261117-011514；页脚缺省口径 REQ-20261117-025200 确认记录⑤）
+        AdminSystemConfigView view = new AdminSystemConfigView(true, false, 0, null, false, 0L);
         String json = mapper.writeValueAsString(view);
         assertThat(json).contains("\"watermarkEnabled\":true");
         assertThat(json).contains("\"captchaEnabled\":false");
         assertThat(json).contains("\"lockIdleTimeoutMs\":0");
+        assertThat(json).contains("\"footerCopyright\":null");
+        assertThat(json).contains("\"footerVisible\":false");
         assertThat(json).contains("\"version\":\"0\"");
         AdminSystemConfigView back = mapper.readValue(json, AdminSystemConfigView.class);
         assertThat(back).isEqualTo(view);
+    }
+
+    @Test
+    void tenantInternalViewSerializesExpiryIsoAndStatusName() {
+        // REQ-20261117-025200：by-code 契约视图 wire 形态（status 枚举名 + expiresAt ISO-8601，可空）
+        TenantInternalView view = new TenantInternalView("acme", "Acme 租户", "ENABLED",
+                Instant.parse("2027-01-01T00:00:00Z"));
+        String json = mapper.writeValueAsString(view);
+        assertThat(json).contains("\"tenantCode\":\"acme\"");
+        assertThat(json).contains("\"status\":\"ENABLED\"");
+        assertThat(json).contains("\"expiresAt\":\"2027-01-01T00:00:00Z\"");
+        TenantInternalView back = mapper.readValue(json, TenantInternalView.class);
+        assertThat(back).isEqualTo(view);
+        // 可空语义：expiresAt=null（长期有效）回读稳定
+        TenantInternalView longTerm = new TenantInternalView("acme", "Acme 租户", "ENABLED", null);
+        TenantInternalView longTermBack = mapper.readValue(mapper.writeValueAsString(longTerm),
+                TenantInternalView.class);
+        assertThat(longTermBack.expiresAt()).isNull();
+    }
+
+    @Test
+    void tenantPublicInternalViewSerializesFooterFields() {
+        // REQ-20261117-025200：public-view 契约视图 wire 形态（仅页脚两字段）
+        TenantPublicInternalView view = new TenantPublicInternalView("© Acme", true);
+        String json = mapper.writeValueAsString(view);
+        assertThat(json).contains("\"footerCopyright\":\"© Acme\"");
+        assertThat(json).contains("\"footerVisible\":true");
+        TenantPublicInternalView back = mapper.readValue(json, TenantPublicInternalView.class);
+        assertThat(back).isEqualTo(view);
+    }
+
+    @Test
+    void tenantClientByCodeContractMetadataLocked() throws Exception {
+        // REQ-20261117-025200：租户 by-code 内部契约（Feign 元数据锁定；登录过期校验与切换目标校验共用）
+        FeignClient feignClient = TenantClient.class.getAnnotation(FeignClient.class);
+        assertThat(feignClient).isNotNull();
+        assertThat(feignClient.name()).isEqualTo("platform-system");
+        assertThat(feignClient.contextId()).isEqualTo("tenantClient");
+
+        Method method = TenantClient.class.getMethod("findByCode", String.class);
+        GetMapping getMapping = method.getAnnotation(GetMapping.class);
+        assertThat(getMapping).isNotNull();
+        assertThat(getMapping.value()).containsExactly("/internal/v1/tenants/by-code");
+        Parameter parameter = method.getParameters()[0];
+        assertThat(parameter.getAnnotation(RequestParam.class).value()).isEqualTo("tenantCode");
+        assertThat(method.getReturnType()).isEqualTo(ContractResult.class);
+    }
+
+    @Test
+    void systemConfigClientPublicViewContractMetadataLocked() throws Exception {
+        // REQ-20261117-025200：公开站点配置内部契约（Feign 元数据锁定；param 口径同 captcha-policy）
+        Method method = SystemConfigClient.class.getMethod("findPublicView", String.class);
+        GetMapping getMapping = method.getAnnotation(GetMapping.class);
+        assertThat(getMapping).isNotNull();
+        assertThat(getMapping.value()).containsExactly("/internal/v1/system-configs/public-view");
+        Parameter parameter = method.getParameters()[0];
+        assertThat(parameter.getAnnotation(RequestParam.class).value()).isEqualTo("tenantId");
+        assertThat(method.getReturnType()).isEqualTo(ContractResult.class);
+    }
+
+    @Test
+    void authorizationClientBuiltinRolesContractMetadataLocked() throws Exception {
+        // REQ-20261117-025200：内置角色实查契约（确认记录④；Feign 元数据锁定）
+        Method method = AuthorizationClient.class.getMethod("currentBuiltinRoles");
+        GetMapping getMapping = method.getAnnotation(GetMapping.class);
+        assertThat(getMapping).isNotNull();
+        assertThat(getMapping.value()).containsExactly("/internal/v1/authorization/builtin-roles");
+        assertThat(method.getReturnType()).isEqualTo(ContractResult.class);
     }
 
     @Test

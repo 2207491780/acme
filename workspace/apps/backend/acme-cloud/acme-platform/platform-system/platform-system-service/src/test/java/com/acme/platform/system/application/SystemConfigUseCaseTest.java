@@ -4,6 +4,7 @@ import com.acme.common.core.BizException;
 import com.acme.framework.web.support.WebError;
 import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.CaptchaPolicyView;
+import com.acme.platform.system.api.TenantPublicInternalView;
 import com.acme.platform.system.api.dto.AdminSystemConfigUpdate;
 import com.acme.platform.system.domain.SysConfig;
 import com.acme.platform.system.infrastructure.repository.SysConfigRepository;
@@ -45,7 +46,7 @@ class SystemConfigUseCaseTest {
         when(repository.findCurrent()).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        SysConfig created = useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, 0L));
+        SysConfig created = useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, null, false, 0L));
 
         assertThat(created.getWatermarkEnabled()).isFalse();
         assertThat(created.getCaptchaEnabled()).isTrue();
@@ -57,7 +58,7 @@ class SystemConfigUseCaseTest {
     void updateRejectsNonZeroVersionWhenAbsent() {
         when(repository.findCurrent()).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, false, 60_000, 1L)))
+        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, false, 60_000, null, false, 1L)))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                         .isEqualTo(WebError.CONCURRENCY_CONFLICT));
@@ -77,7 +78,7 @@ class SystemConfigUseCaseTest {
             return entity;
         });
 
-        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(false, true, 900_000, 3L));
+        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(false, true, 900_000, null, false, 3L));
 
         assertThat(updated.getWatermarkEnabled()).isFalse();
         assertThat(updated.getCaptchaEnabled()).isTrue();
@@ -91,7 +92,7 @@ class SystemConfigUseCaseTest {
         current.setVersion(3L);
         when(repository.findCurrent()).thenReturn(Optional.of(current));
 
-        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, 2L)))
+        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, null, false, 2L)))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                         .isEqualTo(WebError.CONCURRENCY_CONFLICT));
@@ -106,7 +107,7 @@ class SystemConfigUseCaseTest {
     @Test
     void updateRejectsIdleTimeoutOutsideAllowedSet() {
         for (int invalid : new int[]{123, -1, 60_001, 1_800_000}) {
-            assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(true, false, invalid, 0L)))
+            assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(true, false, invalid, null, false, 0L)))
                     .isInstanceOf(BizException.class)
                     .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                             .isEqualTo(SystemError.SYSTEM_CONFIG_INVALID));
@@ -122,7 +123,7 @@ class SystemConfigUseCaseTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         for (int allowed : new int[]{0, 60_000, 300_000, 900_000}) {
-            SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, allowed, 0L));
+            SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, allowed, null, false, 0L));
             assertThat(updated.getLockIdleTimeoutMs()).isEqualTo(allowed);
         }
     }
@@ -136,7 +137,7 @@ class SystemConfigUseCaseTest {
         when(repository.findCurrent()).thenReturn(Optional.of(current));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, 0, 1L));
+        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, 0, null, false, 1L));
 
         assertThat(updated.getCaptchaEnabled()).isFalse();
         assertThat(updated.getWatermarkEnabled()).isTrue();
@@ -155,5 +156,64 @@ class SystemConfigUseCaseTest {
         when(repository.findByTenantCode("acme")).thenReturn(Optional.of(enabled));
 
         assertThat(useCase.findCaptchaPolicyByTenant("acme")).isEqualTo(new CaptchaPolicyView(true));
+    }
+
+    // ---------- REQ-20261117-025200：页脚版权随 upsert 全量生效与公开视图（AC-8，确认记录⑤） ----------
+
+    @Test
+    void should_persistFooterFields_when_putUpdatesExistingRow() {
+        // AC-8：PUT config 设置页脚文案 + 显隐 → 保存一致（footerVisible=false 时文案仍随行保存）
+        SysConfig current = new SysConfig(true, true, 0);
+        current.setVersion(2L);
+        when(repository.findCurrent()).thenReturn(Optional.of(current));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, 0,
+                "© ACME 2026", true, 2L));
+
+        assertThat(updated.getFooterCopyright()).isEqualTo("© ACME 2026");
+        assertThat(updated.getFooterVisible()).isTrue();
+    }
+
+    @Test
+    void should_createRowWithFooterFields_when_absentAndVersionZero() {
+        // 无行 upsert 携带页脚字段：建行即带页脚（缺省可见性 false 语义由请求方决定）
+        when(repository.findCurrent()).thenReturn(Optional.empty());
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SysConfig created = useCase.update(new AdminSystemConfigUpdate(true, false, 0,
+                "© ACME 2026", true, 0L));
+
+        assertThat(created.getFooterCopyright()).isEqualTo("© ACME 2026");
+        assertThat(created.getFooterVisible()).isTrue();
+    }
+
+    @Test
+    void should_returnDefaultPublicView_when_tenantHasNoConfigRow() {
+        // 无行租户公开视图缺省：footerCopyright=null / footerVisible=false（未配置不显示）
+        when(repository.findByTenantCode("none")).thenReturn(Optional.empty());
+
+        assertThat(useCase.findPublicViewByTenant("none"))
+                .isEqualTo(new TenantPublicInternalView(null, false));
+    }
+
+    @Test
+    void should_returnRowFooterView_when_tenantHasConfigRow() {
+        // 有行租户公开视图按行值（@IgnoreTenant 跨租户读行为由集成测试证明）
+        SysConfig configured = new SysConfig(true, true, 0, "© ACME 2026", true);
+        when(repository.findByTenantCode("acme")).thenReturn(Optional.of(configured));
+
+        assertThat(useCase.findPublicViewByTenant("acme"))
+                .isEqualTo(new TenantPublicInternalView("© ACME 2026", true));
+    }
+
+    @Test
+    void should_defaultFooterVisibleFalse_when_legacyRowHasNullFlag() {
+        // 存量行 footer_visible 列缺省（V16 前直插为 NULL 的防御口径）：公开视图按 false 处理
+        SysConfig legacy = new SysConfig(true, true, 0);
+        when(repository.findByTenantCode("legacy")).thenReturn(Optional.of(legacy));
+
+        assertThat(useCase.findPublicViewByTenant("legacy"))
+                .isEqualTo(new TenantPublicInternalView(null, false));
     }
 }

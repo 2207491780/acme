@@ -87,4 +87,16 @@ public class MenuUseCase {
         }
         return visible;
     }
+
+    /**
+     * 内置角色集可见菜单并集（REQ-20261117-025200 切换会话 /me 用）：跨租户旁路读取 role_menu
+     * 绑定行（内置超管绑定行归属源租户，确认记录④切换后目标租户上下文按内置角色 id 取绑定）。
+     * 调用方契约：仅限传入 {@code findBuiltInByRoleCodeIn} 命中的内置角色 id 集（雪花 id 全局唯一，
+     * 按内置角色 id 取绑定行不扩大信任面；非内置角色 id 集不得进入本旁路面，BR-017 评审约束），
+     * 旁路经 {@code @IgnoreTenant} 显式声明并记跨租户审计 accessPoint。
+     */
+    @com.acme.framework.tenant.support.IgnoreTenant("built-in-role-menu-cross-tenant-lookup")
+    public Set<Long> visibleMenuIdsOfBuiltIn(List<Long> builtInRoleIds) {
+        return visibleMenuIdsOf(builtInRoleIds);
+    }
 }

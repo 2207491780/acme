@@ -14,15 +14,23 @@
     <name>platform-system-service</name>
     <description>
         系统管理域服务实现与启动入口（FR-006~009；架构设计 9.1 装配：core / jackson / trace / web / mybatis-flex /
-        security / tenant；i18n 双语 NFR-007；未用不声明——cache / lock / stream / job / feign / gateway 不引入）。
-        REQ-20261114-120102 消息通知闭环一期增补：WebSocket（站内信实时推送）+ Redis（pub/sub 多实例扇出）
+        security / tenant；i18n 双语 NFR-007；未用不声明——cache / lock / stream / job / gateway 不引入）。
+        REQ-20261114-120102 消息通知闭环一期增补：WebSocket（站内信实时推送）+ Redis（pub/sub 多实例扇出）。
+        REQ-20261117-025200 增补：system → auth 单向撤销契约消费（framework-feign + openfeign runtime，
+        停用租户事务提交后批量撤销会话）
     </description>
 
     <dependencies>
-        <!-- 本服务契约（唯一服务间依赖入口；本服务无外呼，不依赖其他服务 *-api，4.4.2） -->
+        <!-- 本服务契约 -->
         <dependency>
             <groupId>com.acme</groupId>
             <artifactId>platform-system-api</artifactId>
+        </dependency>
+        <!-- 服务间依赖（REQ-20261117-025200 确认记录②：system → auth 单向，仅经 *-api，4.4.2；
+            供停用租户后会话批量撤销（提供方 platform-auth，撤销端点 internal 不经网关）） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-auth-api</artifactId>
         </dependency>
         <!-- framework 按需（Modules.md 3.1；架构设计 9.1） -->
         <dependency>
@@ -48,6 +56,12 @@
         <dependency>
             <groupId>com.acme</groupId>
             <artifactId>framework-security</artifactId>
+        </dependency>
+        <!-- Feign 出站支撑（REQ-20261117-025200：内部令牌注入 / 错误解码 / 熔断，
+            同 platform-auth-service 装配口径；契约声明在 platform-auth-api） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-feign</artifactId>
         </dependency>
         <dependency>
             <groupId>com.acme</groupId>
@@ -109,6 +123,17 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-data-redis</artifactId>
+        </dependency>
+
+        <!-- OpenFeign 运行时（REQ-20261117-025200；Feign 契约声明在 platform-auth-api，
+            装配注释口径同 platform-auth-service） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
 
         <!-- 数据访问与迁移（12.3.3 Flyway 同仓；12.1.1 独占 schema platform_system） -->

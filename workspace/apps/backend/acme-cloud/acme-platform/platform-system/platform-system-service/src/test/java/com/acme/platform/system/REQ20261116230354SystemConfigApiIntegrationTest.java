@@ -291,6 +291,8 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
         body.put("watermarkEnabled", watermarkEnabled);
         body.put("captchaEnabled", captchaEnabled);
         body.put("lockIdleTimeoutMs", lockIdleTimeoutMs);
+        body.put("footerCopyright", null);
+        body.put("footerVisible", false);
         body.put("version", version);
         return body;
     }

@@ -113,9 +113,11 @@ public final class EntityViews {
                 permission.getVersion());
     }
 
+    /** 租户视图（REQ-20261117-025200 增补联系人 / 有效期透传）。 */
     public static AdminTenantView tenantView(SysTenant tenant) {
         return new AdminTenantView(tenant.getId(), tenant.getTenantCode(), tenant.getTenantName(),
-                tenant.getStatus(), tenant.getRemark(), tenant.getCreatedAt(), tenant.getVersion());
+                tenant.getStatus(), tenant.getRemark(), tenant.getContactName(), tenant.getContactPhone(),
+                tenant.getExpiresAt(), tenant.getCreatedAt(), tenant.getVersion());
     }
 
     public static AdminDictTypeView dictTypeView(SysDictType type) {
@@ -128,15 +130,16 @@ public final class EntityViews {
                 item.getItemValue(), item.getSortOrder(), item.getStatus(), item.getVersion());
     }
 
-    /** 租户级系统配置视图（REQ-20261116-230354；captchaEnabled 口径 REQ-20261117-011514）。 */
+    /** 租户级系统配置视图（REQ-20261116-230354；captchaEnabled 口径 REQ-20261117-011514，页脚 REQ-20261117-025200）。 */
     public static AdminSystemConfigView systemConfigView(SysConfig config) {
         return new AdminSystemConfigView(config.getWatermarkEnabled(), config.getCaptchaEnabled(),
-                config.getLockIdleTimeoutMs(), config.getVersion());
+                config.getLockIdleTimeoutMs(), config.getFooterCopyright(),
+                Boolean.TRUE.equals(config.getFooterVisible()), config.getVersion());
     }
 
-    /** 无配置行租户的缺省视图（契约确认记录④：水印开 / 验证码关 / 闲置锁屏关 / version "0"）。 */
+    /** 无配置行租户的缺省视图（确认记录④：水印开 / 验证码关 / 闲置锁屏关；确认记录⑤：页脚不显示；version "0"）。 */
     public static AdminSystemConfigView systemConfigDefaultView() {
-        return new AdminSystemConfigView(true, false, 0, 0L);
+        return new AdminSystemConfigView(true, false, 0, null, false, 0L);
     }
 
     /** 通知公告视图（REQ-20261114-120102）。 */

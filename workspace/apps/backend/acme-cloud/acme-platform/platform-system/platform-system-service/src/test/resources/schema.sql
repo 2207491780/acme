@@ -137,6 +137,8 @@ CREATE TABLE sys_config (
     watermark_enabled    BOOLEAN     NOT NULL DEFAULT TRUE,
     captcha_enabled      BOOLEAN     NOT NULL DEFAULT FALSE,
     lock_idle_timeout_ms INTEGER     NOT NULL DEFAULT 0,
+    footer_copyright     VARCHAR(255),
+    footer_visible       BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at           TIMESTAMP   NOT NULL,
     created_by           VARCHAR(64) NOT NULL,
     updated_at           TIMESTAMP   NOT NULL,
@@ -144,4 +146,23 @@ CREATE TABLE sys_config (
     version              BIGINT      NOT NULL,
     deleted              BOOLEAN     NOT NULL,
     CONSTRAINT uk_sys_config_tenant UNIQUE (tenant_id)
+);
+
+-- 租户目录（REQ-20261117-025200 切片同步：平台级表无租户列；列定义对齐 V1 + V17）
+CREATE TABLE sys_tenant (
+    id            BIGINT PRIMARY KEY,
+    tenant_code   VARCHAR(64) NOT NULL,
+    tenant_name   VARCHAR(128) NOT NULL,
+    status        VARCHAR(16) NOT NULL,
+    remark        VARCHAR(255),
+    contact_name  VARCHAR(64),
+    contact_phone VARCHAR(32),
+    expires_at    TIMESTAMP,
+    created_at    TIMESTAMP   NOT NULL,
+    created_by    VARCHAR(64) NOT NULL,
+    updated_at    TIMESTAMP   NOT NULL,
+    updated_by    VARCHAR(64) NOT NULL,
+    version       BIGINT      NOT NULL,
+    deleted       BOOLEAN     NOT NULL,
+    CONSTRAINT uk_sys_tenant_code UNIQUE (tenant_code)
 );

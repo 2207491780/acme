@@ -168,6 +168,8 @@ class REQ20261117011514SystemConfigCaptchaApiIntegrationTest {
         body.put("captchaEnabled", captchaEnabled);
         body.put("watermarkEnabled", watermarkEnabled);
         body.put("lockIdleTimeoutMs", lockIdleTimeoutMs);
+        body.put("footerCopyright", null);
+        body.put("footerVisible", false);
         body.put("version", version);
         return body;
     }

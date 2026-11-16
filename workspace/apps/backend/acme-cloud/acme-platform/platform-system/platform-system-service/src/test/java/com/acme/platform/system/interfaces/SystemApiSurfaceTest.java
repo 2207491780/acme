@@ -186,7 +186,11 @@ class SystemApiSurfaceTest {
         assertThat(controller.get().captchaEnabled()).isTrue();
         assertThat(controller.get().lockIdleTimeoutMs()).isEqualTo(60_000);
         assertThat(controller.get().version()).isEqualTo(3L);
-        assertThat(controller.update(new AdminSystemConfigUpdate(true, false, 0, 3L)).version()).isEqualTo(3L);
+        // REQ-20261117-025200：有行视图页脚两字段透传（行缺省 null/false）
+        assertThat(controller.get().footerCopyright()).isNull();
+        assertThat(controller.get().footerVisible()).isFalse();
+        assertThat(controller.update(new AdminSystemConfigUpdate(true, false, 0, null, false, 3L)).version())
+                .isEqualTo(3L);
 
         when(useCase.findCurrent()).thenReturn(Optional.empty());
         AdminSystemConfigView defaults = controller.get();
@@ -194,6 +198,9 @@ class SystemApiSurfaceTest {
         // REQ-20261117-011514：无行缺省视图验证码缺省关闭
         assertThat(defaults.captchaEnabled()).isFalse();
         assertThat(defaults.lockIdleTimeoutMs()).isZero();
+        // REQ-20261117-025200：无行缺省视图页脚不显示（确认记录⑤）
+        assertThat(defaults.footerCopyright()).isNull();
+        assertThat(defaults.footerVisible()).isFalse();
         assertThat(defaults.version()).isEqualTo(0L);
 
         // 权限强制点：PUT 标注 system:config:update；GET 认证即可读（无标注）
@@ -237,7 +244,8 @@ class SystemApiSurfaceTest {
             var result = mvc.perform(put("/admin/v1/system/config")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"watermarkEnabled\":true,\"captchaEnabled\":false,"
-                                    + "\"lockIdleTimeoutMs\":0,\"version\":\"0\"}"))
+                                    + "\"lockIdleTimeoutMs\":0,\"footerCopyright\":null,"
+                                    + "\"footerVisible\":false,\"version\":\"0\"}"))
                     .andReturn();
             assertThat(result.getResponse().getStatus())
                     .isEqualTo(error == SystemError.PERMISSION_DENIED ? 403 : 200);
@@ -409,10 +417,10 @@ class SystemApiSurfaceTest {
         TenantController controller = new TenantController(useCase, initUseCase);
 
         assertThat(controller.list(1, 20, null).total()).isEqualTo(1L);
-        assertThat(controller.create(new AdminTenantCreate("acme", "Acme 租户", null)).tenantCode())
+        assertThat(controller.create(new AdminTenantCreate("acme", "Acme 租户", null, null, null, null)).tenantCode())
                 .isEqualTo("acme");
         assertThat(controller.get(2L).tenantName()).isEqualTo("Acme 租户");
-        assertThat(controller.update(2L, new AdminTenantUpdate("Acme 租户", null, 1L)).tenantCode())
+        assertThat(controller.update(2L, new AdminTenantUpdate("Acme 租户", null, null, null, null, 1L)).tenantCode())
                 .isEqualTo("acme");
         controller.updateStatus(2L, new AdminStatusUpdate(EnableStatus.DISABLED));
         // 开通初始化端点（tenant-management-complete）
@@ -509,6 +517,77 @@ class SystemApiSurfaceTest {
         assertThat(EntityViews.systemConfigView(config).captchaEnabled()).isTrue();
         assertThat(EntityViews.systemConfigDefaultView().captchaEnabled()).isFalse();
         assertThat(EntityViews.systemConfigDefaultView().watermarkEnabled()).isTrue();
+        // REQ-20261117-025200：页脚两字段透传 + 缺省视图不显示（确认记录⑤）
+        SysConfig withFooter = new SysConfig(false, true, 60_000, "© ACME", true);
+        assertThat(EntityViews.systemConfigView(withFooter).footerCopyright()).isEqualTo("© ACME");
+        assertThat(EntityViews.systemConfigView(withFooter).footerVisible()).isTrue();
+        assertThat(EntityViews.systemConfigDefaultView().footerCopyright()).isNull();
+        assertThat(EntityViews.systemConfigDefaultView().footerVisible()).isFalse();
+        // REQ-20261117-025200：租户视图联系人 / 有效期透传
+        SysTenant withProfile = new SysTenant("acme", "Acme", null);
+        withProfile.setContactName("张三");
+        withProfile.setContactPhone("13800000000");
+        withProfile.setExpiresAt(java.time.Instant.parse("2027-01-01T00:00:00Z"));
+        assertThat(EntityViews.tenantView(withProfile).contactName()).isEqualTo("张三");
+        assertThat(EntityViews.tenantView(withProfile).contactPhone()).isEqualTo("13800000000");
+        assertThat(EntityViews.tenantView(withProfile).expiresAt())
+                .isEqualTo(java.time.Instant.parse("2027-01-01T00:00:00Z"));
+    }
+
+    @Test
+    void internalTenantControllerReturnsByCodeView() {
+        // REQ-20261117-025200 by-code 内部端点全表面（存在 → 视图透传；Result 信封）
+        TenantUseCase useCase = mock(TenantUseCase.class);
+        SysTenant tenant = new SysTenant("acme", "Acme 租户", null);
+        tenant.setExpiresAt(java.time.Instant.parse("2027-01-01T00:00:00Z"));
+        when(useCase.findByCode("acme")).thenReturn(tenant);
+        InternalTenantController controller = new InternalTenantController(useCase);
+
+        var result = controller.byCode("acme");
+        assertThat(result.getSuccess()).isTrue();
+        assertThat(result.getData().tenantCode()).isEqualTo("acme");
+        assertThat(result.getData().tenantName()).isEqualTo("Acme 租户");
+        assertThat(result.getData().status()).isEqualTo("ENABLED");
+        assertThat(result.getData().expiresAt()).isEqualTo(java.time.Instant.parse("2027-01-01T00:00:00Z"));
+    }
+
+    @Test
+    void internalSystemConfigControllerReturnsPublicView() {
+        // REQ-20261117-025200 public-view 内部端点全表面（有行按行值 / 无行缺省 null·false；Result 信封）
+        SystemConfigUseCase useCase = mock(SystemConfigUseCase.class);
+        when(useCase.findPublicViewByTenant("acme"))
+                .thenReturn(new com.acme.platform.system.api.TenantPublicInternalView("© ACME", true));
+        when(useCase.findPublicViewByTenant("empty"))
+                .thenReturn(new com.acme.platform.system.api.TenantPublicInternalView(null, false));
+        InternalSystemConfigController controller = new InternalSystemConfigController(useCase);
+
+        var configured = controller.publicView("acme");
+        assertThat(configured.getSuccess()).isTrue();
+        assertThat(configured.getData().footerCopyright()).isEqualTo("© ACME");
+        assertThat(configured.getData().footerVisible()).isTrue();
+
+        var empty = controller.publicView("empty");
+        assertThat(empty.getSuccess()).isTrue();
+        assertThat(empty.getData().footerCopyright()).isNull();
+        assertThat(empty.getData().footerVisible()).isFalse();
+    }
+
+    @Test
+    void internalAuthorizationControllerReturnsBuiltinRoles() {
+        // REQ-20261117-025200 内置角色实查端点全表面（确认记录④：roles 仅查询键，内置角色行权威）
+        AuthorizationUseCase useCase = mock(AuthorizationUseCase.class);
+        com.acme.platform.system.security.DataScopeService dataScopeService =
+                mock(com.acme.platform.system.security.DataScopeService.class);
+        when(useCase.currentBuiltinRoles()).thenReturn(java.util.Set.of("super_admin"));
+        when(dataScopeService.currentSubjectWithUserIds()).thenReturn(
+                com.acme.framework.security.support.DataScopeDecision.of(
+                        com.acme.framework.security.support.DataScope.CUSTOM,
+                        java.util.List.of(11L), java.util.List.of("42")));
+        AuthorizationController controller = new AuthorizationController(useCase, dataScopeService);
+
+        var result = controller.currentBuiltinRoles();
+        assertThat(result.getSuccess()).isTrue();
+        assertThat(result.getData()).containsExactly("super_admin");
     }
 
     @Test

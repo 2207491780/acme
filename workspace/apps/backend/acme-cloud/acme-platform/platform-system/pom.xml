@@ -17,7 +17,8 @@
         - 能力域：system（用户 / 角色 / 权限点 / 菜单 / 字典 / 租户管理，FR-006~009）
         - 结构：platform-system-api（契约）+ platform-system-service（实现与启动，5.3.2）
         - 数据独占 schema：platform_system（12.1.1）
-        - 约束：不依赖 auth 任何模块（服务间依赖单向 auth → system，4.4.2）
+        - 服务间依赖：platform-system-service 消费 platform-auth-api（REQ-20261117-025200 system → auth
+          单向撤销契约；auth 侧仅经 platform-system-api 调用，两方向均 4.4.2 单向不构成环）
     </description>
 
     <modules>

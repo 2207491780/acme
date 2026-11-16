@@ -62,6 +62,31 @@ public class PermissionDecisionService {
         return hasAnyPermission(context.roles(), permissionCode);
     }
 
+    /**
+     * 当前主体实查内置角色编码集（REQ-20261117-025200 超管跨租户切换前置校验，确认记录④）：
+     * roles 仅查询键（不作信任锚），按编码定位内置角色行（built_in 权威标记，跨租户旁路查询由
+     * 仓储实现 @IgnoreTenant 声明）；未认证主体 / 空 roles 返回空集。
+     */
+    public Set<String> currentSubjectBuiltinRoles() {
+        UserContext context = UserContext.get();
+        if (context == null || context.userId() == null || context.userId().isBlank()) {
+            return Set.of();
+        }
+        return builtInRoleCodesOf(context.roles());
+    }
+
+    /** 角色编码集 → 命中的内置角色编码集（无命中返回空集）。 */
+    public Set<String> builtInRoleCodesOf(Set<String> roleCodes) {
+        if (roleCodes == null || roleCodes.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<String> codes = new LinkedHashSet<>();
+        for (SysRole role : roleRepository.findBuiltInByRoleCodeIn(roleCodes)) {
+            codes.add(role.getRoleCode());
+        }
+        return codes;
+    }
+
     /** 聚合角色集的 API 权限点编码全集（/me 视图用）。 */
     public Set<String> permissionCodesOfRoles(Set<String> roleCodes) {
         if (roleCodes == null || roleCodes.isEmpty()) {

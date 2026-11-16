@@ -9,6 +9,7 @@ import com.acme.platform.system.api.dto.AdminRoleCreate;
 import com.acme.platform.system.api.dto.AdminRoleDataScope;
 import com.acme.platform.system.api.dto.AdminRoleUpdate;
 import com.acme.platform.system.api.dto.AdminTenantCreate;
+import com.acme.platform.system.api.dto.AdminTenantUpdate;
 import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysMenu;
 import com.acme.platform.system.domain.SysPermission;
@@ -23,16 +24,23 @@ import com.acme.platform.system.infrastructure.repository.SysRoleDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysRolePermissionRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
+import com.acme.platform.system.infrastructure.client.TenantSessionRevocationGateway;
 import com.acme.platform.system.infrastructure.repository.SysTenantRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRoleRepository;
+import com.mybatisflex.core.query.QueryWrapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -303,7 +311,7 @@ class RoleAndTenantUseCaseTest {
     @Test
     void defaultTenantDisableRejected() {
         SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
-        TenantUseCase useCase = new TenantUseCase(tenantRepository);
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
         SysTenant defaultTenant = new SysTenant("default", "默认租户", null);
         setId(defaultTenant, 1L);
         when(tenantRepository.findById(1L)).thenReturn(Optional.of(defaultTenant));
@@ -317,11 +325,174 @@ class RoleAndTenantUseCaseTest {
     void tenantCodeDuplicatedRejected() {
         SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
         when(tenantRepository.existsByTenantCode("default")).thenReturn(true);
-        TenantUseCase useCase = new TenantUseCase(tenantRepository);
-        assertThatThrownBy(() -> useCase.create(new AdminTenantCreate("default", "重复租户", null)))
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+        assertThatThrownBy(() -> useCase.create(new AdminTenantCreate("default", "重复租户", null,
+                null, null, null)))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(SystemError.TENANT_CODE_DUPLICATED.code()));
+    }
+
+    // ---------- REQ-20261117-025200：租户档案字段透传（AC-4） ----------
+
+    @Test
+    void should_persistContactAndExpiry_when_createTenantCarriesProfileFields() {
+        // AC-4：创建携带联系人 / 有效期 → 实体三新字段回显一致（可空语义正确）
+        SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
+        when(tenantRepository.existsByTenantCode(any())).thenReturn(false);
+        when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+
+        Instant expiresAt = Instant.parse("2027-01-01T00:00:00Z");
+        SysTenant created = useCase.create(new AdminTenantCreate("acme", "Acme 租户", "备注",
+                "张三", "13800000000", expiresAt));
+
+        assertThat(created.getContactName()).isEqualTo("张三");
+        assertThat(created.getContactPhone()).isEqualTo("13800000000");
+        assertThat(created.getExpiresAt()).isEqualTo(expiresAt);
+        // 可空语义：缺省字段为 null（长期有效）
+        SysTenant longTerm = useCase.create(new AdminTenantCreate("lt", "长期租户", null, null, null, null));
+        assertThat(longTerm.getContactName()).isNull();
+        assertThat(longTerm.getContactPhone()).isNull();
+        assertThat(longTerm.getExpiresAt()).isNull();
+    }
+
+    @Test
+    void should_applyContactAndExpiry_when_updateTenantCarriesProfileFields() {
+        SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
+        SysTenant tenant = new SysTenant("acme", "Acme 租户", null);
+        setId(tenant, 2L);
+        setAuditField(tenant, "version", 0L);
+        when(tenantRepository.findById(2L)).thenReturn(Optional.of(tenant));
+        when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+
+        Instant expiresAt = Instant.parse("2027-06-01T00:00:00Z");
+        SysTenant updated = useCase.update(2L, new AdminTenantUpdate("Acme 租户二", null,
+                "李四", "13900000000", expiresAt, 0L));
+
+        assertThat(updated.getContactName()).isEqualTo("李四");
+        assertThat(updated.getContactPhone()).isEqualTo("13900000000");
+        assertThat(updated.getExpiresAt()).isEqualTo(expiresAt);
+    }
+
+    // ---------- REQ-20261117-025200：by-code 目录查询（确认记录③④） ----------
+
+    @Test
+    void should_returnTenant_when_findByCodeHits() {
+        SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
+        SysTenant tenant = new SysTenant("acme", "Acme 租户", null);
+        when(tenantRepository.findByTenantCode("acme")).thenReturn(Optional.of(tenant));
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+
+        assertThat(useCase.findByCode("acme")).isSameAs(tenant);
+    }
+
+    @Test
+    void should_throwTenantNotFound_when_findByCodeMissing() {
+        SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
+        when(tenantRepository.findByTenantCode("none")).thenReturn(Optional.empty());
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+
+        assertThatThrownBy(() -> useCase.findByCode("none"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(SystemError.TENANT_NOT_FOUND.code()));
+    }
+
+    // ---------- REQ-20261117-025200：登录下拉排除已过期租户（AC-5 前半，确认记录③） ----------
+
+    @Test
+    void should_excludeExpiredTenants_when_listEnabled() {
+        // 下拉不含过期租户：expiresAt 非空且 <= now 的启用租户被过滤，长期 / 未来有效期租户保留
+        SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
+        SysTenant active = new SysTenant("active", "启用租户", null);
+        SysTenant future = new SysTenant("future", "未来过期租户", null);
+        future.setExpiresAt(Instant.now().plusSeconds(3600));
+        SysTenant expired = new SysTenant("expired", "已过期租户", null);
+        expired.setExpiresAt(Instant.now().minusSeconds(3600));
+        when(tenantRepository.findAll(any(QueryWrapper.class))).thenReturn(new ArrayList<>(List.of(
+                active, future, expired)));
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+
+        assertThat(useCase.listEnabled()).extracting(SysTenant::getTenantCode)
+                .containsExactly("active", "future");
+    }
+
+    // ---------- REQ-20261117-025200：停用租户事务提交后撤销（确认记录①②，AC-1/AC-2） ----------
+
+    @Test
+    void should_revokeSessionsAfterCommit_when_disableTenant() {
+        // AC-1：停用 T → 事务提交后（afterCommit）经撤销网关调用（枚举撤销），事务内只改库不外呼
+        SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
+        TenantSessionRevocationGateway gateway = mock(TenantSessionRevocationGateway.class);
+        SysTenant tenant = new SysTenant("acme", "Acme 租户", null);
+        setId(tenant, 2L);
+        when(tenantRepository.findById(2L)).thenReturn(Optional.of(tenant));
+        when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(gateway.revokeByTenant("acme")).thenReturn(
+                new TenantSessionRevocationGateway.RevocationOutcome(2, 0));
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, gateway);
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            useCase.updateStatus(2L, EnableStatus.DISABLED);
+            // 事务未提交：不外呼，撤销挂在 afterCommit 同步器上
+            verify(gateway, never()).revokeByTenant(anyString());
+            assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(1);
+            assertThat(tenant.getStatus()).isEqualTo(EnableStatus.DISABLED);
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            verify(gateway).revokeByTenant("acme");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void should_notTriggerRevocation_when_enableTenant() {
+        // 启用（ENABLED）不触发撤销（确认记录①：仅停用枚举撤销）
+        SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
+        TenantSessionRevocationGateway gateway = mock(TenantSessionRevocationGateway.class);
+        SysTenant tenant = new SysTenant("acme", "Acme 租户", null);
+        tenant.setStatus(EnableStatus.DISABLED);
+        setId(tenant, 2L);
+        when(tenantRepository.findById(2L)).thenReturn(Optional.of(tenant));
+        when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, gateway);
+
+        useCase.updateStatus(2L, EnableStatus.ENABLED);
+
+        verify(gateway, never()).revokeByTenant(anyString());
+    }
+
+    @Test
+    void should_disableTenantStill_when_revocationCallFailsAfterCommit() {
+        // AC-2：auth 撤销端点不可达 → 停用成功保留、撤销调用失败降级 WARN 不抛（接口不报错）
+        SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
+        TenantSessionRevocationGateway gateway = mock(TenantSessionRevocationGateway.class);
+        SysTenant tenant = new SysTenant("acme", "Acme 租户", null);
+        setId(tenant, 2L);
+        when(tenantRepository.findById(2L)).thenReturn(Optional.of(tenant));
+        when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(gateway.revokeByTenant("acme")).thenThrow(new IllegalStateException("auth unreachable"));
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, gateway);
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            useCase.updateStatus(2L, EnableStatus.DISABLED);
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            // 降级口径：afterCommit 内异常被吞（不回滚停用，DB 为事实源）
+            assertThat(tenant.getStatus()).isEqualTo(EnableStatus.DISABLED);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    private static TenantSessionRevocationGateway tenantRevocationGateway() {
+        return mock(TenantSessionRevocationGateway.class);
     }
 
     private static RoleUseCase roleUseCase(SysRoleRepository roleRepository) {

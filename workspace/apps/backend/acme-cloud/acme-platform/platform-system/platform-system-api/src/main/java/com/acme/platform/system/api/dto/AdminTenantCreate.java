@@ -4,10 +4,17 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.time.Instant;
+
 /**
  * 租户创建请求（tenantCode 全局唯一且不可改，为租户标识取值来源）。
+ * REQ-20261117-025200 增补联系人 / 有效期三字段（均可空；expiresAt ISO-8601 字符串由 Jackson 反序列化，
+ * null=长期有效；不校验过去时间——存量允许，登录时拒绝即可，契约 §API 租户 CRUD 扩展）。
  */
 public record AdminTenantCreate(@NotBlank @Pattern(regexp = "^[a-z][a-z0-9_-]*$") @Size(min = 2, max = 64) String tenantCode,
                                 @NotBlank @Size(min = 1, max = 128) String tenantName,
-                                @Size(max = 255) String remark) {
+                                @Size(max = 255) String remark,
+                                @Size(max = 64) String contactName,
+                                @Size(max = 32) String contactPhone,
+                                Instant expiresAt) {
 }
