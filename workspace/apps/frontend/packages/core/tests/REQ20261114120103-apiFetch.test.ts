@@ -131,6 +131,31 @@ describe('REQ20261114120103 apiFetch GET 去重（AC-6）', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('should_not_share_inflight_get_when_init_signal_aborted_by_first_caller', async () => {
+    // StrictMode 双挂载时序：mount1 发请求 → mount2 并发同 URL → cleanup1 abort mount1 的 signal；
+    // mount2 必须自有网络请求并成功，不得共享 mount1 被取消的在途 promise。
+    const fetchMock = vi.fn((_input: unknown, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
+      const signal = init?.signal;
+      const abortError = () => new DOMException('The operation was aborted.', 'AbortError');
+      if (signal?.aborted) {
+        reject(abortError());
+        return;
+      }
+      signal?.addEventListener('abort', () => reject(abortError()));
+      setTimeout(() => resolve(envelope({ n: 1 })), 10);
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = new AbortController();
+    const p1 = apiFetch<unknown>('/admin/v1/system/tenants?page=1&dedup=s1', { signal: first.signal });
+    const p2 = apiFetch<unknown>('/admin/v1/system/tenants?page=1&dedup=s1', { signal: new AbortController().signal });
+    first.abort();
+
+    await expect(p1).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(p2).resolves.toEqual({ n: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('should_fetch_fresh_when_previous_get_already_completed', async () => {
     const fetchMock = vi.fn(async () => envelope({ n: 1 }));
     vi.stubGlobal('fetch', fetchMock);

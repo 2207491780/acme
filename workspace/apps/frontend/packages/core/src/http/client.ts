@@ -234,7 +234,10 @@ export async function apiFetch<T>(
   const method = (init.method ?? 'GET').toUpperCase();
   // GET 去重边界：仅并发在途的 GET 合并（POST/PUT/DELETE 不去重）；携带调用方 signal 或续约重试
   // 的请求不参与合并（signal 合并会耦合各方取消语义；重试并入原在途 promise 会自等死锁）。
-  const dedupKey = method === 'GET' && !retried && !signal
+  // signal 双写面（options.signal / init.signal）：漏判任一面会使带 init.signal 的请求并入合并，
+  // 调用方 abort 后并发共享者同收取消拒绝（StrictMode 双挂载首请求必报错）。
+  const callerSignal = signal ?? init.signal ?? null;
+  const dedupKey = method === 'GET' && !retried && !callerSignal
     ? `GET ${path}|auth=${String(auth)}|empty=${String(emptyAsSuccess)}|timeout=${timeout ?? DEFAULT_API_TIMEOUT_MS}`
     : null;
   if (dedupKey) {
