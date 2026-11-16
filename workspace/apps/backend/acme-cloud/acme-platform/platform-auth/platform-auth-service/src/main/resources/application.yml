@@ -48,9 +48,11 @@ acme:
     # 登录日志软删保留天数（REQ-20261114-120105 清理链路；清理收敛本服务，schema 独占）
     retention-days: 30
   security:
-    # 服务侧公开端点（FR-012 最小集：B 端租户目录/图形验证码/登录 + C 端验证码/登录/刷新；与网关豁免清单一致）
+    # 服务侧公开端点（FR-012 最小集：B 端租户目录/图形验证码/验证码策略/登录 + C 端验证码/登录/刷新；
+    # 与网关豁免清单一致）
     public-paths:
       - /admin/v1/auth/captcha
+      - /admin/v1/auth/captcha-policy
       - /admin/v1/auth/tenants
       - /admin/v1/auth/tokens
       - /app/v1/auth/captcha

@@ -5,11 +5,13 @@ import com.acme.platform.auth.AuthError;
 import com.acme.platform.auth.api.AdminTokenIssued;
 import com.acme.platform.auth.domain.AuthCredential;
 import com.acme.platform.auth.infrastructure.client.AuthProfileGateway;
+import com.acme.platform.auth.infrastructure.client.SystemConfigGateway;
 import com.acme.platform.auth.infrastructure.redis.LoginGuardRedis;
 import com.acme.platform.auth.infrastructure.redis.SessionRedis;
 import com.acme.platform.auth.infrastructure.repository.AuthCredentialRepository;
 import com.acme.platform.auth.internal.token.UserTokenIssuer;
 import com.acme.platform.system.api.AuthProfileView;
+import com.acme.platform.system.api.CaptchaPolicyView;
 import com.acme.platform.system.api.EnableStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +26,9 @@ import java.util.List;
  * 登录用例（FR-001/FR-002，架构设计 4.2 主流程）：
  * 编排不开启整体事务——画像 Feign 查询置于凭据校验前、事务外（M-05；10.2.1），
  * DB 写经 SessionRecorder 独立事务；Redis 异常防爆破降级 fail-open（取舍 #7）。
+ * REQ-20261117-011514：第 1 步验证码改按租户策略条件校验——按客户端声称的 tenantCode 实时查开关，
+ * 关闭时跳过校验（C 端短信验证码路径不涉及）；策略查询失败 fail-closed 视为开启（AC-6）；
+ * 声称租户与账号归属不匹配由既有第 4 步统一失败兜底，不产生绕过面（确认记录②）。
  */
 @Service
 public class LoginUseCase {
@@ -39,6 +44,7 @@ public class LoginUseCase {
     private final BCryptPasswordEncoder passwordEncoder;
     private final ImageCaptchaUseCase imageCaptchaUseCase;
     private final LoginLogRecorder loginLogRecorder;
+    private final SystemConfigGateway systemConfigGateway;
 
     public LoginUseCase(AuthProfileGateway authProfileGateway,
                         AuthCredentialRepository credentialRepository,
@@ -48,7 +54,8 @@ public class LoginUseCase {
                         UserTokenIssuer tokenIssuer,
                         BCryptPasswordEncoder passwordEncoder,
                         ImageCaptchaUseCase imageCaptchaUseCase,
-                        LoginLogRecorder loginLogRecorder) {
+                        LoginLogRecorder loginLogRecorder,
+                        SystemConfigGateway systemConfigGateway) {
         this.authProfileGateway = authProfileGateway;
         this.credentialRepository = credentialRepository;
         this.loginGuard = loginGuard;
@@ -58,10 +65,11 @@ public class LoginUseCase {
         this.passwordEncoder = passwordEncoder;
         this.imageCaptchaUseCase = imageCaptchaUseCase;
         this.loginLogRecorder = loginLogRecorder;
+        this.systemConfigGateway = systemConfigGateway;
     }
 
     /**
-     * B 端登录（公开端点；多租户 + 前置图形验证码；单会话互踢 Q-003；统一失败提示 FR-005）。
+     * B 端登录（公开端点；多租户 + 按租户策略前置图形验证码；单会话互踢 Q-003；统一失败提示 FR-005）。
      * REQ-20261114-120105：成功/失败均记登录日志（异步落库，写失败不影响本路径）；
      * 会话信息（ip/lastActiveAt）随签发写入供在线用户展示。
      */
@@ -71,8 +79,16 @@ public class LoginUseCase {
         String normalized = username == null ? "" : username.trim();
         String normalizedTenant = tenantCode == null ? "" : tenantCode.trim();
         try {
-            // 1. 图形验证码前置（一次性消费防刷，login-guard-captcha；错误区分 INVALID/EXPIRED）
-            imageCaptchaUseCase.verify(captchaId, captchaCode);
+            // 1. 图形验证码前置（REQ-20261117-011514：按租户策略条件校验，一次性消费防刷 login-guard-captcha；
+            //    错误区分 INVALID/EXPIRED；策略查询失败 fail-closed 视为开启）
+            if (captchaRequired(normalizedTenant)) {
+                // 条件必填守卫（接口层已放宽为 @Size 上限校验）：任一字段空白按既有 INVALID 拒绝，
+                // 不透传 verify（EXPIRED 语义归签发端真实缺失场景，REQ-20261117-011514）
+                if (captchaId == null || captchaId.isBlank() || captchaCode == null || captchaCode.isBlank()) {
+                    throw new BizException(AuthError.CAPTCHA_INVALID);
+                }
+                imageCaptchaUseCase.verify(captchaId, captchaCode);
+            }
             // 2. 锁定预检（Redis fail-open）
             if (loginGuard.isLocked(normalized)) {
                 throw new BizException(AuthError.ACCOUNT_LOCKED);
@@ -114,6 +130,20 @@ public class LoginUseCase {
             loginLogRecorder.record(LoginLogRecorder.Entry.capture(normalized, UserTokenIssuer.CHANNEL_B,
                     clientIp, userAgent, false, ex.errorCode().code()));
             throw ex;
+        }
+    }
+
+    /**
+     * 验证码是否必须（REQ-20261117-011514）：按客户端声称租户实时查策略（不引入缓存，确认记录④）；
+     * 策略查询失败 fail-closed 视为开启（AC-6 不因降级放宽安全，WARN 记录）。
+     */
+    private boolean captchaRequired(String tenantCode) {
+        try {
+            CaptchaPolicyView policy = systemConfigGateway.findCaptchaPolicy(tenantCode);
+            return policy != null && policy.captchaEnabled();
+        } catch (RuntimeException ex) {
+            log.warn("验证码策略查询失败，fail-closed 视为开启：tenantCode={}", tenantCode, ex);
+            return true;
         }
     }
 

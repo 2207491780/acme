@@ -106,9 +106,11 @@ acme:
     auth:
       b:
         public-paths:
-          # 公开豁免最小集（FR-012）：登录端点 + 图形验证码 + 租户目录（login-guard-captcha / login-tenant-select）；
+          # 公开豁免最小集（FR-012）：登录端点 + 图形验证码 + 租户目录 + 验证码策略
+          # （login-guard-captcha / login-tenant-select / REQ-20261117-011514 captcha-policy）；
           # 默认全部路由验签
           - /admin/v1/auth/captcha
+          - /admin/v1/auth/captcha-policy
           - /admin/v1/auth/tenants
           - /admin/v1/auth/tokens
       c:

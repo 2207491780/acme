@@ -74,10 +74,12 @@ class GatewayRoutingConfigTest {
 
     @Test
     void publicPathsAreMinimalExplicitList() {
-        // FR-012 最小化：B 端仅图形验证码 + 租户目录 + 登录豁免（login-guard-captcha / login-tenant-select）；
+        // FR-012 最小化：B 端仅图形验证码 + 验证码策略 + 租户目录 + 登录豁免
+        // （login-guard-captcha / login-tenant-select / REQ-20261117-011514 captcha-policy）；
         // C 端仅认证自证豁免（内容读豁免随业务域下线移除）
-        assertThat(gatewayProperties.getAuth().getB().getPublicPaths())
-                .containsExactly("/admin/v1/auth/captcha", "/admin/v1/auth/tenants", "/admin/v1/auth/tokens");
+        assertThat(gatewayProperties.getAuth().getB().getPublicPaths()).containsExactly(
+                "/admin/v1/auth/captcha", "/admin/v1/auth/captcha-policy",
+                "/admin/v1/auth/tenants", "/admin/v1/auth/tokens");
         assertThat(gatewayProperties.getAuth().getC().getPublicPaths()).containsExactly(
                 "/app/v1/auth/captcha", "/app/v1/auth/tokens", "/app/v1/auth/tokens/refresh");
     }

@@ -23,6 +23,7 @@ acme:
   security:
     public-paths:
       - /admin/v1/auth/tokens
+      - /admin/v1/auth/captcha-policy
     token:
       hmac-secret: auth-it-secret-0123456789abcdef
   auth:

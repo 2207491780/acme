@@ -5,12 +5,14 @@ import com.acme.platform.auth.AuthError;
 import com.acme.platform.auth.api.AdminTokenIssued;
 import com.acme.platform.auth.domain.AuthCredential;
 import com.acme.platform.auth.infrastructure.client.AuthProfileGateway;
+import com.acme.platform.auth.infrastructure.client.SystemConfigGateway;
 import com.acme.platform.auth.infrastructure.redis.LoginGuardRedis;
 import com.acme.platform.auth.infrastructure.redis.SessionRedis;
 import com.acme.platform.auth.infrastructure.repository.AuthCredentialRepository;
 import com.acme.platform.auth.internal.token.UserTokenIssuer;
 import com.acme.platform.auth.config.AuthTokenProperties;
 import com.acme.platform.system.api.AuthProfileView;
+import com.acme.platform.system.api.CaptchaPolicyView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.when;
 /**
  * 登录用例测试（FR-001/002；AC-006 登录分支矩阵：验证码前置 / 成功 / 统一失败 / 锁定 / 停用 /
  * 互踢后旧令牌撤销 / Redis fail-open）。
+ * REQ-20261117-011514：验证码改按租户策略条件校验——关闭跳过 / 开启照常 / 查询失败 fail-closed。
  */
 class LoginUseCaseTest {
 
@@ -45,6 +48,7 @@ class LoginUseCaseTest {
     private final SessionRecorder sessionRecorder = mock(SessionRecorder.class);
     private final ImageCaptchaUseCase imageCaptchaUseCase = mock(ImageCaptchaUseCase.class);
     private final LoginLogRecorder loginLogRecorder = mock(LoginLogRecorder.class);
+    private final SystemConfigGateway systemConfigGateway = mock(SystemConfigGateway.class);
     private final org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder encoder =
             new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(10);
 
@@ -63,7 +67,9 @@ class LoginUseCaseTest {
         properties.setTtlSeconds(1800);
         useCase = new LoginUseCase(authProfileGateway, credentialRepository, loginGuard, sessionRedis,
                 sessionRecorder, new UserTokenIssuer(properties), encoder, imageCaptchaUseCase,
-                loginLogRecorder);
+                loginLogRecorder, systemConfigGateway);
+        // 既有用例基线：策略开启（REQ-20261117-011514 前的全局强制口径）；策略用例可覆盖
+        when(systemConfigGateway.findCaptchaPolicy(anyString())).thenReturn(new CaptchaPolicyView(true));
     }
 
     private AuthProfileView profile(String status) {
@@ -183,5 +189,82 @@ class LoginUseCaseTest {
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.LOGIN_FAILED.code()));
+    }
+
+    // ---------- REQ-20261117-011514：验证码策略条件校验（AC-2/AC-3/AC-6 用例级口径） ----------
+
+    @Test
+    void should_skipCaptchaVerifyAndIssueToken_when_policyDisabled() {
+        // AC-2：租户开关关闭 → 不携带验证码凭正确凭据可登录，行为同关闭前有效凭据路径
+        when(systemConfigGateway.findCaptchaPolicy("default")).thenReturn(new CaptchaPolicyView(false));
+        stubLoginSuccessPath();
+        AdminTokenIssued issued = useCase.login("default", "admin", "Correct@123", null, null, "10.0.0.1", "JUnit");
+        assertThat(issued.accessToken()).isNotBlank();
+        verify(imageCaptchaUseCase, never()).verify(any(), any());
+    }
+
+    @Test
+    void should_skipCaptchaVerifyEvenWhenCaptchaGarbage_when_policyDisabled() {
+        // AC-2 关闭语义：后端跳过校验（不调用 verify），即使客户端误带验证码字段也不拒绝
+        when(systemConfigGateway.findCaptchaPolicy("default")).thenReturn(new CaptchaPolicyView(false));
+        stubLoginSuccessPath();
+        assertThat(useCase.login("default", "admin", "Correct@123", "bad-id", "bad-code", "10.0.0.1", "JUnit")
+                .accessToken()).isNotBlank();
+        verify(imageCaptchaUseCase, never()).verify(any(), any());
+    }
+
+    @Test
+    void should_rejectLoginWithCaptchaError_when_policyEnabledAndCaptchaMissing() {
+        // AC-3：租户开关开启 → 缺失验证码（字段缺省 null）即拒（blank 守卫既有错误码 INVALID，不调用 verify），
+        // 且不触发画像查询（防爆破前置口径不变）
+        when(systemConfigGateway.findCaptchaPolicy("default")).thenReturn(new CaptchaPolicyView(true));
+        stubLoginSuccessPath();
+        assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", null, null, "10.0.0.1", "JUnit"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.CAPTCHA_INVALID.code()));
+        verify(imageCaptchaUseCase, never()).verify(any(), any());
+        verify(authProfileGateway, never()).findByUsername(anyString());
+    }
+
+    @Test
+    void should_rejectBlankCaptchaFields_when_policyEnabled() {
+        // REQ-20261117-011514 blank 守卫：策略开启时任一字段空白 → 既有错误码 CAPTCHA_INVALID
+        // （前置拦截，不透传 verify）；Bean Validation 仅校验 @Size 上限，不泄露策略语义
+        when(systemConfigGateway.findCaptchaPolicy("default")).thenReturn(new CaptchaPolicyView(true));
+        stubLoginSuccessPath();
+        // 双字段均空白
+        assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", "", " ", "10.0.0.1", "JUnit"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.CAPTCHA_INVALID.code()));
+        // 任一空白同样拒绝
+        assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", CAPTCHA_ID, " ", "10.0.0.1", "JUnit"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.CAPTCHA_INVALID.code()));
+        assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", " ", CAPTCHA_CODE, "10.0.0.1", "JUnit"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.CAPTCHA_INVALID.code()));
+        verify(imageCaptchaUseCase, never()).verify(any(), any());
+        verify(authProfileGateway, never()).findByUsername(anyString());
+    }
+
+    @Test
+    void should_failClosedRequireCaptcha_when_policyQueryFails() {
+        // AC-6：策略查询下游异常 fail-closed 视为开启，不因降级放宽安全（WARN 由用例记录）——
+        // 携带（无效）验证码按既有错误码拒绝，证明确实前置校验
+        when(systemConfigGateway.findCaptchaPolicy("default"))
+                .thenThrow(new IllegalStateException("downstream unavailable"));
+        stubLoginSuccessPath();
+        doThrow(new BizException(AuthError.CAPTCHA_EXPIRED)).when(imageCaptchaUseCase)
+                .verify(CAPTCHA_ID, CAPTCHA_CODE);
+        assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE, "10.0.0.1", "JUnit"))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
+                        .isEqualTo(AuthError.CAPTCHA_EXPIRED.code()));
+        verify(imageCaptchaUseCase).verify(CAPTCHA_ID, CAPTCHA_CODE);
+        verify(authProfileGateway, never()).findByUsername(anyString());
     }
 }

@@ -5,6 +5,7 @@ import com.acme.platform.auth.config.AuthTokenProperties;
 import com.acme.platform.auth.config.LoginGuardProperties;
 import com.acme.platform.system.api.AuthProfileClient;
 import com.acme.platform.system.api.AuthorizationClient;
+import com.acme.platform.system.api.SystemConfigClient;
 import com.acme.platform.system.api.TenantClient;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -22,7 +23,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
  */
 @SpringBootApplication
 @EnableAsync
-@EnableFeignClients(clients = {AuthProfileClient.class, AuthorizationClient.class, TenantClient.class})
+@EnableFeignClients(clients = {AuthProfileClient.class, AuthorizationClient.class, TenantClient.class,
+        SystemConfigClient.class})
 @EnableConfigurationProperties({AuthTokenProperties.class, LoginGuardProperties.class,
         LoginLogRetentionProperties.class})
 public class PlatformAuthApplication {
