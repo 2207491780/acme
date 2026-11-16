@@ -255,18 +255,22 @@ class REQ20261114120105LoginLogIntegrationTest {
                 .header("X-Trace-Id", TRACE_ID)
                 .header("X-Acme-Channel", "C")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(body)));
+                .content(JSON.writeValueAsString(body)), Channel.C);
     }
 
-    /** token(...) 仅为 MockMvc 过滤链装配需要（本类端点均公开豁免，不携内部令牌）。 */
-    private String token(String userId, String tenant, Set<String> roles) {
-        return tokenIssuer.issue(new AuthenticatedSubject(userId, tenant, Channel.B, roles));
+    /** token(...) 仅为 MockMvc 过滤链装配需要：端别须与请求 X-Acme-Channel 声明一致（否则 CHANNEL_MISMATCH）。 */
+    private String token(String userId, String tenant, Set<String> roles, Channel channel) {
+        return tokenIssuer.issue(new AuthenticatedSubject(userId, tenant, channel, roles));
     }
 
     private JsonNode call(MockHttpServletRequestBuilder request) {
+        return call(request, Channel.B);
+    }
+
+    private JsonNode call(MockHttpServletRequestBuilder request, Channel channel) {
         try {
             MvcResult result = mvc.perform(request
-                            .header("X-Acme-Token", token("1", "default", Set.of("super_admin")))
+                            .header("X-Acme-Token", token("1", "default", Set.of("super_admin"), channel))
                             .requestAttr(ClientContextDraft.ATTRIBUTE_NAME,
                                     new ClientContextDraft(null, "dev-1", "1.0")))
                     .andReturn();

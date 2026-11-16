@@ -3,8 +3,11 @@ package com.acme.platform.auth;
 import com.acme.common.context.Channel;
 import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
+import com.acme.common.core.BizException;
+import com.acme.common.core.ErrorCode;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
+import com.acme.framework.core.support.HttpStatusAware;
 import com.acme.framework.security.interceptor.InternalTokenAuthFilter;
 import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.InternalTokenVerifier;
@@ -13,6 +16,7 @@ import com.acme.platform.auth.infrastructure.client.AuthProfileGateway;
 import com.acme.platform.auth.infrastructure.redis.LoginGuardRedis;
 import com.acme.platform.auth.infrastructure.redis.SessionRedis;
 import com.acme.platform.system.api.AuthProfileView;
+import com.acme.platform.system.api.SystemErrorCodes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -206,9 +210,11 @@ class REQ20261114120105OnlineUsersIntegrationTest {
         // token_id/user_id/tenant_id/channel/status/issued_at/expires_at；表名 auth_session 与
         // status 字面量 'ACTIVE' 为实现惯例推定——AMB-7，交付对齐时回填）
         jdbcTemplate.update("""
-                insert into auth_session (token_id, user_id, tenant_id, channel, status, issued_at, expires_at)
-                values ('req120105-expired-token', 1, 'default', 'B', 'ACTIVE',
-                        now() - interval '1 hour', now() - interval '1 minute')
+                insert into auth_session (id, token_id, user_id, tenant_id, channel, status, issued_at, expires_at,
+                                          created_at, created_by, updated_at, updated_by, version, deleted)
+                values (920001, 'req120105-expired-token', 1, 'default', 'B', 'ACTIVE',
+                        now() - interval '1 hour', now() - interval '1 minute',
+                        now(), 'system', now(), 'system', 0, false)
                 """);
 
         JsonNode body = call(get("/admin/v1/auth/online-users"));
@@ -296,7 +302,7 @@ class REQ20261114120105OnlineUsersIntegrationTest {
     @Test
     void should_rejectAllAuthSecurityEndpoints_when_noPermission() {
         when(authorizationGateway.hasPermission(anyString())).thenReturn(false);
-        org.mockito.Mockito.doThrow(new RuntimeException("req120105-permission-denied"))
+        org.mockito.Mockito.doThrow(new BizException(new PermissionDenied()))
                 .when(authorizationGateway).requirePermission(anyString());
 
         List<AbstractMockHttpServletRequestBuilder<?>> endpoints = List.of(
@@ -311,6 +317,24 @@ class REQ20261114120105OnlineUsersIntegrationTest {
             assertThat(body.path("code").asText())
                     .as("权限拒绝精确码（确认记录⑧，HTTP 403 + Result 信封 code≠0，勿断言 4xx）：%s", endpoint)
                     .isEqualTo("platform-system-07-0001");
+        }
+    }
+
+    /** 镜像 AuthorizationGateway.CrossDomainPermissionDenied（私有不可见）：码归 system 段 + HTTP 403。 */
+    private static final class PermissionDenied implements ErrorCode, HttpStatusAware {
+        @Override
+        public String code() {
+            return SystemErrorCodes.PERMISSION_DENIED;
+        }
+
+        @Override
+        public String defaultMessage() {
+            return "无操作权限";
+        }
+
+        @Override
+        public int httpStatus() {
+            return 403;
         }
     }
 

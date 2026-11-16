@@ -3,6 +3,7 @@ package com.acme.platform.system.interfaces;
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
 import com.acme.common.context.UserContext;
+import com.acme.common.core.Result;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminMessageSend;
 import com.acme.platform.system.api.dto.AdminMessageView;
@@ -61,8 +62,9 @@ public class MessageController {
 
     @PutMapping("/read-all")
     @RequirePermission(SystemPermissions.MESSAGE_READ)
-    public void readAll() {
+    public Result<Void> readAll() {
         messageUseCase.markAllRead(currentRecipientId());
+        return Result.ok(null);
     }
 
     @PutMapping("/{messageId}/read")

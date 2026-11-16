@@ -48,7 +48,7 @@ public class DeptUseCase {
         return deptRepository.findById(deptId).orElseThrow(() -> new BizException(SystemError.DEPT_NOT_FOUND));
     }
 
-    /** 创建部门（父节点须存在；insert 后按雪花 id 回填物化 path，乐观锁版本保持 0）。 */
+    /** 创建部门（父节点须存在；insert 后按雪花 id 回填物化 path，回填计一次写、版本同步 +1）。 */
     @Transactional
     public SysDept create(AdminDeptCreate request) {
         Long parentId = request.parentId() == null ? SysDept.ROOT_PARENT_ID : request.parentId();
@@ -56,10 +56,14 @@ public class DeptUseCase {
         if (parentId != SysDept.ROOT_PARENT_ID) {
             parentPath = get(parentId).getPath();
         }
-        SysDept dept = deptRepository.save(new SysDept(parentId, request.name(), request.sortOrder(),
-                request.status()));
+        SysDept dept = new SysDept(parentId, request.name(), request.sortOrder(), request.status());
+        // V9 path NOT NULL：先占位 insert，雪花 id 落定后同事务回填物化路径
+        dept.setPath("/");
+        deptRepository.save(dept);
         deptRepository.updatePath(dept.getId(), parentPath + dept.getId() + "/");
         dept.setPath(parentPath + dept.getId() + "/");
+        // Flex 实体模板更新在 SQL 端自增版本不写回实体（FlexRepositorySupport 同款口径）
+        dept.setVersion(dept.getVersion() + 1);
         return dept;
     }
 
@@ -123,6 +127,8 @@ public class DeptUseCase {
         }
         dept.setPath(newPath);
         deptRepository.updatePath(dept.getId(), newPath);
+        // 定向 path 更新同样在 SQL 端自增版本：同步实体，避免后续 save 乐观锁误判陈旧
+        dept.setVersion(dept.getVersion() + 1);
     }
 
     /** 删除部门（不存在 → 404；存在子部门 / 存在用户归属拒绝，确认记录③；软删；CUSTOM 绑定行留存量、评估按空集收敛）。 */

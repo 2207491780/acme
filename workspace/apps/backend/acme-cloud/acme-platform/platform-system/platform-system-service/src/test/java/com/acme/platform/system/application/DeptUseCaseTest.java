@@ -42,12 +42,14 @@ class DeptUseCaseTest {
             var idField = com.acme.framework.flex.support.AuditBase.class.getDeclaredField("id");
             idField.setAccessible(true);
             idField.set(saved, 100L);
+            saved.setVersion(0L);
             return saved;
         });
         SysDept created = useCase.create(new AdminDeptCreate(0L, "总部", 1, EnableStatus.ENABLED));
         // insert 后雪花 id 已定，path 依赖 id 二次回填（updatePath 装配 + 实体同步）
         assertThat(created.getId()).isNotNull();
         assertThat(created.getPath()).isEqualTo("/" + created.getId() + "/");
+        assertThat(created.getVersion()).isEqualTo(1L);
         verify(deptRepository).updatePath(any(), anyString());
     }
 

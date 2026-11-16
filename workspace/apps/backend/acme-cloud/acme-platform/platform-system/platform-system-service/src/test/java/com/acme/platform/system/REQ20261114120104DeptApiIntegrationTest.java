@@ -181,10 +181,10 @@ class REQ20261114120104DeptApiIntegrationTest {
         assertThat(findNode(call(get("/admin/v1/system/depts")).path("data"), disabledId))
                 .as("禁用态部门也应出现在树中（含禁用态）").isNotNull();
 
-        // 编辑（改名 + 排序；version 惯例：节点含则回传，AMB-5）
+        // 编辑（改名 + 排序；version 惯例：节点含则回传，AMB-5）；parentId=0 保持根节点（传自身 id 会触发防环拒绝）
         JsonNode renamed = call(put("/admin/v1/system/depts/{id}", rootId)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(deptBody(Long.parseLong(rootId),
+                .content(JSON.writeValueAsString(deptBody(0L,
                         "req-120104-root-2", 2, "ENABLED", versionOf(root)))));
         assertThat(renamed.path("code").asText()).isEqualTo("0");
 

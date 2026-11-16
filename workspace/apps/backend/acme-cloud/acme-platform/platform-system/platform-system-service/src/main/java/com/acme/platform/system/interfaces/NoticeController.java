@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.common.core.Result;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminNoticeCreate;
 import com.acme.platform.system.api.dto.AdminNoticeUpdate;
@@ -79,7 +80,8 @@ public class NoticeController {
 
     @DeleteMapping("/{noticeId}")
     @RequirePermission(SystemPermissions.NOTICE_DELETE)
-    public void delete(@PathVariable Long noticeId) {
+    public Result<Void> delete(@PathVariable Long noticeId) {
         noticeUseCase.delete(noticeId);
+        return Result.ok(null);
     }
 }

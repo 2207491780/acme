@@ -146,13 +146,16 @@ class REQ20261114120105LoginLogRetentionPurgeIntegrationTest {
 
     // ---------- 支撑 ----------
 
+    // 雪花 id 由应用指派、DB 无缺省：种子行须显式给主键（隔离测试库内唯一即可）
+    private static long seedIdSeq = 910_000L;
+
     private void insertLog(String username, Timestamp createdAt, boolean deleted) {
         jdbcTemplate.update("""
-                        insert into sys_login_log (username, user_type, ip, user_agent, result, fail_reason,
+                        insert into sys_login_log (id, username, user_type, ip, user_agent, result, fail_reason,
                                                    trace_id, created_at, deleted)
-                        values (?, 'B', '10.0.0.1', 'ua-purge', 'SUCCESS', null, 'trace-purge', ?, ?)
+                        values (?, ?, 'B', '10.0.0.1', 'ua-purge', 'SUCCESS', null, 'trace-purge', ?, ?)
                         """,
-                username, createdAt, deleted);
+                ++seedIdSeq, username, createdAt, deleted);
     }
 
     private long countOf(String username) {

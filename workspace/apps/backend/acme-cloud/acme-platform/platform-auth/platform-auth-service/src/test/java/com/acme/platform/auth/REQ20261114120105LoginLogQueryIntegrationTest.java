@@ -3,11 +3,15 @@ package com.acme.platform.auth;
 import com.acme.common.context.Channel;
 import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
+import com.acme.common.core.BizException;
+import com.acme.common.core.ErrorCode;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
+import com.acme.framework.core.support.HttpStatusAware;
 import com.acme.framework.security.interceptor.InternalTokenAuthFilter;
 import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.InternalTokenVerifier;
+import com.acme.platform.system.api.SystemErrorCodes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -139,7 +143,7 @@ class REQ20261114120105LoginLogQueryIntegrationTest {
 
     private void denyAllPermissions() {
         when(authorizationGateway.hasPermission(anyString())).thenReturn(false);
-        org.mockito.Mockito.doThrow(new RuntimeException("req120105-permission-denied"))
+        org.mockito.Mockito.doThrow(new BizException(new PermissionDenied()))
                 .when(authorizationGateway).requirePermission(anyString());
     }
 
@@ -150,14 +154,35 @@ class REQ20261114120105LoginLogQueryIntegrationTest {
         insertLog("carol", "B", "10.0.0.4", "ua-carol", "SUCCESS", null, "trace-carol", T_CAROL);
     }
 
+    // 雪花 id 由应用指派、DB 无缺省：种子行须显式给主键（隔离测试库内唯一即可）
+    private static long seedIdSeq = 900_000L;
+
     private void insertLog(String username, String userType, String ip, String ua, String result,
                            String failReason, String traceId, Instant createdAt) {
         jdbcTemplate.update("""
-                        insert into sys_login_log (username, user_type, ip, user_agent, result, fail_reason,
+                        insert into sys_login_log (id, username, user_type, ip, user_agent, result, fail_reason,
                                                    trace_id, created_at)
-                        values (?, ?, ?, ?, ?, ?, ?, ?)
+                        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                username, userType, ip, ua, result, failReason, traceId, Timestamp.from(createdAt));
+                ++seedIdSeq, username, userType, ip, ua, result, failReason, traceId, Timestamp.from(createdAt));
+    }
+
+    /** 镜像 AuthorizationGateway.CrossDomainPermissionDenied（私有不可见）：码归 system 段 + HTTP 403。 */
+    private static final class PermissionDenied implements ErrorCode, HttpStatusAware {
+        @Override
+        public String code() {
+            return SystemErrorCodes.PERMISSION_DENIED;
+        }
+
+        @Override
+        public String defaultMessage() {
+            return "无操作权限";
+        }
+
+        @Override
+        public int httpStatus() {
+            return 403;
+        }
     }
 
     // ---------- AC-2：无筛选分页（page/size 生效，total 正确） ----------
