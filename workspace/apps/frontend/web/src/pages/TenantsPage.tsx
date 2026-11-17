@@ -150,7 +150,6 @@ export function TenantsPage() {
         title={t('tenants.title')}
         columns={columns}
         searchPlaceholder={t('tenants.search.placeholder')}
-        searchWidth={240}
         reloadAriaLabel={t('tenants.reload')}
         createPermission="system:tenant:create"
         createLabel={t('tenants.create')}

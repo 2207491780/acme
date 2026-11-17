@@ -84,10 +84,10 @@ export function AuditPage() {
             advanced={(
               <>
                 <Form.Item name="traceId" label={t('audit.filters.traceId')}>
-                  <Input placeholder={t('audit.filters.traceId')} allowClear style={{ width: 180 }} />
+                  <Input placeholder={t('audit.filters.traceId')} allowClear />
                 </Form.Item>
-                <Form.Item name="range" label={t('common.filters.timeRange')}>
-                  <DatePicker.RangePicker showTime style={{ width: 340 }} />
+                <Form.Item name="range" label={t('common.filters.timeRange')} className="filter-field-wide">
+                  <DatePicker.RangePicker showTime />
                 </Form.Item>
               </>
             )}
@@ -101,10 +101,10 @@ export function AuditPage() {
             )}
           >
             <Form.Item name="operatorId" label={t('audit.filters.operatorId')}>
-              <Input placeholder={t('audit.filters.operatorId')} allowClear style={{ width: 160 }} />
+              <Input placeholder={t('audit.filters.operatorId')} allowClear />
             </Form.Item>
             <Form.Item name="action" label={t('audit.columns.action')}>
-              <Input placeholder={t('audit.filters.action')} allowClear style={{ width: 200 }} />
+              <Input placeholder={t('audit.filters.action')} allowClear />
             </Form.Item>
           </FilterPanel>
         </Form>

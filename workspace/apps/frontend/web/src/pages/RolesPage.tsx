@@ -268,7 +268,6 @@ export function RolesPage() {
         title={t('roles.title')}
         columns={columns}
         searchPlaceholder={t('roles.search.placeholder')}
-        searchWidth={220}
         reloadAriaLabel={t('roles.reload')}
         createPermission="system:role:create"
         createLabel={t('roles.create')}

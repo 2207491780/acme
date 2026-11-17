@@ -131,7 +131,6 @@ export function PositionsPage() {
         title={t('positions.title')}
         columns={columns}
         searchPlaceholder={t('positions.search.placeholder')}
-        searchWidth={200}
         reloadAriaLabel={t('positions.reload')}
         createPermission="system:position:create"
         createLabel={t('positions.create')}

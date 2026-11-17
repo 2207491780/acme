@@ -11,6 +11,21 @@ interface FilterPanelProps {
   actions?: ReactNode;
 }
 
+/** 统一筛选字段：小标签 + 全宽控件，落入 FilterPanel 等宽自适应网格；wide 跨两列（时间范围等宽控件）。 */
+export function FilterField({ label, htmlFor, wide = false, children }: {
+  label: ReactNode;
+  htmlFor?: string;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className={wide ? 'filter-field filter-field-wide' : 'filter-field'}>
+      <label className="filter-field-label" htmlFor={htmlFor}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
 export function FilterPanel({ children, advanced, advancedActive = false, actions }: FilterPanelProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
@@ -23,7 +38,7 @@ export function FilterPanel({ children, advanced, advancedActive = false, action
       aria-label={t('common.filters.region')}
       style={{ marginBottom: SPACING.lg }}
     >
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm, marginBottom: SPACING.lg }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm, marginBottom: SPACING.md }}>
         <Space size={SPACING.sm} wrap>
           <FilterOutlined aria-hidden />
           <Typography.Text strong>{t(expanded ? 'common.filters.advanced' : 'common.filters.basic')}</Typography.Text>
@@ -41,17 +56,17 @@ export function FilterPanel({ children, advanced, advancedActive = false, action
           </Button>
         ) : null}
       </div>
-      <div className="filter-panel-fields" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: SPACING.lg }}>
+      <div className="filter-panel-fields">
         {children}
       </div>
       {advanced ? (
-        <div id={advancedId} hidden={!expanded} style={{ marginTop: SPACING.lg, paddingTop: SPACING.lg, borderTop: '1px solid var(--border)' }}>
-          <div className="filter-panel-fields" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: SPACING.lg }}>
+        <div id={advancedId} hidden={!expanded} style={{ marginTop: SPACING.md, paddingTop: SPACING.md, borderTop: '1px solid var(--border)' }}>
+          <div className="filter-panel-fields">
             {advanced}
           </div>
         </div>
       ) : null}
-      {actions ? <div style={{ marginTop: SPACING.lg }}>{actions}</div> : null}
+      {actions ? <div className="filter-panel-actions">{actions}</div> : null}
     </Card>
   );
 }

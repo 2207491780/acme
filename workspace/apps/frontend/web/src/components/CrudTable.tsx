@@ -5,8 +5,8 @@ import type { ColumnsType } from 'antd/es/table';
 import type { GetRowKey } from 'antd/es/table/interface';
 import type { TableProps } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { SPACING, type CrudController } from '@acme/core';
-import { FilterPanel } from './FilterPanel';
+import { type CrudController } from '@acme/core';
+import { FilterField, FilterPanel } from './FilterPanel';
 import { TableSettingsButton, useTableSettings } from './tableSettings';
 
 type RowClassName<T> = (record: T, index: number) => string;
@@ -22,8 +22,6 @@ export interface CrudTableProps<T extends object, F extends Record<string, strin
   rowKey?: string | GetRowKey<T>;
   /** 关键字搜索占位文案（缺省 i18n common.table.searchPlaceholder）。 */
   searchPlaceholder?: string;
-  /** 搜索框宽度（默认 200）。 */
-  searchWidth?: number;
   /** 是否渲染关键字搜索框（默认 true）。 */
   searchable?: boolean;
   /** 进阶筛选控件（受控值接 crud.filters / crud.setFilter）。 */
@@ -67,7 +65,6 @@ export function CrudTable<T extends object, F extends Record<string, string | un
   columns,
   rowKey,
   searchPlaceholder,
-  searchWidth = 200,
   searchable = true,
   filters,
   actions,
@@ -95,15 +92,14 @@ export function CrudTable<T extends object, F extends Record<string, string | un
           advancedActive={Object.values(crud.filters).some((value) => value !== undefined && value !== '')}
         >
           {searchable ? (
-            <div style={{ width: searchWidth, maxWidth: '100%' }}>
-              <label htmlFor={searchId} style={{ display: 'block', marginBottom: SPACING.sm }}>{t('common.filters.keyword')}</label>
+            <FilterField label={t('common.filters.keyword')} htmlFor={searchId}>
               <Input.Search
                 id={searchId}
                 placeholder={searchPlaceholder ?? t('common.table.searchPlaceholder')}
                 allowClear
                 onSearch={(value) => crud.search(value.trim())}
               />
-            </div>
+            </FilterField>
           ) : filters}
         </FilterPanel>
       ) : null)}

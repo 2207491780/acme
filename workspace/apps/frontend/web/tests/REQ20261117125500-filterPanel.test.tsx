@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { App as AntApp, Button, DatePicker, Form, Input } from 'antd';
 import dayjs from 'dayjs';
 import { i18n, useAuthStore, useCrud, useMeStore, type CrudQuery } from '@acme/core';
-import { FilterPanel } from '../src/components/FilterPanel';
+import { FilterField, FilterPanel } from '../src/components/FilterPanel';
 import { CrudTable } from '../src/components/CrudTable';
 import { AuditPage } from '../src/pages/AuditPage';
 import { LoginLogsPage } from '../src/pages/LoginLogsPage';
@@ -63,6 +63,19 @@ describe('REQ20261117125500 FilterPanel', () => {
     expand();
     expect(screen.getByRole('textbox', { name: '进阶字段' })).toBe(field);
     expect(field.value).toBe('keep-me');
+  });
+
+  it('FilterField associates its label with the control and spans two grid columns when wide', () => {
+    render(
+      <FilterPanel advanced={<FilterField label="宽字段" htmlFor="wide-field" wide><Input id="wide-field" /></FilterField>}>
+        <FilterField label="普通字段" htmlFor="plain-field"><Input id="plain-field" /></FilterField>
+      </FilterPanel>,
+    );
+    expect(screen.getByLabelText('普通字段')).toBe(document.getElementById('plain-field'));
+    expect(document.querySelector('.filter-panel-fields')).toBeTruthy();
+    expand();
+    expect(screen.getByLabelText('宽字段')).toBe(document.getElementById('wide-field'));
+    expect(document.getElementById('wide-field')!.closest('.filter-field')!.classList.contains('filter-field-wide')).toBe(true);
   });
 
   it('omits the toggle without advanced fields and translates active-filter feedback', async () => {

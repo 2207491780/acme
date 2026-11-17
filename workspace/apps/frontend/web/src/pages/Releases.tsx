@@ -16,7 +16,6 @@ import {
   NEXT_STATUS,
   PLATFORMS,
   SORTS,
-  SPACING,
   STATUSES,
   filterReleases,
   fmtFull,
@@ -29,7 +28,7 @@ import { envLabelKey, platformLabelKey, statusLabelKey } from '../labels';
 import { useStore } from '../store/useStore';
 import { EnvTag, PlatformTag, StatusTag } from '../components/atoms';
 import { PageHead } from '../components/PageHead';
-import { FilterPanel } from '../components/FilterPanel';
+import { FilterField, FilterPanel } from '../components/FilterPanel';
 import { TableSettingsButton, useTableSettings } from '../components/tableSettings';
 import { useDeleteReleases } from '../hooks/useReleaseActions';
 
@@ -174,33 +173,27 @@ export function Releases() {
       <FilterPanel
         advancedActive={query.env !== 'all'}
         advanced={(
-          <div>
-            <label htmlFor={`${filterId}-env`} style={{ display: 'block', marginBottom: SPACING.sm }}>{t('releases.columns.env')}</label>
+          <FilterField label={t('releases.columns.env')} htmlFor={`${filterId}-env`}>
             <Select
               id={`${filterId}-env`}
-              style={{ width: 150 }}
               value={query.env}
               onChange={(v) => setQuery({ env: v })}
               options={[{ value: 'all', label: t('releases.filters.allEnvs') }, ...ENVS.map((e) => ({ value: e, label: t(envLabelKey(e)) }))]}
             />
-          </div>
+          </FilterField>
         )}
       >
-        <div>
-          <label htmlFor={`${filterId}-platform`} style={{ display: 'block', marginBottom: SPACING.sm }}>{t('releases.filters.platform')}</label>
+        <FilterField label={t('releases.filters.platform')} htmlFor={`${filterId}-platform`}>
           <Select
             id={`${filterId}-platform`}
-            style={{ width: 150 }}
             value={query.platform}
             onChange={(v) => setQuery({ platform: v })}
             options={[{ value: 'all', label: t('releases.filters.allPlatforms') }, ...PLATFORMS.map((p) => ({ value: p, label: t(platformLabelKey(p)) }))]}
           />
-        </div>
-        <div>
-          <label htmlFor={`${filterId}-status`} style={{ display: 'block', marginBottom: SPACING.sm }}>{t('releases.columns.status')}</label>
+        </FilterField>
+        <FilterField label={t('releases.columns.status')} htmlFor={`${filterId}-status`}>
           <Select
             id={`${filterId}-status`}
-            style={{ width: 150 }}
             value={query.status}
             onChange={(v) => setQuery({ status: v })}
             options={[
@@ -209,7 +202,7 @@ export function Releases() {
               ...STATUSES.map((s) => ({ value: s, label: t(statusLabelKey(s)) })),
             ]}
           />
-        </div>
+        </FilterField>
       </FilterPanel>
 
       <Card

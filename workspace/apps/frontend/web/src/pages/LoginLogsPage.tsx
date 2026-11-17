@@ -87,13 +87,13 @@ export function LoginLogsPage() {
             advanced={(
               <>
                 <Form.Item name="userType" label={t('loginLogs.filters.userType')}>
-                  <Input placeholder={t('loginLogs.filters.userType')} allowClear style={{ width: 140 }} />
+                  <Input placeholder={t('loginLogs.filters.userType')} allowClear />
                 </Form.Item>
                 <Form.Item name="result" label={t('loginLogs.columns.result')}>
-                  <Input placeholder={t('loginLogs.filters.result')} allowClear style={{ width: 160 }} />
+                  <Input placeholder={t('loginLogs.filters.result')} allowClear />
                 </Form.Item>
-                <Form.Item name="range" label={t('common.filters.timeRange')}>
-                  <DatePicker.RangePicker showTime style={{ width: 340 }} />
+                <Form.Item name="range" label={t('common.filters.timeRange')} className="filter-field-wide">
+                  <DatePicker.RangePicker showTime />
                 </Form.Item>
               </>
             )}
@@ -107,7 +107,7 @@ export function LoginLogsPage() {
             )}
           >
             <Form.Item name="username" label={t('loginLogs.filters.username')}>
-              <Input placeholder={t('loginLogs.filters.username')} allowClear style={{ width: 160 }} />
+              <Input placeholder={t('loginLogs.filters.username')} allowClear />
             </Form.Item>
           </FilterPanel>
         </Form>
