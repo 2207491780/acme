@@ -44,10 +44,15 @@ const STUB_TARGETS = [
   { tool: 'GitHub Copilot', file: '.github/copilot-instructions.md' },
   { tool: '字节 Trae', file: '.trae/rules/project_rules.md' },
   {
-    // Qoder 依靠 frontmatter 决定规则激活方式：alwaysApply: true 才会每次会话常驻加载
+    // Qoder 依靠 frontmatter 决定规则激活方式：alwaysApply: true 才会每次会话常驻加载。
+    // Qoder 同时自动读取根 AGENTS.md（冲突时 rules 优先）→ 本存根为纯指针，不重复入口存根的
+    // 铁律节选，避免双份加载重复声明；rules 不解析链接，指针靠 Agent 任务内主动读源（ADR 2026-11-17-02）。
     tool: '阿里 Qoder',
     file: '.qoder/rules/project_rules.md',
     frontmatter: ['---', 'description: ACME 项目规范入口（自动生成，引用 .ai/RULES.md）', 'alwaysApply: true', '---'],
+    stub: `本仓库 AI 规范唯一完整副本是 \`.ai/RULES.md\`——开始任何任务前必须先完整阅读（Qoder 规则不解析链接，请主动读取该文件）。
+入口存根（铁律节选与多代理流程开关）见根目录 \`AGENTS.md\`，Qoder 会自动读取；两者冲突时以本规则为准，本文件不重复其内容。
+AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\`.ai-memory/playbooks/ai-config.md\`）。`,
   },
   {
     tool: 'Cursor',
@@ -59,9 +64,9 @@ const STUB_TARGETS = [
 /** 跨工具公共池：.ai/<src>/** → 各工具目录（doc 仅作源目录说明，不派生）。
  *  targets 项为字符串或 { dir, transform }：transform 在派生 .md 时做目标工具的格式适配。 */
 const POOLS = [
-  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }] },
-  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills'] },
-  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands'] },
+  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }, { dir: '.qoder/agents', transform: makeQoderStub('agents') }] },
+  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills', { dir: '.qoder/skills', transform: makeQoderStub('skills') }] },
+  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands', { dir: '.qoder/commands', transform: makeQoderStub('commands') }] },
 ];
 
 /** 工具专属配置：.ai/tools/<key>/** → <target>/**（doc 派生为工具目录内的说明文件） */
@@ -394,7 +399,7 @@ for (const t of LINK_TARGETS) {
 // ---- 3. 需要专属格式的规则入口：生成存根 ----
 for (const t of STUB_TARGETS) {
   const front = t.frontmatter ? t.frontmatter.join('\n') + '\n\n' : '';
-  register(expected, t.file, norm(`${front}${banner(t.tool)}\n\n# ACME 项目规范（入口）\n\n${entryStub}\n`),
+  register(expected, t.file, norm(`${front}${banner(t.tool)}\n\n# ACME 项目规范（入口）\n\n${t.stub ?? entryStub}\n`),
     '.ai/rules/*.md（公共入口）');
 }
 
@@ -445,6 +450,19 @@ function transformGeminiAgent(content) {
   return `${content.slice(0, m.index)}---${front.replace(/\n+$/, '\n')}---${content.slice(m.index + m[0].length)}`;
 }
 
+/** Qoder 公共池引用存根（ADR 2026-11-17-02）：frontmatter 原样保留供工具注册（name/description/
+ *  tools/model 属注册元数据，非正文声明）；正文仅指针指向 .ai/ 池源，磁盘零重复——与 .zcode/
+ *  手写存根同口径。官方项目级目录 .qoder/skills|commands|agents（CLI 口径；Desktop 的 agents
+ *  文件加载待新会话验证，见 ADR）。无 frontmatter 的源按路径合成最小注册头（fixture 兼容）。 */
+function makeQoderStub(pool) {
+  return (content, rel) => {
+    const m = content.match(/^---\n[\s\S]*?\n---/);
+    const name = (pool === 'skills' ? rel.split('/')[0] : rel.replace(/\.md$/, '').split('/').pop()).toLowerCase();
+    const front = m ? m[0] : `---\nname: ${name}\ndescription: 引用存根（完整内容见 .ai/${pool}/${rel}）\n---`;
+    return `${front}\n\n本文件为 Qoder 引用存根：完整内容唯一源 \`.ai/${pool}/${rel}\`。\n\n执行前先完整读取该源文件并严格遵循；源内相对路径（scripts/、templates/ 等）相对 \`.ai/${pool}/\` 下对应目录解析。本存根不含正文，禁止在此手改内容。\n`;
+  };
+}
+
 async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc = null, transform = null }) {
   for (const f of await walk(srcDir)) {
     const rel = relative(srcDir, f).split('\\').join('/');
@@ -452,7 +470,7 @@ async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc 
     const label = `${srcLabel}${rel}`;
     let content = norm(await readFile(f, 'utf8'));
     if (placardDoc && rel === placardDoc) content = PLACARD_HEAD + content;
-    if (transform && rel.endsWith('.md')) content = transform(content);
+    if (transform && rel.endsWith('.md')) content = transform(content, rel);
     if (rel.endsWith('.md')) content = content.trimEnd() + footer(label);
     else if (/\.(ya?ml|toml)$/.test(rel))
       content = `# 派生自 ${label}（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs\n\n` + content;

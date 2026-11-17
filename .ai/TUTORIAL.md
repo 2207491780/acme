@@ -60,10 +60,10 @@
 
 ## 8. Qoder（阿里）
 
-- **读什么**：`.qoder/rules/project_rules.md`（含 `alwaysApply: true`，每次会话常驻；Qoder 也读根 `AGENTS.md`）。
-- **冒烟**：Quest/Agent 模式问通用测试句。
-- **维护配置**：说意图 + 点名手册。
-- **背景**：Qoder 靠 frontmatter 决定规则激活方式，无 frontmatter 的规则不会自动加载——这正是派生存根自动带 `alwaysApply` 的原因。
+- **读什么**：根 `AGENTS.md`（入口存根）+ `.qoder/rules/project_rules.md`（`alwaysApply: true` 常驻；**纯指针**不重复铁律，冲突时 rules 优先）；公共池引用存根 `.qoder/skills|commands|agents/`。
+- **冒烟**：新会话输入 `/req`（命令存根）或问通用测试句；技能按 description 自动匹配。
+- **维护配置**：说意图 + 点名手册。私有配置源放 `.ai/tools/qoder/`。
+- **背景**：规则仅自然语言、不解析链接（指针靠 Agent 主动读 `.ai/RULES.md`）；激活规则合计 ≤ 10 万字符；同名 skills/agents 用户级覆盖项目级；agents 目录为 CLI 口径，Desktop 文件加载待验证（ADR 2026-11-17-02）。
 
 ## 9. ZCode（智谱 Z.AI）
 
@@ -88,7 +88,8 @@
 | Claude Code | `CLAUDE.md` + `.claude/` | ✅ | ✅ | 不必（自动） |
 | Gemini CLI | `GEMINI.md` + `.gemini/` | ✅ | — | 可省 |
 | CodeBuddy | `CODEBUDDY.md` + `.codebuddy/`（本机 localOnly） | ✅（公共池镜像） | — | **建议加** |
-| Codex / Cursor / Copilot / Trae / Qoder / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
+| Qoder | `AGENTS.md` + `.qoder/` | ✅（引用存根） | ✅（引用存根） | **建议加** |
+| Codex / Cursor / Copilot / Trae / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
 
 ## 排障
 

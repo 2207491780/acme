@@ -8,12 +8,6 @@ alwaysApply: true
 
 # ACME 项目规范（入口）
 
-本仓库所有 AI 规范统一维护于 `.ai/`。**开始任何任务前，必须先完整阅读 `.ai/RULES.md`** —— 它是公共规范（AI 协作准则、编码规范、Git 工作流、项目上下文）的唯一完整副本。
-
-## 铁律（节选，完整版见 .ai/RULES.md）
-
-1. 所有 AI 配置的唯一事实源是 `.ai/`，禁止直接修改任何工具目录下的派生文件。
-2. 修改 `.ai/` 后必须立即运行 `node .ai/sync.mjs` 派生到所有工具，并通过 `node .ai/sync.mjs --check` 校验，否则提交会被 pre-commit 钩子与 CI 拒绝。
-3. 未读 `.ai/RULES.md` 前，不得开始任何编码任务。
-4. 凡修改 AI-Coding 配置（规范 / 分层规则 / 公共池 / 工具配置 / 钩子 / CI）：先读 `.ai-memory/playbooks/ai-config.md`，按其五步流程执行。
-5. 多代理流程开关（engine.teamLeader: auto）：功能开发类任务应按 team-leader 四阶段契约流程执行——入口 `.ai/skills/team-leader/SKILL.md`，手册 `.ai-memory/playbooks/multi-agent.md`，命令 `/req`。
+本仓库 AI 规范唯一完整副本是 `.ai/RULES.md`——开始任何任务前必须先完整阅读（Qoder 规则不解析链接，请主动读取该文件）。
+入口存根（铁律节选与多代理流程开关）见根目录 `AGENTS.md`，Qoder 会自动读取；两者冲突时以本规则为准，本文件不重复其内容。
+AI 配置修改一律走 `.ai/` 源 + `node .ai/sync.mjs`（五步流程：`.ai-memory/playbooks/ai-config.md`）。
