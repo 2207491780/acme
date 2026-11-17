@@ -44,7 +44,18 @@ const LINK_TO = '.ai/RULES.md';
 const STUB_TARGETS = [
   // Copilot 指令有长度限制：存根极小（引用 .ai/RULES.md），反而规避了截断问题
   { tool: 'GitHub Copilot', file: '.github/copilot-instructions.md' },
-  { tool: '字节 Trae', file: '.trae/rules/project_rules.md' },
+  {
+    // Trae 规则靠 frontmatter 决定激活方式：alwaysApply: true 才每次会话常驻加载（官方四类生效方式）。
+    // Trae 规则仅自然语言、不解析链接/导入（与 Claude 的 @ 导入不同）；根 AGENTS.md 默认不加载，
+    // 需在 设置 > 规则 > 导入设置 手动开启「将 AGENTS.md 包含在上下文中」。本存根为纯指针，不重复
+    // 入口存根的铁律节选（开启 AGENTS.md 时避免双份加载；未开启时靠本指针引导 AI 主动读 .ai/RULES.md）。
+    tool: '字节 Trae',
+    file: '.trae/rules/project_rules.md',
+    frontmatter: ['---', 'description: ACME 项目规范入口（自动生成，引用 .ai/RULES.md）', 'alwaysApply: true', '---'],
+    stub: `本仓库 AI 规范唯一完整副本是 \`.ai/RULES.md\`——开始任何任务前必须先完整阅读（Trae 规则不解析链接，请主动读取该文件）。
+入口存根（铁律节选与多代理流程开关）见根目录 \`AGENTS.md\`（需在 设置 > 规则 > 导入设置 中开启「将 AGENTS.md 包含在上下文中」才生效）。
+AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\`.ai-memory/playbooks/ai-config.md\`）。`,
+  },
   {
     // Qoder 依靠 frontmatter 决定规则激活方式：alwaysApply: true 才会每次会话常驻加载。
     // Qoder 同时自动读取根 AGENTS.md（冲突时 rules 优先）→ 本存根为纯指针，不重复入口存根的
@@ -76,7 +87,19 @@ const TOOLS = [
   { key: 'claude', doc: 'CLAUDE-CODE.md', target: '.claude' },
   { key: 'cursor', doc: 'CURSOR.md', target: '.cursor' },
   { key: 'gemini', doc: 'GEMINI-CLI.md', target: '.gemini' },
-  { key: 'trae', doc: 'TRAE.md', target: '.trae' },
+  {
+    // Trae：公共池派生为引用存根（frontmatter 保留供官方注册，正文指针指向 .ai/ 池源，磁盘零重复）。
+    // agents 需额外适配 frontmatter：tools 数组→逗号分隔字符串、移除 model: inherit（Trae 缺省即继承
+    // 主 Agent 模型）。详见 ADR 2026-11-17-04。
+    key: 'trae',
+    doc: 'TRAE.md',
+    target: '.trae',
+    mirrorPools: [
+      { src: 'agents', transform: makeTraeAgentStub },
+      { src: 'skills', transform: makePoolRefStub('skills', 'Trae') },
+      { src: 'commands', transform: makePoolRefStub('commands', 'Trae') },
+    ],
+  },
   { key: 'qoder', doc: 'QODER.md', target: '.qoder' },
   { key: 'github', doc: 'GITHUB-CONFIG.md', target: '.github' },
   // ZCode 的 agents/commands 引用存根（正文指针指向 .ai/ 公共池源）；.zcode/ 本身 git 忽略、不入库，
@@ -481,6 +504,27 @@ function makePoolRefStub(pool, tool = 'Qoder') {
     const front = m ? m[0] : `---\nname: ${name}\ndescription: 引用存根（完整内容见 .ai/${pool}/${rel}）\n---`;
     return `${front}\n\n本文件为 ${tool} 引用存根：完整内容唯一源 \`.ai/${pool}/${rel}\`。\n\n执行前先完整读取该源文件并严格遵循；源内相对路径（scripts/、templates/ 等）相对 \`.ai/${pool}/\` 下对应目录解析。本存根不含正文，禁止在此手改内容。\n`;
   };
+}
+
+/** Trae Subagent 引用存根（ADR 2026-11-17-04）：在 makePoolRefStub 口径基础上额外适配 frontmatter——
+ *  Trae 官方 subagent frontmatter 要求 tools 为逗号分隔字符串（非数组）、model 不支持 inherit（缺省即
+ *  继承主 Agent 模型）；name/description 原样保留供注册。正文仅指针指向 .ai/agents/ 源，磁盘零重复。 */
+function makeTraeAgentStub(content, rel) {
+  const m = content.match(/^---\n([\s\S]*?)\n---/);
+  const name = rel.replace(/\.md$/, '').split('/').pop().toLowerCase();
+  let front;
+  if (m) {
+    const fm = m[1]
+      .replace(
+        /^tools:\s*\[([^\]]*)\]\s*$/m,
+        (_, list) => `tools: ${list.split(',').map((s) => s.trim()).join(', ')}`,
+      )
+      .replace(/^model:\s*inherit\s*$/m, '');
+    front = `---\n${fm.replace(/\n+$/, '\n')}---`;
+  } else {
+    front = `---\nname: ${name}\ndescription: 引用存根（完整内容见 .ai/agents/${rel}）\n---`;
+  }
+  return `${front}\n\n本文件为 Trae 引用存根：完整内容唯一源 \`.ai/agents/${rel}\`。\n\n执行前先完整读取该源文件并严格遵循；本存根不含正文，禁止在此手改内容。\n`;
 }
 
 async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc = null, transform = null }) {
