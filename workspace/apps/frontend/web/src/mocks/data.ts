@@ -55,6 +55,8 @@ export const me = {
     'infra:audit:list', 'infra:file:list', 'infra:file:upload', 'infra:file:download', 'infra:file:delete',
   ],
   menus: [] as AdminMenuView[],
+  // REQ-20261117-180000：本人部门名（deptId 4001=总部；水印 {deptName} 供给）
+  deptName: '总部',
 };
 
 /** 租户系统配置种子（REQ-20261116-230354）：缺省=水印开/闲置锁屏关/version "0"；
@@ -62,7 +64,7 @@ export const me = {
  *  REQ-20261117-025200 增页脚版权（V17 内置默认 copyright=null/visible=false）。 */
 export const systemConfig: AdminSystemConfigView = {
   watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
-  footerCopyright: null, footerVisible: false, version: '0',
+  footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0',
 };
 
 export const tenants: AdminTenantView[] = [

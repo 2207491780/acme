@@ -151,6 +151,7 @@ const setupConfigApi = (initial: AdminSystemConfigView) => {
       state.lockIdleTimeoutMs = Number(body.lockIdleTimeoutMs);
       state.footerCopyright = (body.footerCopyright as string | null) ?? null;
       state.footerVisible = body.footerVisible === true;
+      state.watermarkTemplate = (body.watermarkTemplate as string | null) ?? null;
       state.version = String(Number(state.version) + 1);
       return envelope({ ...state });
     }
@@ -304,7 +305,7 @@ describe('REQ20261117011514 AC-7 登录页验证码策略', () => {
 describe('REQ20261117011514 AC-8 系统设置页验证码开关', () => {
   it('should_submitCaptchaEnabled_when_adminTogglesCaptchaAndSaves', async () => {
     await seedMe(['system:config:list', 'system:config:update']);
-    const { fetchMock, state } = setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' });
+    const { fetchMock, state } = setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
     render(<AntApp><SystemConfigPage /></AntApp>);
 
     // 读取回显（缺省关）→ 切换为开 → 保存
@@ -320,7 +321,7 @@ describe('REQ20261117011514 AC-8 系统设置页验证码开关', () => {
       expect(puts).toHaveLength(1);
       expect(parseBody(puts[0]?.body)).toEqual({
         watermarkEnabled: true, captchaEnabled: true, lockIdleTimeoutMs: 0,
-        footerCopyright: null, footerVisible: false, version: '0',
+        footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0',
       });
     });
     // 保存成功后 store 回写（重新读取一致）
@@ -330,7 +331,7 @@ describe('REQ20261117011514 AC-8 系统设置页验证码开关', () => {
 
   it('should_echoCaptchaEnabledFromConfig_when_pageLoads', async () => {
     await seedMe(['system:config:list', 'system:config:update']);
-    setupConfigApi({ watermarkEnabled: true, captchaEnabled: true, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '2' });
+    setupConfigApi({ watermarkEnabled: true, captchaEnabled: true, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '2' });
     render(<AntApp><SystemConfigPage /></AntApp>);
 
     // 服务端 captchaEnabled=true → 开关回显开启
@@ -340,7 +341,7 @@ describe('REQ20261117011514 AC-8 系统设置页验证码开关', () => {
 
   it('should_disableCaptchaSwitchAndHideSave_when_noUpdatePermission', async () => {
     await seedMe(['system:config:list']);
-    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' });
+    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
     render(<AntApp><SystemConfigPage /></AntApp>);
 
     const captchaSwitch = await screen.findByLabelText(CAPTCHA_LABEL);

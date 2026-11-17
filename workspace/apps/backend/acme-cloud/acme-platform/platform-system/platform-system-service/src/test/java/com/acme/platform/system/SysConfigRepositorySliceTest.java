@@ -158,4 +158,38 @@ class SysConfigRepositorySliceTest {
         // 无行租户返回缺省关闭
         assertThat(systemConfigUseCase.findCaptchaPolicyByTenant("cfg-missing").captchaEnabled()).isFalse();
     }
+
+    // ---------- REQ-20261117-180000：watermark_template 列往返与存量缺省 ----------
+
+    @Test
+    void should_roundTripWatermarkTemplate_when_saveAndReload() {
+        TenantContext.bind(new TenantContext("cfg-tpl"));
+        SysConfig saved = configRepository.save(
+                new SysConfig(true, false, 0, null, false, "{username} {date} {time}"));
+        assertThat(saved.getWatermarkTemplate()).isEqualTo("{username} {date} {time}");
+
+        SysConfig reloaded = configRepository.findCurrent().orElseThrow();
+        assertThat(reloaded.getWatermarkTemplate()).isEqualTo("{username} {date} {time}");
+
+        reloaded.setWatermarkTemplate("{tenantCode}-{userId}");
+        configRepository.save(reloaded);
+        assertThat(configRepository.findCurrent().orElseThrow().getWatermarkTemplate())
+                .isEqualTo("{tenantCode}-{userId}");
+
+        reloaded.setWatermarkTemplate(null);
+        configRepository.save(reloaded);
+        assertThat(configRepository.findCurrent().orElseThrow().getWatermarkTemplate()).isNull();
+    }
+
+    @Test
+    void should_defaultWatermarkTemplateNull_when_legacyRowInsertedWithoutColumn() {
+        // 存量语义插入（不带新列）：watermark_template=NULL → 未配置（前端仅用户名）
+        TenantContext.bind(new TenantContext("cfg-tpl-legacy"));
+        jdbcTemplate.update("""
+                insert into sys_config (id, tenant_id, watermark_enabled, lock_idle_timeout_ms,
+                                        created_at, created_by, updated_at, updated_by, version, deleted)
+                values (990002, 'cfg-tpl-legacy', true, 0, now(), 'slice', now(), 'slice', 0, false)
+                """);
+        assertThat(configRepository.findCurrent().orElseThrow().getWatermarkTemplate()).isNull();
+    }
 }

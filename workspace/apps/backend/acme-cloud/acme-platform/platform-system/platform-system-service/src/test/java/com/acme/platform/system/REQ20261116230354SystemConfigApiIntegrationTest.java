@@ -240,6 +240,52 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
         }
     }
 
+    // ---------- REQ-20261117-180000：水印模板列口径 + upsert 往返 + 未知占位符拒绝 ----------
+
+    @Test
+    void should_roundTripWatermarkTemplate_and_rejectUnknownPlaceholder_when_putConfig() throws Exception {
+        // V18 列口径：varchar(255) 可空无默认（存量行不回填=未配置）
+        Map<String, Object> column = jdbcTemplate.queryForMap("""
+                select data_type, character_maximum_length, is_nullable, column_default
+                from information_schema.columns
+                where table_schema = 'public' and table_name = 'sys_config' and column_name = 'watermark_template'
+                """);
+        assertThat(column.get("data_type")).isEqualTo("character varying");
+        assertThat(((Number) column.get("character_maximum_length")).intValue()).isEqualTo(255);
+        assertThat(column.get("is_nullable")).isEqualTo("YES");
+        assertThat(column.get("column_default")).isNull();
+
+        // 无行缺省视图 watermarkTemplate=null（仅用户名）
+        JsonNode defaults = call(get("/admin/v1/system/config"));
+        assertThat(defaults.path("data").path("watermarkTemplate").isNull()).isTrue();
+
+        // upsert 建行带模板 → 回读一致
+        String template = "{username} {date} {time}";
+        JsonNode created = call(put("/admin/v1/system/config")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(configBody(true, false, 0, template, "0"))));
+        assertThat(created.path("code").asText()).isEqualTo("0");
+        assertThat(created.path("data").path("watermarkTemplate").asText()).isEqualTo(template);
+        JsonNode reloaded = call(get("/admin/v1/system/config"));
+        assertThat(reloaded.path("data").path("watermarkTemplate").asText()).isEqualTo(template);
+
+        // 未知占位符 → 业务失败 CONFIG_INVALID 同段新码，值不回改
+        JsonNode invalid = call(put("/admin/v1/system/config")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(configBody(true, false, 0, "{bogus}", "0"))));
+        assertThat(invalid.path("success").asBoolean()).isFalse();
+        assertThat(invalid.path("code").asText()).isEqualTo("platform-system-12-0002");
+        JsonNode after = call(get("/admin/v1/system/config"));
+        assertThat(after.path("data").path("watermarkTemplate").asText()).isEqualTo(template);
+
+        // 置空（null）→ 回到未配置口径
+        JsonNode cleared = call(put("/admin/v1/system/config")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(configBody(true, false, 0, null, "1"))));
+        assertThat(cleared.path("code").asText()).isEqualTo("0");
+        assertThat(cleared.path("data").path("watermarkTemplate").isNull()).isTrue();
+    }
+
     // ---------- V15 种子：权限点 / 菜单 / 超管绑定 ----------
 
     @Test
@@ -287,12 +333,19 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
 
     private static Map<String, Object> configBody(boolean watermarkEnabled, boolean captchaEnabled,
                                                   int lockIdleTimeoutMs, String version) {
+        return configBody(watermarkEnabled, captchaEnabled, lockIdleTimeoutMs, null, version);
+    }
+
+    private static Map<String, Object> configBody(boolean watermarkEnabled, boolean captchaEnabled,
+                                                  int lockIdleTimeoutMs, String watermarkTemplate,
+                                                  String version) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("watermarkEnabled", watermarkEnabled);
         body.put("captchaEnabled", captchaEnabled);
         body.put("lockIdleTimeoutMs", lockIdleTimeoutMs);
         body.put("footerCopyright", null);
         body.put("footerVisible", false);
+        body.put("watermarkTemplate", watermarkTemplate);
         body.put("version", version);
         return body;
     }

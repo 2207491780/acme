@@ -29,6 +29,6 @@ public class MeController {
         AdminUserView user = EntityViews.userView(snapshot.user(), java.util.List.of());
         return new AdminMeView(user, java.util.List.copyOf(snapshot.roles()),
                 java.util.List.copyOf(snapshot.permissions()),
-                EntityViews.menuTree(menuUseCase.listAll(), snapshot.menuIds()));
+                EntityViews.menuTree(menuUseCase.listAll(), snapshot.menuIds()), snapshot.deptName());
     }
 }

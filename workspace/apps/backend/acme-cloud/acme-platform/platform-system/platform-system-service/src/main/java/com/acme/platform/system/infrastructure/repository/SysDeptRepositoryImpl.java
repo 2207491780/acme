@@ -7,6 +7,7 @@ import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /** 部门仓库实现（MyBatis-Flex 底座；租户过滤由框架注入，12.4.1）。 */
 @Repository
@@ -19,6 +20,14 @@ public class SysDeptRepositoryImpl extends FlexRepositorySupport<SysDept> implem
     @Override
     public boolean existsByParentId(Long parentId) {
         return exists(QueryWrapper.create().where(SysDept::getParentId).eq(parentId));
+    }
+
+    @Override
+    @com.acme.framework.tenant.support.IgnoreTenant("switch-session-dept-name-lookup")
+    public Optional<SysDept> findByIdGlobal(Long deptId) {
+        // PK 全局直读（REQ-20261117-180000 水印 {deptName}）：与 switch-session-user-identity-lookup 同款——
+        // deptId 来自已全局直读的 user 行，切换会话下部门归属源租户；调用方仅 MeUseCase.loadMe，不扩大旁路面
+        return findById(deptId);
     }
 
     @Override

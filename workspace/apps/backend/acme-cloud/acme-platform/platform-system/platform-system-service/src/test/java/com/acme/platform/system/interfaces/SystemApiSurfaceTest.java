@@ -189,7 +189,11 @@ class SystemApiSurfaceTest {
         // REQ-20261117-025200：有行视图页脚两字段透传（行缺省 null/false）
         assertThat(controller.get().footerCopyright()).isNull();
         assertThat(controller.get().footerVisible()).isFalse();
-        assertThat(controller.update(new AdminSystemConfigUpdate(true, false, 0, null, false, 3L)).version())
+        // REQ-20261117-180000：有行视图水印模板透传（行缺省 null=仅用户名）
+        assertThat(controller.get().watermarkTemplate()).isNull();
+        config.setWatermarkTemplate("{username} {time}");
+        assertThat(controller.get().watermarkTemplate()).isEqualTo("{username} {time}");
+        assertThat(controller.update(new AdminSystemConfigUpdate(true, false, 0, null, false, null, 3L)).version())
                 .isEqualTo(3L);
 
         when(useCase.findCurrent()).thenReturn(Optional.empty());
@@ -201,6 +205,8 @@ class SystemApiSurfaceTest {
         // REQ-20261117-025200：无行缺省视图页脚不显示（确认记录⑤）
         assertThat(defaults.footerCopyright()).isNull();
         assertThat(defaults.footerVisible()).isFalse();
+        // REQ-20261117-180000：无行缺省视图水印模板 null（仅用户名）
+        assertThat(defaults.watermarkTemplate()).isNull();
         assertThat(defaults.version()).isEqualTo(0L);
 
         // 权限强制点：PUT 标注 system:config:update；GET 认证即可读（无标注）
@@ -245,7 +251,7 @@ class SystemApiSurfaceTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"watermarkEnabled\":true,\"captchaEnabled\":false,"
                                     + "\"lockIdleTimeoutMs\":0,\"footerCopyright\":null,"
-                                    + "\"footerVisible\":false,\"version\":\"0\"}"))
+                                    + "\"footerVisible\":false,\"watermarkTemplate\":null,\"version\":\"0\"}"))
                     .andReturn();
             assertThat(result.getResponse().getStatus())
                     .isEqualTo(error == SystemError.PERMISSION_DENIED ? 403 : 200);
@@ -435,7 +441,7 @@ class SystemApiSurfaceTest {
         SysUser user = new SysUser("admin", "超级管理员", null, null, true);
         when(useCase.loadMe()).thenReturn(new MeUseCase.MeSnapshot(user,
                 java.util.Set.of("super_admin"), java.util.Set.of("system:user:list"),
-                java.util.Set.of(1L, 2L)));
+                java.util.Set.of(1L, 2L), "研发部"));
         when(menuUseCase.listAll()).thenReturn(List.of(
                 menuWithId(1L, 0L, "系统管理", MenuType.DIRECTORY),
                 menuWithId(2L, 1L, "用户管理", MenuType.MENU)));
@@ -446,6 +452,8 @@ class SystemApiSurfaceTest {
         assertThat(me.permissions()).containsExactly("system:user:list");
         assertThat(me.menus()).hasSize(1);
         assertThat(me.menus().get(0).children()).hasSize(1);
+        // REQ-20261117-180000：部门名透传（水印 {deptName} 供给）
+        assertThat(me.deptName()).isEqualTo("研发部");
     }
 
     @Test
@@ -523,6 +531,11 @@ class SystemApiSurfaceTest {
         assertThat(EntityViews.systemConfigView(withFooter).footerVisible()).isTrue();
         assertThat(EntityViews.systemConfigDefaultView().footerCopyright()).isNull();
         assertThat(EntityViews.systemConfigDefaultView().footerVisible()).isFalse();
+        // REQ-20261117-180000：水印模板透传 + 缺省视图 null（仅用户名）
+        SysConfig withTemplate = new SysConfig(false, true, 60_000, null, false, "{username} {date}");
+        assertThat(EntityViews.systemConfigView(withTemplate).watermarkTemplate()).isEqualTo("{username} {date}");
+        assertThat(EntityViews.systemConfigView(config).watermarkTemplate()).isNull();
+        assertThat(EntityViews.systemConfigDefaultView().watermarkTemplate()).isNull();
         // REQ-20261117-025200：租户视图联系人 / 有效期透传
         SysTenant withProfile = new SysTenant("acme", "Acme", null);
         withProfile.setContactName("张三");

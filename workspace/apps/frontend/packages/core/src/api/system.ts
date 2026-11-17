@@ -41,17 +41,20 @@ export interface AdminMenuView {
   version: string;
 }
 
-/** 当前登录者视图（契约对齐 AdminMeView；FR-008 权限声明与菜单可见性依据）。 */
+/** 当前登录者视图（契约对齐 AdminMeView；FR-008 权限声明与菜单可见性依据）。
+ *  REQ-20261117-180000 扩展 deptName（本人部门名，水印 {deptName} 供给；未分配/缺失=null）。 */
 export interface AdminMeView {
   user: AdminUserView;
   roles: string[];
   permissions: string[];
   menus: AdminMenuView[];
+  deptName: string | null;
 }
 
 /** 租户系统配置视图（契约对齐 AdminSystemConfigView，REQ-20261116-230354；version 乐观锁字符串）。
  *  REQ-20261117-011514 扩展 captchaEnabled（缺省视图=false）。
- *  REQ-20261117-025200 扩展页脚版权两字段（缺省视图 copyright=null/visible=false，未配置不显示）。 */
+ *  REQ-20261117-025200 扩展页脚版权两字段（缺省视图 copyright=null/visible=false，未配置不显示）。
+ *  REQ-20261117-180000 扩展水印模板（缺省视图 null=未配置→仅用户名）。 */
 export interface AdminSystemConfigView {
   watermarkEnabled: boolean;
   /** 登录图形验证码开关（REQ-20261117-011514；无配置行缺省 false）。 */
@@ -62,6 +65,8 @@ export interface AdminSystemConfigView {
   footerCopyright: string | null;
   /** 页脚显隐开关（REQ-20261117-025200；无配置行缺省 false）。 */
   footerVisible: boolean;
+  /** 水印内容模板（REQ-20261117-180000；≤255，可空——null/空串仅渲染用户名）。 */
+  watermarkTemplate: string | null;
   version: string;
 }
 
@@ -74,6 +79,8 @@ export interface AdminSystemConfigUpdate {
   footerCopyright: string | null;
   /** 页脚显隐开关（REQ-20261117-025200）。 */
   footerVisible: boolean;
+  /** 水印内容模板（REQ-20261117-180000；≤255，可空；未知占位符后端拒绝）。 */
+  watermarkTemplate: string | null;
   version: string;
 }
 

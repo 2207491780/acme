@@ -6,6 +6,7 @@ import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysUser;
+import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRepository;
 import com.acme.platform.system.security.PermissionDecisionService;
@@ -24,19 +25,24 @@ import java.util.Set;
 @Service
 public class MeUseCase {
 
-    /** 当前登录者快照（user=本租户用户主数据；roles=令牌 claims；menuIds=可见菜单并集）。 */
-    public record MeSnapshot(SysUser user, Set<String> roles, Set<String> permissions, Set<Long> menuIds) {
+    /** 当前登录者快照（user=本租户用户主数据；roles=令牌 claims；menuIds=可见菜单并集；
+     *  deptName=本人部门名，REQ-20261117-180000 水印 {deptName} 供给，未分配/缺失=null）。 */
+    public record MeSnapshot(SysUser user, Set<String> roles, Set<String> permissions, Set<Long> menuIds,
+                             String deptName) {
     }
 
     private final SysUserRepository userRepository;
     private final SysRoleRepository roleRepository;
+    private final SysDeptRepository deptRepository;
     private final MenuUseCase menuUseCase;
     private final PermissionDecisionService decisionService;
 
     public MeUseCase(SysUserRepository userRepository, SysRoleRepository roleRepository,
-                     MenuUseCase menuUseCase, PermissionDecisionService decisionService) {
+                     SysDeptRepository deptRepository, MenuUseCase menuUseCase,
+                     PermissionDecisionService decisionService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.deptRepository = deptRepository;
         this.menuUseCase = menuUseCase;
         this.decisionService = decisionService;
     }
@@ -72,6 +78,20 @@ public class MeUseCase {
                     .map(SysRole::getId).toList();
             menuIds = menuUseCase.visibleMenuIdsOfBuiltIn(builtInRoleIds);
         }
-        return new MeSnapshot(user, new LinkedHashSet<>(roles), permissions, menuIds);
+        return new MeSnapshot(user, new LinkedHashSet<>(roles), permissions, menuIds, deptNameOf(user));
+    }
+
+    /**
+     * 部门名解析（REQ-20261117-180000 水印 {deptName}）：deptId 来自已全局直读的 user 行，
+     * 经 findByIdGlobal 旁路取部门名（切换会话下部门归属源租户，与 user 行同款口径）；
+     * 未分配部门 / 部门行缺失 → null（前端渲染为空串）。
+     */
+    private String deptNameOf(SysUser user) {
+        if (user.getDeptId() == null) {
+            return null;
+        }
+        return deptRepository.findByIdGlobal(user.getDeptId())
+                .map(com.acme.platform.system.domain.SysDept::getDeptName)
+                .orElse(null);
     }
 }
