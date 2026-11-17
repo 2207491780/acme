@@ -514,6 +514,40 @@ test('should_mirror_pools_into_local_only_codebuddy_target', async (t) => {
   fails(run(repo, ['--check']), /与 \.ai\/ 不同步/);
 });
 
+test('should_derive_qoder_entries_as_non_duplicating_references', async (t) => {
+  // Qoder 官方对齐（ADR 2026-11-17-02）：rules 纯指针（不重复入口存根铁律），
+  // 三池引用存根（frontmatter 原样保留供注册，正文仅指针，磁盘零重复）。
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/agents/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\n---\n\nSECRET-BODY-AGENT\n');
+  await put(repo, '.ai/skills/review/SKILL.md', '---\nname: review\ndescription: Review skill.\n---\n\nSECRET-BODY-SKILL\n');
+  await put(repo, '.ai/commands/review.md', '---\ndescription: Review command.\n---\n\nSECRET-BODY-COMMAND\n');
+  await put(repo, '.ai/commands/plain.md', '# Plain command\n');
+  succeeds(run(repo));
+  const rule = await readFile(join(repo, '.qoder/rules/project_rules.md'), 'utf8');
+  assert.match(rule, /alwaysApply: true/);
+  assert.match(rule, /\.ai\/RULES\.md/);
+  assert.ok(!rule.includes('铁律（节选'), 'rules 存根不得重复入口存根的铁律节选');
+  const agent = await readFile(join(repo, '.qoder/agents/helper.md'), 'utf8');
+  assert.match(agent, /tools: \[Read\]/);
+  assert.match(agent, /\.ai\/agents\/helper\.md/);
+  assert.ok(!agent.includes('SECRET-BODY-AGENT'));
+  const skill = await readFile(join(repo, '.qoder/skills/review/SKILL.md'), 'utf8');
+  assert.match(skill, /description: Review skill\./);
+  assert.match(skill, /\.ai\/skills\/review\/SKILL\.md/);
+  assert.ok(!skill.includes('SECRET-BODY-SKILL'));
+  const command = await readFile(join(repo, '.qoder/commands/review.md'), 'utf8');
+  assert.match(command, /description: Review command\./);
+  assert.match(command, /\.ai\/commands\/review\.md/);
+  assert.ok(!command.includes('SECRET-BODY-COMMAND'));
+  // 无 frontmatter 的池文件：合成最小注册头（name + description），仍不含正文
+  const plain = await readFile(join(repo, '.qoder/commands/plain.md'), 'utf8');
+  assert.match(plain, /^---\nname: plain\ndescription: /);
+  assert.ok(!plain.includes('# Plain command'));
+  // 派生标记在位（孤儿检测依赖）且 --check 通过
+  assert.match(agent, /派生自/);
+  succeeds(run(repo, ['--check']));
+});
+
 test('should_fail_when_ci_inline_ai_paths_drift_from_single_list', async (t) => {
   // AI 路径单一清单（ADR 2026-11-17-01）：ci.yml 的 AI_PATHS 内联副本与 .ai/hooks/ai-paths.list
   // 不一致时，sync 与 --check 都必须失败（未写入任何产物）。

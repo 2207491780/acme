@@ -1,10 +1,12 @@
 > ⚙️ 本目录为**生成产物**：所有 AI 配置统一维护于 [.ai/](../.ai/ARCHITECTURE.md)，由 [.ai/sync.mjs](../.ai/sync.mjs) 派生，请勿手改（本说明文件亦然）。
 
-# .qoder/ — 阿里 Qoder
+# .qoder/ — 阿里 Qoder（Desktop / CLI）
 
-- 全局规范：`rules/project_rules.md` 为薄存根（引用 `.ai/RULES.md`），文件头带 `alwaysApply: true` frontmatter——Qoder 靠 frontmatter 决定激活方式，无 frontmatter 的规则**不会**每次会话常驻加载。Qoder 同时也自动读取根目录 `AGENTS.md`。
-- Qoder 私有规则（如 spec 导向开发的流程约束）：源在 `.ai/tools/qoder/rules/`（用法见 `.ai/tools/TOOL-SOURCES.md`）。
-- Qoder 无项目级 agents/skills/commands 目录，跨工具能力经规则间接约束。
+- **规范入口（双份加载已去重）**：Qoder 自动读取根 `AGENTS.md`（入口存根：铁律节选 + 流程开关），同时加载 `rules/project_rules.md`（`alwaysApply: true` 常驻）。规则存根是**纯指针**（指向 `.ai/RULES.md` 与 `AGENTS.md`），不重复铁律——官方口径两者冲突时 rules 优先。规则仅支持自然语言、**不解析链接/导入**，指针靠 Agent 任务内主动读源生效；全部激活规则合计 ≤ 10 万字符。
+- **公共池引用存根**：`skills/`、`commands/`、`agents/` 由 `.ai/skills|commands|agents/` 自动派生——frontmatter 原样保留供注册，正文仅指针指向池源（与 `.zcode/` 存根同口径，磁盘零重复）。官方项目级目录：`.qoder/skills/<name>/SKILL.md`、`.qoder/commands/<name>.md`（子目录映射冒号命令名）、`.qoder/agents/<name>.md`；同名覆盖顺序：用户级 > 项目级（skills/agents）。
+- **Desktop 差异**：commands/skills 为 Desktop 官方支持；agents 目录是 CLI 官方口径，Desktop 自定义 agent 走设置界面管理，项目文件加载待新会话验证（兼容矩阵见 ADR 2026-11-17-02）。
+- **Hooks / MCP / settings**：官方位置 `.qoder/settings.json`（项目共享）/ `settings.local.json`（本机），与用户级 `~/.qoder/settings.json` 合并；`hooks`、`mcpServers` 均为顶层键。**当前未配置**，故本目录无 settings 源；需要时在 `.ai/tools/qoder/` 建源派生。仓库 git 钩子（`.ai/hooks/`）是另一机制，与 Qoder hooks 无关。
+- **记忆**：Desktop auto-memory 由应用管理（`~/.qoder/memory` 与项目级目录），不参与仓库派生；仓库知识落盘在 `.ai-memory/`。
 - 本说明位于 `.qoder/` 根下而非 `rules/` 内，不会被当作规则加载。
 
 <!-- 派生自 .ai/tools/qoder/QODER.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->
