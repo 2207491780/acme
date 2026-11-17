@@ -3,9 +3,12 @@ import type {
   AdminDeptView,
   AdminDictItemView,
   AdminDictTypeView,
+  AdminLoginLogView,
   AdminMenuView,
   AdminMessageView,
   AdminNoticeView,
+  AdminOnlineUserView,
+  AdminOpExceptionView,
   AdminPermissionView,
   AdminPositionView,
   AdminRoleView,
@@ -13,6 +16,8 @@ import type {
   AdminTenantView,
   AdminUserView,
   FileView,
+  JobExecutionView,
+  JobView,
 } from '@acme/core';
 
 /**
@@ -53,6 +58,8 @@ export const me = {
     'system:config:list', 'system:config:update',
     'system:message:list', 'system:message:read',
     'infra:audit:list', 'infra:file:list', 'infra:file:upload', 'infra:file:download', 'infra:file:delete',
+    'infra:exception:list', 'infra:job:list', 'infra:job:run',
+    'auth:loginlog:list', 'auth:online:list', 'auth:online:revoke',
   ],
   menus: [] as AdminMenuView[],
 };
@@ -173,5 +180,87 @@ export const files: FileView[] = [
   {
     id: '5001', originalName: 'demo-export.xlsx', size: 10240, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     url: null, bizType: null, bizId: null, createdAt: '2026-01-05T10:00:00Z',
+  },
+];
+
+/** 登录日志 fixtures（REQ-20261117-061017：登录日志页/导出 dev mock；形状=AdminLoginLogView）。 */
+export const loginLogs: AdminLoginLogView[] = [
+  {
+    id: '6101', username: 'admin', userType: 'B', ip: '10.0.0.9', userAgent: 'mock-agent-admin',
+    result: 'SUCCESS', failReason: null, traceId: 'trace-login-1', createdAt: '2026-11-17T01:00:00Z',
+  },
+  {
+    id: '6102', username: 'ops', userType: 'B', ip: '10.0.0.10', userAgent: 'mock-agent-ops',
+    result: 'FAIL', failReason: '密码错误', traceId: 'trace-login-2', createdAt: '2026-11-17T02:00:00Z',
+  },
+];
+
+/** 在线用户 fixtures（REQ-20261117-061017：批量下线 dev mock；admin=超管会话跳过口径）。 */
+export const onlineUsers: AdminOnlineUserView[] = [
+  {
+    sessionId: 'sess-op-1', username: 'admin', userType: 'B', ip: '10.0.0.9',
+    loginAt: '2026-11-17T01:00:00Z', lastActiveAt: '2026-11-17T03:00:00Z',
+  },
+  {
+    sessionId: 'sess-op-2', username: 'ops', userType: 'B', ip: '10.0.0.10',
+    loginAt: '2026-11-17T02:00:00Z', lastActiveAt: '2026-11-17T03:10:00Z',
+  },
+];
+
+/** 运行异常日志 fixtures（REQ-20261117-061017：列表/详情/导出 dev mock；详情含 stackSummary 全文）。 */
+export const opExceptions: AdminOpExceptionView[] = [
+  {
+    id: '6201', service: 'platform-infra-service', traceId: 'trace-exc-1', spanId: 'span-exc-1',
+    tenantId: '1', operatorId: '1001', method: 'POST', path: '/admin/v1/infra/files', statusCode: 500,
+    exceptionType: 'java.lang.IllegalStateException',
+    message: '存储初始化失败',
+    stackSummary: 'java.lang.IllegalStateException: 存储初始化失败\n\tat com.acme.infra.StorageBootstrap.run(StorageBootstrap.java:42)\n\tat java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)',
+    occurredAt: '2026-11-17T04:00:00Z',
+  },
+  {
+    id: '6202', service: 'platform-system-service', traceId: 'trace-exc-2', spanId: 'span-exc-2',
+    tenantId: '1', operatorId: '1002', method: 'GET', path: '/admin/v1/system/users', statusCode: 500,
+    exceptionType: 'org.springframework.dao.DataAccessException',
+    message: '数据访问还原失败',
+    stackSummary: 'org.springframework.dao.DataAccessException: 数据访问还原失败\n\tat com.acme.system.UserQueryUseCase.list(UserQueryUseCase.java:88)',
+    occurredAt: '2026-11-17T05:00:00Z',
+  },
+];
+
+/** 定时任务 fixtures（REQ-20261117-061017：任务清单 dev mock；含最近摘要与无执行记录行）。 */
+export const jobs: JobView[] = [
+  {
+    jobKey: 'file-retention-cleanup', description: '过期文件保留期清理', cron: '0 0 3 * * ?',
+    lastStatus: 'SUCCESS', lastStartedAt: '2026-11-17T03:00:00Z', lastFinishedAt: '2026-11-17T03:00:02Z',
+    lastDurationMs: 2000, lastTriggerType: 'SCHEDULE', lastError: null,
+  },
+  {
+    jobKey: 'exception-log-retention-cleanup', description: '异常日志保留期清理', cron: '0 40 3 * * ?',
+    lastStatus: 'FAILED', lastStartedAt: '2026-11-17T03:40:00Z', lastFinishedAt: '2026-11-17T03:40:01Z',
+    lastDurationMs: 900, lastTriggerType: 'SCHEDULE', lastError: '模拟执行失败（fixture）',
+  },
+  {
+    jobKey: 'audit-retention-cleanup', description: '审计日志保留期清理', cron: '0 40 4 * * ?',
+    lastStatus: null, lastStartedAt: null, lastFinishedAt: null,
+    lastDurationMs: null, lastTriggerType: null, lastError: null,
+  },
+];
+
+/** 任务执行记录 fixtures（REQ-20261117-061017：执行记录抽屉 dev mock；started_at 倒序由 handler 排序）。 */
+export const jobExecutions: JobExecutionView[] = [
+  {
+    id: '6301', jobKey: 'file-retention-cleanup', status: 'SUCCESS',
+    startedAt: '2026-11-17T03:00:00Z', finishedAt: '2026-11-17T03:00:02Z',
+    error: null, triggerType: 'SCHEDULE', durationMs: 2000,
+  },
+  {
+    id: '6302', jobKey: 'file-retention-cleanup', status: 'FAILED',
+    startedAt: '2026-11-16T03:00:00Z', finishedAt: '2026-11-16T03:00:01Z',
+    error: '模拟执行失败（fixture）', triggerType: 'SCHEDULE', durationMs: 800,
+  },
+  {
+    id: '6303', jobKey: 'exception-log-retention-cleanup', status: 'FAILED',
+    startedAt: '2026-11-17T03:40:00Z', finishedAt: '2026-11-17T03:40:01Z',
+    error: '模拟执行失败（fixture）', triggerType: 'SCHEDULE', durationMs: 900,
   },
 ];

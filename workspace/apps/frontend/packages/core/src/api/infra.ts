@@ -109,6 +109,95 @@ export async function uploadFormData<T>(
   return apiFetch<T>(url, { method: 'POST', body: form });
 }
 
+/**
+ * 运行异常视图（REQ-20261117-061017，契约对齐 AdminOpExceptionView）：
+ * 仅兜底 500（未捕获 Exception / DataAccessException 还原失败）落库；列表返回 stackSummary
+ * 可能为截断摘要，全文以详情端点（opExceptionGet）为准。id/tenantId/operatorId wire string。
+ */
+export interface AdminOpExceptionView {
+  id: string;
+  /** 异常来源服务（spring.application.name）。 */
+  service: string;
+  traceId: string;
+  spanId: string;
+  tenantId?: string | null;
+  operatorId?: string | null;
+  method: string;
+  path: string;
+  statusCode: number;
+  /** 异常类全名（如 java.lang.RuntimeException）。 */
+  exceptionType: string;
+  message: string;
+  /** 堆栈摘要（列表可能截断；详情端点返回全文）。 */
+  stackSummary: string;
+  occurredAt: string;
+}
+
+/** 运行异常查询过滤（service/exceptionType 精确、traceId 模糊、from/to 为 ISO-8601 时间串；均缺省省略）。 */
+export interface OpExceptionFilters {
+  service?: string;
+  traceId?: string;
+  exceptionType?: string;
+  from?: string;
+  to?: string;
+}
+
+/** 运行异常端点（列表/详情走信封 JSON；导出为 xlsx 附件流，走 useExcelExport/downloadFile）。 */
+export const OP_EXCEPTION_ENDPOINTS = {
+  base: '/admin/v1/infra/op-exceptions',
+  detail: (exceptionId: string): string =>
+    `/admin/v1/infra/op-exceptions/${encodeURIComponent(exceptionId)}`,
+  export: '/admin/v1/infra/op-exceptions/export',
+} as const;
+
+/** 定时任务视图（REQ-20261117-061017，JobController list 组装：TaskDefinition+描述+cron+最近一次执行摘要；
+ *  无执行记录时 last* 全空）。 */
+export interface JobView {
+  jobKey: string;
+  description: string | null;
+  cron: string | null;
+  lastStatus: string | null;
+  lastStartedAt: string | null;
+  lastFinishedAt: string | null;
+  lastDurationMs: number | null;
+  lastTriggerType: string | null;
+  lastError: string | null;
+}
+
+/** 任务执行记录视图（契约对齐 JobExecutionView：sys_job_execution 行；id wire string；
+ *  分页倒序 started_at；durationMs 毫秒）。 */
+export interface JobExecutionView {
+  id: string;
+  jobKey: string;
+  status: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+  triggerType: string;
+  durationMs: number | null;
+}
+
+/** 定时任务端点（列表走信封 JSON；手动执行 POST run；执行记录分页）。 */
+export const JOB_ENDPOINTS = {
+  base: '/admin/v1/infra/jobs',
+  executions: (jobKey: string): string =>
+    `/admin/v1/infra/jobs/${encodeURIComponent(jobKey)}/executions`,
+  run: (jobKey: string): string => `/admin/v1/infra/jobs/${encodeURIComponent(jobKey)}/run`,
+} as const;
+
+/** 组装 op-exceptions 导出 URL（xlsx 附件；权限复用 infra:exception:list；同筛选参数）：
+ *  走 useExcelExport.exportFile(url) → downloadFile 二进制下载，不在信封解析范围。 */
+export function opExceptionsExportUrl(filters: OpExceptionFilters = {}): string {
+  const qs = new URLSearchParams();
+  if (filters.service) qs.set('service', filters.service);
+  if (filters.traceId) qs.set('traceId', filters.traceId);
+  if (filters.exceptionType) qs.set('exceptionType', filters.exceptionType);
+  if (filters.from) qs.set('from', filters.from);
+  if (filters.to) qs.set('to', filters.to);
+  const query = qs.toString();
+  return query ? `${OP_EXCEPTION_ENDPOINTS.export}?${query}` : OP_EXCEPTION_ENDPOINTS.export;
+}
+
 /** 基础设施域接口（platform-infra）。 */
 export const infraApi = {
   /** 文件分页（bizType/bizId 精确过滤、keyword 按原名模糊；权限点 infra:file:list；signal 为可选取消信号）。 */
@@ -142,4 +231,37 @@ export const infraApi = {
   /** 删除文件（软删 + 对象移除；幂等：已删/对象不存在均成功；权限点 infra:file:delete）。 */
   fileDelete: (fileId: string): Promise<void> =>
     apiFetch<void>(`${FILE_ENDPOINTS.base}/${fileId}`, { method: 'DELETE' }),
+  /** 运行异常分页（REQ-20261117-061017；权限点 infra:exception:list；
+   *  service/exceptionType 精确、traceId 模糊、from/to 时间区间；signal 为可选取消信号）。 */
+  opExceptionList: (
+    page: number,
+    size: number,
+    filters: OpExceptionFilters = {},
+    signal?: AbortSignal,
+  ): Promise<PageResult<AdminOpExceptionView>> => {
+    const qs = new URLSearchParams({ page: String(page), size: String(size) });
+    if (filters.service) qs.set('service', filters.service);
+    if (filters.traceId) qs.set('traceId', filters.traceId);
+    if (filters.exceptionType) qs.set('exceptionType', filters.exceptionType);
+    if (filters.from) qs.set('from', filters.from);
+    if (filters.to) qs.set('to', filters.to);
+    return apiFetch<PageResult<AdminOpExceptionView>>(`${OP_EXCEPTION_ENDPOINTS.base}?${qs.toString()}`, { signal });
+  },
+  /** 运行异常详情（REQ-20261117-061017；权限点 infra:exception:list；返回含 stackSummary 全文）。 */
+  opExceptionGet: (exceptionId: string, signal?: AbortSignal): Promise<AdminOpExceptionView> =>
+    apiFetch<AdminOpExceptionView>(OP_EXCEPTION_ENDPOINTS.detail(exceptionId), { signal }),
+  /** 运行异常导出 URL（REQ-20261117-061017；xlsx 附件豁免信封，权限复用 infra:exception:list；
+   *  同筛选参数；交 useExcelExport.exportFile(url) 走 downloadFile 二进制下载）。 */
+  opExceptionExport: (filters: OpExceptionFilters = {}): string => opExceptionsExportUrl(filters),
+  /** 定时任务清单（REQ-20261117-061017；权限点 infra:job:list；非分页数组，行=JobView）。 */
+  jobList: (signal?: AbortSignal): Promise<JobView[]> =>
+    apiFetch<JobView[]>(JOB_ENDPOINTS.base, { signal }),
+  /** 手动执行任务（REQ-20261117-061017；权限点 infra:job:run；产生 trigger_type=MANUAL 执行记录）。 */
+  jobRun: (jobKey: string): Promise<void> =>
+    apiFetch<void>(JOB_ENDPOINTS.run(jobKey), { method: 'POST' }, { emptyAsSuccess: true }),
+  /** 任务执行记录分页（REQ-20261117-061017；权限点 infra:job:list；后端按 started_at 倒序）。 */
+  jobExecutions: (jobKey: string, page: number, size: number, signal?: AbortSignal): Promise<PageResult<JobExecutionView>> => {
+    const qs = new URLSearchParams({ page: String(page), size: String(size) });
+    return apiFetch<PageResult<JobExecutionView>>(`${JOB_ENDPOINTS.executions(jobKey)}?${qs.toString()}`, { signal });
+  },
 };

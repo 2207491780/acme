@@ -79,6 +79,13 @@ export interface LoginLogFilters {
   to?: string;
 }
 
+/** 批量下线结果（REQ-20261117-061017，契约对齐 BatchKickView）：
+ *  kickedCount=已撤销会话数；skippedCount=超管会话跳过数（超管保护口径）。 */
+export interface BatchKickView {
+  kickedCount: number;
+  skippedCount: number;
+}
+
 /** 登录域接口（认证域契约：图形验证码 / 租户目录 / 登录 / 登出）。 */
 export const authApi = {
   /** 启用租户清单（公开端点；登录页可搜索下拉数据源）。 */
@@ -139,8 +146,28 @@ export const authApi = {
   /** 在线用户列表（权限点 auth:online:list；来源=AuthSession 未过期集合，非分页数组）。 */
   onlineUsers: (signal?: AbortSignal): Promise<AdminOnlineUserView[]> =>
     apiFetch<AdminOnlineUserView[]>('/admin/v1/auth/online-users', { signal }),
+  /** 按用户名批量下线（REQ-20261117-061017；权限点 auth:online:revoke）：
+   *  DELETE /admin/v1/auth/online-users?username={username}（query 参数，username 必填）——
+   *  枚举该用户全部 ACTIVE 未过期会话逐个 kick（超管会话跳过并计入 skippedCount），
+   *  返回 BatchKickView（kickedCount/skippedCount）。 */
+  onlineUsersBatchKick: (username: string): Promise<BatchKickView> => {
+    const qs = new URLSearchParams({ username });
+    return apiFetch<BatchKickView>(`/admin/v1/auth/online-users?${qs.toString()}`, { method: 'DELETE' });
+  },
   /** 踢下线（权限点 auth:online:revoke；目标不存在=SESSION_NOT_FOUND，非超管踢超管=REVOKE_SUPERADMIN_FORBIDDEN，
    *  业务失败=Result.code≠0（HTTP 200）→ 由 apiFetch 抛 ApiError）。 */
   revokeOnlineUser: (sessionId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/auth/online-users/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
+  /** 登录日志导出 URL（REQ-20261117-061017；xlsx 附件豁免信封，权限复用 auth:loginlog:list；
+   *  同筛选参数；交 useExcelExport.exportFile(url) 走 downloadFile 二进制下载）。 */
+  loginLogsExport: (filters: LoginLogFilters = {}): string => {
+    const qs = new URLSearchParams();
+    if (filters.username) qs.set('username', filters.username);
+    if (filters.userType) qs.set('userType', filters.userType);
+    if (filters.result) qs.set('result', filters.result);
+    if (filters.from) qs.set('from', filters.from);
+    if (filters.to) qs.set('to', filters.to);
+    const query = qs.toString();
+    return query ? `/admin/v1/auth/login-logs/export?${query}` : '/admin/v1/auth/login-logs/export';
+  },
 };

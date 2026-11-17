@@ -19,7 +19,14 @@ export const audit = {
     query: 'Query',
     reset: 'Reset',
   },
+  actions: {
+    export: 'Export Excel',
+  },
+  toast: {
+    exported: 'Export succeeded, download started',
+  },
   errors: {
     loadFailed: 'Failed to load audit events',
+    exportFailed: 'Export failed, please try again later',
   },
 };

@@ -20,7 +20,14 @@ export const loginLogs = {
     query: '查询',
     reset: '重置',
   },
+  actions: {
+    export: '导出 Excel',
+  },
+  toast: {
+    exported: '导出成功，已开始下载',
+  },
   errors: {
     loadFailed: '登录日志加载失败',
+    exportFailed: '导出失败，请稍后重试',
   },
 };

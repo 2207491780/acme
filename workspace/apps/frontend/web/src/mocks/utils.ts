@@ -1,6 +1,16 @@
 import { HttpResponse, type DefaultBodyType } from 'msw';
 
-/** MSW 通用工具：FR-013 信封出参 / 分页切片 / 查询参数解析。 */
+/** MSW 通用工具：FR-013 信封出参 / 分页切片 / 查询参数解析 / xlsx 附件出参。 */
+
+/** xlsx 附件出参（binary 流 + Content-Disposition；导出/模板端点豁免信封口径）。 */
+export function excelBinary(filename: string): HttpResponse<DefaultBodyType> {
+  return new HttpResponse('PK\x03\x04mock-xlsx', {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    },
+  });
+}
 
 /** 成功信封（Result.ok，成功码 "0"）。 */
 export function ok<T>(data: T, status = 200): HttpResponse<DefaultBodyType> {

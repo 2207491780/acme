@@ -1,8 +1,15 @@
-import { Button, DatePicker, Form, Input, Space, Tag, Typography } from 'antd';
+import { App, Button, DatePicker, Form, Input, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { auditApi, formatDate, useCrud, type AdminAuditEventView } from '@acme/core';
+import {
+  auditApi,
+  formatDate,
+  useCrud,
+  useExcelExport,
+  useMeStore,
+  type AdminAuditEventView,
+} from '@acme/core';
 import { CrudTable } from '../components/CrudTable';
 
 const { Text } = Typography;
@@ -30,7 +37,9 @@ interface AuditFormValues {
  *  + CrudTable（filterPanel 保持原查询表单布局；查询型页面无新建/删除）。 */
 export function AuditPage() {
   const { t } = useTranslation();
+  const { message } = App.useApp();
   const [form] = Form.useForm<AuditFormValues>();
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
 
   const crud = useCrud<AdminAuditEventView, AuditFilters>({
     fetchPage: ({ page, size, filters, signal }) =>
@@ -43,8 +52,21 @@ export function AuditPage() {
       }, signal),
     filters: { operatorId: undefined, action: undefined, traceId: undefined, from: undefined, to: undefined },
     pageSize: 20,
+    permissions,
     errorMessage: t('audit.errors.loadFailed'),
   });
+
+  const { exporting, exportFile } = useExcelExport();
+
+  const doExport = async () => {
+    // 导出透传当前已提交筛选（crud.filters），与列表口径一致（权限复用 infra:audit:list）
+    const ok = await exportFile(auditApi.eventsExport(crud.filters), 'audit-events.xlsx');
+    if (ok) {
+      message.success(t('audit.toast.exported'));
+    } else {
+      message.error(t('audit.errors.exportFailed'));
+    }
+  };
 
   const columns: ColumnsType<AdminAuditEventView> = [
     { title: t('audit.columns.occurredAt'), dataIndex: 'occurredAt', key: 'occurredAt', minWidth: 170, fixed: 'left', render: (v: string) => formatDate(v) },
@@ -64,6 +86,9 @@ export function AuditPage() {
       searchable={false}
       reloadAriaLabel={t('audit.reload')}
       totalText={(total) => t('audit.total', { total })}
+      actions={crud.can('infra:audit:list') ? (
+        <Button loading={exporting} onClick={() => void doExport()}>{t('audit.actions.export')}</Button>
+      ) : null}
       filterPanel={
         <Form
           form={form}

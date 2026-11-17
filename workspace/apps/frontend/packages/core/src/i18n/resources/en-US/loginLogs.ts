@@ -20,7 +20,14 @@ export const loginLogs = {
     query: 'Query',
     reset: 'Reset',
   },
+  actions: {
+    export: 'Export Excel',
+  },
+  toast: {
+    exported: 'Export succeeded, download started',
+  },
   errors: {
     loadFailed: 'Failed to load login logs',
+    exportFailed: 'Export failed, please try again later',
   },
 };

@@ -16,6 +16,8 @@ import { notices } from './notices';
 import { audit } from './audit';
 import { loginLogs } from './loginLogs';
 import { onlineUsers } from './onlineUsers';
+import { opExceptions } from './opExceptions';
+import { jobs } from './jobs';
 import { files } from './files';
 import { systemConfig } from './systemConfig';
 import { settings } from './settings';
@@ -41,6 +43,8 @@ export const enUS = {
   audit,
   loginLogs,
   onlineUsers,
+  opExceptions,
+  jobs,
   files,
   systemConfig,
   settings,

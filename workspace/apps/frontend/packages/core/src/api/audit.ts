@@ -36,4 +36,16 @@ export const auditApi = {
     if (filters.to) qs.set('to', filters.to);
     return apiFetch<PageResult<AdminAuditEventView>>(`/admin/v1/infra/audit-events?${qs.toString()}`, { signal });
   },
+  /** 审计事件导出 URL（REQ-20261117-061017；xlsx 附件豁免信封，权限复用 infra:audit:list；
+   *  同筛选参数；交 useExcelExport.exportFile(url) 走 downloadFile 二进制下载）。 */
+  eventsExport: (filters: { operatorId?: string; action?: string; traceId?: string; from?: string; to?: string } = {}): string => {
+    const qs = new URLSearchParams();
+    if (filters.operatorId) qs.set('operatorId', filters.operatorId);
+    if (filters.action) qs.set('action', filters.action);
+    if (filters.traceId) qs.set('traceId', filters.traceId);
+    if (filters.from) qs.set('from', filters.from);
+    if (filters.to) qs.set('to', filters.to);
+    const query = qs.toString();
+    return query ? `/admin/v1/infra/audit-events/export?${query}` : '/admin/v1/infra/audit-events/export';
+  },
 };

@@ -1,8 +1,15 @@
-import { Button, DatePicker, Form, Input, Space, Tag, Typography } from 'antd';
+import { App, Button, DatePicker, Form, Input, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { authApi, formatDate, useCrud, type AdminLoginLogView } from '@acme/core';
+import {
+  authApi,
+  formatDate,
+  useCrud,
+  useExcelExport,
+  useMeStore,
+  type AdminLoginLogView,
+} from '@acme/core';
 import { CrudTable } from '../components/CrudTable';
 
 const { Text } = Typography;
@@ -29,7 +36,9 @@ interface LoginFormValues {
  *  useCrud（表单筛选走 filters，提交重置第 1 页）+ CrudTable（查询型页面无新建/删除）。 */
 export function LoginLogsPage() {
   const { t } = useTranslation();
+  const { message } = App.useApp();
   const [form] = Form.useForm<LoginFormValues>();
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
 
   const crud = useCrud<AdminLoginLogView, LoginLogFilters>({
     fetchPage: ({ page, size, filters, signal }) =>
@@ -42,8 +51,21 @@ export function LoginLogsPage() {
       }, signal),
     filters: { username: undefined, userType: undefined, result: undefined, from: undefined, to: undefined },
     pageSize: 20,
+    permissions,
     errorMessage: t('loginLogs.errors.loadFailed'),
   });
+
+  const { exporting, exportFile } = useExcelExport();
+
+  const doExport = async () => {
+    // 导出透传当前已提交筛选（crud.filters），与列表口径一致（权限复用 auth:loginlog:list）
+    const ok = await exportFile(authApi.loginLogsExport(crud.filters), 'login-logs.xlsx');
+    if (ok) {
+      message.success(t('loginLogs.toast.exported'));
+    } else {
+      message.error(t('loginLogs.errors.exportFailed'));
+    }
+  };
 
   const columns: ColumnsType<AdminLoginLogView> = [
     { title: t('loginLogs.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', minWidth: 170, fixed: 'left', render: (v: string) => formatDate(v) },
@@ -67,6 +89,9 @@ export function LoginLogsPage() {
       searchable={false}
       reloadAriaLabel={t('loginLogs.reload')}
       totalText={(total) => t('loginLogs.total', { total })}
+      actions={crud.can('auth:loginlog:list') ? (
+        <Button loading={exporting} onClick={() => void doExport()}>{t('loginLogs.actions.export')}</Button>
+      ) : null}
       filterPanel={
         <Form
           form={form}

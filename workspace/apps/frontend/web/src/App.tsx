@@ -6,6 +6,7 @@ import {
   ApartmentOutlined,
   AppstoreOutlined,
   BookOutlined,
+  BugOutlined,
   ControlOutlined,
   DashboardOutlined,
   DownOutlined,
@@ -25,6 +26,7 @@ import {
   PartitionOutlined,
   PlusOutlined,
   SafetyCertificateOutlined,
+  ScheduleOutlined,
   SearchOutlined,
   SettingOutlined,
   SunOutlined,
@@ -55,6 +57,8 @@ import { SystemConfigPage } from './pages/SystemConfigPage';
 import { AuditPage } from './pages/AuditPage';
 import { LoginLogsPage } from './pages/LoginLogsPage';
 import { OnlineUsersPage } from './pages/OnlineUsersPage';
+import { ExceptionsPage } from './pages/ExceptionsPage';
+import { JobsPage } from './pages/JobsPage';
 import { FilesPage } from './pages/FilesPage';
 import { NoticesPage } from './pages/NoticesPage';
 import { LoginPage } from './pages/LoginPage';
@@ -136,6 +140,9 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   { path: '/audit', icon: <FileSearchOutlined />, labelKey: 'nav.items.audit', permission: 'infra:audit:list' },
   { path: '/login-logs', icon: <HistoryOutlined />, labelKey: 'nav.items.loginLogs', permission: 'auth:loginlog:list' },
   { path: '/online-users', icon: <TeamOutlined />, labelKey: 'nav.items.onlineUsers', permission: 'auth:online:list' },
+  // 平台运营组（REQ-20261117-061017）：异常日志 / 定时任务，紧随审计与登录安全观测项之后
+  { path: '/op-exceptions', icon: <BugOutlined />, labelKey: 'nav.items.opExceptions', permission: 'infra:exception:list' },
+  { path: '/jobs', icon: <ScheduleOutlined />, labelKey: 'nav.items.jobs', permission: 'infra:job:list' },
   { path: '/settings', icon: <SettingOutlined />, labelKey: 'nav.items.settings' },
 ];
 
@@ -733,6 +740,28 @@ export function App() {
                   <PageBoundary>
                     <PermissionGate permission="infra:file:list">
                       <FilesPage />
+                    </PermissionGate>
+                  </PageBoundary>
+                )}
+              />
+              {/* 运行异常日志（REQ-20261117-061017）：权限点 infra:exception:list */}
+              <Route
+                path="/op-exceptions"
+                element={(
+                  <PageBoundary>
+                    <PermissionGate permission="infra:exception:list">
+                      <ExceptionsPage />
+                    </PermissionGate>
+                  </PageBoundary>
+                )}
+              />
+              {/* 定时任务（REQ-20261117-061017）：权限点 infra:job:list（手动执行 infra:job:run 页内分控） */}
+              <Route
+                path="/jobs"
+                element={(
+                  <PageBoundary>
+                    <PermissionGate permission="infra:job:list">
+                      <JobsPage />
                     </PermissionGate>
                   </PageBoundary>
                 )}

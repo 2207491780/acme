@@ -17,6 +17,8 @@ export const nav = {
     audit: 'Audit Events',
     loginLogs: 'Login Logs',
     onlineUsers: 'Online Users',
+    opExceptions: 'Exception Logs',
+    jobs: 'Scheduled Jobs',
     settings: 'Settings',
   },
   header: {

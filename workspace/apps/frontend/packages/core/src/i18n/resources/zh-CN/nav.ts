@@ -17,6 +17,8 @@ export const nav = {
     audit: '审计事件',
     loginLogs: '登录日志',
     onlineUsers: '在线用户',
+    opExceptions: '异常日志',
+    jobs: '定时任务',
     settings: '设置',
   },
   header: {

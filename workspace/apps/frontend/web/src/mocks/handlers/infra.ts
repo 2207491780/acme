@@ -1,11 +1,17 @@
-import { http, HttpResponse, type DefaultBodyType } from 'msw';
+import { http, HttpResponse } from 'msw';
 import * as db from '../data';
-import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
+import { bodyOf, empty, excelBinary, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
-/** 基础设施域 handler：文件服务 / Excel demo 导入导出 / 审计事件查询。
+/** 基础设施域 handler：文件服务 / Excel demo 导入导出 / 审计事件查询导出 / 运行异常三段 / 定时任务与执行记录。
  *  resolver 内联（msw 2.x Params 泛型按路径逐 handler 推断，不抽公共别名）。 */
 
-const store = { files: [...db.files], auditEvents: [...db.auditEvents] };
+const store = {
+  files: [...db.files],
+  auditEvents: [...db.auditEvents],
+  opExceptions: [...db.opExceptions],
+  jobs: [...db.jobs],
+  jobExecutions: [...db.jobExecutions],
+};
 
 let nextId = 5800;
 const genId = (): string => String(nextId++);
@@ -28,14 +34,7 @@ const pendingDirectUploads = new Map<string, PendingDirectUpload>();
 /** 已完成落库的直传对象（幂等口径：同 objectKey 未删行直接返回既有 FileView）。 */
 const completedDirectObjects = new Map<string, Record<string, unknown>>();
 
-/** Excel demo 导出/模板（binary 流 + Content-Disposition）。 */
-const excelBinary = (filename: string): HttpResponse<DefaultBodyType> =>
-  new HttpResponse('PK\x03\x04mock-xlsx', {
-    headers: {
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
-  });
+/** Excel demo 导出/模板（binary 流 + Content-Disposition）：出参构造收敛至 utils.excelBinary。 */
 
 export const infraHandlers = [
   http.get('/admin/v1/infra/files', ({ request }) => {
@@ -165,6 +164,68 @@ export const infraHandlers = [
       if (params.get('traceId') && !event.traceId.includes(params.get('traceId')!)) return false;
       return true;
     });
+    return page(slicePage(rows, pagingOf(request)), rows.length);
+  }),
+  // ————— 运行异常三段（REQ-20261117-061017）：导出 / 列表 / 详情（export 先注册，避免被 :exceptionId 吞并） —————
+  http.get('/admin/v1/infra/op-exceptions/export', () => excelBinary('op-exceptions.xlsx')),
+  http.get('/admin/v1/infra/op-exceptions', ({ request }) => {
+    const params = urlOf(request).searchParams;
+    const rows = store.opExceptions.filter((row) => {
+      if (params.get('service') && row.service !== params.get('service')) return false;
+      if (params.get('traceId') && !row.traceId.includes(params.get('traceId')!)) return false;
+      if (params.get('exceptionType') && !row.exceptionType.includes(params.get('exceptionType')!)) return false;
+      return true;
+    });
+    return page(slicePage(rows, pagingOf(request)), rows.length);
+  }),
+  http.get('/admin/v1/infra/op-exceptions/:exceptionId', ({ params }) => {
+    const target = store.opExceptions.find((row) => row.id === String(params.exceptionId));
+    if (!target) {
+      return fail('OP_EXCEPTION_NOT_FOUND', '异常记录不存在', 404);
+    }
+    return ok(target);
+  }),
+  // ————— 审计事件导出（REQ-20261117-061017）：xlsx 附件（豁免信封；上限/截断头在后端） —————
+  http.get('/admin/v1/infra/audit-events/export', () => excelBinary('audit-events.xlsx')),
+  // ————— 定时任务（REQ-20261117-061017）：清单 / 手动执行（MANUAL 记录）/ 执行记录分页倒序 —————
+  http.get('/admin/v1/infra/jobs', () => ok(store.jobs)),
+  http.post('/admin/v1/infra/jobs/:jobKey/run', ({ params }) => {
+    const jobKey = String(params.jobKey);
+    const known = store.jobs.find((job) => job.jobKey === jobKey);
+    if (!known) {
+      return fail('JOB_NOT_FOUND', '任务不存在', 404);
+    }
+    const startedAt = nowIso();
+    store.jobExecutions = [
+      {
+        id: genId(),
+        jobKey,
+        status: 'SUCCESS',
+        startedAt,
+        finishedAt: startedAt,
+        error: null,
+        triggerType: 'MANUAL',
+        durationMs: 120,
+      },
+      ...store.jobExecutions,
+    ];
+    // mock 语义：手动执行成功即刷新任务最近摘要（与 JobUseCase.list 组装口径对齐）
+    store.jobs = store.jobs.map((job) => (job.jobKey === jobKey ? {
+      ...job,
+      lastStatus: 'SUCCESS',
+      lastStartedAt: startedAt,
+      lastFinishedAt: startedAt,
+      lastDurationMs: 120,
+      lastTriggerType: 'MANUAL',
+      lastError: null,
+    } : job));
+    return ok({ jobKey, triggeredAt: startedAt });
+  }),
+  http.get('/admin/v1/infra/jobs/:jobKey/executions', ({ request, params }) => {
+    const jobKey = String(params.jobKey);
+    const rows = store.jobExecutions
+      .filter((row) => row.jobKey === jobKey)
+      .sort((a, b) => String(b.startedAt ?? '').localeCompare(String(a.startedAt ?? '')));
     return page(slicePage(rows, pagingOf(request)), rows.length);
   }),
 ];
