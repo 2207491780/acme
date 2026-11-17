@@ -11,7 +11,7 @@ interface FilterPanelProps {
   actions?: ReactNode;
 }
 
-/** 统一筛选字段：小标签 + 全宽控件，落入 FilterPanel 等宽自适应网格；wide 跨两列（时间范围等宽控件）。 */
+/** 统一筛选字段：行内小标签 + 自适应控件（标签与控件同一行），落入 FilterPanel 等宽自适应网格；wide 跨两列（时间范围等宽控件）。 */
 export function FilterField({ label, htmlFor, wide = false, children }: {
   label: ReactNode;
   htmlFor?: string;

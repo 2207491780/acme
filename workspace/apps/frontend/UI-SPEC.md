@@ -208,7 +208,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 ### Table / 列表
 - **Web**：AntD `Table`，表头 `elevated`，行悬停 `withAlpha(cyan|blue,0.06)`，选中 `${accent}1f`；支持拖拽调序（`REORDER`）、批量选择。
 - **列增强（REQ-20261117-140427）**：`CrudTable tableKey` / `useTableSettings` 提供列头多列筛选（低基数枚举多选、高基数关键词）与多列排序（本地语义：分页表仅当前页，设置面板明示口径）；工具栏「列设置」弹层支持列显隐（至少保留一列）、左/右固定（固定列归位边缘）、边框开关、重置默认；按 `acme.table-settings.v1:<tableKey>` 版本化持久化，损坏回退缺省。
-- **筛选栏布局（REQ-20261117-161500）**：筛选区独立于表格卡片（`FilterPanel`），字段落入等宽自适应网格 `repeat(auto-fill, minmax(min(100%, 210px), 1fr))`（gap 12/16，底对齐）；统一 `FilterField` 小标签（12px/500/`text2`，`htmlFor` 关联控件）+ 全宽控件，禁手写固定像素宽；时间范围等宽控件用 `filter-field-wide` 跨两列（≤575px 回落单列）；查询/重置动作行右对齐；折叠保值、ARIA（`aria-expanded`/`aria-controls`）与无进阶字段不渲染折叠入口的既有契约不变。
+- **筛选栏布局（REQ-20261117-161500）**：筛选区独立于表格卡片（`FilterPanel`），字段落入等宽自适应网格 `repeat(auto-fill, minmax(min(100%, 240px), 1fr))`（gap 12/16，居中对齐）；统一 `FilterField` 行内小标签（12px/500/`text2`，`htmlFor` 关联控件，与控件同一行、标签不换行）+ 自适应宽控件，禁手写固定像素宽；表单型筛选（审计/登录日志）用 `layout="horizontal" labelAlign="left" colon={false}` 保持标签控件同行；时间范围等宽控件用 `filter-field-wide` 跨两列（≤575px 回落单列）；查询/重置动作行右对齐；折叠保值、ARIA（`aria-expanded`/`aria-controls`）与无进阶字段不渲染折叠入口的既有契约不变。
 - **Mobile**：`FlatList` + 可展开 `ReleaseCard`（无表格）；展开显示 notes/artifacts/timeline。
 - **共享**：排序/筛选用 core `sortReleases/filterReleases`；调序写 `state.order`。
 

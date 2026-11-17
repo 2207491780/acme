@@ -72,7 +72,9 @@ export function LoginLogsPage() {
       filterPanel={
         <Form
           form={form}
-          layout="vertical"
+          layout="horizontal"
+          labelAlign="left"
+          colon={false}
           onFinish={(values: LoginFormValues) => {
             // 提交即整组过滤替换并重置到第 1 页（多次 setFilter 在同一事件批内合并为一次拉取）
             crud.setFilter('username', values.username || undefined);
