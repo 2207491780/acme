@@ -34,7 +34,8 @@ class ExcelSwitchTest {
             ExcelProperties properties = context.getBean(ExcelProperties.class);
             assertThat(properties.isEnabled()).isTrue();
             assertThat(properties.getImportErrorPolicy()).isEqualTo(ExcelProperties.ImportErrorPolicy.COLLECT);
-            assertThat(properties.getMaxRows()).isEqualTo(100000);
+            // REQ-20261117-061017 确认④：同步导出上限 10000 行（缺省值随契约调整）
+            assertThat(properties.getMaxRows()).isEqualTo(10000);
             assertThat(properties.getReadBatchSize()).isEqualTo(500);
         });
     }

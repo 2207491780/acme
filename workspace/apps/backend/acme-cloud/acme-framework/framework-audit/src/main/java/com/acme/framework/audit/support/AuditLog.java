@@ -27,6 +27,13 @@ public @interface AuditLog {
     /** 内容参数白名单（参数名或 SpEL #pN，未声明不记录内容）。 */
     String[] contentParams() default {};
 
+    /**
+     * 旧值快照 SpEL（REQ-20261117-061017 确认③，默认空）：proceed 前求值（支持 {@code @beanName}
+     * 引用，如 {@code @userUseCase.get(#userId)}），结果 JSON/toString 截断 512 后以
+     * {@code before=<摘要>} 前缀并入 content；表达式失败静默跳过（不阻断业务）。
+     */
+    String beforeQuery() default "";
+
     /** 敏感字段脱敏（FR-010、BR-013）。 */
     boolean mask() default true;
 }

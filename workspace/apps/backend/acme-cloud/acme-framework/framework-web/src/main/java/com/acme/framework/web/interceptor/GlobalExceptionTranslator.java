@@ -2,6 +2,9 @@ package com.acme.framework.web.interceptor;
 
 import com.acme.common.contract.InvalidRequestException;
 import com.acme.common.context.LocaleContext;
+import com.acme.common.context.TenantContext;
+import com.acme.common.context.TraceContext;
+import com.acme.common.context.UserContext;
 import com.acme.common.core.BizException;
 import com.acme.common.core.CommonError;
 import com.acme.common.core.ErrorCode;
@@ -9,13 +12,16 @@ import com.acme.common.core.FieldErrorDetail;
 import com.acme.common.core.Result;
 import com.acme.framework.core.support.HttpStatusAware;
 import com.acme.framework.core.support.PromptLocalizer;
+import com.acme.framework.web.event.OpExceptionCapturedEvent;
 import com.acme.framework.web.internal.ErrorLoggers;
 import com.acme.framework.web.support.WebError;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
@@ -29,10 +35,16 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -42,16 +54,40 @@ import java.util.Locale;
  * 不暴露堆栈/SQL/内部地址（10.5.4、BR-020）；映射过程自身异常兜底最小标准失败响应（FR-004 异常分支）。
  * 面向调用方提示经可选 {@link PromptLocalizer} 随 Locale 输出（p5-optional-modules D-006，
  * 缺省不启用时输出 Error 枚举默认文案，10.5.1）。
+ * REQ-20261117-061017：系统异常 500 路径发布 {@link OpExceptionCapturedEvent}（确认①：仅兜底
+ * Exception 与 DataAccessException 还原失败的 500；BizException/4xx 不发）——发布失败/无监听者静默，
+ * 纯框架层零侵入；开关 {@code acme.exception-log.enabled}（默认 true）。
  */
 @RestControllerAdvice
 public class GlobalExceptionTranslator {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionTranslator.class);
 
+    /** 堆栈摘要截断上限（REQ-20261117-061017 确认①：发布侧 8KB）。 */
+    static final int STACK_SUMMARY_MAX_LENGTH = 8 * 1024;
+
+    private static final String DEFAULT_SERVICE_NAME = "application";
+
     private final ObjectProvider<PromptLocalizer> promptLocalizers;
 
+    private final ObjectProvider<ApplicationEventPublisher> eventPublishers;
+
+    private final String serviceName;
+
+    private final boolean exceptionLogEnabled;
+
     public GlobalExceptionTranslator(ObjectProvider<PromptLocalizer> promptLocalizers) {
+        this(promptLocalizers, null, DEFAULT_SERVICE_NAME, true);
+    }
+
+    public GlobalExceptionTranslator(ObjectProvider<PromptLocalizer> promptLocalizers,
+                                     ObjectProvider<ApplicationEventPublisher> eventPublishers,
+                                     String serviceName, boolean exceptionLogEnabled) {
         this.promptLocalizers = promptLocalizers;
+        this.eventPublishers = eventPublishers;
+        this.serviceName = serviceName == null || serviceName.isBlank()
+                ? DEFAULT_SERVICE_NAME : serviceName;
+        this.exceptionLogEnabled = exceptionLogEnabled;
     }
 
     /** 业务异常（10.5.1、5.2）：状态码随错误码登记语义（HttpStatusAware），未映射默认 500。 */
@@ -189,11 +225,12 @@ public class GlobalExceptionTranslator {
         return handleUnexpected(ex);
     }
 
-    /** 未知异常（10.5.4）：INTERNAL_ERROR + 带 traceId 的 ERROR 日志。 */
+    /** 未知异常（10.5.4）：INTERNAL_ERROR + 带 traceId 的 ERROR 日志；500 路径发布异常捕获事件（确认①）。 */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Object>> handleUnexpected(Exception ex) {
         try {
             ErrorLoggers.logUnexpected(ex);
+            publishOpException(ex);
             return ResponseEntity.status(500).body(Result.fail(CommonError.INTERNAL_ERROR));
         } catch (RuntimeException mapEx) {
             return fallback(mapEx);
@@ -254,5 +291,71 @@ public class GlobalExceptionTranslator {
             return 500;
         }
         return 500;
+    }
+
+    /**
+     * 异常捕获事件发布（REQ-20261117-061017 确认①）：开关关闭/无事件出口/发布失败均静默，
+     * 绝不影响异常响应主路径；上下文读取 try-closed（无上下文时留空）。
+     */
+    private void publishOpException(Throwable ex) {
+        try {
+            if (!exceptionLogEnabled || eventPublishers == null) {
+                return;
+            }
+            ApplicationEventPublisher publisher = eventPublishers.getIfAvailable();
+            if (publisher == null) {
+                return;
+            }
+            publisher.publishEvent(buildEvent(ex));
+        } catch (RuntimeException publishEx) {
+            log.debug("异常捕获事件发布失败（不影响响应）: {}", publishEx.getMessage());
+        }
+    }
+
+    /** 事件组装（发布侧截断堆栈 8KB；请求/上下文信息尽力捕获，缺失置 null）。 */
+    private OpExceptionCapturedEvent buildEvent(Throwable ex) {
+        TraceContext trace = TraceContext.get();
+        TenantContext tenant = TenantContext.get();
+        UserContext user = UserContext.get();
+        return new OpExceptionCapturedEvent(
+                serviceName,
+                trace == null ? null : trace.traceId(),
+                trace == null ? null : trace.spanId(),
+                tenant == null ? null : tenant.tenantId(),
+                user == null ? null : user.userId(),
+                currentRequest(HttpServletRequest::getMethod),
+                currentRequest(request -> request.getRequestURI()),
+                500,
+                ex.getClass().getName(),
+                ex.getMessage(),
+                stackSummary(ex),
+                Instant.now());
+    }
+
+    /** 请求信息读取（非 Web 语境/读取失败返回 null，不影响发布；确认① try-closed）。 */
+    private static String currentRequest(java.util.function.Function<HttpServletRequest, String> extractor) {
+        try {
+            RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+            if (attributes instanceof ServletRequestAttributes servletAttributes) {
+                HttpServletRequest request = servletAttributes.getRequest();
+                return extractor.apply(request);
+            }
+        } catch (RuntimeException ignored) {
+            // 非 Web 语境（异步/消息线程）：留空
+        }
+        return null;
+    }
+
+    /** 堆栈摘要（发布侧截断 8KB，确认①）；取栈失败置 null。 */
+    private static String stackSummary(Throwable ex) {
+        try {
+            StringWriter out = new StringWriter(1024);
+            ex.printStackTrace(new PrintWriter(out));
+            String stack = out.toString();
+            return stack.length() <= STACK_SUMMARY_MAX_LENGTH
+                    ? stack : stack.substring(0, STACK_SUMMARY_MAX_LENGTH);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 }

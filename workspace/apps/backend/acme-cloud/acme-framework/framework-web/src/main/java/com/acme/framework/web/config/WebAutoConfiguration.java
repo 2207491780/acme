@@ -11,6 +11,7 @@ import com.acme.framework.web.support.ClientContextParser;
 import jakarta.servlet.Filter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -35,10 +36,19 @@ public class WebAutoConfiguration extends AcmeModuleAutoConfiguration {
         return new StandardResponseAdvice(jsonMapper.getIfAvailable());
     }
 
-    /** 全局异常映射（FR-004/005；D-006 PromptLocalizer 可选接入）。 */
+    /**
+     * 全局异常映射（FR-004/005；D-006 PromptLocalizer 可选接入；REQ-20261117-061017 事件出口可选接入）：
+     * 异常捕获事件发布器经 ObjectProvider 惰性解析（无事件面依赖时为纯映射），开关
+     * {@code acme.exception-log.enabled} 运行时判定（默认 true）。
+     */
     @Bean
-    public GlobalExceptionTranslator globalExceptionTranslator(ObjectProvider<PromptLocalizer> promptLocalizers) {
-        return new GlobalExceptionTranslator(promptLocalizers);
+    public GlobalExceptionTranslator globalExceptionTranslator(
+            ObjectProvider<PromptLocalizer> promptLocalizers,
+            ObjectProvider<ApplicationEventPublisher> eventPublishers,
+            Environment environment) {
+        return new GlobalExceptionTranslator(promptLocalizers, eventPublishers,
+                environment.getProperty("spring.application.name", "application"),
+                environment.getProperty("acme.exception-log.enabled", Boolean.class, Boolean.TRUE));
     }
 
     /** ClientContext 解析器（FR-007）。 */

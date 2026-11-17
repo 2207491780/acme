@@ -14,8 +14,8 @@ public class ExcelProperties {
     /** 行级错误处置（默认 COLLECT 汇总，Q-D004）。 */
     private ImportErrorPolicy importErrorPolicy = ImportErrorPolicy.COLLECT;
 
-    /** 导入/导出最大行数。 */
-    private long maxRows = 100000;
+    /** 导入/导出最大行数（REQ-20261117-061017 确认④：导出上限 10000 行，同步导出内存口径）。 */
+    private long maxRows = 10000;
 
     /** 流式读入窗口（NFR-003 不整文件驻留）。 */
     private int readBatchSize = 500;
