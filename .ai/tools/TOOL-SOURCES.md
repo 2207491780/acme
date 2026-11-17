@@ -22,7 +22,7 @@ node .ai/sync.mjs
 | `qoder/` | 阿里 Qoder | `.qoder/` | 目录说明 + 私有配置 |
 | `github/` | GitHub Copilot | `.github/` | 目录说明 + instructions |
 | `zcode/` | 智谱 ZCode | `.zcode/` | localOnly（git 忽略、不入库）：agents/commands 引用存根 |
-| `codebuddy/` | 腾讯 CodeBuddy | `.codebuddy/` | localOnly（git 忽略、不入库）：目录说明；agents/commands 由 `.ai/agents/`、`.ai/commands/` 公共池全量镜像（`mirrorPools`，ADR 2026-11-17-01） |
+| `codebuddy/` | 腾讯 CodeBuddy | `.codebuddy/` | localOnly（git 忽略、不入库）：目录说明；agents/skills/commands 由公共池派生为引用存根（frontmatter 保留、正文指针，官方原生识别，`mirrorPools`，ADR 2026-11-17-03） |
 
 ## 说明
 
