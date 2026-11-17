@@ -54,6 +54,15 @@
             <groupId>com.acme</groupId>
             <artifactId>framework-security</artifactId>
         </dependency>
+        <!-- REQ-20261117-061017 确认③④：@AuditLog 补注 + 登录日志导出（ExcelHttpExporter） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-audit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-excel</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.acme</groupId>
             <artifactId>framework-feign</artifactId>

@@ -2,6 +2,7 @@ package com.acme.platform.auth.interfaces;
 
 import com.acme.common.core.BizException;
 import com.acme.common.core.Result;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.framework.web.support.WebError;
 import com.acme.platform.auth.api.AdminTokenIssued;
 import com.acme.platform.auth.api.TenantPublicConfigView;
@@ -84,8 +85,10 @@ public class AuthTenantController {
      * 超管跨租户切换（认证端点，REQ-20261117-025200 确认记录④）：前置经 system 内部鉴权面
      * 实查内置超管角色（非超管 403 TENANT_SWITCH_FORBIDDEN）；目标租户必须 ENABLED 且未过期
      * （否则 TENANT_SWITCH_FAILED）；签发即互踢旧会话（Q-003 单会话语义延续）。
+     * 写动作纳入审计（REQ-20261117-061017 确认③）：contentParams 仅取目标租户代码。
      */
     @PostMapping("/tenant-switch")
+    @AuditLog(action = "auth.tenant.switch", targetType = "tenant", contentParams = {"request.targetTenantCode"})
     public Result<AdminTokenIssued> tenantSwitch(@Valid @RequestBody TenantSwitchRequest request,
                                                  HttpServletRequest servletRequest) {
         return Result.ok(tenantSwitchUseCase.switchTenant(request.targetTenantCode().trim(),
