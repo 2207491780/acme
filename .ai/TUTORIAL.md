@@ -54,9 +54,10 @@
 
 ## 7. Trae（字节跳动）
 
-- **读什么**：`.trae/rules/project_rules.md`（Trae 自动加载 `rules/` 目录下全部 md，Builder/Agent 模式生效）。
-- **冒烟**：Builder 模式问通用测试句。
-- **维护配置**：说意图 + 点名手册。SOLO 模式等私有规则源放 `.ai/tools/trae/rules/`。
+- **读什么**：`.trae/rules/project_rules.md`（官方 frontmatter `alwaysApply: true` 常驻；**纯指针**不重复铁律，引导读 `.ai/RULES.md`）；公共池引用存根 `.trae/agents|skills|commands/`（agents frontmatter 已适配 tools 字符串/移除 model inherit）。
+- **冒烟**：Builder/Agent 模式问通用测试句；`/req` 应能执行并回读 `.ai/commands/req.md` 源；agents 需在「设置 > Beta > Subagents」开启「启用 Subagents 目录」。
+- **维护配置**：说意图 + 点名手册。私有规则源放 `.ai/tools/trae/rules/`。
+- **背景**：规则仅自然语言、不解析链接/导入（指针靠 Agent 主动读 `.ai/RULES.md`）；根 `AGENTS.md` 默认不加载，需在「设置 > 规则 > 导入设置」手动开启（开启后与 rules 同时生效，本仓库 rules 已去重铁律避免双份）；规则大小限制 20000 byte；官方方案与差异见 ADR 2026-11-17-04。
 
 ## 8. Qoder（阿里）
 
@@ -89,7 +90,8 @@
 | Gemini CLI | `GEMINI.md` + `.gemini/` | ✅ | — | 可省 |
 | CodeBuddy | `CODEBUDDY.md`（`@` 导入）+ `.codebuddy/`（本机 localOnly） | ✅（引用存根） | ✅（引用存根） | **建议加** |
 | Qoder | `AGENTS.md` + `.qoder/` | ✅（引用存根） | ✅（引用存根） | **建议加** |
-| Codex / Cursor / Copilot / Trae / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
+| Codex / Cursor / Copilot / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
+| Trae | `.trae/rules/`（纯指针）+ `.trae/` | ✅（引用存根，需开 Subagents 开关） | ✅（引用存根） | **建议加** |
 
 ## 排障
 
