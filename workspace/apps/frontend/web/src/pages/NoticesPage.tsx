@@ -144,6 +144,7 @@ export function NoticesPage() {
     <div>
       <CrudTable<AdminNoticeView>
         crud={crud}
+        tableKey="notices"
         title={t('notices.title')}
         columns={columns}
         searchPlaceholder={t('notices.search.placeholder')}

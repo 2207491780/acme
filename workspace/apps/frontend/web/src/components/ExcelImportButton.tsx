@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { ColumnsType } from 'antd/es/table';
 import { CloudUploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { downloadFile, useExcelImport, type ImportReportError } from '@acme/core';
+import { TableSettingsButton, useTableSettings } from './tableSettings';
 
 const { Text } = Typography;
 
@@ -83,6 +84,8 @@ export function ExcelImportButton({
     { title: t('files.import.columns.reason'), dataIndex: 'message', key: 'message', minWidth: 240 },
   ];
 
+  const reportSettings = useTableSettings('importReport', errorColumns, report?.errors ?? []);
+
   return (
     <>
       <input
@@ -118,14 +121,20 @@ export function ExcelImportButton({
           <Statistic title={t('files.import.statErrors')} value={report?.errors.length ?? 0} valueStyle={{ color: 'var(--red, #c47b7b)' }} />
         </Space>
         {report && report.errors.length > 0 ? (
-          <Table<ImportReportError>
-            rowKey={(r) => `${r.row}-${r.field ?? ''}-${r.message}`}
-            columns={errorColumns}
-            dataSource={report.errors}
-            size="small"
-            pagination={false}
-            scroll={{ x: 'max-content', y: 320 }}
-          />
+          <>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <TableSettingsButton control={reportSettings} columns={errorColumns} paged={false} />
+            </div>
+            <Table<ImportReportError>
+              rowKey={(r) => `${r.row}-${r.field ?? ''}-${r.message}`}
+              columns={reportSettings.enhancedColumns}
+              bordered={reportSettings.settings.bordered}
+              dataSource={report.errors}
+              size="small"
+              pagination={false}
+              scroll={{ x: 'max-content', y: 320 }}
+            />
+          </>
         ) : (
           <Text type="secondary">{t('files.import.allValid')}</Text>
         )}

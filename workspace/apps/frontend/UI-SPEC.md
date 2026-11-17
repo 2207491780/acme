@@ -207,6 +207,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 
 ### Table / 列表
 - **Web**：AntD `Table`，表头 `elevated`，行悬停 `withAlpha(cyan|blue,0.06)`，选中 `${accent}1f`；支持拖拽调序（`REORDER`）、批量选择。
+- **列增强（REQ-20261117-140427）**：`CrudTable tableKey` / `useTableSettings` 提供列头多列筛选（低基数枚举多选、高基数关键词）与多列排序（本地语义：分页表仅当前页，设置面板明示口径）；工具栏「列设置」弹层支持列显隐（至少保留一列）、左/右固定（固定列归位边缘）、边框开关、重置默认；按 `acme.table-settings.v1:<tableKey>` 版本化持久化，损坏回退缺省。
 - **Mobile**：`FlatList` + 可展开 `ReleaseCard`（无表格）；展开显示 notes/artifacts/timeline。
 - **共享**：排序/筛选用 core `sortReleases/filterReleases`；调序写 `state.order`。
 

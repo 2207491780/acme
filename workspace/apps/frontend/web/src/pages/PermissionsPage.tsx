@@ -116,6 +116,7 @@ export function PermissionsPage() {
     <>
       <CrudTable<AdminPermissionView>
         crud={crud}
+        tableKey="permissions"
         title={t('permissions.title')}
         columns={columns}
         searchable={false}

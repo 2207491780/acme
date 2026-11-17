@@ -30,6 +30,7 @@ import { useStore } from '../store/useStore';
 import { EnvTag, PlatformTag, StatusTag } from '../components/atoms';
 import { PageHead } from '../components/PageHead';
 import { FilterPanel } from '../components/FilterPanel';
+import { TableSettingsButton, useTableSettings } from '../components/tableSettings';
 import { useDeleteReleases } from '../hooks/useReleaseActions';
 
 const { Text } = Typography;
@@ -84,6 +85,7 @@ export function Releases() {
     {
       title: t('releases.columns.release'),
       key: 'title',
+      dataIndex: 'title',
       minWidth: 220,
       fixed: 'left',
       render: (_, r) => (
@@ -96,6 +98,7 @@ export function Releases() {
     {
       title: t('releases.columns.app'),
       key: 'app',
+      dataIndex: 'appId',
       minWidth: 140,
       render: (_, r) => {
         const app = state.apps.find((a) => a.id === r.appId);
@@ -107,12 +110,13 @@ export function Releases() {
         );
       },
     },
-    { title: t('releases.columns.version'), key: 'version', minWidth: 100, render: (_, r) => <Tag color="processing">v{r.version}</Tag> },
-    { title: t('releases.columns.env'), key: 'env', minWidth: 90, render: (_, r) => <EnvTag env={r.env} /> },
-    { title: t('releases.columns.status'), key: 'status', minWidth: 100, render: (_, r) => <StatusTag status={r.status} /> },
+    { title: t('releases.columns.version'), key: 'version', dataIndex: 'version', minWidth: 100, render: (_, r) => <Tag color="processing">v{r.version}</Tag> },
+    { title: t('releases.columns.env'), key: 'env', dataIndex: 'env', minWidth: 90, render: (_, r) => <EnvTag env={r.env} /> },
+    { title: t('releases.columns.status'), key: 'status', dataIndex: 'status', minWidth: 100, render: (_, r) => <StatusTag status={r.status} /> },
     {
       title: t('releases.columns.progress'),
       key: 'progress',
+      dataIndex: 'progress',
       minWidth: 130,
       render: (_, r) => (
         <Progress
@@ -127,6 +131,7 @@ export function Releases() {
     {
       title: t('releases.columns.updated'),
       key: 'updated',
+      dataIndex: 'updatedAt',
       minWidth: 120,
       render: (_, r) => <Tooltip title={fmtFull(r.updatedAt)}><span>{relTime(r.updatedAt)}</span></Tooltip>,
     },
@@ -155,6 +160,8 @@ export function Releases() {
       },
     },
   ];
+
+  const tableSettings = useTableSettings('releases', columns, data);
 
   return (
     <>
@@ -210,6 +217,7 @@ export function Releases() {
         title={t('releases.head.title')}
         extra={(
           <Space wrap>
+            <TableSettingsButton control={tableSettings} columns={columns} paged={false} />
             <label htmlFor={`${filterId}-sort`}>{t('releases.filters.sort')}</label>
             <Select
               id={`${filterId}-sort`}
@@ -265,7 +273,8 @@ export function Releases() {
       <Table<Release>
         rowKey="id"
         size="middle"
-        columns={columns}
+        columns={tableSettings.enhancedColumns}
+        bordered={tableSettings.settings.bordered}
         dataSource={data}
         pagination={false}
         scroll={{ x: 'max-content' }}

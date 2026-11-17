@@ -63,6 +63,7 @@ export function LoginLogsPage() {
   return (
     <CrudTable<AdminLoginLogView, LoginLogFilters>
       crud={crud}
+      tableKey="loginLogs"
       title={t('loginLogs.title')}
       columns={columns}
       searchable={false}

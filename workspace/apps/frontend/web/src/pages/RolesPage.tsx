@@ -264,6 +264,7 @@ export function RolesPage() {
     <>
       <CrudTable<AdminRoleView>
         crud={crud}
+        tableKey="roles"
         title={t('roles.title')}
         columns={columns}
         searchPlaceholder={t('roles.search.placeholder')}

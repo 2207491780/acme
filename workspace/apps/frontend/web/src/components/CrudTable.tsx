@@ -7,6 +7,7 @@ import type { TableProps } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { SPACING, type CrudController } from '@acme/core';
 import { FilterPanel } from './FilterPanel';
+import { TableSettingsButton, useTableSettings } from './tableSettings';
 
 type RowClassName<T> = (record: T, index: number) => string;
 type OnRow<T> = NonNullable<TableProps<T>['onRow']>;
@@ -51,6 +52,8 @@ export interface CrudTableProps<T extends object, F extends Record<string, strin
   filterPanel?: ReactNode;
   /** 卡片体内、表格之下的补充内容（操作提示等）。 */
   footer?: ReactNode;
+  /** 列设置持久化键（REQ-20261117-140427）：提供后启用多列筛选/排序与列显隐/固定/边框设置。 */
+  tableKey?: string;
 }
 
 /**
@@ -79,9 +82,11 @@ export function CrudTable<T extends object, F extends Record<string, string | un
   paged = true,
   filterPanel,
   footer,
+  tableKey,
 }: CrudTableProps<T, F>) {
   const { t } = useTranslation();
   const searchId = useId();
+  const tableSettings = useTableSettings(tableKey, columns, crud.records);
   return (
     <>
       {filterPanel ?? (searchable || filters ? (
@@ -107,6 +112,7 @@ export function CrudTable<T extends object, F extends Record<string, string | un
         title={title}
         extra={
           <Space wrap>
+            {tableKey ? <TableSettingsButton control={tableSettings} columns={columns} paged={paged} /> : null}
             <Button icon={<ReloadOutlined />} onClick={() => crud.reload()} aria-label={reloadAriaLabel ?? t('common.table.reloadAria')} />
             {createPermission && onCreate && crud.can(createPermission) ? (
               <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>{createLabel ?? t('common.actions.create')}</Button>
@@ -126,12 +132,13 @@ export function CrudTable<T extends object, F extends Record<string, string | un
         ) : null}
         <Table<T>
           rowKey={rowKey ?? 'id'}
-          columns={columns}
+          columns={tableSettings.enhancedColumns}
           dataSource={crud.records}
           loading={crud.loading}
           size={size}
           onRow={onRow}
           rowClassName={rowClassName}
+          bordered={tableKey ? tableSettings.settings.bordered : undefined}
           scroll={{ x: 'max-content' }}
           pagination={paged ? {
             current: crud.page,

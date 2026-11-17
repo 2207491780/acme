@@ -106,6 +106,7 @@ export function FilesPage() {
   return (
     <CrudTable<FileView>
       crud={crud}
+      tableKey="files"
       title={t('files.title')}
       columns={columns}
       searchPlaceholder={t('files.search.placeholder')}

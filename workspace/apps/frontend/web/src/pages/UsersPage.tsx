@@ -255,6 +255,7 @@ export function UsersPage() {
     <>
       <CrudTable<AdminUserView, UserFilters>
         crud={crud}
+        tableKey="users"
         title={t('users.title')}
         columns={columns}
         searchPlaceholder={t('users.search.placeholder')}

@@ -156,6 +156,7 @@ export function MenusPage() {
     <>
       <CrudTable<AdminMenuView>
         crud={crud}
+        tableKey="menus"
         title={t('menus.title')}
         columns={columns}
         searchable={false}

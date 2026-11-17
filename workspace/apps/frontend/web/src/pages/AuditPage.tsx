@@ -60,6 +60,7 @@ export function AuditPage() {
   return (
     <CrudTable<AdminAuditEventView, AuditFilters>
       crud={crud}
+      tableKey="audit"
       title={t('audit.title')}
       columns={columns}
       searchable={false}

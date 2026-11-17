@@ -140,6 +140,7 @@ export function DeptsPage() {
     <>
       <CrudTable<AdminDeptView>
         crud={crud}
+        tableKey="depts"
         title={t('depts.title')}
         columns={columns}
         searchable={false}
