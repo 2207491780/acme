@@ -48,22 +48,23 @@
 
 ## 6. CodeBuddy（腾讯）
 
-- **读什么**：根 `CODEBUDDY.md`（引用存根；缺省时工具会自动回退读 `AGENTS.md`，双保险）；`.codebuddy/agents/` 有本机派生子代理（`.ai/agents/` 公共池全量镜像 + `/req` 命令；`.codebuddy/` git 忽略、localOnly——缺失跳过校验、存在必须一致，见 `.ai/tools/codebuddy/CODEBUDDY-CLI.md`）。
-- **冒烟**：Craft/Ask 模式问通用测试句。
+- **读什么**：根 `CODEBUDDY.md`（官方 `@` 导入自动内联 `.ai/RULES.md` 全文，正文不重复铁律节选）；`.codebuddy/agents|skills|commands/` 有本机派生引用存根（frontmatter 供官方注册、正文指针指向 `.ai/` 公共池源；`.codebuddy/` git 忽略、localOnly——缺失跳过校验、存在必须一致，官方方案与差异见 `.ai/tools/codebuddy/CODEBUDDY-CLI.md` 与 ADR 2026-11-17-03）。
+- **冒烟**：Craft/Ask 模式问通用测试句；`/req` 应能执行并回读 `.ai/commands/req.md` 源。
 - **维护配置**：说意图 + 点名手册。
 
 ## 7. Trae（字节跳动）
 
-- **读什么**：`.trae/rules/project_rules.md`（Trae 自动加载 `rules/` 目录下全部 md，Builder/Agent 模式生效）。
-- **冒烟**：Builder 模式问通用测试句。
-- **维护配置**：说意图 + 点名手册。SOLO 模式等私有规则源放 `.ai/tools/trae/rules/`。
+- **读什么**：`.trae/rules/project_rules.md`（官方 frontmatter `alwaysApply: true` 常驻；**纯指针**不重复铁律，引导读 `.ai/RULES.md`）；公共池引用存根 `.trae/agents|skills|commands/`（agents frontmatter 已适配 tools 字符串/移除 model inherit）。
+- **冒烟**：Builder/Agent 模式问通用测试句；`/req` 应能执行并回读 `.ai/commands/req.md` 源；agents 需在「设置 > Beta > Subagents」开启「启用 Subagents 目录」。
+- **维护配置**：说意图 + 点名手册。私有规则源放 `.ai/tools/trae/rules/`。
+- **背景**：规则仅自然语言、不解析链接/导入（指针靠 Agent 主动读 `.ai/RULES.md`）；根 `AGENTS.md` 默认不加载，需在「设置 > 规则 > 导入设置」手动开启（开启后与 rules 同时生效，本仓库 rules 已去重铁律避免双份）；规则大小限制 20000 byte；官方方案与差异见 ADR 2026-11-17-04。
 
 ## 8. Qoder（阿里）
 
-- **读什么**：`.qoder/rules/project_rules.md`（含 `alwaysApply: true`，每次会话常驻；Qoder 也读根 `AGENTS.md`）。
-- **冒烟**：Quest/Agent 模式问通用测试句。
-- **维护配置**：说意图 + 点名手册。
-- **背景**：Qoder 靠 frontmatter 决定规则激活方式，无 frontmatter 的规则不会自动加载——这正是派生存根自动带 `alwaysApply` 的原因。
+- **读什么**：根 `AGENTS.md`（入口存根）+ `.qoder/rules/project_rules.md`（`alwaysApply: true` 常驻；**纯指针**不重复铁律，冲突时 rules 优先）；公共池引用存根 `.qoder/skills|commands|agents/`。
+- **冒烟**：新会话输入 `/req`（命令存根）或问通用测试句；技能按 description 自动匹配。
+- **维护配置**：说意图 + 点名手册。私有配置源放 `.ai/tools/qoder/`。
+- **背景**：规则仅自然语言、不解析链接（指针靠 Agent 主动读 `.ai/RULES.md`）；激活规则合计 ≤ 10 万字符；同名 skills/agents 用户级覆盖项目级；agents 目录为 CLI 口径，Desktop 文件加载待验证（ADR 2026-11-17-02）。
 
 ## 9. ZCode（智谱 Z.AI）
 
@@ -87,8 +88,10 @@
 |---|---|---|---|---|
 | Claude Code | `CLAUDE.md` + `.claude/` | ✅ | ✅ | 不必（自动） |
 | Gemini CLI | `GEMINI.md` + `.gemini/` | ✅ | — | 可省 |
-| CodeBuddy | `CODEBUDDY.md` + `.codebuddy/`（本机 localOnly） | ✅（公共池镜像） | — | **建议加** |
-| Codex / Cursor / Copilot / Trae / Qoder / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
+| CodeBuddy | `CODEBUDDY.md`（`@` 导入）+ `.codebuddy/`（本机 localOnly） | ✅（引用存根） | ✅（引用存根） | **建议加** |
+| Qoder | `AGENTS.md` + `.qoder/` | ✅（引用存根） | ✅（引用存根） | **建议加** |
+| Codex / Cursor / Copilot / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
+| Trae | `.trae/rules/`（纯指针）+ `.trae/` | ✅（引用存根，需开 Subagents 开关） | ✅（引用存根） | **建议加** |
 
 ## 排障
 

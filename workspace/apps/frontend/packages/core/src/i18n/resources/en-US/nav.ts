@@ -70,5 +70,4 @@ export const nav = {
     footTitle: 'Multi-client reuse',
     footText: 'Web is the single source of pages; Electron shells the web build; mobile shares the business layer for small screens.',
   },
-  mobileNav: 'Mobile navigation',
 };

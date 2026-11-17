@@ -168,3 +168,14 @@ export function formatDate(value: DateInput, options?: DateFormatOptions): strin
 export function formatDateOnly(value: DateInput, options?: DateFormatOptions): string {
   return formatWith(value, options, DATE_FORMATS, false);
 }
+
+/** 各 locale 缺省纯时间模板（HH:mm / 3:05 PM；水印 {time} 等仅时间展示）。 */
+export const TIME_FORMATS: Record<DateLocale, string> = {
+  'zh-CN': 'HH:mm',
+  'en-US': 'h:mm A',
+};
+
+/** 纯时间展示（无日期部分；不受日期时间模板偏好影响，仍随 locale 预置）。 */
+export function formatTimeOnly(value: DateInput, options?: DateFormatOptions): string {
+  return formatWith(value, options, TIME_FORMATS, false);
+}

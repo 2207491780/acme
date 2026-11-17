@@ -11,6 +11,7 @@ import {
   type AdminLoginLogView,
 } from '@acme/core';
 import { CrudTable } from '../components/CrudTable';
+import { FilterPanel } from '../components/FilterPanel';
 
 const { Text } = Typography;
 
@@ -84,6 +85,7 @@ export function LoginLogsPage() {
   return (
     <CrudTable<AdminLoginLogView, LoginLogFilters>
       crud={crud}
+      tableKey="loginLogs"
       title={t('loginLogs.title')}
       columns={columns}
       searchable={false}
@@ -95,8 +97,9 @@ export function LoginLogsPage() {
       filterPanel={
         <Form
           form={form}
-          layout="inline"
-          style={{ marginBottom: 16, flexWrap: 'wrap', rowGap: 8 }}
+          layout="horizontal"
+          labelAlign="left"
+          colon={false}
           onFinish={(values: LoginFormValues) => {
             // 提交即整组过滤替换并重置到第 1 页（多次 setFilter 在同一事件批内合并为一次拉取）
             crud.setFilter('username', values.username || undefined);
@@ -106,29 +109,34 @@ export function LoginLogsPage() {
             crud.setFilter('to', values.range?.[1]?.toISOString());
           }}
         >
-          <Form.Item name="username">
-            <Input placeholder={t('loginLogs.filters.username')} allowClear style={{ width: 160 }} />
-          </Form.Item>
-          <Form.Item name="userType">
-            <Input placeholder={t('loginLogs.filters.userType')} allowClear style={{ width: 140 }} />
-          </Form.Item>
-          <Form.Item name="result">
-            <Input placeholder={t('loginLogs.filters.result')} allowClear style={{ width: 160 }} />
-          </Form.Item>
-          <Form.Item name="range">
-            <DatePicker.RangePicker showTime style={{ width: 340 }} />
-          </Form.Item>
-          <Space size={4}>
-            <Button type="primary" htmlType="submit">{t('loginLogs.filters.query')}</Button>
-            <Button
-              onClick={() => {
-                form.resetFields();
-                crud.resetFilters();
-              }}
-            >
-              {t('loginLogs.filters.reset')}
-            </Button>
-          </Space>
+          <FilterPanel
+            advancedActive={Boolean(crud.filters.userType || crud.filters.result || crud.filters.from || crud.filters.to)}
+            advanced={(
+              <>
+                <Form.Item name="userType" label={t('loginLogs.filters.userType')}>
+                  <Input placeholder={t('loginLogs.filters.userType')} allowClear />
+                </Form.Item>
+                <Form.Item name="result" label={t('loginLogs.columns.result')}>
+                  <Input placeholder={t('loginLogs.filters.result')} allowClear />
+                </Form.Item>
+                <Form.Item name="range" label={t('common.filters.timeRange')} className="filter-field-wide">
+                  <DatePicker.RangePicker showTime />
+                </Form.Item>
+              </>
+            )}
+            actions={(
+              <Space>
+                <Button type="primary" htmlType="submit">{t('loginLogs.filters.query')}</Button>
+                <Button onClick={() => { form.resetFields(); crud.resetFilters(); }}>
+                  {t('loginLogs.filters.reset')}
+                </Button>
+              </Space>
+            )}
+          >
+            <Form.Item name="username" label={t('loginLogs.filters.username')}>
+              <Input placeholder={t('loginLogs.filters.username')} allowClear />
+            </Form.Item>
+          </FilterPanel>
         </Form>
       }
     />

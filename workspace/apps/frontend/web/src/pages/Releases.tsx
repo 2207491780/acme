@@ -1,4 +1,4 @@
-import { useMemo, useState, type HTMLAttributes } from 'react';
+import { useId, useMemo, useState, type HTMLAttributes } from 'react';
 import { App, Button, Card, Progress, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +28,8 @@ import { envLabelKey, platformLabelKey, statusLabelKey } from '../labels';
 import { useStore } from '../store/useStore';
 import { EnvTag, PlatformTag, StatusTag } from '../components/atoms';
 import { PageHead } from '../components/PageHead';
+import { FilterField, FilterPanel } from '../components/FilterPanel';
+import { TableSettingsButton, useTableSettings } from '../components/tableSettings';
 import { useDeleteReleases } from '../hooks/useReleaseActions';
 
 const { Text } = Typography;
@@ -39,6 +41,7 @@ function DraggableRow(props: HTMLAttributes<HTMLTableRowElement>) {
 export function Releases() {
   const { t } = useTranslation();
   const { message } = App.useApp();
+  const filterId = useId();
   const state = useStore((s) => s.state);
   const query = useStore((s) => s.query);
   const selection = useStore((s) => s.selection);
@@ -81,6 +84,7 @@ export function Releases() {
     {
       title: t('releases.columns.release'),
       key: 'title',
+      dataIndex: 'title',
       minWidth: 220,
       fixed: 'left',
       render: (_, r) => (
@@ -93,6 +97,7 @@ export function Releases() {
     {
       title: t('releases.columns.app'),
       key: 'app',
+      dataIndex: 'appId',
       minWidth: 140,
       render: (_, r) => {
         const app = state.apps.find((a) => a.id === r.appId);
@@ -104,12 +109,13 @@ export function Releases() {
         );
       },
     },
-    { title: t('releases.columns.version'), key: 'version', minWidth: 100, render: (_, r) => <Tag color="processing">v{r.version}</Tag> },
-    { title: t('releases.columns.env'), key: 'env', minWidth: 90, render: (_, r) => <EnvTag env={r.env} /> },
-    { title: t('releases.columns.status'), key: 'status', minWidth: 100, render: (_, r) => <StatusTag status={r.status} /> },
+    { title: t('releases.columns.version'), key: 'version', dataIndex: 'version', minWidth: 100, render: (_, r) => <Tag color="processing">v{r.version}</Tag> },
+    { title: t('releases.columns.env'), key: 'env', dataIndex: 'env', minWidth: 90, render: (_, r) => <EnvTag env={r.env} /> },
+    { title: t('releases.columns.status'), key: 'status', dataIndex: 'status', minWidth: 100, render: (_, r) => <StatusTag status={r.status} /> },
     {
       title: t('releases.columns.progress'),
       key: 'progress',
+      dataIndex: 'progress',
       minWidth: 130,
       render: (_, r) => (
         <Progress
@@ -124,6 +130,7 @@ export function Releases() {
     {
       title: t('releases.columns.updated'),
       key: 'updated',
+      dataIndex: 'updatedAt',
       minWidth: 120,
       render: (_, r) => <Tooltip title={fmtFull(r.updatedAt)}><span>{relTime(r.updatedAt)}</span></Tooltip>,
     },
@@ -153,53 +160,74 @@ export function Releases() {
     },
   ];
 
+  const tableSettings = useTableSettings('releases', columns, data);
+
   return (
     <>
       <PageHead
         eyebrow={t('releases.head.eyebrow')}
         title={t('releases.head.title')}
         sub={t('releases.head.sub')}
-        extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal({ type: 'release', id: null })}>
-            {t('releases.head.create')}
-          </Button>
-        }
       />
 
-      <Space wrap style={{ marginBottom: 16 }}>
-        <Select
-          style={{ width: 150 }}
-          value={query.platform}
-          onChange={(v) => setQuery({ platform: v })}
-          options={[{ value: 'all', label: t('releases.filters.allPlatforms') }, ...PLATFORMS.map((p) => ({ value: p, label: t(platformLabelKey(p)) }))]}
-        />
-        <Select
-          style={{ width: 150 }}
-          value={query.status}
-          onChange={(v) => setQuery({ status: v })}
-          options={[
-            { value: 'all', label: t('releases.filters.allStatuses') },
-            { value: 'active', label: t('releases.filters.active') },
-            ...STATUSES.map((s) => ({ value: s, label: t(statusLabelKey(s)) })),
-          ]}
-        />
-        <Select
-          style={{ width: 150 }}
-          value={query.env}
-          onChange={(v) => setQuery({ env: v })}
-          options={[{ value: 'all', label: t('releases.filters.allEnvs') }, ...ENVS.map((e) => ({ value: e, label: t(envLabelKey(e)) }))]}
-        />
-        <Select
-          style={{ width: 150 }}
-          value={query.sort}
-          onChange={(v) => setQuery({ sort: v })}
-          options={SORTS.map(([value]) => ({ value, label: t(`releases.sort.${value}`) }))}
-        />
-        <Button icon={<SaveOutlined />} onClick={() => openModal({ type: 'savedView' })}>
-          {t('releases.filters.saveView')}
-        </Button>
-      </Space>
+      <FilterPanel
+        advancedActive={query.env !== 'all'}
+        advanced={(
+          <FilterField label={t('releases.columns.env')} htmlFor={`${filterId}-env`}>
+            <Select
+              id={`${filterId}-env`}
+              value={query.env}
+              onChange={(v) => setQuery({ env: v })}
+              options={[{ value: 'all', label: t('releases.filters.allEnvs') }, ...ENVS.map((e) => ({ value: e, label: t(envLabelKey(e)) }))]}
+            />
+          </FilterField>
+        )}
+      >
+        <FilterField label={t('releases.filters.platform')} htmlFor={`${filterId}-platform`}>
+          <Select
+            id={`${filterId}-platform`}
+            value={query.platform}
+            onChange={(v) => setQuery({ platform: v })}
+            options={[{ value: 'all', label: t('releases.filters.allPlatforms') }, ...PLATFORMS.map((p) => ({ value: p, label: t(platformLabelKey(p)) }))]}
+          />
+        </FilterField>
+        <FilterField label={t('releases.columns.status')} htmlFor={`${filterId}-status`}>
+          <Select
+            id={`${filterId}-status`}
+            value={query.status}
+            onChange={(v) => setQuery({ status: v })}
+            options={[
+              { value: 'all', label: t('releases.filters.allStatuses') },
+              { value: 'active', label: t('releases.filters.active') },
+              ...STATUSES.map((s) => ({ value: s, label: t(statusLabelKey(s)) })),
+            ]}
+          />
+        </FilterField>
+      </FilterPanel>
 
+      <Card
+        className="crud-table-card"
+        title={t('releases.head.title')}
+        extra={(
+          <Space wrap>
+            <TableSettingsButton control={tableSettings} columns={columns} paged={false} />
+            <label htmlFor={`${filterId}-sort`}>{t('releases.filters.sort')}</label>
+            <Select
+              id={`${filterId}-sort`}
+              style={{ width: 150 }}
+              value={query.sort}
+              onChange={(v) => setQuery({ sort: v })}
+              options={SORTS.map(([value]) => ({ value, label: t(`releases.sort.${value}`) }))}
+            />
+            <Button icon={<SaveOutlined />} onClick={() => openModal({ type: 'savedView' })}>
+              {t('releases.filters.saveView')}
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal({ type: 'release', id: null })}>
+              {t('releases.head.create')}
+            </Button>
+          </Space>
+        )}
+      >
       <Space wrap style={{ marginBottom: 16 }} align="center">
         <Text type="secondary" strong style={{ fontSize: 12 }}>{t('releases.savedViews.label')}</Text>
         {state.savedViews.length === 0 && <Text type="secondary" style={{ fontSize: 12 }}>{t('releases.savedViews.empty')}</Text>}
@@ -238,7 +266,8 @@ export function Releases() {
       <Table<Release>
         rowKey="id"
         size="middle"
-        columns={columns}
+        columns={tableSettings.enhancedColumns}
+        bordered={tableSettings.settings.bordered}
         dataSource={data}
         pagination={false}
         scroll={{ x: 'max-content' }}
@@ -284,6 +313,7 @@ export function Releases() {
       <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 12 }}>
         {t('releases.summary', { shown: data.length, total: state.releases.length })}
       </Text>
+      </Card>
     </>
   );
 }

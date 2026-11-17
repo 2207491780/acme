@@ -106,10 +106,10 @@ export function FilesPage() {
   return (
     <CrudTable<FileView>
       crud={crud}
+      tableKey="files"
       title={t('files.title')}
       columns={columns}
       searchPlaceholder={t('files.search.placeholder')}
-      searchWidth={200}
       reloadAriaLabel={t('files.reload')}
       totalText={(total) => t('files.total', { total })}
       actions={

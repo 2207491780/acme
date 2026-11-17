@@ -1,4 +1,5 @@
 import { http } from 'msw';
+import { findUnknownWatermarkPlaceholders } from '@acme/core';
 import type { AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
@@ -93,7 +94,7 @@ export const systemHandlers = [
   // ---- me ----
   http.get('/admin/v1/system/me', () => ok({ ...db.me, menus: store.menus })),
 
-  // ---- 租户系统配置（REQ-20261116-230354；REQ-20261117-011514 增 captchaEnabled；REQ-20261117-025200 增页脚版权） ----
+  // ---- 租户系统配置（REQ-20261116-230354；REQ-20261117-011514 增 captchaEnabled；REQ-20261117-025200 增页脚版权；REQ-20261117-180000 增水印模板） ----
   http.get('/admin/v1/system/config', () => ok(store.systemConfig)),
   http.put('/admin/v1/system/config', async ({ request }) => {
     const body = await bodyOf(request);
@@ -101,6 +102,12 @@ export const systemHandlers = [
     if (typeof body.watermarkEnabled !== 'boolean' || typeof body.captchaEnabled !== 'boolean'
       || typeof idle !== 'number' || ![0, 60_000, 300_000, 900_000].includes(idle)) {
       return fail('PARAM_INVALID', '配置参数非法：闲置时长仅支持 0/1/5/15 分钟', 200);
+    }
+    // 水印模板（REQ-20261117-180000）：可空（空串归一 null），≤255；未知完整占位符拒绝（镜像后端口径）
+    const template = typeof body.watermarkTemplate === 'string' && body.watermarkTemplate.length > 0
+      && body.watermarkTemplate.length <= 255 ? body.watermarkTemplate : null;
+    if (template && findUnknownWatermarkPlaceholders(template).length > 0) {
+      return fail('WATERMARK_TEMPLATE_INVALID', '水印模板包含不支持的占位符', 200);
     }
     if (body.version !== store.systemConfig.version) {
       return fail('VERSION_CONFLICT', '配置已被其他用户修改，请刷新后重试', 200);
@@ -114,6 +121,7 @@ export const systemHandlers = [
         ? body.footerCopyright
         : null,
       footerVisible: body.footerVisible === true,
+      watermarkTemplate: template,
       version: String(Number(store.systemConfig.version) + 1),
     };
     return ok(store.systemConfig);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { App, Button, Checkbox, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,7 @@ import {
 } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
+import { FilterField } from '../components/FilterPanel';
 import { flattenDeptOptions } from '../utils/dept';
 
 const { Text } = Typography;
@@ -57,6 +58,7 @@ export function UsersPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const permissions = useMeStore((s) => s.me?.permissions) ?? [];
+  const filterId = useId();
 
   const crud = useCrud<AdminUserView, UserFilters>({
     fetchPage: ({ page, size, keyword, filters, signal }) =>
@@ -254,10 +256,10 @@ export function UsersPage() {
     <>
       <CrudTable<AdminUserView, UserFilters>
         crud={crud}
+        tableKey="users"
         title={t('users.title')}
         columns={columns}
         searchPlaceholder={t('users.search.placeholder')}
-        searchWidth={200}
         reloadAriaLabel={t('users.reload')}
         createPermission="system:user:create"
         createLabel={t('users.create')}
@@ -265,25 +267,31 @@ export function UsersPage() {
         totalText={(total) => t('users.total', { total })}
         filters={(
           <>
-            <Select<string>
-              allowClear
-              placeholder={t('users.filters.dept')}
-              style={{ width: 140 }}
-              options={flattenDeptOptions(deptTree.tree)}
-              value={crud.filters.deptId}
-              onChange={(value) => crud.setFilter('deptId', value)}
-            />
-            <Select<'ENABLED' | 'DISABLED'>
-              allowClear
-              placeholder={t('users.filters.status')}
-              style={{ width: 120 }}
-              options={[
-                { value: 'ENABLED', label: t('users.status.enabled') },
-                { value: 'DISABLED', label: t('users.status.disabled') },
-              ]}
-              value={crud.filters.status}
-              onChange={(value) => crud.setFilter('status', value)}
-            />
+            <FilterField label={t('users.form.dept')} htmlFor={`${filterId}-dept`}>
+              <Select<string>
+                id={`${filterId}-dept`}
+                allowClear
+                aria-label={t('users.filters.dept')}
+                placeholder={t('users.filters.dept')}
+                options={flattenDeptOptions(deptTree.tree)}
+                value={crud.filters.deptId}
+                onChange={(value) => crud.setFilter('deptId', value)}
+              />
+            </FilterField>
+            <FilterField label={t('users.columns.status')} htmlFor={`${filterId}-status`}>
+              <Select<'ENABLED' | 'DISABLED'>
+                id={`${filterId}-status`}
+                allowClear
+                aria-label={t('users.filters.status')}
+                placeholder={t('users.filters.status')}
+                options={[
+                  { value: 'ENABLED', label: t('users.status.enabled') },
+                  { value: 'DISABLED', label: t('users.status.disabled') },
+                ]}
+                value={crud.filters.status}
+                onChange={(value) => crud.setFilter('status', value)}
+              />
+            </FilterField>
           </>
         )}
       />

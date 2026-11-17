@@ -207,6 +207,8 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 
 ### Table / 列表
 - **Web**：AntD `Table`，表头 `elevated`，行悬停 `withAlpha(cyan|blue,0.06)`，选中 `${accent}1f`；支持拖拽调序（`REORDER`）、批量选择。
+- **列增强（REQ-20261117-140427）**：`CrudTable tableKey` / `useTableSettings` 提供列头多列筛选（低基数枚举多选、高基数关键词）与多列排序（本地语义：分页表仅当前页，设置面板明示口径）；工具栏「列设置」弹层支持列显隐（至少保留一列）、左/右固定（固定列归位边缘）、边框开关、重置默认；按 `acme.table-settings.v1:<tableKey>` 版本化持久化，损坏回退缺省。
+- **筛选栏布局（REQ-20261117-161500）**：筛选区独立于表格卡片（`FilterPanel`），字段落入等宽自适应网格 `repeat(auto-fill, minmax(min(100%, 240px), 1fr))`（gap 12/16，居中对齐）；统一 `FilterField` 行内小标签（12px/500/`text2`，`htmlFor` 关联控件，与控件同一行、标签不换行）+ 自适应宽控件，禁手写固定像素宽；表单型筛选（审计/登录日志）用 `layout="horizontal" labelAlign="left" colon={false}` 保持标签控件同行；时间范围等宽控件用 `filter-field-wide` 跨两列（≤575px 回落单列）；查询/重置动作行右对齐；折叠保值、ARIA（`aria-expanded`/`aria-controls`）与无进阶字段不渲染折叠入口的既有契约不变。
 - **Mobile**：`FlatList` + 可展开 `ReleaseCard`（无表格）；展开显示 notes/artifacts/timeline。
 - **共享**：排序/筛选用 core `sortReleases/filterReleases`；调序写 `state.order`。
 
@@ -216,7 +218,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 - **共享**：详情只读字段 + 状态流转按钮（`STATUS_ACTION`/`NEXT_STATUS`）。
 
 ### Nav / 导航
-- **Web/PC**：固定 `Sider`（≥lg）+ 顶栏；<lg 用底部 `mobile-nav` + 左抽屉；当前项主色高亮，发布单带活跃数 `Badge`。
+- **Web/PC**：固定 `Sider`（≥lg）+ 顶栏；<lg 仅用左抽屉（顶栏菜单按钮打开），不设固定底部导航条；当前项主色高亮，发布单带活跃数 `Badge`。
 - **Mobile**：底部 tabbar（dashboard/releases/apps/settings），当前项 accent pill + 活跃数 badge；顶部品牌条。
 - **共享**：四目的地一致；活跃数 = `ACTIVE_STATUSES` 计数。
 
@@ -228,8 +230,8 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 |---|---|---|
 | 断点 | AntD `Grid.useBreakpoint()`；`<lg` 视为移动布局 | 原生小屏 |
 | 顶栏 | sticky，高 64，半透明表面 + 轻微模糊（blur 8）+ 底边框 | 品牌条 + 运行时 pill |
-| 内容 padding | 桌面 `24px 30px 60px`；移动 `16px 14px 88px` | Screen `padding 16, paddingBottom 32, gap 14` |
-| 安全区 | 底部导航 `env(safe-area-inset-bottom)` | `SafeAreaView` + Android `StatusBar.currentHeight` |
+| 内容 padding | 桌面 `24px 30px 60px`；移动 `16px 14px 60px` | Screen `padding 16, paddingBottom 32, gap 14` |
+| 安全区 | 无固定底部条（导航走左抽屉） | `SafeAreaView` + Android `StatusBar.currentHeight` |
 | 背景 | 纯色 `bg`（平整，与 Mobile 一致），无光斑/漂移/颗粒 | 纯色 `palette.bg` |
 | 滚动条 | 自定义（中性 `surface3` thumb，宽 10，轨道透明；hover 提亮） | 隐藏垂直滚动条 |
 

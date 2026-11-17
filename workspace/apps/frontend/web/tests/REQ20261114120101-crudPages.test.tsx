@@ -506,14 +506,19 @@ describe('REQ20261114120101 Menus 图标选择器', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(dialogTextboxes(dialog)[0]!, { target: { value: '图标菜单X' } });
 
-    // 中文关键词搜索 → 点选方格单元（aria-label=标识）
+    // 中文关键词搜索 → 点选方格单元（aria-label=标识）。
+    // 列头筛选/排序增强后 jsdom 下 role+name 查询的样式计算显著变慢，改用选择器直查同一 aria-label 契约
     await openAndSearch(dialog, '通知');
-    fireEvent.click(await screen.findByRole('button', { name: 'bell' }));
+    fireEvent.click(await waitFor(() => {
+      const cell = document.querySelector('button[aria-label="bell"]');
+      expect(cell).toBeTruthy();
+      return cell as HTMLElement;
+    }));
     await waitFor(() => {
       expect(iconTriggerOf(dialog).textContent ?? '').toContain('bell');
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
+    fireEvent.click(await within(dialog).findByText(CONFIRM_BUTTON));
     await waitFor(() => {
       const posts = callsOf(fetchMock, 'POST', menusSpec.pathPart);
       expect(posts).toHaveLength(1);
@@ -529,12 +534,16 @@ describe('REQ20261114120101 Menus 图标选择器', () => {
     fireEvent.change(dialogTextboxes(dialog)[0]!, { target: { value: '图标菜单Y' } });
 
     await openAndSearch(dialog, '猫');
-    fireEvent.click(await screen.findByRole('button', { name: 'lucide-cat' }));
+    fireEvent.click(await waitFor(() => {
+      const cell = document.querySelector('button[aria-label="lucide-cat"]');
+      expect(cell).toBeTruthy();
+      return cell as HTMLElement;
+    }));
     await waitFor(() => {
       expect(iconTriggerOf(dialog).textContent ?? '').toContain('lucide-cat');
     });
 
-    fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
+    fireEvent.click(await within(dialog).findByText(CONFIRM_BUTTON));
     await waitFor(() => {
       const posts = callsOf(fetchMock, 'POST', menusSpec.pathPart);
       expect(posts).toHaveLength(1);

@@ -96,6 +96,7 @@ export function OnlineUsersPage() {
   return (
     <CrudTable<AdminOnlineUserView>
       crud={crud}
+      tableKey="onlineUsers"
       title={t('onlineUsers.title')}
       columns={columns}
       rowKey="sessionId"

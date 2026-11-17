@@ -81,7 +81,7 @@ const resetStores = () => {
   useMeStore.getState().clear();
   useSystemConfigStore.setState({
     watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
-    footerCopyright: null, footerVisible: false, version: '0', loaded: false,
+    footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0', loaded: false,
   });
 };
 
@@ -171,7 +171,7 @@ const renderShell = async (spec: ShellSpec, startHash = '#/settings') => {
 describe('REQ20261117025200 AC-10 布局 Footer（租户配置显隐）', () => {
   const baseConfig = (footerVisible: boolean, footerCopyright: string | null): AdminSystemConfigView => ({
     watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 0,
-    footerCopyright, footerVisible, version: '1',
+    footerCopyright, footerVisible, watermarkTemplate: null, version: '1',
   });
 
   it('should_renderFooterCopyrightText_when_footerVisibleAndCopyrightPresent', async () => {
@@ -220,7 +220,7 @@ describe('REQ20261117025200 AC-10 布局 Footer（租户配置显隐）', () => 
 describe('REQ20261117025200 超管租户切换（App 用户菜单）', () => {
   const config: AdminSystemConfigView = {
     watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 0,
-    footerCopyright: null, footerVisible: false, version: '0',
+    footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0',
   };
 
   it('should_switchTenantAndReplaceSession_when_superAdminPicksTarget', async () => {
@@ -529,6 +529,7 @@ const setupConfigApi = (initial: AdminSystemConfigView) => {
       state.lockIdleTimeoutMs = Number(body.lockIdleTimeoutMs);
       state.footerCopyright = (body.footerCopyright as string | null) ?? null;
       state.footerVisible = body.footerVisible === true;
+      state.watermarkTemplate = (body.watermarkTemplate as string | null) ?? null;
       state.version = String(Number(state.version) + 1);
       return envelope({ ...state });
     }
@@ -551,7 +552,7 @@ describe('REQ20261117025200 系统设置页脚版权卡', () => {
     await seedMeConfig();
     const { fetchMock } = setupConfigApi({
       watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
-      footerCopyright: '© 2026 旧文案', footerVisible: false, version: '0',
+      footerCopyright: '© 2026 旧文案', footerVisible: false, watermarkTemplate: null, version: '0',
     });
     render(<AntApp><SystemConfigPage /></AntApp>);
 
@@ -575,7 +576,7 @@ describe('REQ20261117025200 系统设置页脚版权卡', () => {
       expect(puts).toHaveLength(1);
       expect(parseBody(puts[0]?.body)).toEqual({
         watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
-        footerCopyright: '© 2026 新文案', footerVisible: true, version: '0',
+        footerCopyright: '© 2026 新文案', footerVisible: true, watermarkTemplate: null, version: '0',
       });
     });
     // 保存成功后 store 回写（页脚即时联动）
@@ -587,7 +588,7 @@ describe('REQ20261117025200 系统设置页脚版权卡', () => {
     await seedMeConfig();
     const { fetchMock } = setupConfigApi({
       watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
-      footerCopyright: '© 2026 旧文案', footerVisible: true, version: '0',
+      footerCopyright: '© 2026 旧文案', footerVisible: true, watermarkTemplate: null, version: '0',
     });
     render(<AntApp><SystemConfigPage /></AntApp>);
 

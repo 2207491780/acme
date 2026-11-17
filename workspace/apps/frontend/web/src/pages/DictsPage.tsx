@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { ApiError, systemApi, useCrud, useMeStore, type AdminDictItemView, type AdminDictTypeView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
+import { TableSettingsButton, useTableSettings } from '../components/tableSettings';
 
 const { Text } = Typography;
 
@@ -209,11 +210,14 @@ export function DictsPage() {
     },
   ];
 
+  const itemSettings = useTableSettings('dictItems', itemColumns, items);
+
   return (
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
       <div style={{ flex: '1 1 420px', minWidth: 380 }}>
         <CrudTable<AdminDictTypeView>
           crud={crud}
+          tableKey="dictTypes"
           title={t('dicts.types.title')}
           columns={typeColumns}
           searchable={false}
@@ -232,11 +236,14 @@ export function DictsPage() {
         title={selected ? t('dicts.items.selectedTitle', { name: selected.dictName, code: selected.dictCode }) : t('dicts.items.title')}
         style={{ flex: '1 1 420px', minWidth: 380 }}
         extra={
-          selected && crud.can('system:dict:create') ? (
-            <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => { setItemEditing(null); itemForm.resetFields(); itemForm.setFieldsValue({ sortOrder: 0 }); setItemCreating(true); }}>
-              {t('dicts.items.create')}
-            </Button>
-          ) : undefined
+          <Space>
+            <TableSettingsButton control={itemSettings} columns={itemColumns} paged={false} />
+            {selected && crud.can('system:dict:create') ? (
+              <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => { setItemEditing(null); itemForm.resetFields(); itemForm.setFieldsValue({ sortOrder: 0 }); setItemCreating(true); }}>
+                {t('dicts.items.create')}
+              </Button>
+            ) : null}
+          </Space>
         }
       >
         {!selected ? (
@@ -244,7 +251,8 @@ export function DictsPage() {
         ) : (
           <Table<AdminDictItemView>
             rowKey="id"
-            columns={itemColumns}
+            columns={itemSettings.enhancedColumns}
+            bordered={itemSettings.settings.bordered}
             dataSource={items}
             loading={itemsLoading}
             size="small"

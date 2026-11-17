@@ -37,7 +37,7 @@ git add -A && git commit -m "chore(ai): xxx"
 # ②③④ 通用流程
 ```
 
-**结果**：`AGENTS.md`（Codex/ZCode/AGENTS.md 标准族）、`CLAUDE.md`（Claude Code，`@` 导入自动内联）、`GEMINI.md`、`CODEBUDDY.md`、`.cursor/.trae/.qoder` 规则、`.github/copilot-instructions.md` 全部同步——任何工具下次会话读到的都是新规范。
+**结果**：`AGENTS.md`（Codex/ZCode/AGENTS.md 标准族）、`CLAUDE.md` 与 `CODEBUDDY.md`（`@` 导入自动内联）、`GEMINI.md`、`.cursor/.trae/.qoder` 规则、`.github/copilot-instructions.md` 全部同步——任何工具下次会话读到的都是新规范。
 
 ## 案例 2：给子目录加专属规则（分层，就近生效）
 

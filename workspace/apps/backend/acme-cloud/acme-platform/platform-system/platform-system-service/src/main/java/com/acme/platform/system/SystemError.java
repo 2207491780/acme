@@ -116,7 +116,11 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     POSITION_CODE_DUPLICATED(SystemErrorCodes.POSITION_CODE_DUPLICATED, "岗位编码已存在", 409),
 
     /** 系统配置闲置锁屏时长取值非法（REQ-20261116-230354，对齐 DATA_SCOPE_INVALID 档位非法先例）。 */
-    SYSTEM_CONFIG_INVALID(SystemErrorCodes.SYSTEM_CONFIG_INVALID, "闲置锁屏时长取值非法", 409);
+    SYSTEM_CONFIG_INVALID(SystemErrorCodes.SYSTEM_CONFIG_INVALID, "闲置锁屏时长取值非法", 409),
+
+    /** 水印模板含未知占位符（REQ-20261117-180000）。 */
+    SYSTEM_WATERMARK_TEMPLATE_INVALID(SystemErrorCodes.SYSTEM_WATERMARK_TEMPLATE_INVALID,
+            "水印模板包含不支持的占位符", 409);
 
     private final String code;
     private final String defaultMessage;

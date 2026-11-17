@@ -1,11 +1,13 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Alert, Button, Card, Input, Space, Table } from 'antd';
 import { useTranslation } from 'react-i18next';
 import type { ColumnsType } from 'antd/es/table';
 import type { GetRowKey } from 'antd/es/table/interface';
 import type { TableProps } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import type { CrudController } from '@acme/core';
+import { type CrudController } from '@acme/core';
+import { FilterField, FilterPanel } from './FilterPanel';
+import { TableSettingsButton, useTableSettings } from './tableSettings';
 
 type RowClassName<T> = (record: T, index: number) => string;
 type OnRow<T> = NonNullable<TableProps<T>['onRow']>;
@@ -20,13 +22,11 @@ export interface CrudTableProps<T extends object, F extends Record<string, strin
   rowKey?: string | GetRowKey<T>;
   /** 关键字搜索占位文案（缺省 i18n common.table.searchPlaceholder）。 */
   searchPlaceholder?: string;
-  /** 搜索框宽度（默认 200）。 */
-  searchWidth?: number;
   /** 是否渲染关键字搜索框（默认 true）。 */
   searchable?: boolean;
-  /** 附加筛选控件（受控值接 crud.filters / crud.setFilter）。 */
+  /** 进阶筛选控件（受控值接 crud.filters / crud.setFilter）。 */
   filters?: ReactNode;
-  /** 工具栏附加内容（搜索/筛选/刷新/新建之后）。 */
+  /** 表格工具栏附加操作。 */
   actions?: ReactNode;
   /** 新建按钮权限码（显隐 fail-closed 交给 crud.can）。 */
   createPermission?: string;
@@ -46,10 +46,12 @@ export interface CrudTableProps<T extends object, F extends Record<string, strin
   rowClassName?: RowClassName<T>;
   /** 是否分页（默认 true；树形/全量小表传 false 隐藏分页器）。 */
   paged?: boolean;
-  /** 卡片体内、表格之上的筛选面板（表单驱动筛选页保持原有布局）。 */
+  /** 独立筛选区域，替代默认关键词与进阶筛选。 */
   filterPanel?: ReactNode;
   /** 卡片体内、表格之下的补充内容（操作提示等）。 */
   footer?: ReactNode;
+  /** 列设置持久化键（REQ-20261117-140427）：提供后启用多列筛选/排序与列显隐/固定/边框设置。 */
+  tableKey?: string;
 }
 
 /**
@@ -63,7 +65,6 @@ export function CrudTable<T extends object, F extends Record<string, string | un
   columns,
   rowKey,
   searchPlaceholder,
-  searchWidth = 200,
   searchable = true,
   filters,
   actions,
@@ -78,58 +79,73 @@ export function CrudTable<T extends object, F extends Record<string, string | un
   paged = true,
   filterPanel,
   footer,
+  tableKey,
 }: CrudTableProps<T, F>) {
   const { t } = useTranslation();
+  const searchId = useId();
+  const tableSettings = useTableSettings(tableKey, columns, crud.records);
   return (
-    <Card
-      title={title}
-      extra={
-        <Space wrap>
+    <>
+      {filterPanel ?? (searchable || filters ? (
+        <FilterPanel
+          advanced={searchable ? filters : undefined}
+          advancedActive={Object.values(crud.filters).some((value) => value !== undefined && value !== '')}
+        >
           {searchable ? (
-            <Input.Search
-              placeholder={searchPlaceholder ?? t('common.table.searchPlaceholder')}
-              allowClear
-              style={{ width: searchWidth }}
-              onSearch={(value) => crud.search(value.trim())}
-            />
-          ) : null}
-          {filters}
-          <Button icon={<ReloadOutlined />} onClick={() => crud.reload()} aria-label={reloadAriaLabel ?? t('common.table.reloadAria')} />
-          {createPermission && onCreate && crud.can(createPermission) ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>{createLabel ?? t('common.actions.create')}</Button>
-          ) : null}
-          {actions}
-        </Space>
-      }
-    >
-      {filterPanel}
-      {crud.error ? (
-        <Alert
-          type="error"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message={crud.error}
-          action={<Button size="small" onClick={() => crud.reload()}>{t('common.actions.retry')}</Button>}
+            <FilterField label={t('common.filters.keyword')} htmlFor={searchId}>
+              <Input.Search
+                id={searchId}
+                placeholder={searchPlaceholder ?? t('common.table.searchPlaceholder')}
+                allowClear
+                onSearch={(value) => crud.search(value.trim())}
+              />
+            </FilterField>
+          ) : filters}
+        </FilterPanel>
+      ) : null)}
+      <Card
+        className="crud-table-card"
+        title={title}
+        extra={
+          <Space wrap>
+            {tableKey ? <TableSettingsButton control={tableSettings} columns={columns} paged={paged} /> : null}
+            <Button icon={<ReloadOutlined />} onClick={() => crud.reload()} aria-label={reloadAriaLabel ?? t('common.table.reloadAria')} />
+            {createPermission && onCreate && crud.can(createPermission) ? (
+              <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>{createLabel ?? t('common.actions.create')}</Button>
+            ) : null}
+            {actions}
+          </Space>
+        }
+      >
+        {crud.error ? (
+          <Alert
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={crud.error}
+            action={<Button size="small" onClick={() => crud.reload()}>{t('common.actions.retry')}</Button>}
+          />
+        ) : null}
+        <Table<T>
+          rowKey={rowKey ?? 'id'}
+          columns={tableSettings.enhancedColumns}
+          dataSource={crud.records}
+          loading={crud.loading}
+          size={size}
+          onRow={onRow}
+          rowClassName={rowClassName}
+          bordered={tableKey ? tableSettings.settings.bordered : undefined}
+          scroll={{ x: 'max-content' }}
+          pagination={paged ? {
+            current: crud.page,
+            pageSize: crud.size,
+            total: crud.total,
+            showTotal: totalText ?? ((total) => t('common.table.total', { total })),
+            onChange: (p) => crud.gotoPage(p),
+          } : false}
         />
-      ) : null}
-      <Table<T>
-        rowKey={rowKey ?? 'id'}
-        columns={columns}
-        dataSource={crud.records}
-        loading={crud.loading}
-        size={size}
-        onRow={onRow}
-        rowClassName={rowClassName}
-        scroll={{ x: 'max-content' }}
-        pagination={paged ? {
-          current: crud.page,
-          pageSize: crud.size,
-          total: crud.total,
-          showTotal: totalText ?? ((total) => t('common.table.total', { total })),
-          onChange: (p) => crud.gotoPage(p),
-        } : false}
-      />
-      {footer}
-    </Card>
+        {footer}
+      </Card>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysUser;
+import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRepository;
 import com.acme.platform.system.security.PermissionDecisionService;
@@ -35,9 +36,11 @@ class MeUseCaseTest {
 
     private final SysUserRepository userRepository = mock(SysUserRepository.class);
     private final SysRoleRepository roleRepository = mock(SysRoleRepository.class);
+    private final SysDeptRepository deptRepository = mock(SysDeptRepository.class);
     private final MenuUseCase menuUseCase = mock(MenuUseCase.class);
     private final PermissionDecisionService decisionService = mock(PermissionDecisionService.class);
-    private final MeUseCase useCase = new MeUseCase(userRepository, roleRepository, menuUseCase, decisionService);
+    private final MeUseCase useCase = new MeUseCase(userRepository, roleRepository, deptRepository,
+            menuUseCase, decisionService);
 
     @AfterEach
     void cleanup() {
@@ -154,5 +157,67 @@ class MeUseCaseTest {
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(SystemError.PERMISSION_DENIED.code()));
         verify(userRepository, never()).findByIdGlobal(any());
+    }
+
+    // ---------- 部门名供给（REQ-20261117-180000 水印模板 {deptName}） ----------
+
+    private void stubLocalRoleChain(String userId, Set<String> roles) {
+        when(userRepository.findByIdGlobal(Long.valueOf(userId))).thenReturn(Optional.of(user(Long.valueOf(userId), "viewer")));
+        when(roleRepository.findByRoleCodeInAndStatus(roles, EnableStatus.ENABLED))
+                .thenReturn(List.of(builtInRole(9L, roles.iterator().next())));
+        when(decisionService.permissionCodesOfRoles(roles)).thenReturn(Set.of());
+        when(menuUseCase.visibleMenuIdsOf(List.of(9L))).thenReturn(Set.of());
+    }
+
+    private static com.acme.platform.system.domain.SysDept dept(Long id, String name) {
+        var dept = new com.acme.platform.system.domain.SysDept(0L, name, 0, EnableStatus.ENABLED);
+        try {
+            var field = com.acme.framework.flex.support.AuditBase.class.getDeclaredField("id");
+            field.setAccessible(true);
+            field.set(dept, id);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException(ex);
+        }
+        return dept;
+    }
+
+    @Test
+    void should_resolveDeptNameGlobally_when_userHasDept() {
+        // deptId 来自全局直读的 user 行 → 部门名走同款 PK 全局旁路（切换会话下部门归属源租户）
+        bindOperator("7", Set.of("it_viewer"));
+        stubLocalRoleChain("7", Set.of("it_viewer"));
+        SysUser withDept = user(7L, "viewer");
+        withDept.setDeptId(5L);
+        when(userRepository.findByIdGlobal(7L)).thenReturn(Optional.of(withDept));
+        when(deptRepository.findByIdGlobal(5L)).thenReturn(Optional.of(dept(5L, "研发部")));
+
+        MeUseCase.MeSnapshot snapshot = useCase.loadMe();
+
+        assertThat(snapshot.deptName()).isEqualTo("研发部");
+        verify(deptRepository).findByIdGlobal(5L);
+        verify(deptRepository, never()).findById(any());
+    }
+
+    @Test
+    void should_returnNullDeptName_when_deptRowMissing() {
+        // 部门行缺失（脏数据/已删除）→ null，不阻断 /me
+        bindOperator("7", Set.of("it_viewer"));
+        stubLocalRoleChain("7", Set.of("it_viewer"));
+        SysUser withDept = user(7L, "viewer");
+        withDept.setDeptId(5L);
+        when(userRepository.findByIdGlobal(7L)).thenReturn(Optional.of(withDept));
+        when(deptRepository.findByIdGlobal(5L)).thenReturn(Optional.empty());
+
+        assertThat(useCase.loadMe().deptName()).isNull();
+    }
+
+    @Test
+    void should_skipDeptLookup_when_userHasNoDept() {
+        // 未分配部门：不触达部门查询，deptName=null
+        bindOperator("7", Set.of("it_viewer"));
+        stubLocalRoleChain("7", Set.of("it_viewer"));
+
+        assertThat(useCase.loadMe().deptName()).isNull();
+        verify(deptRepository, never()).findByIdGlobal(any());
     }
 }

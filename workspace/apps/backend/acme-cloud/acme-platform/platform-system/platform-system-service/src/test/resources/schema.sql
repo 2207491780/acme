@@ -139,6 +139,7 @@ CREATE TABLE sys_config (
     lock_idle_timeout_ms INTEGER     NOT NULL DEFAULT 0,
     footer_copyright     VARCHAR(255),
     footer_visible       BOOLEAN     NOT NULL DEFAULT FALSE,
+    watermark_template   VARCHAR(255),
     created_at           TIMESTAMP   NOT NULL,
     created_by           VARCHAR(64) NOT NULL,
     updated_at           TIMESTAMP   NOT NULL,

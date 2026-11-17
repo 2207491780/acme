@@ -33,20 +33,30 @@ public class SysConfig extends AuditBase {
     @Column("footer_visible")
     private Boolean footerVisible;
 
+    /** 水印内容模板（可空=未配置→前端仅渲染用户名；REQ-20261117-180000）。 */
+    @Column("watermark_template")
+    private String watermarkTemplate;
+
     protected SysConfig() {
     }
 
     public SysConfig(Boolean watermarkEnabled, Boolean captchaEnabled, Integer lockIdleTimeoutMs) {
-        this(watermarkEnabled, captchaEnabled, lockIdleTimeoutMs, null, Boolean.FALSE);
+        this(watermarkEnabled, captchaEnabled, lockIdleTimeoutMs, null, Boolean.FALSE, null);
     }
 
     public SysConfig(Boolean watermarkEnabled, Boolean captchaEnabled, Integer lockIdleTimeoutMs,
                      String footerCopyright, Boolean footerVisible) {
+        this(watermarkEnabled, captchaEnabled, lockIdleTimeoutMs, footerCopyright, footerVisible, null);
+    }
+
+    public SysConfig(Boolean watermarkEnabled, Boolean captchaEnabled, Integer lockIdleTimeoutMs,
+                     String footerCopyright, Boolean footerVisible, String watermarkTemplate) {
         this.watermarkEnabled = watermarkEnabled;
         this.captchaEnabled = captchaEnabled;
         this.lockIdleTimeoutMs = lockIdleTimeoutMs;
         this.footerCopyright = footerCopyright;
         this.footerVisible = footerVisible == null ? Boolean.FALSE : footerVisible;
+        this.watermarkTemplate = watermarkTemplate;
     }
 
     public String getTenantId() {
@@ -91,5 +101,13 @@ public class SysConfig extends AuditBase {
 
     public void setFooterVisible(Boolean footerVisible) {
         this.footerVisible = footerVisible;
+    }
+
+    public String getWatermarkTemplate() {
+        return watermarkTemplate;
+    }
+
+    public void setWatermarkTemplate(String watermarkTemplate) {
+        this.watermarkTemplate = watermarkTemplate;
     }
 }

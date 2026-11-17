@@ -29,12 +29,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const AI = join(root, '.ai');
 const CHECK = process.argv.includes('--check');
 
-/** 根部入口：默认引用存根（指向 .ai/RULES.md）；--links 模式为符号链接 */
+/** 根部入口：默认引用存根（指向 .ai/RULES.md）；--links 模式为符号链接。
+ *  atImport：该工具官方支持 `@path` 导入语法（Claude Code / CodeBuddy 记忆机制），
+ *  入口存根用 `@.ai/RULES.md` 引用而非纯文本指针；CodeBuddy 额外去重（不重复铁律节选，见下方循环）。 */
 const LINK_TARGETS = [
   { tool: 'OpenAI Codex、智谱 ZCode 及所有遵循 AGENTS.md 标准的工具', file: 'AGENTS.md' },
-  { tool: 'Anthropic Claude Code', file: 'CLAUDE.md', claudeImport: true },
+  { tool: 'Anthropic Claude Code', file: 'CLAUDE.md', atImport: true },
   { tool: 'Google Gemini CLI / Antigravity', file: 'GEMINI.md' },
-  { tool: '腾讯 CodeBuddy', file: 'CODEBUDDY.md' },
+  { tool: '腾讯 CodeBuddy', file: 'CODEBUDDY.md', atImport: true, atImportDedupe: true },
 ];
 const LINK_TO = '.ai/RULES.md';
 
@@ -42,12 +44,28 @@ const LINK_TO = '.ai/RULES.md';
 const STUB_TARGETS = [
   // Copilot 指令有长度限制：存根极小（引用 .ai/RULES.md），反而规避了截断问题
   { tool: 'GitHub Copilot', file: '.github/copilot-instructions.md' },
-  { tool: '字节 Trae', file: '.trae/rules/project_rules.md' },
   {
-    // Qoder 依靠 frontmatter 决定规则激活方式：alwaysApply: true 才会每次会话常驻加载
+    // Trae 规则靠 frontmatter 决定激活方式：alwaysApply: true 才每次会话常驻加载（官方四类生效方式）。
+    // Trae 规则仅自然语言、不解析链接/导入（与 Claude 的 @ 导入不同）；根 AGENTS.md 默认不加载，
+    // 需在 设置 > 规则 > 导入设置 手动开启「将 AGENTS.md 包含在上下文中」。本存根为纯指针，不重复
+    // 入口存根的铁律节选（开启 AGENTS.md 时避免双份加载；未开启时靠本指针引导 AI 主动读 .ai/RULES.md）。
+    tool: '字节 Trae',
+    file: '.trae/rules/project_rules.md',
+    frontmatter: ['---', 'description: ACME 项目规范入口（自动生成，引用 .ai/RULES.md）', 'alwaysApply: true', '---'],
+    stub: `本仓库 AI 规范唯一完整副本是 \`.ai/RULES.md\`——开始任何任务前必须先完整阅读（Trae 规则不解析链接，请主动读取该文件）。
+入口存根（铁律节选与多代理流程开关）见根目录 \`AGENTS.md\`（需在 设置 > 规则 > 导入设置 中开启「将 AGENTS.md 包含在上下文中」才生效）。
+AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\`.ai-memory/playbooks/ai-config.md\`）。`,
+  },
+  {
+    // Qoder 依靠 frontmatter 决定规则激活方式：alwaysApply: true 才会每次会话常驻加载。
+    // Qoder 同时自动读取根 AGENTS.md（冲突时 rules 优先）→ 本存根为纯指针，不重复入口存根的
+    // 铁律节选，避免双份加载重复声明；rules 不解析链接，指针靠 Agent 任务内主动读源（ADR 2026-11-17-02）。
     tool: '阿里 Qoder',
     file: '.qoder/rules/project_rules.md',
     frontmatter: ['---', 'description: ACME 项目规范入口（自动生成，引用 .ai/RULES.md）', 'alwaysApply: true', '---'],
+    stub: `本仓库 AI 规范唯一完整副本是 \`.ai/RULES.md\`——开始任何任务前必须先完整阅读（Qoder 规则不解析链接，请主动读取该文件）。
+入口存根（铁律节选与多代理流程开关）见根目录 \`AGENTS.md\`，Qoder 会自动读取；两者冲突时以本规则为准，本文件不重复其内容。
+AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\`.ai-memory/playbooks/ai-config.md\`）。`,
   },
   {
     tool: 'Cursor',
@@ -59,9 +77,9 @@ const STUB_TARGETS = [
 /** 跨工具公共池：.ai/<src>/** → 各工具目录（doc 仅作源目录说明，不派生）。
  *  targets 项为字符串或 { dir, transform }：transform 在派生 .md 时做目标工具的格式适配。 */
 const POOLS = [
-  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }] },
-  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills'] },
-  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands'] },
+  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }, { dir: '.qoder/agents', transform: makePoolRefStub('agents') }] },
+  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills', { dir: '.qoder/skills', transform: makePoolRefStub('skills') }] },
+  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands', { dir: '.qoder/commands', transform: makePoolRefStub('commands') }] },
 ];
 
 /** 工具专属配置：.ai/tools/<key>/** → <target>/**（doc 派生为工具目录内的说明文件） */
@@ -69,16 +87,39 @@ const TOOLS = [
   { key: 'claude', doc: 'CLAUDE-CODE.md', target: '.claude' },
   { key: 'cursor', doc: 'CURSOR.md', target: '.cursor' },
   { key: 'gemini', doc: 'GEMINI-CLI.md', target: '.gemini' },
-  { key: 'trae', doc: 'TRAE.md', target: '.trae' },
+  {
+    // Trae：公共池派生为引用存根（frontmatter 保留供官方注册，正文指针指向 .ai/ 池源，磁盘零重复）。
+    // agents 需额外适配 frontmatter：tools 数组→逗号分隔字符串、移除 model: inherit（Trae 缺省即继承
+    // 主 Agent 模型）。详见 ADR 2026-11-17-04。
+    key: 'trae',
+    doc: 'TRAE.md',
+    target: '.trae',
+    mirrorPools: [
+      { src: 'agents', transform: makeTraeAgentStub },
+      { src: 'skills', transform: makePoolRefStub('skills', 'Trae') },
+      { src: 'commands', transform: makePoolRefStub('commands', 'Trae') },
+    ],
+  },
   { key: 'qoder', doc: 'QODER.md', target: '.qoder' },
   { key: 'github', doc: 'GITHUB-CONFIG.md', target: '.github' },
   // ZCode 的 agents/commands 引用存根（正文指针指向 .ai/ 公共池源）；.zcode/ 本身 git 忽略、不入库，
   // 故标记 localOnly：--check 对缺失不判错（全新检出/CI 无该目录），存在必须一致（防漂移）。
   { key: 'zcode', doc: 'ZCODE.md', target: '.zcode', localOnly: true },
-  // CodeBuddy：用户本机工具，.codebuddy/ git 忽略、不入库（此前为游离于治理外的手抄 agent 副本，
-  // 孤儿检测不可见）→ 以 localOnly 派生键纳管（口径同 zcode）；除 tools 专属源外，公共池
-  // agents/commands 全量镜像进 .codebuddy/（mirrorPools；ADR 2026-11-17-01）。
-  { key: 'codebuddy', doc: 'CODEBUDDY-CLI.md', target: '.codebuddy', localOnly: true, mirrorPools: ['agents', 'commands'] },
+  // CodeBuddy：用户本机工具，.codebuddy/ git 忽略、不入库（官方建议项目 .codebuddy/ 提交共享，但本目录
+  // 与 teams/ 等本机运行数据混居、CI 全新检出无此目录 → 维持 localOnly 口径，差异记录见 ADR 2026-11-17-03）。
+  // 公共池 agents/skills/commands 派生为引用存根（官方原生识别 frontmatter，正文指针指向 .ai/ 池源，
+  // 能用引用则用引用；取代 2026-11-17-01 的全量镜像，ADR 2026-11-17-03）。
+  {
+    key: 'codebuddy',
+    doc: 'CODEBUDDY-CLI.md',
+    target: '.codebuddy',
+    localOnly: true,
+    mirrorPools: [
+      { src: 'agents', transform: makePoolRefStub('agents', 'CodeBuddy') },
+      { src: 'skills', transform: makePoolRefStub('skills', 'CodeBuddy') },
+      { src: 'commands', transform: makePoolRefStub('commands', 'CodeBuddy') },
+    ],
+  },
 ];
 
 /** 本机派生目标（git 忽略、不入库）前缀：--check 缺失不判错；sync 时照常写本机。 */
@@ -384,17 +425,23 @@ const TEAM_LEADER_TRIGGER = {
 const entryStub = `${stub}\n${TEAM_LEADER_TRIGGER[config.engine.teamLeader]}`;
 
 for (const t of LINK_TARGETS) {
-  const imp = t.claudeImport ? '@.ai/RULES.md\n\n' : '';
+  // @import 工具：官方记忆机制解析 `@path` 导入（Claude Code；CodeBuddy 同语法，官方文档明示支持
+  // 相对/绝对路径、递归导入）。CodeBuddy 额外去重：@.ai/RULES.md 已内联完整规范，入口不再重复
+  // 铁律节选，仅保留一句自然语言兜底指针与引擎注入的多代理流程开关（后者不属于 RULES.md，无重复）。
+  const imp = t.atImport ? '@.ai/RULES.md\n\n' : '';
+  const body = t.atImportDedupe
+    ? `${imp}# ACME 项目规范（入口）\n\n开始任何任务前，必须先完整阅读 \`.ai/RULES.md\`（上方 \`@\` 导入已自动内联其全文，本文件不重复其内容）。\n\n${TEAM_LEADER_TRIGGER[config.engine.teamLeader]}\n`
+    : `${imp}# ACME 项目规范（入口）\n\n${entryStub}\n`;
   register(links, t.file, {
     target: LINK_TO,
-    fallback: norm(`${banner(t.tool)}\n\n${imp}# ACME 项目规范（入口）\n\n${entryStub}\n`),
+    fallback: norm(`${banner(t.tool)}\n\n${body}`),
   }, '.ai/rules/*.md（公共入口）');
 }
 
 // ---- 3. 需要专属格式的规则入口：生成存根 ----
 for (const t of STUB_TARGETS) {
   const front = t.frontmatter ? t.frontmatter.join('\n') + '\n\n' : '';
-  register(expected, t.file, norm(`${front}${banner(t.tool)}\n\n# ACME 项目规范（入口）\n\n${entryStub}\n`),
+  register(expected, t.file, norm(`${front}${banner(t.tool)}\n\n# ACME 项目规范（入口）\n\n${t.stub ?? entryStub}\n`),
     '.ai/rules/*.md（公共入口）');
 }
 
@@ -445,6 +492,41 @@ function transformGeminiAgent(content) {
   return `${content.slice(0, m.index)}---${front.replace(/\n+$/, '\n')}---${content.slice(m.index + m[0].length)}`;
 }
 
+/** 公共池引用存根（ADR 2026-11-17-02 Qoder / 2026-11-17-03 CodeBuddy）：frontmatter 原样保留供工具
+ *  注册（name/description/tools/model 属注册元数据，非正文声明）；正文仅指针指向 .ai/ 池源，
+ *  磁盘零重复——与 .zcode/ 手写存根同口径。官方项目级目录：
+ *  Qoder `.qoder/{agents,skills,commands}/`、CodeBuddy `.codebuddy/{agents,skills,commands}/`。
+ *  无 frontmatter 的源按路径合成最小注册头（fixture 兼容）。 */
+function makePoolRefStub(pool, tool = 'Qoder') {
+  return (content, rel) => {
+    const m = content.match(/^---\n[\s\S]*?\n---/);
+    const name = (pool === 'skills' ? rel.split('/')[0] : rel.replace(/\.md$/, '').split('/').pop()).toLowerCase();
+    const front = m ? m[0] : `---\nname: ${name}\ndescription: 引用存根（完整内容见 .ai/${pool}/${rel}）\n---`;
+    return `${front}\n\n本文件为 ${tool} 引用存根：完整内容唯一源 \`.ai/${pool}/${rel}\`。\n\n执行前先完整读取该源文件并严格遵循；源内相对路径（scripts/、templates/ 等）相对 \`.ai/${pool}/\` 下对应目录解析。本存根不含正文，禁止在此手改内容。\n`;
+  };
+}
+
+/** Trae Subagent 引用存根（ADR 2026-11-17-04）：在 makePoolRefStub 口径基础上额外适配 frontmatter——
+ *  Trae 官方 subagent frontmatter 要求 tools 为逗号分隔字符串（非数组）、model 不支持 inherit（缺省即
+ *  继承主 Agent 模型）；name/description 原样保留供注册。正文仅指针指向 .ai/agents/ 源，磁盘零重复。 */
+function makeTraeAgentStub(content, rel) {
+  const m = content.match(/^---\n([\s\S]*?)\n---/);
+  const name = rel.replace(/\.md$/, '').split('/').pop().toLowerCase();
+  let front;
+  if (m) {
+    const fm = m[1]
+      .replace(
+        /^tools:\s*\[([^\]]*)\]\s*$/m,
+        (_, list) => `tools: ${list.split(',').map((s) => s.trim()).join(', ')}`,
+      )
+      .replace(/^model:\s*inherit\s*$/m, '');
+    front = `---\n${fm.replace(/\n+$/, '\n')}---`;
+  } else {
+    front = `---\nname: ${name}\ndescription: 引用存根（完整内容见 .ai/agents/${rel}）\n---`;
+  }
+  return `${front}\n\n本文件为 Trae 引用存根：完整内容唯一源 \`.ai/agents/${rel}\`。\n\n执行前先完整读取该源文件并严格遵循；本存根不含正文，禁止在此手改内容。\n`;
+}
+
 async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc = null, transform = null }) {
   for (const f of await walk(srcDir)) {
     const rel = relative(srcDir, f).split('\\').join('/');
@@ -452,7 +534,7 @@ async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc 
     const label = `${srcLabel}${rel}`;
     let content = norm(await readFile(f, 'utf8'));
     if (placardDoc && rel === placardDoc) content = PLACARD_HEAD + content;
-    if (transform && rel.endsWith('.md')) content = transform(content);
+    if (transform && rel.endsWith('.md')) content = transform(content, rel);
     if (rel.endsWith('.md')) content = content.trimEnd() + footer(label);
     else if (/\.(ya?ml|toml)$/.test(rel))
       content = `# 派生自 ${label}（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs\n\n` + content;
@@ -468,13 +550,16 @@ for (const p of POOLS) {
 }
 for (const t of TOOLS) {
   await derive(join(AI, 'tools', t.key), t.target, `.ai/tools/${t.key}/`, { placardDoc: t.doc });
-  // mirrorPools：把跨工具公共池全量镜像进该工具目录（localOnly 本机目标；ADR 2026-11-17-01）。
-  // 池目录说明文件（AGENT-POOL.md 等）与 POOLS 循环同样排除；无格式适配（frontmatter 与 Claude 同构）。
-  // 与 .ai/tools/<key>/ 同名同路径源会经 destinations 登记簿触发「派生目标冲突」，防止双源写同一文件。
+  // mirrorPools：把跨工具公共池派生进该工具目录（localOnly 本机目标）。条目为字符串（原样拷贝，
+  // ADR 2026-11-17-01 zcode 口径）或 { src, transform }（引用存根等格式适配，ADR 2026-11-17-03）。
+  // 池目录说明文件（AGENT-POOL.md 等）与 POOLS 循环同样排除；transform 仅作用于 .md（技能辅助
+  // 文件照旧全量拷贝）。与 .ai/tools/<key>/ 同名同路径源会经 destinations 登记簿触发「派生目标冲突」。
   for (const pool of t.mirrorPools ?? []) {
-    const poolDef = POOLS.find((p) => p.src === pool);
-    await derive(join(AI, pool), `${t.target}/${pool}`, `.ai/${pool}/`, {
+    const { src: poolName, transform: poolTransform } = typeof pool === 'string' ? { src: pool, transform: null } : pool;
+    const poolDef = POOLS.find((p) => p.src === poolName);
+    await derive(join(AI, poolName), `${t.target}/${poolName}`, `.ai/${poolName}/`, {
       excludeDocs: poolDef ? [poolDef.doc] : [],
+      transform: poolTransform,
     });
   }
 }

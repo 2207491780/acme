@@ -130,16 +130,17 @@ public final class EntityViews {
                 item.getItemValue(), item.getSortOrder(), item.getStatus(), item.getVersion());
     }
 
-    /** 租户级系统配置视图（REQ-20261116-230354；captchaEnabled 口径 REQ-20261117-011514，页脚 REQ-20261117-025200）。 */
+    /** 租户级系统配置视图（REQ-20261116-230354；captchaEnabled 口径 REQ-20261117-011514，页脚 REQ-20261117-025200，水印模板 REQ-20261117-180000）。 */
     public static AdminSystemConfigView systemConfigView(SysConfig config) {
         return new AdminSystemConfigView(config.getWatermarkEnabled(), config.getCaptchaEnabled(),
                 config.getLockIdleTimeoutMs(), config.getFooterCopyright(),
-                Boolean.TRUE.equals(config.getFooterVisible()), config.getVersion());
+                Boolean.TRUE.equals(config.getFooterVisible()), config.getWatermarkTemplate(),
+                config.getVersion());
     }
 
-    /** 无配置行租户的缺省视图（确认记录④：水印开 / 验证码关 / 闲置锁屏关；确认记录⑤：页脚不显示；version "0"）。 */
+    /** 无配置行租户的缺省视图（确认记录④：水印开 / 验证码关 / 闲置锁屏关；确认记录⑤：页脚不显示；水印模板 null=仅用户名；version "0"）。 */
     public static AdminSystemConfigView systemConfigDefaultView() {
-        return new AdminSystemConfigView(true, false, 0, null, false, 0L);
+        return new AdminSystemConfigView(true, false, 0, null, false, null, 0L);
     }
 
     /** 通知公告视图（REQ-20261114-120102）。 */

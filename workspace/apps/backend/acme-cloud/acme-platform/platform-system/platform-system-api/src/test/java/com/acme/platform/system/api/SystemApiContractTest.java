@@ -119,15 +119,17 @@ class SystemApiContractTest {
     @Test
     void systemConfigViewSerializesVersionAsString() {
         // REQ-20261116-230354：缺省视图 wire 形态 { watermarkEnabled:true, captchaEnabled:false,
-        // lockIdleTimeoutMs:0, footerCopyright:null, footerVisible:false, version:"0" }
-        // （captchaEnabled 口径 REQ-20261117-011514；页脚缺省口径 REQ-20261117-025200 确认记录⑤）
-        AdminSystemConfigView view = new AdminSystemConfigView(true, false, 0, null, false, 0L);
+        // lockIdleTimeoutMs:0, footerCopyright:null, footerVisible:false, watermarkTemplate:null, version:"0" }
+        // （captchaEnabled 口径 REQ-20261117-011514；页脚缺省口径 REQ-20261117-025200 确认记录⑤；
+        // 水印模板缺省 null=仅用户名，REQ-20261117-180000）
+        AdminSystemConfigView view = new AdminSystemConfigView(true, false, 0, null, false, null, 0L);
         String json = mapper.writeValueAsString(view);
         assertThat(json).contains("\"watermarkEnabled\":true");
         assertThat(json).contains("\"captchaEnabled\":false");
         assertThat(json).contains("\"lockIdleTimeoutMs\":0");
         assertThat(json).contains("\"footerCopyright\":null");
         assertThat(json).contains("\"footerVisible\":false");
+        assertThat(json).contains("\"watermarkTemplate\":null");
         assertThat(json).contains("\"version\":\"0\"");
         AdminSystemConfigView back = mapper.readValue(json, AdminSystemConfigView.class);
         assertThat(back).isEqualTo(view);

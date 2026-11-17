@@ -3,6 +3,8 @@
  *  （mobile 仍直接消费 core 常量，本域不改动 core）。 */
 export const releases = {
   filters: {
+    platform: '平台',
+    sort: '排序',
     allPlatforms: '全部平台',
     allStatuses: '全部状态',
     active: '进行中',

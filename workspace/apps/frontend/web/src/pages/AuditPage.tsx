@@ -11,6 +11,7 @@ import {
   type AdminAuditEventView,
 } from '@acme/core';
 import { CrudTable } from '../components/CrudTable';
+import { FilterPanel } from '../components/FilterPanel';
 
 const { Text } = Typography;
 
@@ -81,6 +82,7 @@ export function AuditPage() {
   return (
     <CrudTable<AdminAuditEventView, AuditFilters>
       crud={crud}
+      tableKey="audit"
       title={t('audit.title')}
       columns={columns}
       searchable={false}
@@ -92,8 +94,9 @@ export function AuditPage() {
       filterPanel={
         <Form
           form={form}
-          layout="inline"
-          style={{ marginBottom: 16, flexWrap: 'wrap', rowGap: 8 }}
+          layout="horizontal"
+          labelAlign="left"
+          colon={false}
           onFinish={(values: AuditFormValues) => {
             // 提交即整组过滤替换并重置到第 1 页（多次 setFilter 在同一事件批内合并为一次拉取）
             crud.setFilter('operatorId', values.operatorId || undefined);
@@ -103,29 +106,34 @@ export function AuditPage() {
             crud.setFilter('to', values.range?.[1]?.toISOString());
           }}
         >
-          <Form.Item name="operatorId">
-            <Input placeholder={t('audit.filters.operatorId')} allowClear style={{ width: 160 }} />
-          </Form.Item>
-          <Form.Item name="action">
-            <Input placeholder={t('audit.filters.action')} allowClear style={{ width: 200 }} />
-          </Form.Item>
-          <Form.Item name="traceId">
-            <Input placeholder={t('audit.filters.traceId')} allowClear style={{ width: 180 }} />
-          </Form.Item>
-          <Form.Item name="range">
-            <DatePicker.RangePicker showTime style={{ width: 340 }} />
-          </Form.Item>
-          <Space size={4}>
-            <Button type="primary" htmlType="submit">{t('audit.filters.query')}</Button>
-            <Button
-              onClick={() => {
-                form.resetFields();
-                crud.resetFilters();
-              }}
-            >
-              {t('audit.filters.reset')}
-            </Button>
-          </Space>
+          <FilterPanel
+            advancedActive={Boolean(crud.filters.traceId || crud.filters.from || crud.filters.to)}
+            advanced={(
+              <>
+                <Form.Item name="traceId" label={t('audit.filters.traceId')}>
+                  <Input placeholder={t('audit.filters.traceId')} allowClear />
+                </Form.Item>
+                <Form.Item name="range" label={t('common.filters.timeRange')} className="filter-field-wide">
+                  <DatePicker.RangePicker showTime />
+                </Form.Item>
+              </>
+            )}
+            actions={(
+              <Space>
+                <Button type="primary" htmlType="submit">{t('audit.filters.query')}</Button>
+                <Button onClick={() => { form.resetFields(); crud.resetFilters(); }}>
+                  {t('audit.filters.reset')}
+                </Button>
+              </Space>
+            )}
+          >
+            <Form.Item name="operatorId" label={t('audit.filters.operatorId')}>
+              <Input placeholder={t('audit.filters.operatorId')} allowClear />
+            </Form.Item>
+            <Form.Item name="action" label={t('audit.columns.action')}>
+              <Input placeholder={t('audit.filters.action')} allowClear />
+            </Form.Item>
+          </FilterPanel>
         </Form>
       }
     />

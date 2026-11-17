@@ -115,6 +115,9 @@ public final class SystemErrorCodes {
     /** 系统配置闲置锁屏时长取值非法（409；REQ-20261116-230354，取值集 {0,60000,300000,900000}）。 */
     public static final String SYSTEM_CONFIG_INVALID = "platform-system-12-0001";
 
+    /** 水印模板含未知占位符（409；REQ-20261117-180000，合法集 {username,nickname,userId,tenantCode,deptName,date,time}）。 */
+    public static final String SYSTEM_WATERMARK_TEMPLATE_INVALID = "platform-system-12-0002";
+
     private SystemErrorCodes() {
     }
 }

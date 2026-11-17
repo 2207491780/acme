@@ -70,6 +70,7 @@ const setupConfigApi = (initial: AdminSystemConfigView) => {
       state.lockIdleTimeoutMs = Number(body.lockIdleTimeoutMs);
       state.footerCopyright = (body.footerCopyright as string | null) ?? null;
       state.footerVisible = body.footerVisible === true;
+      state.watermarkTemplate = (body.watermarkTemplate as string | null) ?? null;
       state.version = String(Number(state.version) + 1);
       return envelope({ ...state });
     }
@@ -106,7 +107,7 @@ afterEach(() => {
 
 describe('REQ20261116230354 systemApi 契约端点', () => {
   it('should_callGetAndPutConfigEndpoints_when_systemApiInvoked', async () => {
-    const { fetchMock } = setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' });
+    const { fetchMock } = setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
 
     const view = await systemApi.configGet();
     expect(view.watermarkEnabled).toBe(true);
@@ -114,11 +115,11 @@ describe('REQ20261116230354 systemApi 契约端点', () => {
     expect(view.version).toBe('0');
     expect(callsOf(fetchMock, 'GET')).toHaveLength(1);
 
-    const updated = await systemApi.configUpdate({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, version: '0' });
+    const updated = await systemApi.configUpdate({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
     expect(updated.version).toBe('1');
     const puts = callsOf(fetchMock, 'PUT');
     expect(puts).toHaveLength(1);
-    expect(parseBody(puts[0]?.body)).toEqual({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, version: '0' });
+    expect(parseBody(puts[0]?.body)).toEqual({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
   });
 });
 
@@ -126,7 +127,7 @@ describe('REQ20261116230354 systemApi 契约端点', () => {
 
 describe('REQ20261116230354 useSystemConfigStore', () => {
   it('should_applyWatermarkState_when_loadReturnsConfig', async () => {
-    setupConfigApi({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, version: '3' });
+    setupConfigApi({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '3' });
     await useSystemConfigStore.getState().load();
     const s = useSystemConfigStore.getState();
     expect(s.loaded).toBe(true);
@@ -134,15 +135,15 @@ describe('REQ20261116230354 useSystemConfigStore', () => {
     expect(s.lockIdleTimeoutMs).toBe(60000);
     expect(s.version).toBe('3');
 
-    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '4' });
+    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '4' });
     await useSystemConfigStore.getState().load();
     expect(useSystemConfigStore.getState().watermarkEnabled).toBe(true);
   });
 
   it('should_updateStateAndReturnView_when_updateSucceeds', async () => {
-    const { fetchMock } = setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' });
-    const view = await useSystemConfigStore.getState().update({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 300000, footerCopyright: null, footerVisible: false, version: '0' });
-    expect(view).toEqual({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 300000, footerCopyright: null, footerVisible: false, version: '1' });
+    const { fetchMock } = setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
+    const view = await useSystemConfigStore.getState().update({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 300000, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
+    expect(view).toEqual({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 300000, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '1' });
     const s = useSystemConfigStore.getState();
     expect(s.watermarkEnabled).toBe(false);
     expect(s.lockIdleTimeoutMs).toBe(300000);
@@ -153,7 +154,7 @@ describe('REQ20261116230354 useSystemConfigStore', () => {
   it('should_throwWithoutApplyingState_when_updateFailsWithBusinessError', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => failureEnvelope('版本冲突')));
     await expect(
-      useSystemConfigStore.getState().update({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, version: '0' }),
+      useSystemConfigStore.getState().update({ watermarkEnabled: false, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' }),
     ).rejects.toBeTruthy();
     // 失败不得覆盖原状态
     const s = useSystemConfigStore.getState();
@@ -166,14 +167,14 @@ describe('REQ20261116230354 useSystemConfigStore', () => {
 
 describe('REQ20261116230354 AC-8 闲置锁屏强制接线', () => {
   it('should_callSetIdleTimeoutMs_when_loadWithTenantTimeout', async () => {
-    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, version: '0' });
+    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
     const spy = vi.spyOn(useLockStore.getState(), 'setIdleTimeoutMs');
     await useSystemConfigStore.getState().load();
     expect(spy).toHaveBeenCalledWith(60000);
   });
 
   it('should_lockAfterIdleDeadline_when_fakeTimersAdvance60s', async () => {
-    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, version: '0' });
+    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
     vi.useFakeTimers();
     await useSystemConfigStore.getState().load();
     expect(useLockStore.getState().locked).toBe(false);
@@ -182,7 +183,7 @@ describe('REQ20261116230354 AC-8 闲置锁屏强制接线', () => {
   });
 
   it('should_notArmIdleWatch_when_timeoutZero', async () => {
-    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' });
+    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
     vi.useFakeTimers();
     await useSystemConfigStore.getState().load();
     vi.advanceTimersByTime(900000);
@@ -190,10 +191,10 @@ describe('REQ20261116230354 AC-8 闲置锁屏强制接线', () => {
   });
 
   it('should_rearmIdleTimeout_when_updateChangesTimeout', async () => {
-    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, version: '0' });
+    setupConfigApi({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
     vi.useFakeTimers();
     await useSystemConfigStore.getState().load();
-    await useSystemConfigStore.getState().update({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, version: '0' });
+    await useSystemConfigStore.getState().update({ watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 60000, footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0' });
     vi.advanceTimersByTime(60000);
     expect(useLockStore.getState().locked).toBe(true);
   });

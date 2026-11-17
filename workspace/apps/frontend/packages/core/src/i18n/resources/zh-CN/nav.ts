@@ -70,5 +70,4 @@ export const nav = {
     footTitle: '多端复用',
     footText: 'Web 端是页面唯一来源；Electron 套壳 Web 产物；移动端共享业务层并适配小屏。',
   },
-  mobileNav: '移动导航',
 };

@@ -1,4 +1,6 @@
-import { autoUpdater } from 'electron-updater';
+// electron-updater 为 CJS 包，ESM 具名导入在 Electron 主进程不可用，须走默认导出解构。
+import electronUpdater from 'electron-updater';
+const { autoUpdater } = electronUpdater;
 import { BrowserWindow, dialog } from 'electron';
 
 // REQ-20261114-120111：基于 electron-updater 的更新服务（AC-1/AC-2/AC-5）。

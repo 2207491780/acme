@@ -209,12 +209,14 @@ describe('REQ20261114071607 UsersPage CRUD 范本回归（AC-19）', () => {
     await screen.findByText('admin');
     fireEvent.click(screen.getByText(ADD_BUTTON_TEXT));
     const dialog = await screen.findByRole('dialog');
-    const usernameInput = screen.getByLabelText(LABEL_USERNAME) as HTMLInputElement;
+    // 列头排序/筛选增强后 th 也带 aria-label「账号」，表单查询限定在弹窗内
+    const usernameInput = within(dialog).getByLabelText(LABEL_USERNAME) as HTMLInputElement;
     fireEvent.change(usernameInput, { target: { value: 'newuser' } });
     // nickname 行为式填写：账号输入框之后第一个可用文本框（DTO 字段序 nickname 紧随 username）
     const restBox = dialogTextboxes(dialog).find((el) => !el.disabled && el !== usernameInput);
     fireEvent.change(restBox!, { target: { value: '新用户' } });
-    fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
+    // 列头增强后 jsdom 下全局 role+name 查询样式计算过慢，确认按钮改在弹窗内按文案定位
+    fireEvent.click(await within(dialog).findByText(CONFIRM_BUTTON));
     await waitFor(() => {
       const posts = callsOf(fetchMock, 'POST');
       expect(posts).toHaveLength(1);
@@ -243,7 +245,7 @@ describe('REQ20261114071607 UsersPage CRUD 范本回归（AC-19）', () => {
     // 行为式定位 nickname 输入框：当前值恰为「超级管理员」的那个文本框
     const nicknameBox = dialogTextboxes(dialog).find((el) => el.value === '超级管理员')!;
     fireEvent.change(nicknameBox, { target: { value: '管理员改' } });
-    fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
+    fireEvent.click(await within(dialog).findByText(CONFIRM_BUTTON));
     await waitFor(() => {
       const puts = callsOf(fetchMock, 'PUT');
       expect(puts).toHaveLength(1);

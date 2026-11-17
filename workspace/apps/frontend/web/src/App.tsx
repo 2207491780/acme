@@ -36,7 +36,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
+import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
 import dayjs from 'dayjs';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
@@ -194,7 +194,7 @@ export function App() {
       useMeStore.getState().clear();
       useSystemConfigStore.setState({
         watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
-        footerCopyright: null, footerVisible: false, version: '0', loaded: false,
+        footerCopyright: null, footerVisible: false, watermarkTemplate: null, version: '0', loaded: false,
       });
       useLockStore.getState().setIdleTimeoutMs(0);
     }
@@ -241,6 +241,18 @@ export function App() {
   // 全屏 / 水印（REQ-20261116-230354，AC-7）：显隐由租户系统配置强制决定（个人设置项已移除）
   const { isFullscreen, enter: enterFullscreen, exit: exitFullscreen } = useFullscreen();
   const watermarkEnabled = useSystemConfigStore((s) => s.watermarkEnabled);
+  // 水印模板（REQ-20261117-180000）：null/空=仅登录账号（既有口径）；含 {date}/{time} 时每分钟刷新渲染
+  const watermarkTemplate = useSystemConfigStore((s) => s.watermarkTemplate);
+  const watermarkNeedsClock = /\{(date|time)\}/.test(watermarkTemplate ?? '');
+  const [watermarkNow, setWatermarkNow] = useState(() => new Date());
+  useEffect(() => {
+    setWatermarkNow(new Date());
+    if (!watermarkEnabled || !watermarkNeedsClock) {
+      return undefined;
+    }
+    const timer = setInterval(() => setWatermarkNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, [watermarkEnabled, watermarkNeedsClock, watermarkTemplate]);
   // 应用内页脚版权（REQ-20261117-025200，AC-10）：显隐由租户配置强制决定（visible 且文案非空才渲染）
   const footerVisible = useSystemConfigStore((s) => s.footerVisible);
   const footerCopyright = useSystemConfigStore((s) => s.footerCopyright);
@@ -598,7 +610,7 @@ export function App() {
             </Button>
           </Header>
           {/* 内容区视口内自滚：minHeight 0 解除 flex 子项最小尺寸约束，整页高度不随内容撑大 */}
-          <Content style={{ padding: isMobile ? '16px 14px 88px' : '24px 30px 60px', flex: 1, minHeight: 0, overflow: 'auto' }}>
+          <Content style={{ padding: isMobile ? '16px 14px 60px' : '24px 30px 60px', flex: 1, minHeight: 0, overflow: 'auto' }}>
             {(storageError || storageConflict) && (
               <Alert
                 type="warning"
@@ -779,17 +791,6 @@ export function App() {
         </Layout>
       </Layout>
 
-      {isMobile && (
-        <nav className="mobile-nav" aria-label={t('nav.mobileNav')}>
-          {navEntries.map((n) => (
-            <button key={n.path} className={current === n.path ? 'active' : ''} onClick={() => go(n.path)}>
-              {n.icon}
-              <span>{n.label}</span>
-            </button>
-          ))}
-        </nav>
-      )}
-
       <Drawer
         placement="left"
         open={mobileNav}
@@ -808,9 +809,17 @@ export function App() {
       <LockScreenOverlay />
     </>
   );
-  // App 级水印（AC-7）：内容=当前用户账号；租户配置关闭（或未登录）不渲染
+  // App 级水印（AC-7；REQ-20261117-180000 模板化）：内容=模板渲染（未配置=仅账号）；
+  // 租户配置关闭（或未登录）不渲染
+  const watermarkContent = renderWatermarkTemplate(watermarkTemplate, {
+    username: session?.username ?? '',
+    nickname: session?.nickname,
+    userId: session?.userId,
+    tenantCode: session?.tenantCode,
+    deptName: me?.deptName ?? null,
+  }, watermarkNow);
   return watermarkEnabled && session ? (
-    <Watermark content={session.username} style={{ minHeight: '100vh' }}>{shell}</Watermark>
+    <Watermark content={watermarkContent} style={{ minHeight: '100vh' }}>{shell}</Watermark>
   ) : (
     shell
   );

@@ -46,7 +46,7 @@ class SystemConfigUseCaseTest {
         when(repository.findCurrent()).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        SysConfig created = useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, null, false, 0L));
+        SysConfig created = useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, null, false, null, 0L));
 
         assertThat(created.getWatermarkEnabled()).isFalse();
         assertThat(created.getCaptchaEnabled()).isTrue();
@@ -58,7 +58,7 @@ class SystemConfigUseCaseTest {
     void updateRejectsNonZeroVersionWhenAbsent() {
         when(repository.findCurrent()).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, false, 60_000, null, false, 1L)))
+        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, false, 60_000, null, false, null, 1L)))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                         .isEqualTo(WebError.CONCURRENCY_CONFLICT));
@@ -78,7 +78,7 @@ class SystemConfigUseCaseTest {
             return entity;
         });
 
-        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(false, true, 900_000, null, false, 3L));
+        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(false, true, 900_000, null, false, null, 3L));
 
         assertThat(updated.getWatermarkEnabled()).isFalse();
         assertThat(updated.getCaptchaEnabled()).isTrue();
@@ -92,7 +92,7 @@ class SystemConfigUseCaseTest {
         current.setVersion(3L);
         when(repository.findCurrent()).thenReturn(Optional.of(current));
 
-        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, null, false, 2L)))
+        assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(false, true, 60_000, null, false, null, 2L)))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                         .isEqualTo(WebError.CONCURRENCY_CONFLICT));
@@ -107,7 +107,7 @@ class SystemConfigUseCaseTest {
     @Test
     void updateRejectsIdleTimeoutOutsideAllowedSet() {
         for (int invalid : new int[]{123, -1, 60_001, 1_800_000}) {
-            assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(true, false, invalid, null, false, 0L)))
+            assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(true, false, invalid, null, false, null, 0L)))
                     .isInstanceOf(BizException.class)
                     .satisfies(ex -> assertThat(((BizException) ex).errorCode())
                             .isEqualTo(SystemError.SYSTEM_CONFIG_INVALID));
@@ -123,7 +123,7 @@ class SystemConfigUseCaseTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         for (int allowed : new int[]{0, 60_000, 300_000, 900_000}) {
-            SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, allowed, null, false, 0L));
+            SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, allowed, null, false, null, 0L));
             assertThat(updated.getLockIdleTimeoutMs()).isEqualTo(allowed);
         }
     }
@@ -137,7 +137,7 @@ class SystemConfigUseCaseTest {
         when(repository.findCurrent()).thenReturn(Optional.of(current));
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, 0, null, false, 1L));
+        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, 0, null, false, null, 1L));
 
         assertThat(updated.getCaptchaEnabled()).isFalse();
         assertThat(updated.getWatermarkEnabled()).isTrue();
@@ -169,7 +169,7 @@ class SystemConfigUseCaseTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, 0,
-                "© ACME 2026", true, 2L));
+                "© ACME 2026", true, null, 2L));
 
         assertThat(updated.getFooterCopyright()).isEqualTo("© ACME 2026");
         assertThat(updated.getFooterVisible()).isTrue();
@@ -182,7 +182,7 @@ class SystemConfigUseCaseTest {
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         SysConfig created = useCase.update(new AdminSystemConfigUpdate(true, false, 0,
-                "© ACME 2026", true, 0L));
+                "© ACME 2026", true, null, 0L));
 
         assertThat(created.getFooterCopyright()).isEqualTo("© ACME 2026");
         assertThat(created.getFooterVisible()).isTrue();
@@ -215,5 +215,70 @@ class SystemConfigUseCaseTest {
 
         assertThat(useCase.findPublicViewByTenant("legacy"))
                 .isEqualTo(new TenantPublicInternalView(null, false));
+    }
+
+    // ---------- REQ-20261117-180000：水印模板随 upsert 全量生效 + 占位符校验 ----------
+
+    @Test
+    void should_persistWatermarkTemplate_when_putUpdatesExistingRow() {
+        SysConfig current = new SysConfig(true, false, 0);
+        current.setVersion(2L);
+        when(repository.findCurrent()).thenReturn(Optional.of(current));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SysConfig updated = useCase.update(new AdminSystemConfigUpdate(true, false, 0,
+                null, false, "{username} {date} {time}", 2L));
+
+        assertThat(updated.getWatermarkTemplate()).isEqualTo("{username} {date} {time}");
+    }
+
+    @Test
+    void should_createRowWithWatermarkTemplate_when_absentAndVersionZero() {
+        when(repository.findCurrent()).thenReturn(Optional.empty());
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SysConfig created = useCase.update(new AdminSystemConfigUpdate(true, false, 0,
+                null, false, "{tenantCode}-{username}", 0L));
+
+        assertThat(created.getWatermarkTemplate()).isEqualTo("{tenantCode}-{username}");
+    }
+
+    @Test
+    void should_acceptAllSupportedPlaceholders_when_putWatermarkTemplate() {
+        when(repository.findCurrent()).thenReturn(Optional.empty());
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        String template = "{username}/{nickname}/{userId}/{tenantCode}/{deptName}/{date}/{time}";
+        SysConfig created = useCase.update(new AdminSystemConfigUpdate(true, false, 0,
+                null, false, template, 0L));
+
+        assertThat(created.getWatermarkTemplate()).isEqualTo(template);
+    }
+
+    @Test
+    void should_rejectUnknownPlaceholder_beforeAnyPersistenceAccess() {
+        for (String invalid : new String[]{"{bogus}", "{username} {User}", "{date-time}", "{}", "{username}{evil}"}) {
+            assertThatThrownBy(() -> useCase.update(new AdminSystemConfigUpdate(true, false, 0,
+                    null, false, invalid, 0L)))
+                    .isInstanceOf(BizException.class)
+                    .satisfies(ex -> assertThat(((BizException) ex).errorCode())
+                            .isEqualTo(SystemError.SYSTEM_WATERMARK_TEMPLATE_INVALID));
+        }
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void should_allowNullAndLiteralTemplate_when_putWatermarkTemplate() {
+        // null=未配置（仅用户名）；纯字面量与残缺花括号不做占位符拒绝（渲染侧按字面量处理）
+        SysConfig current = new SysConfig(true, false, 0);
+        current.setVersion(1L);
+        when(repository.findCurrent()).thenReturn(Optional.of(current));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(useCase.update(new AdminSystemConfigUpdate(true, false, 0,
+                null, false, null, 1L)).getWatermarkTemplate()).isNull();
+        assertThat(useCase.update(new AdminSystemConfigUpdate(true, false, 0,
+                null, false, "ACME 内部系统 {username", 1L)).getWatermarkTemplate())
+                .isEqualTo("ACME 内部系统 {username");
     }
 }
