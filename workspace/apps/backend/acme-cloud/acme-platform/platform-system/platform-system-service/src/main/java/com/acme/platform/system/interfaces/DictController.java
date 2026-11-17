@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminDictItemCreate;
 import com.acme.platform.system.api.dto.AdminDictItemUpdate;
@@ -51,18 +52,25 @@ public class DictController {
 
     @PostMapping("/dict-types")
     @RequirePermission(SystemPermissions.DICT_CREATE)
+    @AuditLog(action = "system.dict.createType", targetType = "dictType",
+            contentParams = {"request.dictCode", "request.dictName"})
     public AdminDictTypeView createType(@Valid @RequestBody AdminDictTypeCreate request) {
         return EntityViews.dictTypeView(dictUseCase.createType(request));
     }
 
     @PutMapping("/dict-types/{typeId}")
     @RequirePermission(SystemPermissions.DICT_UPDATE)
+    @AuditLog(action = "system.dict.updateType", targetType = "dictType", targetId = "#typeId",
+            beforeQuery = "@dictUseCase.getType(#typeId)",
+            contentParams = {"typeId", "request.dictName"})
     public AdminDictTypeView updateType(@PathVariable Long typeId, @Valid @RequestBody AdminDictTypeUpdate request) {
         return EntityViews.dictTypeView(dictUseCase.updateType(typeId, request));
     }
 
     @DeleteMapping("/dict-types/{typeId}")
     @RequirePermission(SystemPermissions.DICT_DELETE)
+    @AuditLog(action = "system.dict.deleteType", targetType = "dictType", targetId = "#typeId",
+            contentParams = {"typeId"})
     public void deleteType(@PathVariable Long typeId) {
         dictUseCase.deleteType(typeId);
     }
@@ -75,18 +83,24 @@ public class DictController {
 
     @PostMapping("/dict-types/{typeId}/items")
     @RequirePermission(SystemPermissions.DICT_CREATE)
+    @AuditLog(action = "system.dict.createItem", targetType = "dictItem",
+            contentParams = {"typeId", "request.itemLabel", "request.itemValue"})
     public AdminDictItemView createItem(@PathVariable Long typeId, @Valid @RequestBody AdminDictItemCreate request) {
         return EntityViews.dictItemView(dictUseCase.createItem(typeId, request));
     }
 
     @PutMapping("/dict-items/{itemId}")
     @RequirePermission(SystemPermissions.DICT_UPDATE)
+    @AuditLog(action = "system.dict.updateItem", targetType = "dictItem", targetId = "#itemId",
+            contentParams = {"itemId", "request.itemLabel", "request.itemValue"})
     public AdminDictItemView updateItem(@PathVariable Long itemId, @Valid @RequestBody AdminDictItemUpdate request) {
         return EntityViews.dictItemView(dictUseCase.updateItem(itemId, request));
     }
 
     @DeleteMapping("/dict-items/{itemId}")
     @RequirePermission(SystemPermissions.DICT_DELETE)
+    @AuditLog(action = "system.dict.deleteItem", targetType = "dictItem", targetId = "#itemId",
+            contentParams = {"itemId"})
     public void deleteItem(@PathVariable Long itemId) {
         dictUseCase.deleteItem(itemId);
     }

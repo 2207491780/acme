@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminPermissionCreate;
 import com.acme.platform.system.api.dto.AdminPermissionUpdate;
@@ -45,6 +46,8 @@ public class PermissionController {
 
     @PostMapping
     @RequirePermission(SystemPermissions.PERMISSION_CREATE)
+    @AuditLog(action = "system.permission.create", targetType = "permission",
+            contentParams = {"request.permissionCode", "request.permissionName"})
     public AdminPermissionView create(@Valid @RequestBody AdminPermissionCreate request) {
         return EntityViews.permissionView(permissionUseCase.create(request));
     }
@@ -57,6 +60,8 @@ public class PermissionController {
 
     @PutMapping("/{permissionId}")
     @RequirePermission(SystemPermissions.PERMISSION_UPDATE)
+    @AuditLog(action = "system.permission.update", targetType = "permission", targetId = "#permissionId",
+            contentParams = {"permissionId", "request.permissionName"})
     public AdminPermissionView update(@PathVariable Long permissionId,
                                       @Valid @RequestBody AdminPermissionUpdate request) {
         return EntityViews.permissionView(permissionUseCase.update(permissionId, request));
@@ -64,6 +69,8 @@ public class PermissionController {
 
     @DeleteMapping("/{permissionId}")
     @RequirePermission(SystemPermissions.PERMISSION_DELETE)
+    @AuditLog(action = "system.permission.delete", targetType = "permission", targetId = "#permissionId",
+            contentParams = {"permissionId"})
     public void delete(@PathVariable Long permissionId) {
         permissionUseCase.delete(permissionId);
     }

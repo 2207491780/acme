@@ -4,6 +4,7 @@ import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
 import com.acme.common.context.UserContext;
 import com.acme.common.core.Result;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminMessageSend;
 import com.acme.platform.system.api.dto.AdminMessageView;
@@ -38,6 +39,8 @@ public class MessageController {
 
     @PostMapping
     @RequirePermission(SystemPermissions.MESSAGE_SEND)
+    @AuditLog(action = "system.message.send", targetType = "message",
+            contentParams = {"request.title", "request.recipientIds"})
     public List<AdminMessageView> send(@Valid @RequestBody AdminMessageSend request) {
         return messageUseCase.send(request).stream().map(EntityViews::messageView).toList();
     }
@@ -62,6 +65,7 @@ public class MessageController {
 
     @PutMapping("/read-all")
     @RequirePermission(SystemPermissions.MESSAGE_READ)
+    @AuditLog(action = "system.message.readAll", targetType = "message")
     public Result<Void> readAll() {
         messageUseCase.markAllRead(currentRecipientId());
         return Result.ok(null);
@@ -69,6 +73,8 @@ public class MessageController {
 
     @PutMapping("/{messageId}/read")
     @RequirePermission(SystemPermissions.MESSAGE_READ)
+    @AuditLog(action = "system.message.read", targetType = "message", targetId = "#messageId",
+            contentParams = {"messageId"})
     public AdminMessageView markRead(@PathVariable Long messageId) {
         return EntityViews.messageView(messageUseCase.markRead(currentRecipientId(), messageId));
     }

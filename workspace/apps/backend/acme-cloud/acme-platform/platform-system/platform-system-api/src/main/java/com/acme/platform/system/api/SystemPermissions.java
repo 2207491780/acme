@@ -100,6 +100,9 @@ public final class SystemPermissions {
     /** 任务手动触发（infra 域 Admin 端点；REQ-20261114-071607 任务调度）。 */
     public static final String INFRA_JOB_RUN = "infra:job:run";
 
+    /** 异常日志查询（infra 域 Admin 端点；REQ-20261117-061017 日志中心完善）。 */
+    public static final String INFRA_EXCEPTION_LIST = "infra:exception:list";
+
     /** Excel 通用范式 demo（infra 域 Admin 端点；REQ-20261114-071607：单点覆盖模板/导出/导入三端点）。 */
     public static final String INFRA_EXCEL_DEMO = "infra:excel:demo";
 

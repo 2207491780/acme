@@ -3,6 +3,7 @@ package com.acme.platform.system.interfaces;
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
 import com.acme.common.core.Result;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminNoticeCreate;
 import com.acme.platform.system.api.dto.AdminNoticeUpdate;
@@ -46,6 +47,7 @@ public class NoticeController {
 
     @PostMapping
     @RequirePermission(SystemPermissions.NOTICE_CREATE)
+    @AuditLog(action = "system.notice.create", targetType = "notice", contentParams = {"request.title"})
     public AdminNoticeView create(@Valid @RequestBody AdminNoticeCreate request) {
         return EntityViews.noticeView(noticeUseCase.create(request));
     }
@@ -59,6 +61,8 @@ public class NoticeController {
 
     @PutMapping("/{noticeId}")
     @RequirePermission(SystemPermissions.NOTICE_UPDATE)
+    @AuditLog(action = "system.notice.update", targetType = "notice", targetId = "#noticeId",
+            contentParams = {"noticeId", "request.title"})
     public AdminNoticeView update(@PathVariable Long noticeId,
                                   @Valid @RequestBody AdminNoticeUpdate request) {
         return EntityViews.noticeView(noticeUseCase.update(noticeId, request));
@@ -66,6 +70,8 @@ public class NoticeController {
 
     @PutMapping("/{noticeId}/publish")
     @RequirePermission(SystemPermissions.NOTICE_PUBLISH)
+    @AuditLog(action = "system.notice.publish", targetType = "notice", targetId = "#noticeId",
+            contentParams = {"noticeId"})
     public AdminNoticeView publish(@PathVariable Long noticeId) {
         return EntityViews.noticeView(noticeUseCase.publish(noticeId));
     }
@@ -74,12 +80,16 @@ public class NoticeController {
      *  下线与发布同属生命周期操作，共用 system:notice:publish 权限点（TL 裁决⑤）。 */
     @PutMapping("/{noticeId}/offline")
     @RequirePermission(SystemPermissions.NOTICE_PUBLISH)
+    @AuditLog(action = "system.notice.offline", targetType = "notice", targetId = "#noticeId",
+            contentParams = {"noticeId"})
     public AdminNoticeView offline(@PathVariable Long noticeId) {
         return EntityViews.noticeView(noticeUseCase.offline(noticeId));
     }
 
     @DeleteMapping("/{noticeId}")
     @RequirePermission(SystemPermissions.NOTICE_DELETE)
+    @AuditLog(action = "system.notice.delete", targetType = "notice", targetId = "#noticeId",
+            contentParams = {"noticeId"})
     public Result<Void> delete(@PathVariable Long noticeId) {
         noticeUseCase.delete(noticeId);
         return Result.ok(null);

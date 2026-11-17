@@ -1,5 +1,6 @@
 package com.acme.platform.system.interfaces;
 
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminMenuCreate;
 import com.acme.platform.system.api.dto.AdminMenuUpdate;
@@ -39,6 +40,7 @@ public class MenuController {
 
     @PostMapping
     @RequirePermission(SystemPermissions.MENU_CREATE)
+    @AuditLog(action = "system.menu.create", targetType = "menu", contentParams = {"request.menuName"})
     public AdminMenuView create(@Valid @RequestBody AdminMenuCreate request) {
         return EntityViews.flatMenu(menuUseCase.create(request));
     }
@@ -51,12 +53,16 @@ public class MenuController {
 
     @PutMapping("/{menuId}")
     @RequirePermission(SystemPermissions.MENU_UPDATE)
+    @AuditLog(action = "system.menu.update", targetType = "menu", targetId = "#menuId",
+            contentParams = {"menuId", "request.menuName"})
     public AdminMenuView update(@PathVariable Long menuId, @Valid @RequestBody AdminMenuUpdate request) {
         return EntityViews.flatMenu(menuUseCase.update(menuId, request));
     }
 
     @DeleteMapping("/{menuId}")
     @RequirePermission(SystemPermissions.MENU_DELETE)
+    @AuditLog(action = "system.menu.delete", targetType = "menu", targetId = "#menuId",
+            contentParams = {"menuId"})
     public void delete(@PathVariable Long menuId) {
         menuUseCase.delete(menuId);
     }

@@ -3,6 +3,7 @@ package com.acme.platform.system.interfaces;
 import com.acme.common.core.Result;
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminPositionCreate;
@@ -49,6 +50,8 @@ public class PositionController {
 
     @PostMapping
     @RequirePermission(SystemPermissions.POSITION_CREATE)
+    @AuditLog(action = "system.position.create", targetType = "position",
+            contentParams = {"request.code", "request.name"})
     public AdminPositionView create(@Valid @RequestBody AdminPositionCreate request) {
         return EntityViews.positionView(positionUseCase.create(request));
     }
@@ -61,6 +64,8 @@ public class PositionController {
 
     @PutMapping("/{positionId}")
     @RequirePermission(SystemPermissions.POSITION_UPDATE)
+    @AuditLog(action = "system.position.update", targetType = "position", targetId = "#positionId",
+            contentParams = {"positionId", "request.name"})
     public AdminPositionView update(@PathVariable Long positionId,
                                     @Valid @RequestBody AdminPositionUpdate request) {
         return EntityViews.positionView(positionUseCase.update(positionId, request));
@@ -69,6 +74,8 @@ public class PositionController {
     /** 启用/停用（统一响应体 Result 契约口径：void 语义显式出信封，code="0"）。 */
     @PutMapping("/{positionId}/status")
     @RequirePermission(SystemPermissions.POSITION_UPDATE)
+    @AuditLog(action = "system.position.updateStatus", targetType = "position", targetId = "#positionId",
+            contentParams = {"positionId", "request.status"})
     public Result<Void> updateStatus(@PathVariable Long positionId,
                                      @Valid @RequestBody com.acme.platform.system.api.dto.AdminStatusUpdate request) {
         positionUseCase.updateStatus(positionId, request.status());
@@ -78,6 +85,8 @@ public class PositionController {
     /** 删除岗位（统一响应体 Result 契约口径：void 语义显式出信封，code="0"）。 */
     @DeleteMapping("/{positionId}")
     @RequirePermission(SystemPermissions.POSITION_DELETE)
+    @AuditLog(action = "system.position.delete", targetType = "position", targetId = "#positionId",
+            contentParams = {"positionId"})
     public Result<Void> delete(@PathVariable Long positionId) {
         positionUseCase.delete(positionId);
         return Result.ok(null);

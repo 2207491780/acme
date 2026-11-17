@@ -57,6 +57,11 @@
             <groupId>com.acme</groupId>
             <artifactId>framework-security</artifactId>
         </dependency>
+        <!-- REQ-20261117-061017 确认③：B 端管理写端点 @AuditLog 补注（含 beforeQuery 旧值快照） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-audit</artifactId>
+        </dependency>
         <!-- Feign 出站支撑（REQ-20261117-025200：内部令牌注入 / 错误解码 / 熔断，
             同 platform-auth-service 装配口径；契约声明在 platform-auth-api） -->
         <dependency>

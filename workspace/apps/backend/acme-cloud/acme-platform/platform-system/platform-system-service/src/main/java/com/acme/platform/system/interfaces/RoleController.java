@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminMenuIds;
@@ -66,6 +67,8 @@ public class RoleController {
 
     @PostMapping
     @RequirePermission(SystemPermissions.ROLE_CREATE)
+    @AuditLog(action = "system.role.create", targetType = "role",
+            contentParams = {"request.roleName", "request.roleCode"})
     public AdminRoleView create(@Valid @RequestBody AdminRoleCreate request) {
         return EntityViews.roleView(roleUseCase.create(request));
     }
@@ -78,18 +81,25 @@ public class RoleController {
 
     @PutMapping("/{roleId}")
     @RequirePermission(SystemPermissions.ROLE_UPDATE)
+    @AuditLog(action = "system.role.update", targetType = "role", targetId = "#roleId",
+            beforeQuery = "@roleUseCase.get(#roleId)",
+            contentParams = {"roleId", "request.roleName"})
     public AdminRoleView update(@PathVariable Long roleId, @Valid @RequestBody AdminRoleUpdate request) {
         return EntityViews.roleView(roleUseCase.update(roleId, request));
     }
 
     @DeleteMapping("/{roleId}")
     @RequirePermission(SystemPermissions.ROLE_DELETE)
+    @AuditLog(action = "system.role.delete", targetType = "role", targetId = "#roleId",
+            contentParams = {"roleId"})
     public void delete(@PathVariable Long roleId) {
         roleUseCase.delete(roleId);
     }
 
     @PutMapping("/{roleId}/status")
     @RequirePermission(SystemPermissions.ROLE_UPDATE)
+    @AuditLog(action = "system.role.updateStatus", targetType = "role", targetId = "#roleId",
+            contentParams = {"roleId", "request.status"})
     public void updateStatus(@PathVariable Long roleId, @Valid @RequestBody AdminStatusUpdate request) {
         roleUseCase.updateStatus(roleId, request.status());
     }
@@ -104,6 +114,8 @@ public class RoleController {
 
     @PutMapping("/{roleId}/permissions")
     @RequirePermission(SystemPermissions.ROLE_GRANT)
+    @AuditLog(action = "system.role.grantPermission", targetType = "role", targetId = "#roleId",
+            contentParams = {"roleId", "request.permissionIds"})
     public void bindPermissions(@PathVariable Long roleId, @Valid @RequestBody AdminPermissionIds request) {
         roleUseCase.bindPermissions(roleId, request.permissionIds());
     }
@@ -118,6 +130,8 @@ public class RoleController {
 
     @PutMapping("/{roleId}/menus")
     @RequirePermission(SystemPermissions.ROLE_GRANT)
+    @AuditLog(action = "system.role.grantMenu", targetType = "role", targetId = "#roleId",
+            contentParams = {"roleId", "request.menuIds"})
     public void bindMenus(@PathVariable Long roleId, @Valid @RequestBody AdminMenuIds request) {
         roleUseCase.bindMenus(roleId, request.menuIds());
     }
@@ -129,6 +143,9 @@ public class RoleController {
      */
     @PutMapping("/{roleId}/data-scope")
     @RequirePermission(SystemPermissions.ROLE_SCOPE)
+    @AuditLog(action = "system.role.scope", targetType = "role", targetId = "#roleId",
+            beforeQuery = "@roleUseCase.get(#roleId)",
+            contentParams = {"roleId", "request"})
     public com.acme.common.core.Result<Void> updateDataScope(
             @PathVariable Long roleId,
             @Valid @RequestBody com.acme.platform.system.api.dto.AdminRoleDataScope request) {

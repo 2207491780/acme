@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.core.BizException;
 import com.acme.common.core.Result;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.framework.flex.support.FlexError;
 import com.acme.framework.web.interceptor.GlobalExceptionTranslator;
 import com.acme.framework.web.support.WebError;
@@ -57,6 +58,10 @@ public class SystemConfigController {
 
     @PutMapping("/config")
     @RequirePermission(SystemPermissions.CONFIG_UPDATE)
+    @AuditLog(action = "system.config.update", targetType = "systemConfig",
+            beforeQuery = "@systemConfigUseCase.findCurrent()",
+            contentParams = {"request.watermarkEnabled", "request.captchaEnabled",
+                    "request.lockIdleTimeoutMs", "request.footerVisible"})
     public AdminSystemConfigView update(@Valid @RequestBody AdminSystemConfigUpdate request) {
         return EntityViews.systemConfigView(systemConfigUseCase.update(request));
     }

@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminStatusUpdate;
@@ -44,6 +45,8 @@ public class TenantController {
     /** 开通初始化（建租户 + 租户管理员角色默认授权 + 初始管理员；开通语义复用 TENANT_CREATE）。 */
     @PostMapping("/init")
     @RequirePermission(SystemPermissions.TENANT_CREATE)
+    @AuditLog(action = "system.tenant.init", targetType = "tenant",
+            contentParams = {"request.tenantCode", "request.adminUsername"})
     public AdminTenantInitView initialize(@Valid @RequestBody AdminTenantInitRequest request) {
         return tenantInitUseCase.initialize(request);
     }
@@ -60,6 +63,8 @@ public class TenantController {
 
     @PostMapping
     @RequirePermission(SystemPermissions.TENANT_CREATE)
+    @AuditLog(action = "system.tenant.create", targetType = "tenant",
+            contentParams = {"request.tenantCode", "request.tenantName"})
     public AdminTenantView create(@Valid @RequestBody AdminTenantCreate request) {
         return EntityViews.tenantView(tenantUseCase.create(request));
     }
@@ -72,12 +77,17 @@ public class TenantController {
 
     @PutMapping("/{tenantId}")
     @RequirePermission(SystemPermissions.TENANT_UPDATE)
+    @AuditLog(action = "system.tenant.update", targetType = "tenant", targetId = "#tenantId",
+            beforeQuery = "@tenantUseCase.get(#tenantId)",
+            contentParams = {"tenantId", "request.tenantName"})
     public AdminTenantView update(@PathVariable Long tenantId, @Valid @RequestBody AdminTenantUpdate request) {
         return EntityViews.tenantView(tenantUseCase.update(tenantId, request));
     }
 
     @PutMapping("/{tenantId}/status")
     @RequirePermission(SystemPermissions.TENANT_UPDATE)
+    @AuditLog(action = "system.tenant.updateStatus", targetType = "tenant", targetId = "#tenantId",
+            contentParams = {"tenantId", "request.status"})
     public void updateStatus(@PathVariable Long tenantId, @Valid @RequestBody AdminStatusUpdate request) {
         tenantUseCase.updateStatus(tenantId, request.status());
     }

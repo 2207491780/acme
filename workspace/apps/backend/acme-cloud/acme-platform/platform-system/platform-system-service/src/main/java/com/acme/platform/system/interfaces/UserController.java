@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminRoleIds;
@@ -55,6 +56,8 @@ public class UserController {
 
     @PostMapping
     @RequirePermission(SystemPermissions.USER_CREATE)
+    @AuditLog(action = "system.user.create", targetType = "user",
+            contentParams = {"request.username", "request.nickname"})
     public AdminUserView create(@Valid @RequestBody AdminUserCreate request) {
         SysUser user = userUseCase.create(request);
         return EntityViews.userView(user, userUseCase.roleIdsOf(user.getId()));
@@ -68,24 +71,33 @@ public class UserController {
 
     @PutMapping("/{userId}")
     @RequirePermission(SystemPermissions.USER_UPDATE)
+    @AuditLog(action = "system.user.update", targetType = "user", targetId = "#userId",
+            beforeQuery = "@userUseCase.get(#userId)",
+            contentParams = {"userId", "request.nickname", "request.email"})
     public AdminUserView update(@PathVariable Long userId, @Valid @RequestBody AdminUserUpdate request) {
         return EntityViews.userView(userUseCase.update(userId, request), userUseCase.roleIdsOf(userId));
     }
 
     @DeleteMapping("/{userId}")
     @RequirePermission(SystemPermissions.USER_DELETE)
+    @AuditLog(action = "system.user.delete", targetType = "user", targetId = "#userId",
+            contentParams = {"userId"})
     public void delete(@PathVariable Long userId) {
         userUseCase.delete(userId);
     }
 
     @PutMapping("/{userId}/status")
     @RequirePermission(SystemPermissions.USER_UPDATE)
+    @AuditLog(action = "system.user.updateStatus", targetType = "user", targetId = "#userId",
+            contentParams = {"userId", "request.status"})
     public void updateStatus(@PathVariable Long userId, @Valid @RequestBody AdminStatusUpdate request) {
         userUseCase.updateStatus(userId, request.status());
     }
 
     @PutMapping("/{userId}/roles")
     @RequirePermission(SystemPermissions.USER_ASSIGN_ROLE)
+    @AuditLog(action = "system.user.assignRole", targetType = "user", targetId = "#userId",
+            contentParams = {"userId", "request.roleIds"})
     public void bindRoles(@PathVariable Long userId, @Valid @RequestBody AdminRoleIds request) {
         userUseCase.bindRoles(userId, request.roleIds());
     }

@@ -1,6 +1,7 @@
 package com.acme.platform.system.interfaces;
 
 import com.acme.common.core.Result;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminDeptCreate;
 import com.acme.platform.system.api.dto.AdminDeptUpdate;
@@ -41,6 +42,7 @@ public class DeptController {
 
     @PostMapping
     @RequirePermission(SystemPermissions.DEPT_CREATE)
+    @AuditLog(action = "system.dept.create", targetType = "dept", contentParams = {"request.name"})
     public AdminDeptView create(@Valid @RequestBody AdminDeptCreate request) {
         return EntityViews.deptView(deptUseCase.create(request));
     }
@@ -53,6 +55,8 @@ public class DeptController {
 
     @PutMapping("/{deptId}")
     @RequirePermission(SystemPermissions.DEPT_UPDATE)
+    @AuditLog(action = "system.dept.update", targetType = "dept", targetId = "#deptId",
+            contentParams = {"deptId", "request.name"})
     public AdminDeptView update(@PathVariable Long deptId, @Valid @RequestBody AdminDeptUpdate request) {
         return EntityViews.deptView(deptUseCase.update(deptId, request));
     }
@@ -60,6 +64,8 @@ public class DeptController {
     /** 删除部门（统一响应体 Result 契约口径：void 语义显式出信封，code="0"）。 */
     @DeleteMapping("/{deptId}")
     @RequirePermission(SystemPermissions.DEPT_DELETE)
+    @AuditLog(action = "system.dept.delete", targetType = "dept", targetId = "#deptId",
+            contentParams = {"deptId"})
     public Result<Void> delete(@PathVariable Long deptId) {
         deptUseCase.delete(deptId);
         return Result.ok(null);
