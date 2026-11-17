@@ -218,7 +218,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 - **共享**：详情只读字段 + 状态流转按钮（`STATUS_ACTION`/`NEXT_STATUS`）。
 
 ### Nav / 导航
-- **Web/PC**：固定 `Sider`（≥lg）+ 顶栏；<lg 用底部 `mobile-nav` + 左抽屉；当前项主色高亮，发布单带活跃数 `Badge`。
+- **Web/PC**：固定 `Sider`（≥lg）+ 顶栏；<lg 仅用左抽屉（顶栏菜单按钮打开），不设固定底部导航条；当前项主色高亮，发布单带活跃数 `Badge`。
 - **Mobile**：底部 tabbar（dashboard/releases/apps/settings），当前项 accent pill + 活跃数 badge；顶部品牌条。
 - **共享**：四目的地一致；活跃数 = `ACTIVE_STATUSES` 计数。
 
@@ -230,8 +230,8 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 |---|---|---|
 | 断点 | AntD `Grid.useBreakpoint()`；`<lg` 视为移动布局 | 原生小屏 |
 | 顶栏 | sticky，高 64，半透明表面 + 轻微模糊（blur 8）+ 底边框 | 品牌条 + 运行时 pill |
-| 内容 padding | 桌面 `24px 30px 60px`；移动 `16px 14px 88px` | Screen `padding 16, paddingBottom 32, gap 14` |
-| 安全区 | 底部导航 `env(safe-area-inset-bottom)` | `SafeAreaView` + Android `StatusBar.currentHeight` |
+| 内容 padding | 桌面 `24px 30px 60px`；移动 `16px 14px 60px` | Screen `padding 16, paddingBottom 32, gap 14` |
+| 安全区 | 无固定底部条（导航走左抽屉） | `SafeAreaView` + Android `StatusBar.currentHeight` |
 | 背景 | 纯色 `bg`（平整，与 Mobile 一致），无光斑/漂移/颗粒 | 纯色 `palette.bg` |
 | 滚动条 | 自定义（中性 `surface3` thumb，宽 10，轨道透明；hover 提亮） | 隐藏垂直滚动条 |
 

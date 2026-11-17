@@ -591,7 +591,7 @@ export function App() {
             </Button>
           </Header>
           {/* 内容区视口内自滚：minHeight 0 解除 flex 子项最小尺寸约束，整页高度不随内容撑大 */}
-          <Content style={{ padding: isMobile ? '16px 14px 88px' : '24px 30px 60px', flex: 1, minHeight: 0, overflow: 'auto' }}>
+          <Content style={{ padding: isMobile ? '16px 14px 60px' : '24px 30px 60px', flex: 1, minHeight: 0, overflow: 'auto' }}>
             {(storageError || storageConflict) && (
               <Alert
                 type="warning"
@@ -749,17 +749,6 @@ export function App() {
           </Content>
         </Layout>
       </Layout>
-
-      {isMobile && (
-        <nav className="mobile-nav" aria-label={t('nav.mobileNav')}>
-          {navEntries.map((n) => (
-            <button key={n.path} className={current === n.path ? 'active' : ''} onClick={() => go(n.path)}>
-              {n.icon}
-              <span>{n.label}</span>
-            </button>
-          ))}
-        </nav>
-      )}
 
       <Drawer
         placement="left"

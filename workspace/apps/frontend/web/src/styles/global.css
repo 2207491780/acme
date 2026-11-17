@@ -164,11 +164,6 @@ tr.dragging { opacity: 0.45; }
 :root[data-motion="false"] *, :root[data-motion="false"] *::before, :root[data-motion="false"] *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; } }
 
-.mobile-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; gap: 4px; background: var(--glass-header); backdrop-filter: blur(8px); border-top: 1px solid var(--border); padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); }
-.mobile-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 4px; background: transparent; border: 0; color: var(--muted); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 10px; transition: color 0.2s, background 0.2s; }
-.mobile-nav button.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.mobile-nav button .anticon { font-size: 18px; }
-
 @media (max-width: 1180px) {
   .hero-grid { grid-template-columns: 1fr; }
 }
