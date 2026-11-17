@@ -49,7 +49,10 @@ public enum InfraError implements ErrorCode, HttpStatusAware {
     SIZE_MISMATCH(InfraErrorCodes.SIZE_MISMATCH, "对象大小与直传登记不一致", 400),
 
     /** 直传完成对象缺失（404；REQ-20261117-045754 §API STORAGE_OBJECT_MISSING 语义）。 */
-    STORAGE_OBJECT_MISSING(InfraErrorCodes.STORAGE_OBJECT_MISSING, "直传对象缺失", 404);
+    STORAGE_OBJECT_MISSING(InfraErrorCodes.STORAGE_OBJECT_MISSING, "直传对象缺失", 404),
+
+    /** 运行异常日志不存在（404：详情目标缺失；REQ-20261117-061017）。 */
+    OP_EXCEPTION_NOT_FOUND(InfraErrorCodes.OP_EXCEPTION_NOT_FOUND, "异常日志不存在", 404);
 
     private final String code;
     private final String defaultMessage;

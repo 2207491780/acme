@@ -49,6 +49,9 @@ public final class InfraErrorCodes {
     /** 直传完成对象缺失（404：对象未上传或已被清理，REQ-20261117-045754 §API）。 */
     public static final String STORAGE_OBJECT_MISSING = "STORAGE_OBJECT_MISSING";
 
+    /** 运行异常日志不存在（404：详情目标缺失，REQ-20261117-061017）。 */
+    public static final String OP_EXCEPTION_NOT_FOUND = "OP_EXCEPTION_NOT_FOUND";
+
     private InfraErrorCodes() {
     }
 }

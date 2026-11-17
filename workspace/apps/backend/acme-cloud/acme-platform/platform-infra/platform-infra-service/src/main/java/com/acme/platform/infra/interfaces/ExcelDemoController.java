@@ -1,6 +1,7 @@
 package com.acme.platform.infra.interfaces;
 
 import com.acme.common.core.BizException;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.infra.InfraError;
 import com.acme.platform.infra.application.ExcelDemoUseCase;
 import com.acme.platform.infra.application.ImportReport;
@@ -50,9 +51,11 @@ public class ExcelDemoController {
         writeWorkbook(response, excelDemoUseCase.exportBytes(), "demo-export.xlsx");
     }
 
-    /** validate-only 导入校验（行级校验不落库，AC-10/AC-11；文件非法 → EXCEL_PARSE_FAILED；单点权限）。 */
+    /** validate-only 导入校验（行级校验不落库，AC-10/AC-11；文件非法 → EXCEL_PARSE_FAILED；写端点纳入审计）。 */
     @PostMapping("/demo-import")
     @RequirePermission(SystemPermissions.INFRA_EXCEL_DEMO)
+    @AuditLog(action = "infra.excel.demoImport", targetType = "excel",
+            contentParams = {"file.originalFilename"})
     public ImportReport demoImport(@RequestParam("file") MultipartFile file) {
         byte[] content;
         try {

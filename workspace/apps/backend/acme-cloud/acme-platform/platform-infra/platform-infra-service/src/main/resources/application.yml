@@ -67,6 +67,17 @@ acme:
   login-log:
     # 清理任务 cron（REQ-20261114-120105；retention-days 归 platform-auth，C 方案 schema 独占）
     retention-cron: "0 30 3 * * *"
+  exception-log:
+    # 异常日志保留期清理（REQ-20261117-061017 确认②）：硬删软删超期 sys_op_exception 行（先查后删）
+    retention-days: 14
+    # 清理任务 cron（缺省每日 03:40）
+    retention-cron: "0 40 3 * * *"
+  audit:
+    # 审计事件保留期清理（REQ-20261117-061017 确认②）：硬删软删超期 acme_op_audit 行（先查后删）；
+    # enabled/content-max-length/mask-sensitive 等埋点配置归 framework-audit AuditProperties（缺省）
+    retention-days: 30
+    # 清理任务 cron（缺省每日 04:40）
+    retention-cron: "0 40 4 * * *"
   storage:
     # 文件服务存储选型（REQ-20261114-071607）：type=local 为缺省（本地 dev 无对象存储中间件；
     # 生产经同一接口显式切 minio/oss）。落盘根目录经环境注入（env-stack dev overlay 持久卷挂载）。

@@ -2,6 +2,7 @@ package com.acme.platform.infra.interfaces;
 
 import com.acme.common.context.UserContext;
 import com.acme.common.core.Result;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.infra.api.dto.DirectUploadPreparationView;
 import com.acme.platform.infra.api.dto.FileView;
 import com.acme.platform.infra.application.FileUseCase;
@@ -41,9 +42,11 @@ public class DirectUploadController {
         this.fileUseCase = fileUseCase;
     }
 
-    /** 直传准备（校验链 → 带租户段 objectKey → LOCAL 票据 / MINIO-OSS 预签名）。 */
+    /** 直传准备（校验链 → 带租户段 objectKey → LOCAL 票据 / MINIO-OSS 预签名；写端点纳入审计）。 */
     @PostMapping("/direct-upload-preparations")
     @RequirePermission(SystemPermissions.INFRA_FILE_UPLOAD)
+    @AuditLog(action = "infra.directUpload.prepare", targetType = "file",
+            contentParams = {"request.fileName", "request.contentType", "request.size"})
     public DirectUploadPreparationView prepare(@Valid @RequestBody PreparationRequest request) {
         return fileUseCase.prepareDirectUpload(request.fileName(), request.contentType(), request.size(),
                 request.bizType(), request.bizId(), currentUserId());
@@ -51,10 +54,11 @@ public class DirectUploadController {
 
     /**
      * 票据直传（LOCAL 模式二段；MINIO/OSS 模式无此路径，客户端直 PUT 预签名 URL）：
-     * 原始字节体（非 multipart），Content-Type 头须与 preparation 一致；成功 200 空 Result。
+     * 原始字节体（非 multipart），Content-Type 头须与 preparation 一致；成功 200 空 Result（纳入审计）。
      */
     @PutMapping("/direct-uploads/{ticket}")
     @RequirePermission(SystemPermissions.INFRA_FILE_UPLOAD)
+    @AuditLog(action = "infra.directUpload.upload", targetType = "file", contentParams = {"ticket"})
     public Result<Void> upload(@PathVariable String ticket, HttpServletRequest request) throws IOException {
         UploadTicketStore.Ticket payload = fileUseCase.consumeTicket(ticket, currentUserId());
         try (InputStream body = request.getInputStream()) {
@@ -64,9 +68,11 @@ public class DirectUploadController {
         return Result.ok(null);
     }
 
-    /** 直传完成（租户归属 → 幂等 → exists → size 一致 → 图片语义 → 落 sys_file）。 */
+    /** 直传完成（租户归属 → 幂等 → exists → size 一致 → 图片语义 → 落 sys_file；写端点纳入审计）。 */
     @PostMapping("/direct-upload-completions")
     @RequirePermission(SystemPermissions.INFRA_FILE_UPLOAD)
+    @AuditLog(action = "infra.directUpload.complete", targetType = "file",
+            contentParams = {"request.objectKey", "request.fileName", "request.size"})
     public FileView complete(@Valid @RequestBody CompletionRequest request) {
         return fileUseCase.completeDirectUpload(request.objectKey(), request.fileName(),
                 request.contentType(), request.size(), request.bizType(), request.bizId(), currentUserId());

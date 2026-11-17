@@ -1,5 +1,7 @@
 package com.acme.platform.infra;
 
+import com.acme.platform.infra.config.AuditRetentionProperties;
+import com.acme.platform.infra.config.ExceptionLogRetentionProperties;
 import com.acme.platform.infra.config.LoginLogRetentionProperties;
 import com.acme.platform.infra.internal.client.LoginLogCleanupClient;
 import com.acme.platform.system.api.AuthorizationClient;
@@ -16,7 +18,8 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
  * DataScopeClient（4.4.2 仅经 *-api；REQ-20261114-120104）。
  */
 @SpringBootApplication
-@EnableConfigurationProperties(LoginLogRetentionProperties.class)
+@EnableConfigurationProperties({LoginLogRetentionProperties.class,
+        ExceptionLogRetentionProperties.class, AuditRetentionProperties.class})
 @EnableFeignClients(clients = {AuthorizationClient.class, DataScopeClient.class, LoginLogCleanupClient.class})
 public class PlatformInfraApplication {
 

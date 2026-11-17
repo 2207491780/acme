@@ -3,6 +3,7 @@ package com.acme.platform.infra.interfaces;
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
 import com.acme.common.context.UserContext;
+import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.infra.api.dto.FileView;
 import com.acme.platform.infra.application.FileUseCase;
 import com.acme.platform.infra.domain.SysFile;
@@ -102,9 +103,10 @@ public class FileController {
         return "attachment; filename*=UTF-8''" + encoded;
     }
 
-    /** 幂等软删（已删/对象不存在均成功，AC-4；返回删除记录 id 以统一 Result 信封）。 */
+    /** 幂等软删（已删/对象不存在均成功，AC-4；返回删除记录 id 以统一 Result 信封；写端点纳入审计）。 */
     @DeleteMapping("/{id}")
     @RequirePermission(SystemPermissions.INFRA_FILE_DELETE)
+    @AuditLog(action = "infra.file.delete", targetType = "file", contentParams = {"id"})
     public Long delete(@PathVariable Long id) {
         fileUseCase.delete(id);
         return id;
