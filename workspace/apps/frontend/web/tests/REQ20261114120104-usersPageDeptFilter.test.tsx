@@ -174,6 +174,7 @@ const findRowByText = async (anchor: string) => {
  * （无 placeholder 属性，mouseDown 冒泡至选择器开启下拉）。均未命中 → 抛错交 TL 裁决。
  */
 const openDeptFilterDropdown = async () => {
+  fireEvent.click(screen.getByRole('button', { name: '展开进阶筛选' }));
   const byInputPlaceholder = Array.from(document.querySelectorAll<HTMLInputElement>('input[placeholder]'))
     .find((el) => /部\s*门/.test(el.placeholder ?? ''));
   if (byInputPlaceholder) {

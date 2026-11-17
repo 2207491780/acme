@@ -32,6 +32,16 @@ export const common = {
     searchPlaceholder: '搜索',
     reloadAria: '刷新列表',
   },
+  filters: {
+    region: '筛选条件',
+    basic: '基础筛选',
+    advanced: '进阶筛选',
+    expand: '展开进阶筛选',
+    collapse: '收起进阶筛选',
+    active: '进阶筛选已生效',
+    keyword: '关键词',
+    timeRange: '时间范围',
+  },
   validation: {
     lengthRange: '长度 {{min}}–{{max}} 字符',
     maxLength: '长度不超过 {{max}} 字符',

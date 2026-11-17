@@ -3,6 +3,8 @@
  *  renders them via this pack (mobile keeps consuming core constants directly, core is untouched here). */
 export const releases = {
   filters: {
+    platform: 'Platform',
+    sort: 'Sort',
     allPlatforms: 'All platforms',
     allStatuses: 'All statuses',
     active: 'In progress',

@@ -32,6 +32,16 @@ export const common = {
     searchPlaceholder: 'Search',
     reloadAria: 'Refresh list',
   },
+  filters: {
+    region: 'Filter criteria',
+    basic: 'Basic filters',
+    advanced: 'Advanced filters',
+    expand: 'Expand advanced filters',
+    collapse: 'Collapse advanced filters',
+    active: 'Advanced filters active',
+    keyword: 'Keyword',
+    timeRange: 'Time range',
+  },
   validation: {
     lengthRange: 'Length must be {{min}}–{{max}} characters',
     maxLength: 'Length must not exceed {{max}} characters',

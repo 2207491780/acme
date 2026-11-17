@@ -79,6 +79,23 @@ body {
 .ant-table { background: transparent; }
 .ant-table-container table > thead > tr > th { background: var(--surface-2); }
 
+.filter-panel-fields > * { min-width: 0; max-width: 100%; }
+.filter-panel .ant-form-item { margin-bottom: 0; }
+.filter-panel .ant-input-group-wrapper,
+.filter-panel .ant-select,
+.filter-panel .ant-picker { max-width: 100%; }
+.filter-panel .ant-form-item-control-input-content { min-width: 0; }
+.crud-table-card { min-width: 0; }
+.crud-table-card > .ant-card-head { flex-wrap: wrap; }
+.crud-table-card .ant-card-head-wrapper { flex-wrap: wrap; }
+@media (max-width: 575px) {
+  .filter-panel-fields > * { flex: 1 1 100%; }
+  .filter-panel-fields .ant-input-group-wrapper,
+  .filter-panel-fields .ant-select,
+  .filter-panel-fields .ant-picker { width: 100% !important; }
+  .crud-table-card .ant-card-extra { margin-inline-start: 0; }
+}
+
 .brand { display: flex; align-items: center; gap: 12px; padding: 18px 18px 14px; }
 .brand-mark { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 82%, #000)); color: var(--on-accent); flex: none; }
 .brand-title { font-weight: 700; letter-spacing: 0.2px; font-size: 16px; color: var(--text); }

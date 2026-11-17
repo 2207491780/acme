@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import {
   ApiError,
+  SPACING,
   formatDate,
   systemApi,
   useCrud,
@@ -265,25 +266,33 @@ export function UsersPage() {
         totalText={(total) => t('users.total', { total })}
         filters={(
           <>
-            <Select<string>
-              allowClear
-              placeholder={t('users.filters.dept')}
-              style={{ width: 140 }}
-              options={flattenDeptOptions(deptTree.tree)}
-              value={crud.filters.deptId}
-              onChange={(value) => crud.setFilter('deptId', value)}
-            />
-            <Select<'ENABLED' | 'DISABLED'>
-              allowClear
-              placeholder={t('users.filters.status')}
-              style={{ width: 120 }}
-              options={[
-                { value: 'ENABLED', label: t('users.status.enabled') },
-                { value: 'DISABLED', label: t('users.status.disabled') },
-              ]}
-              value={crud.filters.status}
-              onChange={(value) => crud.setFilter('status', value)}
-            />
+            <div>
+              <div style={{ marginBottom: SPACING.sm }}>{t('users.form.dept')}</div>
+              <Select<string>
+                allowClear
+                aria-label={t('users.filters.dept')}
+                placeholder={t('users.filters.dept')}
+                style={{ width: 140 }}
+                options={flattenDeptOptions(deptTree.tree)}
+                value={crud.filters.deptId}
+                onChange={(value) => crud.setFilter('deptId', value)}
+              />
+            </div>
+            <div>
+              <div style={{ marginBottom: SPACING.sm }}>{t('users.columns.status')}</div>
+              <Select<'ENABLED' | 'DISABLED'>
+                allowClear
+                aria-label={t('users.filters.status')}
+                placeholder={t('users.filters.status')}
+                style={{ width: 120 }}
+                options={[
+                  { value: 'ENABLED', label: t('users.status.enabled') },
+                  { value: 'DISABLED', label: t('users.status.disabled') },
+                ]}
+                value={crud.filters.status}
+                onChange={(value) => crud.setFilter('status', value)}
+              />
+            </div>
           </>
         )}
       />
