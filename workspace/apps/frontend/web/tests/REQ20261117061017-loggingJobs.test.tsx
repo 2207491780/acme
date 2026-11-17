@@ -134,7 +134,9 @@ const setupApi = (routes: Record<string, (r: ReturnType<typeof asRequest>) => Re
 // ————— 装配（范本口径） —————
 const stubBrowserGaps = () => {
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: false, media: query, onchange: null,
+    // min-width 断点全命中=桌面侧边导航（nav.test 口径）；全 false 会压成移动布局，
+    // 主线 8369027 移除底部移动导航后移动布局无导航标签，NAV 断言将找不到文案
+    matches: query.includes('min-width'), media: query, onchange: null,
     addListener: vi.fn(), removeListener: vi.fn(),
     addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
   }));
