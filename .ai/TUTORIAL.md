@@ -48,8 +48,8 @@
 
 ## 6. CodeBuddy（腾讯）
 
-- **读什么**：根 `CODEBUDDY.md`（引用存根；缺省时工具会自动回退读 `AGENTS.md`，双保险）；`.codebuddy/agents/` 有本机派生子代理（`.ai/agents/` 公共池全量镜像 + `/req` 命令；`.codebuddy/` git 忽略、localOnly——缺失跳过校验、存在必须一致，见 `.ai/tools/codebuddy/CODEBUDDY-CLI.md`）。
-- **冒烟**：Craft/Ask 模式问通用测试句。
+- **读什么**：根 `CODEBUDDY.md`（官方 `@` 导入自动内联 `.ai/RULES.md` 全文，正文不重复铁律节选）；`.codebuddy/agents|skills|commands/` 有本机派生引用存根（frontmatter 供官方注册、正文指针指向 `.ai/` 公共池源；`.codebuddy/` git 忽略、localOnly——缺失跳过校验、存在必须一致，官方方案与差异见 `.ai/tools/codebuddy/CODEBUDDY-CLI.md` 与 ADR 2026-11-17-03）。
+- **冒烟**：Craft/Ask 模式问通用测试句；`/req` 应能执行并回读 `.ai/commands/req.md` 源。
 - **维护配置**：说意图 + 点名手册。
 
 ## 7. Trae（字节跳动）
@@ -87,7 +87,7 @@
 |---|---|---|---|---|
 | Claude Code | `CLAUDE.md` + `.claude/` | ✅ | ✅ | 不必（自动） |
 | Gemini CLI | `GEMINI.md` + `.gemini/` | ✅ | — | 可省 |
-| CodeBuddy | `CODEBUDDY.md` + `.codebuddy/`（本机 localOnly） | ✅（公共池镜像） | — | **建议加** |
+| CodeBuddy | `CODEBUDDY.md`（`@` 导入）+ `.codebuddy/`（本机 localOnly） | ✅（引用存根） | ✅（引用存根） | **建议加** |
 | Qoder | `AGENTS.md` + `.qoder/` | ✅（引用存根） | ✅（引用存根） | **建议加** |
 | Codex / Cursor / Copilot / Trae / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
 

@@ -98,7 +98,8 @@ Claude Code / Gemini 有原生子代理与技能，后半句可省（自动接�
 |---|---|
 | Claude Code | 直接说意图；复杂任务可「用 ai-config-editor 子代理」或「用 ai-config 技能」 |
 | Gemini CLI | 直接说意图；可显式点名子代理 |
-| Cursor / Trae / Qoder / ZCode / Codex / Copilot / CodeBuddy | 意图后补一句「按 `.ai-memory/playbooks/ai-config.md` 的流程执行」更稳（这些工具只有规则触发，无原生子代理/技能） |
+| CodeBuddy | 直接说意图；可显式点名子代理/技能（项目级引用存根，执行时回读 `.ai/` 池源） |
+| Cursor / Trae / Qoder / ZCode / Codex / Copilot | 意图后补一句「按 `.ai-memory/playbooks/ai-config.md` 的流程执行」更稳（这些工具只有规则触发，无原生子代理/技能） |
 
 ## 防偷懒核对单（用户侧验收）
 

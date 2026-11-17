@@ -493,17 +493,41 @@ test('should_treat_missing_local_only_target_as_ok_in_check_but_mismatch_as_fail
   fails(run(repo, ['--check']), /与 \.ai\/ 不同步/);
 });
 
-test('should_mirror_pools_into_local_only_codebuddy_target', async (t) => {
-  // CodeBuddy 纳管（ADR 2026-11-17-01）：公共池 agents/commands 全量镜像到 .codebuddy/（localOnly，
-  // 口径同 zcode）；tools 专属源的目录说明文件照常前置「生成产物」标头。
+test('should_derive_codebuddy_entries_as_official_aligned_references', async (t) => {
+  // CodeBuddy 官方对齐（ADR 2026-11-17-03，取代 2026-11-17-01 的全量镜像）：入口 CODEBUDDY.md 用官方
+  // `@` 导入引用（不重复铁律节选）；公共池 agents/skills/commands 派生为引用存根（frontmatter 保留供
+  // 注册，正文仅指针）；tools 专属目录说明照常前置「生成产物」标头；localOnly 三段语义不变。
   const { repo } = await fixture(t);
-  await put(repo, '.ai/agents/helper.md', '# Helper\n');
-  await put(repo, '.ai/commands/review.md', '# Review command\n');
+  await put(repo, '.ai/agents/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\n---\n\nSECRET-BODY-AGENT\n');
+  await put(repo, '.ai/skills/review/SKILL.md', '---\nname: review\ndescription: Review skill.\n---\n\nSECRET-BODY-SKILL\n');
+  await put(repo, '.ai/commands/review.md', '---\ndescription: Review command.\n---\n\nSECRET-BODY-COMMAND\n');
+  await put(repo, '.ai/commands/plain.md', '# Plain command\n');
   await put(repo, '.ai/tools/codebuddy/CODEBUDDY-CLI.md', '# CodeBuddy dir\n');
   succeeds(run(repo));
-  assert.match(await readFile(join(repo, '.codebuddy/agents/helper.md'), 'utf8'), /派生自 \.ai\/agents\/helper\.md/);
-  assert.match(await readFile(join(repo, '.codebuddy/commands/review.md'), 'utf8'), /派生自 \.ai\/commands\/review\.md/);
+  const entry = await readFile(join(repo, 'CODEBUDDY.md'), 'utf8');
+  assert.match(entry, /@\.ai\/RULES\.md/);
+  assert.ok(!entry.includes('铁律（节选'), '入口用 @ 导入内联全文，不得重复铁律节选');
+  assert.match(entry, /多代理流程开关/, '引擎注入的多代理流程开关不属于 RULES.md，应保留');
+  const agent = await readFile(join(repo, '.codebuddy/agents/helper.md'), 'utf8');
+  assert.match(agent, /tools: \[Read\]/);
+  assert.match(agent, /\.ai\/agents\/helper\.md/);
+  assert.ok(!agent.includes('SECRET-BODY-AGENT'));
+  const skill = await readFile(join(repo, '.codebuddy/skills/review/SKILL.md'), 'utf8');
+  assert.match(skill, /description: Review skill\./);
+  assert.match(skill, /\.ai\/skills\/review\/SKILL\.md/);
+  assert.ok(!skill.includes('SECRET-BODY-SKILL'));
+  const command = await readFile(join(repo, '.codebuddy/commands/review.md'), 'utf8');
+  assert.match(command, /description: Review command\./);
+  assert.match(command, /\.ai\/commands\/review\.md/);
+  assert.ok(!command.includes('SECRET-BODY-COMMAND'));
+  // 无 frontmatter 的池文件：合成最小注册头（name + description），仍不含正文
+  const plain = await readFile(join(repo, '.codebuddy/commands/plain.md'), 'utf8');
+  assert.match(plain, /^---\nname: plain\ndescription: /);
+  assert.ok(!plain.includes('# Plain command'));
+  // 派生标记在位（孤儿检测依赖）+ 目录说明标头 + --check 幂等
+  assert.match(agent, /派生自 \.ai\/agents\/helper\.md/);
   assert.match(await readFile(join(repo, '.codebuddy/CODEBUDDY-CLI.md'), 'utf8'), /生成产物/);
+  succeeds(run(repo, ['--check']));
   // localOnly 三段语义：缺失跳过 → 重建 → 漂移判错
   await rm(join(repo, '.codebuddy'), { recursive: true });
   const ok = run(repo, ['--check']);

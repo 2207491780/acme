@@ -29,12 +29,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const AI = join(root, '.ai');
 const CHECK = process.argv.includes('--check');
 
-/** 根部入口：默认引用存根（指向 .ai/RULES.md）；--links 模式为符号链接 */
+/** 根部入口：默认引用存根（指向 .ai/RULES.md）；--links 模式为符号链接。
+ *  atImport：该工具官方支持 `@path` 导入语法（Claude Code / CodeBuddy 记忆机制），
+ *  入口存根用 `@.ai/RULES.md` 引用而非纯文本指针；CodeBuddy 额外去重（不重复铁律节选，见下方循环）。 */
 const LINK_TARGETS = [
   { tool: 'OpenAI Codex、智谱 ZCode 及所有遵循 AGENTS.md 标准的工具', file: 'AGENTS.md' },
-  { tool: 'Anthropic Claude Code', file: 'CLAUDE.md', claudeImport: true },
+  { tool: 'Anthropic Claude Code', file: 'CLAUDE.md', atImport: true },
   { tool: 'Google Gemini CLI / Antigravity', file: 'GEMINI.md' },
-  { tool: '腾讯 CodeBuddy', file: 'CODEBUDDY.md' },
+  { tool: '腾讯 CodeBuddy', file: 'CODEBUDDY.md', atImport: true, atImportDedupe: true },
 ];
 const LINK_TO = '.ai/RULES.md';
 
@@ -64,9 +66,9 @@ AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\
 /** 跨工具公共池：.ai/<src>/** → 各工具目录（doc 仅作源目录说明，不派生）。
  *  targets 项为字符串或 { dir, transform }：transform 在派生 .md 时做目标工具的格式适配。 */
 const POOLS = [
-  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }, { dir: '.qoder/agents', transform: makeQoderStub('agents') }] },
-  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills', { dir: '.qoder/skills', transform: makeQoderStub('skills') }] },
-  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands', { dir: '.qoder/commands', transform: makeQoderStub('commands') }] },
+  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }, { dir: '.qoder/agents', transform: makePoolRefStub('agents') }] },
+  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills', { dir: '.qoder/skills', transform: makePoolRefStub('skills') }] },
+  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands', { dir: '.qoder/commands', transform: makePoolRefStub('commands') }] },
 ];
 
 /** 工具专属配置：.ai/tools/<key>/** → <target>/**（doc 派生为工具目录内的说明文件） */
@@ -80,10 +82,21 @@ const TOOLS = [
   // ZCode 的 agents/commands 引用存根（正文指针指向 .ai/ 公共池源）；.zcode/ 本身 git 忽略、不入库，
   // 故标记 localOnly：--check 对缺失不判错（全新检出/CI 无该目录），存在必须一致（防漂移）。
   { key: 'zcode', doc: 'ZCODE.md', target: '.zcode', localOnly: true },
-  // CodeBuddy：用户本机工具，.codebuddy/ git 忽略、不入库（此前为游离于治理外的手抄 agent 副本，
-  // 孤儿检测不可见）→ 以 localOnly 派生键纳管（口径同 zcode）；除 tools 专属源外，公共池
-  // agents/commands 全量镜像进 .codebuddy/（mirrorPools；ADR 2026-11-17-01）。
-  { key: 'codebuddy', doc: 'CODEBUDDY-CLI.md', target: '.codebuddy', localOnly: true, mirrorPools: ['agents', 'commands'] },
+  // CodeBuddy：用户本机工具，.codebuddy/ git 忽略、不入库（官方建议项目 .codebuddy/ 提交共享，但本目录
+  // 与 teams/ 等本机运行数据混居、CI 全新检出无此目录 → 维持 localOnly 口径，差异记录见 ADR 2026-11-17-03）。
+  // 公共池 agents/skills/commands 派生为引用存根（官方原生识别 frontmatter，正文指针指向 .ai/ 池源，
+  // 能用引用则用引用；取代 2026-11-17-01 的全量镜像，ADR 2026-11-17-03）。
+  {
+    key: 'codebuddy',
+    doc: 'CODEBUDDY-CLI.md',
+    target: '.codebuddy',
+    localOnly: true,
+    mirrorPools: [
+      { src: 'agents', transform: makePoolRefStub('agents', 'CodeBuddy') },
+      { src: 'skills', transform: makePoolRefStub('skills', 'CodeBuddy') },
+      { src: 'commands', transform: makePoolRefStub('commands', 'CodeBuddy') },
+    ],
+  },
 ];
 
 /** 本机派生目标（git 忽略、不入库）前缀：--check 缺失不判错；sync 时照常写本机。 */
@@ -389,10 +402,16 @@ const TEAM_LEADER_TRIGGER = {
 const entryStub = `${stub}\n${TEAM_LEADER_TRIGGER[config.engine.teamLeader]}`;
 
 for (const t of LINK_TARGETS) {
-  const imp = t.claudeImport ? '@.ai/RULES.md\n\n' : '';
+  // @import 工具：官方记忆机制解析 `@path` 导入（Claude Code；CodeBuddy 同语法，官方文档明示支持
+  // 相对/绝对路径、递归导入）。CodeBuddy 额外去重：@.ai/RULES.md 已内联完整规范，入口不再重复
+  // 铁律节选，仅保留一句自然语言兜底指针与引擎注入的多代理流程开关（后者不属于 RULES.md，无重复）。
+  const imp = t.atImport ? '@.ai/RULES.md\n\n' : '';
+  const body = t.atImportDedupe
+    ? `${imp}# ACME 项目规范（入口）\n\n开始任何任务前，必须先完整阅读 \`.ai/RULES.md\`（上方 \`@\` 导入已自动内联其全文，本文件不重复其内容）。\n\n${TEAM_LEADER_TRIGGER[config.engine.teamLeader]}\n`
+    : `${imp}# ACME 项目规范（入口）\n\n${entryStub}\n`;
   register(links, t.file, {
     target: LINK_TO,
-    fallback: norm(`${banner(t.tool)}\n\n${imp}# ACME 项目规范（入口）\n\n${entryStub}\n`),
+    fallback: norm(`${banner(t.tool)}\n\n${body}`),
   }, '.ai/rules/*.md（公共入口）');
 }
 
@@ -450,16 +469,17 @@ function transformGeminiAgent(content) {
   return `${content.slice(0, m.index)}---${front.replace(/\n+$/, '\n')}---${content.slice(m.index + m[0].length)}`;
 }
 
-/** Qoder 公共池引用存根（ADR 2026-11-17-02）：frontmatter 原样保留供工具注册（name/description/
- *  tools/model 属注册元数据，非正文声明）；正文仅指针指向 .ai/ 池源，磁盘零重复——与 .zcode/
- *  手写存根同口径。官方项目级目录 .qoder/skills|commands|agents（CLI 口径；Desktop 的 agents
- *  文件加载待新会话验证，见 ADR）。无 frontmatter 的源按路径合成最小注册头（fixture 兼容）。 */
-function makeQoderStub(pool) {
+/** 公共池引用存根（ADR 2026-11-17-02 Qoder / 2026-11-17-03 CodeBuddy）：frontmatter 原样保留供工具
+ *  注册（name/description/tools/model 属注册元数据，非正文声明）；正文仅指针指向 .ai/ 池源，
+ *  磁盘零重复——与 .zcode/ 手写存根同口径。官方项目级目录：
+ *  Qoder `.qoder/{agents,skills,commands}/`、CodeBuddy `.codebuddy/{agents,skills,commands}/`。
+ *  无 frontmatter 的源按路径合成最小注册头（fixture 兼容）。 */
+function makePoolRefStub(pool, tool = 'Qoder') {
   return (content, rel) => {
     const m = content.match(/^---\n[\s\S]*?\n---/);
     const name = (pool === 'skills' ? rel.split('/')[0] : rel.replace(/\.md$/, '').split('/').pop()).toLowerCase();
     const front = m ? m[0] : `---\nname: ${name}\ndescription: 引用存根（完整内容见 .ai/${pool}/${rel}）\n---`;
-    return `${front}\n\n本文件为 Qoder 引用存根：完整内容唯一源 \`.ai/${pool}/${rel}\`。\n\n执行前先完整读取该源文件并严格遵循；源内相对路径（scripts/、templates/ 等）相对 \`.ai/${pool}/\` 下对应目录解析。本存根不含正文，禁止在此手改内容。\n`;
+    return `${front}\n\n本文件为 ${tool} 引用存根：完整内容唯一源 \`.ai/${pool}/${rel}\`。\n\n执行前先完整读取该源文件并严格遵循；源内相对路径（scripts/、templates/ 等）相对 \`.ai/${pool}/\` 下对应目录解析。本存根不含正文，禁止在此手改内容。\n`;
   };
 }
 
@@ -486,13 +506,16 @@ for (const p of POOLS) {
 }
 for (const t of TOOLS) {
   await derive(join(AI, 'tools', t.key), t.target, `.ai/tools/${t.key}/`, { placardDoc: t.doc });
-  // mirrorPools：把跨工具公共池全量镜像进该工具目录（localOnly 本机目标；ADR 2026-11-17-01）。
-  // 池目录说明文件（AGENT-POOL.md 等）与 POOLS 循环同样排除；无格式适配（frontmatter 与 Claude 同构）。
-  // 与 .ai/tools/<key>/ 同名同路径源会经 destinations 登记簿触发「派生目标冲突」，防止双源写同一文件。
+  // mirrorPools：把跨工具公共池派生进该工具目录（localOnly 本机目标）。条目为字符串（原样拷贝，
+  // ADR 2026-11-17-01 zcode 口径）或 { src, transform }（引用存根等格式适配，ADR 2026-11-17-03）。
+  // 池目录说明文件（AGENT-POOL.md 等）与 POOLS 循环同样排除；transform 仅作用于 .md（技能辅助
+  // 文件照旧全量拷贝）。与 .ai/tools/<key>/ 同名同路径源会经 destinations 登记簿触发「派生目标冲突」。
   for (const pool of t.mirrorPools ?? []) {
-    const poolDef = POOLS.find((p) => p.src === pool);
-    await derive(join(AI, pool), `${t.target}/${pool}`, `.ai/${pool}/`, {
+    const { src: poolName, transform: poolTransform } = typeof pool === 'string' ? { src: pool, transform: null } : pool;
+    const poolDef = POOLS.find((p) => p.src === poolName);
+    await derive(join(AI, poolName), `${t.target}/${poolName}`, `.ai/${poolName}/`, {
       excludeDocs: poolDef ? [poolDef.doc] : [],
+      transform: poolTransform,
     });
   }
 }
