@@ -65,6 +65,8 @@ public class JobUseCase {
                 new AuditRetentionProperties());
     }
 
+    /** 主构造器（Spring 多公共构造器场景须显式标注，Framework 7 不再自动推断）；重载仅供测试用缺省保留期。 */
+    @org.springframework.beans.factory.annotation.Autowired
     public JobUseCase(TaskRegistry taskRegistry, TaskTrigger taskTrigger,
                       JobExecutionRepository jobExecutionRepository,
                       StorageProperties storageProperties,

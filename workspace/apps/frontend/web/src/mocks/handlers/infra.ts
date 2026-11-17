@@ -191,14 +191,15 @@ export const infraHandlers = [
   http.get('/admin/v1/infra/jobs', () => ok(store.jobs)),
   http.post('/admin/v1/infra/jobs/:jobKey/run', ({ params }) => {
     const jobKey = String(params.jobKey);
-    const known = store.jobs.find((job) => job.jobKey === jobKey);
+    const known = store.jobs.find((job) => job.key === jobKey);
     if (!known) {
       return fail('JOB_NOT_FOUND', '任务不存在', 404);
     }
     const startedAt = nowIso();
+    const executionId = genId();
     store.jobExecutions = [
       {
-        id: genId(),
+        id: executionId,
         jobKey,
         status: 'SUCCESS',
         startedAt,
@@ -209,17 +210,13 @@ export const infraHandlers = [
       },
       ...store.jobExecutions,
     ];
-    // mock 语义：手动执行成功即刷新任务最近摘要（与 JobUseCase.list 组装口径对齐）
-    store.jobs = store.jobs.map((job) => (job.jobKey === jobKey ? {
+    // mock 语义：手动执行成功即刷新任务最近摘要（契约对齐后端 JobView.lastExecution 嵌套形状）
+    store.jobs = store.jobs.map((job) => (job.key === jobKey ? {
       ...job,
-      lastStatus: 'SUCCESS',
-      lastStartedAt: startedAt,
-      lastFinishedAt: startedAt,
-      lastDurationMs: 120,
-      lastTriggerType: 'MANUAL',
-      lastError: null,
+      lastExecution: { status: 'SUCCESS', startedAt, finishedAt: startedAt, error: null },
     } : job));
-    return ok({ jobKey, triggeredAt: startedAt });
+    // 契约对齐后端：run 返回 Result<Long 执行记录 id（wire string）>
+    return ok(executionId);
   }),
   http.get('/admin/v1/infra/jobs/:jobKey/executions', ({ request, params }) => {
     const jobKey = String(params.jobKey);

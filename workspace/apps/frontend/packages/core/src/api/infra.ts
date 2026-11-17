@@ -150,18 +150,19 @@ export const OP_EXCEPTION_ENDPOINTS = {
   export: '/admin/v1/infra/op-exceptions/export',
 } as const;
 
-/** 定时任务视图（REQ-20261117-061017，JobController list 组装：TaskDefinition+描述+cron+最近一次执行摘要；
- *  无执行记录时 last* 全空）。 */
+/** 定时任务视图（REQ-20261117-061017，契约对齐后端 JobView record：
+ *  key/description/cron/enabled + 嵌套最近一次执行摘要；无执行记录时 lastExecution=null）。 */
 export interface JobView {
-  jobKey: string;
+  key: string;
   description: string | null;
   cron: string | null;
-  lastStatus: string | null;
-  lastStartedAt: string | null;
-  lastFinishedAt: string | null;
-  lastDurationMs: number | null;
-  lastTriggerType: string | null;
-  lastError: string | null;
+  enabled: boolean | null;
+  lastExecution: {
+    status: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+    error: string | null;
+  } | null;
 }
 
 /** 任务执行记录视图（契约对齐 JobExecutionView：sys_job_execution 行；id wire string；

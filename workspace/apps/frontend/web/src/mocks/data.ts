@@ -229,22 +229,19 @@ export const opExceptions: AdminOpExceptionView[] = [
   },
 ];
 
-/** 定时任务 fixtures（REQ-20261117-061017：任务清单 dev mock；含最近摘要与无执行记录行）。 */
+/** 定时任务 fixtures（REQ-20261117-061017：契约对齐后端 JobView record——key/enabled/嵌套 lastExecution）。 */
 export const jobs: JobView[] = [
   {
-    jobKey: 'file-retention-cleanup', description: '过期文件保留期清理', cron: '0 0 3 * * ?',
-    lastStatus: 'SUCCESS', lastStartedAt: '2026-11-17T03:00:00Z', lastFinishedAt: '2026-11-17T03:00:02Z',
-    lastDurationMs: 2000, lastTriggerType: 'SCHEDULE', lastError: null,
+    key: 'file-retention-cleanup', description: '过期文件保留期清理', cron: '0 0 3 * * ?', enabled: true,
+    lastExecution: { status: 'SUCCESS', startedAt: '2026-11-17T03:00:00Z', finishedAt: '2026-11-17T03:00:02Z', error: null },
   },
   {
-    jobKey: 'exception-log-retention-cleanup', description: '异常日志保留期清理', cron: '0 40 3 * * ?',
-    lastStatus: 'FAILED', lastStartedAt: '2026-11-17T03:40:00Z', lastFinishedAt: '2026-11-17T03:40:01Z',
-    lastDurationMs: 900, lastTriggerType: 'SCHEDULE', lastError: '模拟执行失败（fixture）',
+    key: 'exception-log-retention-cleanup', description: '异常日志保留期清理', cron: '0 40 3 * * ?', enabled: true,
+    lastExecution: { status: 'FAILED', startedAt: '2026-11-17T03:40:00Z', finishedAt: '2026-11-17T03:40:01Z', error: '模拟执行失败（fixture）' },
   },
   {
-    jobKey: 'audit-retention-cleanup', description: '审计日志保留期清理', cron: '0 40 4 * * ?',
-    lastStatus: null, lastStartedAt: null, lastFinishedAt: null,
-    lastDurationMs: null, lastTriggerType: null, lastError: null,
+    key: 'audit-retention-cleanup', description: '审计日志保留期清理', cron: '0 40 4 * * ?', enabled: true,
+    lastExecution: null,
   },
 ];
 

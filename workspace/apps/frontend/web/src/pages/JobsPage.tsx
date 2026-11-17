@@ -89,8 +89,8 @@ export function JobsPage() {
 
   const runJob = async (record: JobView) => {
     try {
-      await infraApi.jobRun(record.jobKey);
-      message.success(t('jobs.toast.runTriggered', { key: record.jobKey }));
+      await infraApi.jobRun(record.key);
+      message.success(t('jobs.toast.runTriggered', { key: record.key }));
       crud.reload();
     } catch (ex: unknown) {
       // 失败不重取（行保留）；错误码经 systemErrorMessage 统一转译（尾部附码）
@@ -99,14 +99,12 @@ export function JobsPage() {
   };
 
   const columns: ColumnsType<JobView> = [
-    { title: t('jobs.columns.jobKey'), dataIndex: 'jobKey', key: 'jobKey', minWidth: 200, fixed: 'left', render: (v: string) => <Text code>{v}</Text> },
+    { title: t('jobs.columns.jobKey'), dataIndex: 'key', key: 'key', minWidth: 200, fixed: 'left', render: (v: string) => <Text code>{v}</Text> },
     { title: t('jobs.columns.description'), dataIndex: 'description', key: 'description', minWidth: 220, ellipsis: true, render: (v: string | null) => v ?? '—' },
     { title: t('jobs.columns.cron'), dataIndex: 'cron', key: 'cron', minWidth: 150, render: (v: string | null) => (v ? <Text code style={{ fontSize: 11 }}>{v}</Text> : '—') },
-    { title: t('jobs.columns.lastStatus'), dataIndex: 'lastStatus', key: 'lastStatus', minWidth: 110, render: (v: string | null) => (v ? <Tag color={TONE_ANTD[statusTone(v)]}>{v}</Tag> : '—') },
-    { title: t('jobs.columns.lastStartedAt'), dataIndex: 'lastStartedAt', key: 'lastStartedAt', minWidth: 170, render: (v: string | null) => (v ? formatDate(v) : '—') },
-    { title: t('jobs.columns.lastDurationMs'), dataIndex: 'lastDurationMs', key: 'lastDurationMs', minWidth: 110, render: (v: number | null) => renderDuration(v) },
-    { title: t('jobs.columns.lastTriggerType'), dataIndex: 'lastTriggerType', key: 'lastTriggerType', minWidth: 110, render: (v: string | null) => (v ? <Tag>{v}</Tag> : '—') },
-    { title: t('jobs.columns.lastError'), dataIndex: 'lastError', key: 'lastError', minWidth: 220, ellipsis: true, render: (v: string | null) => v ?? '—' },
+    { title: t('jobs.columns.lastStatus'), key: 'lastStatus', minWidth: 110, render: (_, record) => (record.lastExecution?.status ? <Tag color={TONE_ANTD[statusTone(record.lastExecution.status)]}>{record.lastExecution.status}</Tag> : '—') },
+    { title: t('jobs.columns.lastStartedAt'), key: 'lastStartedAt', minWidth: 170, render: (_, record) => (record.lastExecution?.startedAt ? formatDate(record.lastExecution.startedAt) : '—') },
+    { title: t('jobs.columns.lastError'), key: 'lastError', minWidth: 220, ellipsis: true, render: (_, record) => record.lastExecution?.error ?? '—' },
     {
       title: t('jobs.columns.actions'), key: 'actions', minWidth: 180, fixed: 'right',
       render: (_, record) => (
@@ -116,7 +114,7 @@ export function JobsPage() {
               <Button size="small">{t('jobs.actions.run')}</Button>
             </Popconfirm>
           ) : null}
-          <Button size="small" onClick={() => setExecJobKey(record.jobKey)}>
+          <Button size="small" onClick={() => setExecJobKey(record.key)}>
             {t('jobs.actions.executions')}
           </Button>
         </Space>
