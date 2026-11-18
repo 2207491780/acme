@@ -10,6 +10,7 @@
 | [parallel-dev.md](parallel-dev.md) | AI 开发工作树标准流程与约束（所有产生提交的开发默认适用） | 默认适用：规则条款（`.ai/rules/git-workflow.md`「分支模型」），无需用户提示 |
 | [multi-agent.md](multi-agent.md) | 契约驱动多代理开发流程（Team Leader 宪法：四阶段/门禁/打回循环/并发规则/例外条款） | 引擎开关 `engine.teamLeader`（值注入入口存根触发段）+ `.ai/skills/team-leader/` 技能 + `/req` 命令 |
 | [conversational-cd.md](conversational-cd.md) | 会话内部署/回滚：触发 GitHub CD → 轮询 → 服务器核验 | 规则条款（`.ai/rules/project.md`「命令与门禁」部署行） |
+| [two-tier-deployment.md](two-tier-deployment.md) | 两台云机分层部署形态 + 单套中间件两环境（prod/dev）隔离的实施步骤与腾讯云前置 | 规则条款（`.ai/rules/project.md`「命令与门禁」部署形态行） |
 
 ## 说明
 
