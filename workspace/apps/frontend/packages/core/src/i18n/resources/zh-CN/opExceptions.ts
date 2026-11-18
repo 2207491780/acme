@@ -1,0 +1,52 @@
+/** zh-CN 运行异常日志资源包（REQ-20261117-061017）。 */
+export const opExceptions = {
+  title: '异常日志',
+  reload: '刷新异常日志',
+  total: '共 {{total}} 条',
+  columns: {
+    occurredAt: '发生时间',
+    service: '服务',
+    method: '方法',
+    path: '请求路径',
+    statusCode: '状态码',
+    exceptionType: '异常类型',
+    message: '异常消息',
+    traceId: 'Trace',
+    actions: '操作',
+  },
+  filters: {
+    service: '服务名',
+    traceId: 'Trace ID',
+    exceptionType: '异常类型（类名）',
+    query: '查询',
+    reset: '重置',
+  },
+  detail: {
+    title: '异常详情',
+    loading: '堆栈加载中…',
+    loadFailed: '异常详情加载失败',
+    service: '服务',
+    traceId: 'Trace ID',
+    spanId: 'Span ID',
+    tenantId: '租户',
+    operatorId: '操作者',
+    methodPath: '请求',
+    statusCode: '状态码',
+    exceptionType: '异常类型',
+    message: '异常消息',
+    occurredAt: '发生时间',
+    stackSummary: '堆栈摘要',
+    noStack: '（无堆栈摘要）',
+  },
+  actions: {
+    detail: '详情',
+    export: '导出 Excel',
+  },
+  toast: {
+    exported: '导出成功，已开始下载',
+  },
+  errors: {
+    loadFailed: '异常日志加载失败',
+    exportFailed: '导出失败，请稍后重试',
+  },
+};

@@ -1,0 +1,94 @@
+# platform-system 应用配置（Backend.md 8.1.3 前缀 acme.*；14.3.1 本地仅启动级配置）
+# 路径约定：Controller 映射含端别前缀 /admin/v1/system/**（网关不 StripPrefix，架构设计 6.1 取舍 #8）
+spring:
+  application:
+    name: platform-system
+  config:
+    # 配置中心集中配置（FR-018；不可达显式失败 fail-fast，不静默缺省运行）
+    import: nacos:platform-system.yaml
+  cloud:
+    nacos:
+      server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:acme_local_nacos_2026}
+      # 命名空间（2026-11-18-02 单套 Nacos 三环境隔离；空 = 默认 namespace，与本地现状一致）
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        # Nacos 注册健康纳入就绪探针（14.2.2、架构设计 9.5；SCA 该指标缺省关）
+        health-indicator:
+          enabled: true
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+  datasource:
+    # 每服务独占 schema（12.1.1）与独立账号（12.1.3；本地开发取值对应 .dev-stack）
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:acme}?currentSchema=platform_system
+    username: ${PG_USER:acme}
+    password: ${PG_PASSWORD:acme_local_pg_2026}
+  flyway:
+    enabled: true
+    # 迁移脚本目录 per-service 化（REQ-20261118-002130 确认①）：system 当前至 V19，版本号跨服务各自协调
+    # （分配机制见 TL 预分配）；每服务只扫自己的子目录，分布式行为零变化
+    locations: classpath:db/migration/system
+    default-schema: platform_system
+    schemas: platform_system
+  data:
+    redis:
+      # 站内信推送扇出 pub/sub（REQ-20261114-120102；通道 platform-system:notify:ws，12.3.2）；
+      # 取值口径同网关 / platform-auth（REDIS_* 环境注入，本地默认 .dev-stack）
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # ACL 用户名 + DB index（2026-11-18-02 单套 Redis 三环境隔离；username 空 = 默认用户）
+      username: ${REDIS_USERNAME:}
+      database: ${REDIS_DB:0}
+      password: ${REDIS_PASSWORD:acme_local_redis_2026}
+
+server:
+  port: 9881
+
+acme:
+  security:
+    # 公开端点豁免（架构设计 6.2）：探针与指标面（14.2.1/14.2.2）直连放行——kubelet / 监控直连服务端口，
+    # 网关不路由故无对外暴露；REQ-20261114-120102 增补 /ws/system/**：WS 握手经 NotifyHandshakeInterceptor
+    # 用户令牌验签为唯一强制门（浏览器 WebSocket 无法携带内部令牌头，见拦截器类注）
+    public-paths:
+      - /actuator/**
+      - /ws/system/**
+    token:
+      # 内部令牌校验密钥域（与网关签发同源；14.3.3 经环境注入、不落仓库默认值——未注入即启动失败）
+      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET}
+  i18n:
+    # zh/en 双语（NFR-007）：框架汇总资源 + 本服务资源（消息键=错误码，8.2）
+    basenames: i18n/acme-messages,i18n/platform-system-messages
+  flex:
+    id:
+      # 雪花 worker 标识（12.3.1 必填；与 platform-auth 配不同值防碰撞）
+      worker-id: 2
+  notify:
+    ws:
+      # 服务端心跳空闲超时（确认记录⑧钉死键 acme.notify.ws.idle-timeout，缺省 30s）：
+      # 静默超时断开并回收会话（AC-9）
+      idle-timeout: 30s
+      sweep-interval: 2s
+  gateway:
+    user-token:
+      # WS 握手用户令牌验签（REQ-20261114-120102，确认记录④⑦⑬：与网关 acme.gateway.user-token 同键单源，
+      # 环境注入一次网关/服务侧共用；载体=?token= query 参数；密钥=用户令牌域 ACME_USER_TOKEN_HMAC_SECRET，
+      # 与内部令牌密钥域（acme.security.token）隔离（11.6.2）；14.3.3 经环境注入、不落仓库默认值——
+      # 未注入即启动失败（TokenKeys 空密钥显式失败）。本地启动环境变量增补该键（AGENTS.md 启动清单同步口径）
+      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET}
+      issuer: acme-auth
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 14.2.1 指标暴露 / 14.2.2 探针（FR-019 装配级验证）
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # 就绪探针校验关键依赖可用性（14.2.2、架构设计 9.5）：DB / Nacos
+        readiness:
+          include: readinessState,db,nacosDiscovery

@@ -1,0 +1,144 @@
+import { App, Button, DatePicker, Form, Input, Space, Tag, Typography } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
+import type { Dayjs } from 'dayjs';
+import { useTranslation } from 'react-i18next';
+import {
+  authApi,
+  formatDate,
+  useCrud,
+  useExcelExport,
+  useMeStore,
+  type AdminLoginLogView,
+} from '@acme/core';
+import { CrudTable } from '../components/CrudTable';
+import { FilterPanel } from '../components/FilterPanel';
+
+const { Text } = Typography;
+
+/** 已提交查询过滤（range 在提交时序列化为 from/to ISO 串，适配 useCrud 字符串筛选形状）。
+ *  用 type 而非 interface：类型别名才满足 CrudFilters 的 Record<string, string | undefined> 约束。 */
+type LoginLogFilters = {
+  username?: string;
+  userType?: string;
+  result?: string;
+  from?: string;
+  to?: string;
+};
+
+interface LoginFormValues {
+  username?: string;
+  userType?: string;
+  result?: string;
+  range?: [Dayjs, Dayjs];
+}
+
+/** 登录日志查询（REQ-20261114-120105，权限点 auth:loginlog:list）：
+ *  分页 + 筛选（username/userType/result/时间区间），迁移 CRUD 范本（AuditPage 口径）：
+ *  useCrud（表单筛选走 filters，提交重置第 1 页）+ CrudTable（查询型页面无新建/删除）。 */
+export function LoginLogsPage() {
+  const { t } = useTranslation();
+  const { message } = App.useApp();
+  const [form] = Form.useForm<LoginFormValues>();
+  const permissions = useMeStore((s) => s.me?.permissions) ?? [];
+
+  const crud = useCrud<AdminLoginLogView, LoginLogFilters>({
+    fetchPage: ({ page, size, filters, signal }) =>
+      authApi.loginLogs(page, size, {
+        username: filters?.username,
+        userType: filters?.userType,
+        result: filters?.result,
+        from: filters?.from,
+        to: filters?.to,
+      }, signal),
+    filters: { username: undefined, userType: undefined, result: undefined, from: undefined, to: undefined },
+    pageSize: 20,
+    permissions,
+    errorMessage: t('loginLogs.errors.loadFailed'),
+  });
+
+  const { exporting, exportFile } = useExcelExport();
+
+  const doExport = async () => {
+    // 导出透传当前已提交筛选（crud.filters），与列表口径一致（权限复用 auth:loginlog:list）
+    const ok = await exportFile(authApi.loginLogsExport(crud.filters), 'login-logs.xlsx');
+    if (ok) {
+      message.success(t('loginLogs.toast.exported'));
+    } else {
+      message.error(t('loginLogs.errors.exportFailed'));
+    }
+  };
+
+  const columns: ColumnsType<AdminLoginLogView> = [
+    { title: t('loginLogs.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', minWidth: 170, fixed: 'left', render: (v: string) => formatDate(v) },
+    { title: t('loginLogs.columns.username'), dataIndex: 'username', key: 'username', minWidth: 140, render: (v: string) => <Text code>{v}</Text> },
+    { title: t('loginLogs.columns.userType'), dataIndex: 'userType', key: 'userType', minWidth: 80, render: (v: string) => <Tag>{v}</Tag> },
+    { title: t('loginLogs.columns.ip'), dataIndex: 'ip', key: 'ip', minWidth: 130 },
+    { title: t('loginLogs.columns.userAgent'), dataIndex: 'userAgent', key: 'userAgent', minWidth: 240, ellipsis: true },
+    {
+      title: t('loginLogs.columns.result'), dataIndex: 'result', key: 'result', minWidth: 100,
+      render: (v: string) => <Tag color={v === 'SUCCESS' ? 'success' : 'error'}>{v}</Tag>,
+    },
+    { title: t('loginLogs.columns.failReason'), dataIndex: 'failReason', key: 'failReason', minWidth: 200, ellipsis: true, render: (v: string | null) => v ?? '—' },
+    { title: t('loginLogs.columns.traceId'), dataIndex: 'traceId', key: 'traceId', minWidth: 140, ellipsis: true, render: (v: string | null) => (v ? <Text code style={{ fontSize: 11 }}>{v.slice(0, 12)}…</Text> : '—') },
+  ];
+
+  return (
+    <CrudTable<AdminLoginLogView, LoginLogFilters>
+      crud={crud}
+      tableKey="loginLogs"
+      title={t('loginLogs.title')}
+      columns={columns}
+      searchable={false}
+      reloadAriaLabel={t('loginLogs.reload')}
+      totalText={(total) => t('loginLogs.total', { total })}
+      actions={crud.can('auth:loginlog:list') ? (
+        <Button loading={exporting} onClick={() => void doExport()}>{t('loginLogs.actions.export')}</Button>
+      ) : null}
+      filterPanel={
+        <Form
+          form={form}
+          layout="horizontal"
+          labelAlign="left"
+          colon={false}
+          onFinish={(values: LoginFormValues) => {
+            // 提交即整组过滤替换并重置到第 1 页（多次 setFilter 在同一事件批内合并为一次拉取）
+            crud.setFilter('username', values.username || undefined);
+            crud.setFilter('userType', values.userType || undefined);
+            crud.setFilter('result', values.result || undefined);
+            crud.setFilter('from', values.range?.[0]?.toISOString());
+            crud.setFilter('to', values.range?.[1]?.toISOString());
+          }}
+        >
+          <FilterPanel
+            advancedActive={Boolean(crud.filters.userType || crud.filters.result || crud.filters.from || crud.filters.to)}
+            advanced={(
+              <>
+                <Form.Item name="userType" label={t('loginLogs.filters.userType')}>
+                  <Input placeholder={t('loginLogs.filters.userType')} allowClear />
+                </Form.Item>
+                <Form.Item name="result" label={t('loginLogs.columns.result')}>
+                  <Input placeholder={t('loginLogs.filters.result')} allowClear />
+                </Form.Item>
+                <Form.Item name="range" label={t('common.filters.timeRange')} className="filter-field-wide">
+                  <DatePicker.RangePicker showTime />
+                </Form.Item>
+              </>
+            )}
+            actions={(
+              <Space>
+                <Button type="primary" htmlType="submit">{t('loginLogs.filters.query')}</Button>
+                <Button onClick={() => { form.resetFields(); crud.resetFilters(); }}>
+                  {t('loginLogs.filters.reset')}
+                </Button>
+              </Space>
+            )}
+          >
+            <Form.Item name="username" label={t('loginLogs.filters.username')}>
+              <Input placeholder={t('loginLogs.filters.username')} allowClear />
+            </Form.Item>
+          </FilterPanel>
+        </Form>
+      }
+    />
+  );
+}

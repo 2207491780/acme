@@ -1,0 +1,31 @@
+import { ApiError } from './http/client';
+import { i18n } from './i18n';
+
+/**
+ * 系统域错误码 → 用户可读文案（REQ-20261114-120104；notify-errors.ts 风格，尾部附码便于定位）。
+ * 文案取自 i18n 资源包（depts/positions/roles 域），随当前语言切换；未命中已知码 → 透出后端
+ * message（同样附码）或兜底文案（兜底由调用方以 t() 传入，本模块不内联文案）。
+ */
+
+/** 已知系统域错误码 → i18n key（显示文案经 t()，与语言联动）。 */
+export const SYSTEM_ERROR_I18N_KEYS: Record<string, string> = {
+  DEPT_HAS_CHILDREN: 'depts.errors.deptHasChildren',
+  DEPT_HAS_USERS: 'depts.errors.deptHasUsers',
+  POSITION_IN_USE: 'positions.errors.positionInUse',
+  DATA_SCOPE_INVALID: 'roles.scope.invalid',
+  SESSION_NOT_FOUND: 'onlineUsers.errors.sessionNotFound',
+  REVOKE_SUPERADMIN_FORBIDDEN: 'onlineUsers.errors.revokeSuperadminForbidden',
+};
+
+/** 系统域失败的用户可读文案：命中已知错误码 → 转译；尾部附错误码（转译提示口径对齐 notify-errors）。 */
+export function systemErrorMessage(ex: unknown, fallback: string): string {
+  if (ex instanceof ApiError) {
+    const key = SYSTEM_ERROR_I18N_KEYS[ex.code];
+    const base = key ? i18n.t(key) : (ex.message || fallback);
+    return `${base}（${ex.code}）`;
+  }
+  if (ex instanceof Error && ex.message) {
+    return ex.message;
+  }
+  return fallback;
+}

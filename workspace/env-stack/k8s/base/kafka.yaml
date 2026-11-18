@@ -1,0 +1,117 @@
+# Kafka —— 审计事件流（framework-stream，13.2）：单 broker KRaft（无 ZooKeeper），演示规模。
+# 双监听器：集群内服务走 INTERNAL://kafka:29092（headless DNS）；本地开发走
+# EXTERNAL://<数据面公网 IP>:9092（公网地址经 app.env 键 KAFKA_ADVERTISED_LISTENERS 注入，
+# 防火墙源限开发者 IP——与 wireguard 公网组网同一安全口径，ADR 2026-11-18-02）。
+# 2026-11-18-02 增长路径实践：新增中间件 = 数据面加 StatefulSet + 环境隔离配置，不按环境翻倍。
+# ⚠️ 口令/地址纪律：KAFKA_ADVERTISED_LISTENERS 含公网 IP，经 acme-app-secrets 注入（app.env），
+#    不入库；两台机重启/迁移时改 app.env 后重跑 deploy.sh 即可。
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  labels:
+    app: kafka
+spec:
+  clusterIP: None
+  # KRaft 启动期 broker 需解析自身 DNS（controller quorum 自连接）——必须发布未就绪端点，
+  # 否则「未就绪→无 DNS 记录→自连失败→永不就绪」死循环（2026-11-19 实测）
+  publishNotReadyAddresses: true
+  selector:
+    app: kafka
+  ports:
+    - name: internal
+      port: 29092
+      targetPort: 29092
+    - name: external
+      port: 9092
+      targetPort: 9092
+    - name: controller
+      port: 9093
+      targetPort: 9093
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+spec:
+  serviceName: kafka
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth # 官方镜像不经过该 secret，统一注入以兼容私有 mirror 场景
+      containers:
+        - name: kafka
+          image: apache/kafka:3.9.0
+          env:
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: broker,controller
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: 1@kafka:9093
+            - name: KAFKA_LISTENERS
+              value: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+            - name: KAFKA_ADVERTISED_LISTENERS
+              valueFrom:
+                secretKeyRef: { name: acme-app-secrets, key: KAFKA_ADVERTISED_LISTENERS }
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: INTERNAL
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: CONTROLLER
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "1"
+            - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+              value: "0"
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: "true"
+            - name: KAFKA_HEAP_OPTS
+              value: -Xmx384m -Xms192m
+            - name: KAFKA_LOG_DIRS
+              value: /var/lib/kafka/data
+          ports:
+            - containerPort: 29092
+              name: internal
+            - containerPort: 9092
+              name: external
+            - containerPort: 9093
+              name: controller
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+          readinessProbe:
+            exec:
+              command: [sh, -c, timeout 3 bash -c "</dev/tcp/127.0.0.1/29092"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [sh, -c, timeout 3 bash -c "</dev/tcp/127.0.0.1/29092"]
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 768Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 2Gi

@@ -1,0 +1,55 @@
+package com.acme.platform.auth.infrastructure.repository;
+
+import com.acme.common.contract.PageResult;
+import com.acme.framework.flex.internal.FlexDeletes;
+import com.acme.framework.flex.repository.FlexRepositorySupport;
+import com.acme.platform.auth.domain.SysLoginLog;
+import com.acme.platform.auth.infrastructure.mapper.SysLoginLogMapper;
+import com.mybatisflex.core.query.QueryColumn;
+import com.mybatisflex.core.query.QueryWrapper;
+import org.springframework.stereotype.Repository;
+
+import java.time.Instant;
+
+/**
+ * 登录日志仓库实现（MyBatis-Flex 底座；分页经 paginate 内部 count，排序仅列表查询携带）。
+ * 逻辑删除语义：deleteByQuery=置 deleted 标记（MyBatis-Flex 逻辑删除），物理删除走 FlexDeletes 旁路。
+ */
+@Repository
+public class LoginLogRepositoryImpl extends FlexRepositorySupport<SysLoginLog>
+        implements LoginLogRepository {
+
+    public LoginLogRepositoryImpl(SysLoginLogMapper mapper) {
+        super(mapper);
+    }
+
+    @Override
+    public PageResult<SysLoginLog> page(Integer page, Integer size, String username, String userType,
+                                        String result, Instant from, Instant to) {
+        QueryWrapper query = QueryWrapper.create();
+        if (username != null && !username.isBlank()) {
+            query.and(SysLoginLog::getUsername).like(username.trim());
+        }
+        if (userType != null && !userType.isBlank()) {
+            query.and(SysLoginLog::getUserType).eq(userType.trim());
+        }
+        if (result != null && !result.isBlank()) {
+            query.and(SysLoginLog::getResult).eq(result.trim());
+        }
+        if (from != null) {
+            query.and(SysLoginLog::getCreatedAt).ge(from);
+        }
+        if (to != null) {
+            query.and(SysLoginLog::getCreatedAt).le(to);
+        }
+        query.orderBy(SysLoginLog::getCreatedAt, false);
+        return findAll(query, page, size);
+    }
+
+    @Override
+    public int forceDeleteSoftDeletedExpiredBefore(Instant cutoff) {
+        return forceDeleteByQuery(QueryWrapper.create()
+                .where(new QueryColumn("deleted").eq(true))
+                .and(new QueryColumn("created_at").lt(cutoff)));
+    }
+}

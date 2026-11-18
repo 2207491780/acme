@@ -1,0 +1,52 @@
+/** en-US operation exception log resource pack (REQ-20261117-061017). */
+export const opExceptions = {
+  title: 'Exception Logs',
+  reload: 'Refresh exception logs',
+  total: '{{total}} items in total',
+  columns: {
+    occurredAt: 'Occurred at',
+    service: 'Service',
+    method: 'Method',
+    path: 'Request path',
+    statusCode: 'Status code',
+    exceptionType: 'Exception type',
+    message: 'Message',
+    traceId: 'Trace',
+    actions: 'Actions',
+  },
+  filters: {
+    service: 'Service name',
+    traceId: 'Trace ID',
+    exceptionType: 'Exception type (class name)',
+    query: 'Query',
+    reset: 'Reset',
+  },
+  detail: {
+    title: 'Exception detail',
+    loading: 'Loading stack…',
+    loadFailed: 'Failed to load exception detail',
+    service: 'Service',
+    traceId: 'Trace ID',
+    spanId: 'Span ID',
+    tenantId: 'Tenant',
+    operatorId: 'Operator',
+    methodPath: 'Request',
+    statusCode: 'Status code',
+    exceptionType: 'Exception type',
+    message: 'Message',
+    occurredAt: 'Occurred at',
+    stackSummary: 'Stack summary',
+    noStack: '(no stack summary)',
+  },
+  actions: {
+    detail: 'Detail',
+    export: 'Export Excel',
+  },
+  toast: {
+    exported: 'Export succeeded, download started',
+  },
+  errors: {
+    loadFailed: 'Failed to load exception logs',
+    exportFailed: 'Export failed, please try again later',
+  },
+};

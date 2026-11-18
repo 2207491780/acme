@@ -1,0 +1,8 @@
+# @acme/web 静态站镜像（预构建产物版，ADR 2026-11-18-03）—— 构建上下文：产物 staging 目录
+# （dist/ 与 nginx.conf，由 env-stack/scripts/local-build.sh 组装）；pnpm 构建在产物侧完成。
+# 自包含 pnpm 构建（node:22-alpine）走同目录 Dockerfile.web，保留为独立/应急构建路径。
+# 运行期：nginx 同源反代 /admin /app 到网关（web CSP 为 connect-src 'self'，禁止跨域直连）
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+COPY dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 8080

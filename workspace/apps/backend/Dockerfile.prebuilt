@@ -1,0 +1,10 @@
+# acme 服务镜像（预构建产物版，ADR 2026-11-18-03）—— 构建上下文：产物 staging 目录
+# （仅含 app.jar 与本文件，由 env-stack/scripts/local-build.sh 组装）；
+# 可执行 jar 取用口径（三服务 *-exec.jar 优先、gateway 主构件回退）在脚本侧完成。
+# 自包含多阶段构建（Maven 在镜像内）走同目录 Dockerfile，保留为独立/应急构建路径。
+FROM eclipse-temurin:25-jre-noble
+COPY app.jar /app/app.jar
+# 非root运行；JVM 堆按容器限额自适应（deployment 注入 JAVA_TOOL_OPTIONS 调 MaxRAMPercentage）
+USER 10001
+WORKDIR /app
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

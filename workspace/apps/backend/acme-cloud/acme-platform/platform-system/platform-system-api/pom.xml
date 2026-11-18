@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>platform-system</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>platform-system-api</artifactId>
+    <packaging>jar</packaging>
+    <name>platform-system-api</name>
+    <description>
+        系统管理域服务契约（Backend.md 9.1）：Admin DTO、共享枚举、权限点编码常量、
+        AuthProfileClient / AuthorizationClient Feign 声明（服务间唯一编译期依赖入口，M-11 禁实现与 Web/ORM）
+    </description>
+
+    <dependencies>
+        <!-- 契约基元（9.1.2：* -api 允许 common-* 与 spring-cloud-openfeign-core） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-contract</artifactId>
+        </dependency>
+        <!-- 调用契约声明（9.1.2：仅注解与编解码契约，不含 Web 容器） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-openfeign-core</artifactId>
+        </dependency>
+        <!-- DTO 校验注解（jakarta.validation-api，非 Web 容器） -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+
+        <!-- 测试域 -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-serialization</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- 9.1.2 / 17.1 / M-11：* -api 禁 Web 容器与 ORM（18.1.1 第 4 步） -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-api-no-web-orm</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <!-- Web 容器（spring-web 注解经 openfeign-core 传递属契约声明面，不禁） -->
+                                        <exclude>org.springframework.boot:spring-boot-starter-web</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-webmvc</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-starter-webflux</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-webflux</exclude>
+                                        <exclude>org.springframework:spring-webmvc</exclude>
+                                        <exclude>org.springframework:spring-webflux</exclude>
+                                        <exclude>jakarta.servlet:*</exclude>
+                                        <!-- ORM 与数据访问 -->
+                                        <exclude>org.springframework.boot:spring-boot-data-jpa</exclude>
+                                        <exclude>org.springframework.boot:spring-boot-data-redis</exclude>
+                                        <exclude>org.springframework.data:*</exclude>
+                                        <exclude>org.hibernate:*</exclude>
+                                        <exclude>com.querydsl:*</exclude>
+                                        <exclude>org.flywaydb:*</exclude>
+                                    </excludes>
+                                    <message>platform-system-api 禁止 Web 容器与 ORM 依赖（9.1.2、M-11）</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

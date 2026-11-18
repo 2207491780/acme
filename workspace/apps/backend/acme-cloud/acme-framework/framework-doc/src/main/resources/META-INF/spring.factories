@@ -1,0 +1,3 @@
+# EnvironmentPostProcessor SPI（同 framework-trace 先例；非自动装配，不受 AutoConfiguration.imports 条款约束）
+org.springframework.boot.EnvironmentPostProcessor=\
+com.acme.framework.doc.internal.DocEnvironmentPostProcessor

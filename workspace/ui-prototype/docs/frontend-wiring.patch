@@ -1,0 +1,240 @@
+diff --git a/workspace/apps/frontend/mobile/App.tsx b/workspace/apps/frontend/mobile/App.tsx
+index df32958..9b31245 100644
+--- a/workspace/apps/frontend/mobile/App.tsx
++++ b/workspace/apps/frontend/mobile/App.tsx
+@@ -10,6 +10,7 @@ import { DashboardScreen } from './src/screens/DashboardScreen';
+ import { ReleasesScreen } from './src/screens/ReleasesScreen';
+ import { AppsScreen } from './src/screens/AppsScreen';
+ import { SettingsScreen } from './src/screens/SettingsScreen';
++import ProtoNavigator from './src/screens/prototypes/ProtoNavigator';
+ import { BrandMark, IconDashboard, IconReleases, IconApps, IconSettings } from './src/components/icons';
+ 
+ const TABS: { key: TabKey; label: string; Icon: ComponentType<{ color: string; size?: number }> }[] = [
+@@ -21,6 +22,7 @@ const TABS: { key: TabKey; label: string; Icon: ComponentType<{ color: string; s
+ 
+ export default function App() {
+   const [tab, setTab] = useState<TabKey>('dashboard');
++  const [protoOpen, setProtoOpen] = useState(false);
+   const dispatch = useStore((s) => s.dispatch);
+   const motion = useStore((s) => s.state.settings.motion);
+   const activeCount = useStore(
+@@ -52,7 +54,7 @@ export default function App() {
+         {tab === 'dashboard' ? <DashboardScreen go={setTab} /> : null}
+         {tab === 'releases' ? <ReleasesScreen /> : null}
+         {tab === 'apps' ? <AppsScreen go={setTab} /> : null}
+-        {tab === 'settings' ? <SettingsScreen /> : null}
++        {tab === 'settings' ? <SettingsScreen onOpenPrototypes={() => setProtoOpen(true)} /> : null}
+       </View>
+ 
+       <View style={styles.tabbar}>
+@@ -74,6 +76,12 @@ export default function App() {
+           );
+         })}
+       </View>
++      {/* 原型区（全屏覆盖层）：经设置页「原型预览（内部）」进入，不进正式 tab 导航 */}
++      {protoOpen ? (
++        <View style={StyleSheet.absoluteFill}>
++          <ProtoNavigator onClose={() => setProtoOpen(false)} />
++        </View>
++      ) : null}
+     </SafeAreaView>
+   );
+ }
+diff --git a/workspace/apps/frontend/mobile/src/components/ui.tsx b/workspace/apps/frontend/mobile/src/components/ui.tsx
+index 6986b2f..6f62cec 100644
+--- a/workspace/apps/frontend/mobile/src/components/ui.tsx
++++ b/workspace/apps/frontend/mobile/src/components/ui.tsx
+@@ -29,11 +29,13 @@ export function Button({
+   onPress,
+   variant = 'primary',
+   small,
++  disabled,
+ }: {
+   label: string;
+   onPress: () => void;
+   variant?: 'primary' | 'ghost' | 'danger';
+   small?: boolean;
++  disabled?: boolean;
+ }) {
+   const accent = useAccent();
+   const onAccent = useOnAccent();
+@@ -43,11 +45,16 @@ export function Button({
+   return (
+     <Pressable
+       onPress={onPress}
++      disabled={disabled}
++      accessibilityLabel={label}
++      accessibilityRole="button"
++      accessibilityState={{ disabled: !!disabled }}
+       style={({ pressed }) => [
+         styles.btn,
+         small && styles.btnSmall,
+         { backgroundColor: bg, borderColor: border },
+-        pressed && { opacity: 0.65 },
++        pressed && !disabled && { opacity: 0.65 },
++        disabled && { opacity: 0.4 },
+       ]}
+     >
+       <Text style={[styles.btnText, { color: fg }, small && { fontSize: 12 }]}>{label}</Text>
+diff --git a/workspace/apps/frontend/mobile/src/screens/SettingsScreen.tsx b/workspace/apps/frontend/mobile/src/screens/SettingsScreen.tsx
+index 046b918..548a5c4 100644
+--- a/workspace/apps/frontend/mobile/src/screens/SettingsScreen.tsx
++++ b/workspace/apps/frontend/mobile/src/screens/SettingsScreen.tsx
+@@ -37,7 +37,7 @@ function SettingRow({ label, desc, control }: { label: string; desc: string; con
+   );
+ }
+ 
+-export function SettingsScreen() {
++export function SettingsScreen({ onOpenPrototypes }: { onOpenPrototypes?: () => void }) {
+   const settings = useStore((s) => s.state.settings);
+   const state = useStore((s) => s.state);
+   const dispatch = useStore((s) => s.dispatch);
+@@ -133,6 +133,13 @@ export function SettingsScreen() {
+         />
+         {flash ? <Text style={[styles.flash, { color: TONE_COLOR.success }]}>{flash}</Text> : null}
+         <Muted style={{ fontSize: 12 }}>导出 / 导入将在接入 expo-file-system 后启用。</Muted>
++        {onOpenPrototypes ? (
++          <Button
++            variant="ghost"
++            label="原型预览（内部）"
++            onPress={onOpenPrototypes}
++          />
++        ) : null}
+       </Card>
+ 
+       <Card>
+diff --git a/workspace/apps/frontend/packages/core/src/index.ts b/workspace/apps/frontend/packages/core/src/index.ts
+index 810bd4e..3983780 100644
+--- a/workspace/apps/frontend/packages/core/src/index.ts
++++ b/workspace/apps/frontend/packages/core/src/index.ts
+@@ -5,4 +5,10 @@ export * from './theme';
+ export * from './seed';
+ export * from './parse-state';
+ export * from './reducer';
+-export * from './selectors';
+\ No newline at end of file
++export * from './selectors';
++export * from './prototype/data';
++export * from './prototype/visual';
++export * from './prototype/user';
++export * from './prototype/ops';
++export * from './prototype/ui';
++export * from './prototype/content';
+\ No newline at end of file
+diff --git a/workspace/apps/frontend/web/src/App.tsx b/workspace/apps/frontend/web/src/App.tsx
+index aef4c6b..bd633ef 100644
+--- a/workspace/apps/frontend/web/src/App.tsx
++++ b/workspace/apps/frontend/web/src/App.tsx
+@@ -1,9 +1,10 @@
+-import { useEffect, useRef, useState } from 'react';
+-import { Alert, Badge, Button, Drawer, Grid, Input, Layout, Menu, Tooltip } from 'antd';
++import { lazy, Suspense, useEffect, useRef, useState } from 'react';
++import { Alert, App as AntdApp, Avatar, Badge, Button, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Spin, Tooltip } from 'antd';
+ import type { InputRef, MenuProps } from 'antd';
+ import {
+   AppstoreOutlined,
+   DashboardOutlined,
++  DownOutlined,
+   MenuFoldOutlined,
+   MenuOutlined,
+   MoonOutlined,
+@@ -13,6 +14,7 @@ import {
+   SunOutlined,
+   ThunderboltOutlined,
+   UnorderedListOutlined,
++  UserOutlined,
+ } from '@ant-design/icons';
+ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+ import { ACTIVE_STATUSES } from '@acme/core';
+@@ -27,6 +29,16 @@ import { ReleaseFormModal } from './components/ReleaseFormModal';
+ import { SaveViewModal } from './components/SaveViewModal';
+ import { AppFormModal } from './components/AppFormModal';
+ 
++// 原型区（不进正式导航；见 web/src/prototypes/README.md）
++const ProtoIndex = lazy(() => import('./prototypes'));
++const ProtoRoute = lazy(() => import('./prototypes/ProtoRoute'));
++
++const ProtoFallback = (
++  <div style={{ display: 'grid', placeItems: 'center', minHeight: 320 }}>
++    <Spin tip="加载原型中…" />
++  </div>
++);
++
+ const { Sider, Header, Content } = Layout;
+ 
+ const NAV = [
+@@ -39,6 +51,7 @@ const NAV = [
+ export function App() {
+   const navigate = useNavigate();
+   const location = useLocation();
++  const { message } = AntdApp.useApp();
+   const screens = Grid.useBreakpoint();
+   const isMobile = !screens.lg;
+ 
+@@ -203,6 +216,28 @@ export function App() {
+                 aria-label="切换主题"
+               />
+             </Tooltip>
++            <Dropdown
++              menu={{
++                items: [
++                  { key: 'desk', label: '我的工作台' },
++                  { key: 'profile', label: '个人详情（演示身份：何青）' },
++                  { type: 'divider' },
++                  { key: 'logout', label: '退出登录（原型演示，无登录态）', danger: true },
++                ],
++                onClick: ({ key }) => {
++                  if (key === 'desk') navigate('/prototype/my-desk');
++                  else if (key === 'profile') navigate('/prototype/user-detail?user=%E4%BD%95%E9%9D%92');
++                  else message.info('原型演示：正式应用无登录态');
++                },
++              }}
++            >
++              <Button type="text" aria-label="打开用户菜单" style={{ paddingInline: 6 }}>
++                <Space size={6}>
++                  <Avatar size={26} style={{ background: 'var(--accent)' }} icon={<UserOutlined />} />
++                  {!isMobile && <DownOutlined style={{ fontSize: 10, color: 'var(--muted)' }} />}
++                </Space>
++              </Button>
++            </Dropdown>
+             <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal({ type: 'release', id: null })}>
+               {!isMobile && '新建'}
+             </Button>
+@@ -226,6 +261,8 @@ export function App() {
+               <Route path="/releases" element={<Releases />} />
+               <Route path="/apps" element={<Apps />} />
+               <Route path="/settings" element={<Settings />} />
++              <Route path="/prototype" element={<Suspense fallback={ProtoFallback}><ProtoIndex /></Suspense>} />
++              <Route path="/prototype/:id" element={<Suspense fallback={ProtoFallback}><ProtoRoute /></Suspense>} />
+               <Route path="*" element={<Navigate to="/" replace />} />
+             </Routes>
+           </Content>
+diff --git a/workspace/apps/frontend/web/src/pages/Settings.tsx b/workspace/apps/frontend/web/src/pages/Settings.tsx
+index e14d894..6e8e9d1 100644
+--- a/workspace/apps/frontend/web/src/pages/Settings.tsx
++++ b/workspace/apps/frontend/web/src/pages/Settings.tsx
+@@ -1,6 +1,7 @@
+ import { useRef } from 'react';
+ import type { ReactNode } from 'react';
+-import { App, Button, Card, Col, Row, Select, Space, Switch, Typography } from 'antd';
++import { Link } from 'react-router-dom';
++import { App, Button, Card, Col, Row, Select, Space, Switch, Tag, Typography } from 'antd';
+ import {
+   DatabaseOutlined,
+   DownloadOutlined,
+@@ -180,6 +181,15 @@ export function Settings() {
+               }
+             />
+             <SettingRow label="运行环境" desc={runtime.info} control={<Text style={{ color: 'var(--accent)' }}>{runtime.badge}</Text>} />
++            <SettingRow
++              label="原型预览（内部）"
++              desc="代码原型区：演示数据、不落库，评审用"
++              control={
++                <Link to="/prototype" aria-label="打开原型索引">
++                  <Tag color="warning" style={{ cursor: 'pointer', marginInlineEnd: 0 }}>进入 →</Tag>
++                </Link>
++              }
++            />
+           </Card>
+         </Col>
+       </Row>

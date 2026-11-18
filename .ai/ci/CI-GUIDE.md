@@ -7,35 +7,37 @@
 | 文件 | 触发 | 职责 |
 |---|---|---|
 | [ci.yml](ci.yml) | push(全分支) / PR | 门禁：① AI 配置同步校验（`node .ai/sync.mjs --check`）+ 派生引擎回归测试（`.ai/tests/`），**全分支触发**；② **镜像一致性**（仅两条策略分支）：AI 路径在 `acme-foundation` ↔ `ai-coding-support` 必须逐字节一致（pre-push 已做本地预检，CI 兜底）；③ `workspace/apps/frontend` 的类型检查 / 测试 / 桌面壳层语法检查 / 构建，**限主线 `acme-foundation` 直推与 PR**，且分支无前端工程时自动跳过（`hashFiles` 守卫）；④ `workspace/apps/backend` 的 `mvn test`（Java 25，PG 集成测试走 testcontainers），同口径门控 |
-| [cd.yml](cd.yml) | 手动 dispatch（选 dev/test/prod）；`v*` 标签 → prod | ① build：云端 runner 构建五镜像（后端×4 + web）并推 TCR（不占 4G 服务器构建资源）；② deploy：scp 同步 `workspace/env-stack` 到服务器 → SSH 执行 `deploy.sh` → `healthcheck.sh` 验证（非零退出阻断） |
+
+> 原 `cd.yml` 已退役（ADR 2026-11-18-03 CI/CD 本地化）：构建发布改由本机 `local-build.sh` /
+> `local-deploy.sh` 承接（见 `workspace/env-stack/RUNBOOK.md` 第 6/7 步）；GitHub 仅作代码托管与
+> ci.yml 门禁。原 `ai-rules-sync.yml` 亦已裁撤（ADR 2026-11-14-23）。
 
 > 原独立的 `ai-rules-sync.yml` 已裁撤（ADR 2026-11-14-23）：其校验职责被 ci.yml 的 ai-config 作业完全覆盖（同校验 + 引擎回归测试，且全分支触发）。
 
-## 环境与发布
+## 环境与发布（CI/CD 本地化后）
 
-- GitHub **Environments** 建议创建 `dev` / `test` / `prod` 三个，与 `.ai/env/*.yaml` 三态对齐；**prod 必须配置 required reviewers**（人工批准后才允许部署，对应规则的「prod 只读/审批」纪律）。
-- 发布路径：合并 `acme-foundation` → 打 `vX.Y.Z` 标签 → 自动走 prod 部署；dev/test 用 Actions → cd → Run workflow 手动触发。
+- 构建发布已本地化（ADR 2026-11-18-03）：本机 `local-build.sh` 产物 → `local-deploy.sh` 推 TCR +
+  SSH 数据面部署；prod 审批语义 = **人工执行 local-deploy.sh**（AI 不代跑——凭证红线）。
+  GitHub Environments（dev/test/prod）与部署类 Secrets 均已不需要，可删除。
+- ci.yml 仅承担**门禁**（测试 / ai-config 校验 / 双分支镜像一致性）；发布路径：合并
+  `acme-foundation` → 本机构建部署（RUNBOOK 第 6/7 步）。
 
-## Secrets 约定
+## 凭证约定（本地化后）
 
-- 跨环境凭证命名 `<系统>_<用途>`（部署链路实际使用，在 GitHub 仓库 Secrets 配置）：
-
-  | Secret | 值 |
-  |---|---|
-  | `TCR_REGISTRY` | `ccr.ccs.tencentyun.com/<命名空间>`（含命名空间，不含镜像名） |
-  | `TCR_REGISTRY_HOST` | `ccr.ccs.tencentyun.com`（仅域名，docker login 用） |
-  | `TCR_USERNAME` / `TCR_PASSWORD` | TCR 访问凭证 |
-  | `DEPLOY_SSH_HOST` / `DEPLOY_SSH_PORT` / `DEPLOY_SSH_USER` | 服务器公网 IP / SSH 端口 / 用户名 |
-  | `DEPLOY_SSH_KEY` | CI 部署专用私钥（公钥已装服务器 `authorized_keys`，注释 `acme-ci-deploy`） |
-
-  环境相关凭证（若后续需要）仍按 `<ENV>_<用途>`，与 `.ai/env/*.yaml` 的 `${VAR}` 名保持一致。
+- 不再使用 GitHub 仓库 Secrets 承载部署凭证；本机凭证不入库：
+  - 镜像仓库：本机环境变量 `REGISTRY` / `REGISTRY_USERNAME` / `REGISTRY_PASSWORD`（与服务器
+    `registry.env` 同键名），或 `.ai-tmp/registry.env` 私有文件；
+  - SSH 坐标：`ACME_DEPLOY_HOST`（数据面）/ `ACME_SRV_HOST`（应用面，dev-tunnel 对端）+ 各自
+    PORT/USER/KEY，对照仓库根 `cloud-servers.yml`；
+  - dev 凭证由 `local-deploy.sh` 从集群 Secret 提取生成 `dev.env` 同步应用面机（用户执行，敏感
+    输出不经 AI 工具转录）。
 - 严禁任何明文凭证进 yaml/脚本/仓库（`.ai/rules` 安全红线同样适用于本目录与派生产物）。
 
 ## 接线 TODO（部署链路）
 
 1. ~~把构建/测试命令填入 `ci.yml`~~（已完成：`app-quality` 作业接线 `workspace/apps/frontend` 的 pnpm 命令）。
 2. ~~实现 `env-stack/scripts/deploy.sh` 与 `healthcheck.sh`~~（已完成：k3s 口径真实现，`status.sh` 一并就位）。
-3. ~~`cd.yml` build/deploy 作业接线~~（已完成：build 推 TCR，deploy 经 SSH 触发服务器脚本）。
+3. ~~`cd.yml` build/deploy 作业接线~~（已完成并**已退役**：CI/CD 本地化，见 `env-stack/scripts/local-build.sh` / `local-deploy.sh`）。
 4. 平台侧人工接入（GitHub 侧，见下方二期 checklist）。
 
 ## 二期平台接入 checklist（GitHub 侧人工操作，执行一次）
@@ -46,11 +48,11 @@
    git remote set-url --add --push origin <Gitee仓库URL>    # 先显式钉住 Gitee
    git remote set-url --add --push origin <GitHub仓库URL>   # 追加 GitHub → 一条 push 双推
    ```
-   此后 `git push origin <分支>` 同时命中两仓：Gitee 供国内拉取，GitHub 触发 Actions。
+   此后 `git push origin <分支>` 同时命中两仓：Gitee 供国内拉取，GitHub 触发 ci.yml 门禁。
    需推送 `acme-foundation` 与 `ai-coding-support` 两分支（mirror-sync 依赖同在）。
-3. **GitHub 仓库 Secrets**：按上表配 7 个（`DEPLOY_SSH_KEY` 内容为本机 `~/.ssh/acme_ci_deploy` 私钥全文）。
-4. **GitHub Environments**：建 `dev` / `test` / `prod`；`prod` 加 Required reviewers（对应「prod 只读/审批」纪律）。
-5. **验证**：GitHub → Actions → cd → Run workflow（选 `acme-foundation` 分支、env=dev）→ 观察构建与部署全绿。
+3. ~~GitHub 仓库 Secrets（部署类）~~：CI/CD 本地化后不再需要（凭证走本机环境变量 / `.ai-tmp/`）。
+4. ~~GitHub Environments~~：cd.yml 退役后已不需要，可删除。
+5. **验证**：GitHub → Actions → ci → 门禁全绿；发布验证按 RUNBOOK 第 6/7 步本机执行。
 
 ## 修改纪律
 

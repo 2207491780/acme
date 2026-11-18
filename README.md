@@ -1,6 +1,6 @@
 # ACME
 
-> 纯 AI Coding 项目模板 —— 一套「单源 + 派生」的多工具 AI 配置体系：所有 AI-Coding 内容只在 `.ai/` 一处维护，一条命令派生，国内外主流工具同时生效。
+> AI Coding 配置模板 + 示例全栈应用 ACME —— 一套「单源 + 派生」的多工具 AI 配置体系：所有 AI-Coding 内容只在 `.ai/` 一处维护，一条命令派生，国内外主流工具同时生效；`workspace/` 内附真实全栈示例（前端多端 + Java 后端 + k8s 部署）供演练。
 
 ## 项目介绍
 
@@ -17,7 +17,7 @@
 | 厂商 | 工具 | 读取的配置入口 | 接入方式 |
 |---|---|---|---|
 | Anthropic | Claude Code | `CLAUDE.md` + `.claude/` | 专属目录 |
-| Anysphere | Cursor | `.cursor/rules/*.mdc` | 专属目录 |
+| Anysphere | Cursor | `.cursor/rules/*.mdc` + `AGENTS.md` + `.cursor/{agents,skills,commands}/` | 专属目录（引用存根，ADR 2026-11-18-01） |
 | GitHub（微软） | GitHub Copilot | `.github/copilot-instructions.md` | 专属目录 |
 | OpenAI | Codex | `AGENTS.md` | 通用标准 |
 | Google | Gemini CLI / Antigravity | `GEMINI.md` + `.gemini/` | 专属目录 |
@@ -25,7 +25,6 @@
 | 字节跳动 | Trae | `.trae/rules/project_rules.md` | 专属目录 |
 | 阿里巴巴 | Qoder | `.qoder/rules/project_rules.md`（含 `alwaysApply`，亦读 `AGENTS.md`） | 专属目录 |
 | 智谱（Z.AI） | ZCode | `AGENTS.md`（官方确认） | 通用标准 |
-| 心流 | iFlow CLI | `AGENTS.md` / `CLAUDE.md` + `.iflow/` | 生态兼容 |
 | Sourcegraph / Block / OpenCode / Zed / 月之暗面 / AWS / JetBrains 等 | Amp、Goose、OpenCode、Zed、Kimi Code、Amazon Q、Junie CLI 等 | `AGENTS.md` | 通用标准 |
 
 ## 目录总览
@@ -37,11 +36,12 @@ acme/
 ├── .ai/                          # ★★ AI 配置唯一事实源（结构见 .ai/ARCHITECTURE.md）
 ├── .ai-memory/                   # ★ 知识与记忆落盘（decisions 定稿 / playbooks 手册 / drafts 草稿）
 ├── .ai-tmp/                      # AI 临时文件区（内容不入库，目录保留）
-├── .claude/ .cursor/ .gemini/ .iflow/ .trae/ .qoder/   # ⚙️ 全部为生成产物
+├── .claude/ .cursor/ .gemini/ .trae/ .qoder/   # ⚙️ 全部为生成产物
 ├── .github/                      # ⚙️ Copilot 指令存根 + CI（全部生成）
 ├── workspace/                    # ★ 实际工作目录（业务与运行环境收敛于此）
 │   ├── apps/                     #   应用代码（一目录一应用，约定见 workspace/apps/APPS.md）
-│   └── env-stack/                #   环境搭建（docker / scripts / config，见 workspace/env-stack/ENV-STACK.md）
+│   ├── env-stack/                #   环境搭建（k8s base+overlays / scripts / config，见 workspace/env-stack/ENV-STACK.md）
+│   └── ui-prototype/             #   UI 原型设计专区（与前端工程隔离，见 workspace/ui-prototype/UI-PROTOTYPE.md）
 └── docs/                         # 项目文档（设计/API 文档等，非 AI 配置）
 ```
 

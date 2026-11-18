@@ -1,20 +1,25 @@
-# 云端开发环境（k3s dev）运行环境与 MCP 连接定义 —— 唯一事实源：.ai/env/cloud-dev.yaml（Schema 与纪律见 ENV-GUIDE.md）
+# 云端开发用中间件连接定义 —— 唯一事实源：.ai/env/cloud-dev.yaml（Schema 与纪律见 ENV-GUIDE.md）
 # 敏感值用 ${VAR} 引用本地环境变量，严禁明文。
+# 2026-11-18-02 口径：云端无 dev 全栈——本地 dev/test 服务经 dev-tunnel 连数据面机单套中间件的
+# dev 隔离面（PG 库 acme_dev / Nacos namespace dev / Redis DB1 + ACL 用户 acme_dev）；test 并入 dev。
 env: dev
-description: 云端 k3s dev 环境（命名空间 acme-dev，中间件 PG/Redis/Nacos 在集群内），允许读写。
+description: 数据面机单套中间件 dev 隔离面（经应用面机 SSH 隧道接入；PG/Redis/Nacos 单套实例逻辑隔离），允许读写。
 mcp:
   servers:
     - name: dev-db
       transport: stdio
       command: [npx, -y, @modelcontextprotocol/server-postgres]
       env:
-        # PG_PASSWORD 由 dev-tunnel.sh 打印的 export 行注入（先建隧道再启 MCP）
-        DATABASE_URL: postgresql://acme:${PG_PASSWORD}@127.0.0.1:15432/acme
+        # PG_PASSWORD/PG_USER 由 dev-tunnel.sh 打印的 export 行注入（先建隧道再启 MCP）
+        DATABASE_URL: postgresql://${PG_USER}:${PG_PASSWORD}@127.0.0.1:15432/acme_dev
 notes: |
   本地调试通道：用户在本机终端执行 sh workspace/env-stack/scripts/dev-tunnel.sh dev
-  （前置 export ACME_SRV_HOST=<服务器地址>，详见 env-stack/RUNBOOK.md §8.5）；
-  脚本打印云端凭证 export 行并建立回环映射：15432→PG、16379→Redis、18848→Nacos HTTP、
-  19848→Nacos gRPC、19888→网关；Ctrl-C 拆除，down 子命令清理服务器侧残留。
-  本地后端经 PG_HOST/PG_PORT/REDIS_HOST/REDIS_PORT/NACOS_ADDR 指向回环端口启动（示例见脚本输出）。
-  注意：本地服务会以同名注册进云端 Nacos，网关 lb 可能路由到本地实例（调试期预期行为）；
+  （前置 export ACME_SRV_HOST=<应用面机地址>——隧道对端是应用面机，非数据面；详见
+  env-stack/RUNBOOK.md §9）。脚本拉取端点文件与 dev.env 凭证 export 行（含 PG_DB=acme_dev/
+  REDIS_DB=1/NACOS_NAMESPACE=dev/ACME_ENV_ID=dev 等）并建立纯 ssh -L 映射：15432→PG、
+  16379→Redis、18848→Nacos HTTP、19848→Nacos gRPC；无远端进程，Ctrl-C 拆除。
+  本地后端经 PG_HOST/PG_PORT/REDIS_HOST/REDIS_PORT/NACOS_ADDR 指向回环端口启动（示例见脚本输出）；
+  本地服务注册进 Nacos dev namespace，prod 网关（prod namespace）不可见。
+  前端网关本地起（WEB_API_TARGET=http://127.0.0.1:9888 pnpm dev），预览一律 localhost。
+  同 namespace 内多开发者本地实例互相可见（注册同名服务）属预期行为。
   凭证输出属敏感信息，不得经 AI 工具运行或转录（安全红线）；prod 禁用隧道（脚本代码级拦截）。

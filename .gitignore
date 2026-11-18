@@ -322,3 +322,5 @@ terraform.rc
 docker-compose.override.yml
 docker-compose.override.yaml
 .docker/
+# --- 云服务器凭证（数据面/应用面两台云机地址/账号/密码等，永不入库） ---
+/cloud-servers.yml

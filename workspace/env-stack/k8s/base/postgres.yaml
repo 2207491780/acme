@@ -1,0 +1,121 @@
+# PostgreSQL —— 单实例双库（2026-11-18-02 两环境逻辑隔离：prod 库 = POSTGRES_DB，dev 库 = acme_dev），
+# schema 由 init 脚本预建，业务表由各服务 Flyway 自迁移；演示规模无主从。limit 上调 512Mi 覆盖双环境。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+data:
+  init-dbs.sh: |
+    #!/bin/sh
+    # 双库初始化（幂等；entrypoint 仅在空数据目录执行本目录脚本）：
+    #   prod 库 = $POSTGRES_DB（initdb 已创建，连接沿用 superuser，行为与单库时代一致）；
+    #   dev 库 = acme_dev（独立用户 acme_dev，12.1.3 口径）。
+    # dev 用户密码经 PG_DEV_PASSWORD 注入（app.env → acme-app-secrets → 容器 env；口令限 hex 字符集）。
+    set -eu
+    : "${PG_DEV_PASSWORD:?PG_DEV_PASSWORD 未注入（app.env 增键后重跑 deploy）}"
+    for db in "$POSTGRES_DB" acme_dev; do
+      psql -v ON_ERROR_STOP=1 -d "$db" \
+        -c "CREATE SCHEMA IF NOT EXISTS platform_auth" \
+        -c "CREATE SCHEMA IF NOT EXISTS platform_infra" \
+        -c "CREATE SCHEMA IF NOT EXISTS platform_system"
+    done
+    if psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='acme_dev'" | grep -q 1; then
+      psql -v ON_ERROR_STOP=1 -v dev_pwd="$PG_DEV_PASSWORD" -c "ALTER ROLE acme_dev PASSWORD :'dev_pwd'"
+    else
+      psql -v ON_ERROR_STOP=1 -v dev_pwd="$PG_DEV_PASSWORD" -c "CREATE ROLE acme_dev LOGIN PASSWORD :'dev_pwd'"
+    fi
+    psql -v ON_ERROR_STOP=1 -d acme_dev \
+      -c "GRANT CONNECT ON DATABASE acme_dev TO acme_dev" \
+      -c "GRANT ALL ON SCHEMA platform_auth TO acme_dev" \
+      -c "GRANT ALL ON SCHEMA platform_infra TO acme_dev" \
+      -c "GRANT ALL ON SCHEMA platform_system TO acme_dev"
+    echo "✅ 双库初始化完成（$POSTGRES_DB + acme_dev）"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: pg
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth # 官方镜像不经过该 secret，统一注入以兼容私有 mirror 场景
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args:
+            - -c
+            - shared_buffers=64MB
+            - -c
+            - max_connections=60
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef: { name: acme-app-config, key: PG_USERNAME }
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef: { name: acme-app-config, key: PG_DB }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: acme-app-secrets, key: PG_PASSWORD }
+            - name: PG_DEV_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: acme-app-secrets, key: PG_DEV_PASSWORD }
+          ports:
+            - containerPort: 5432
+              name: pg
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: [sh, -c, pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [sh, -c, pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: init
+          configMap:
+            name: postgres-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 2Gi

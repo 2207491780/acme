@@ -1,0 +1,24 @@
+# platform-infra Deployment 补丁：挂载 storage root PVC + 注入环境变量（REQ-20261114-071607）。
+# 变量 ↔ 服务属性对应：ACME_STORAGE_LOCAL_ROOT_DIR → acme.storage.local.root-dir
+# （platform-infra-service application.yml `${ACME_STORAGE_LOCAL_ROOT_DIR}`，无仓库默认值，缺注入启动即失败）。
+# 挂载路径为 Pod 内常量；真实数据落 PVC（platform-infra-storage.yaml），无宿主机路径入库。
+# ACME_STORAGE_LOCAL_URL_BASE 不注入（缺省空 → FileView.url 回退对象相对路径；下载恒走流式端点）。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-infra
+spec:
+  template:
+    spec:
+      containers:
+        - name: infra
+          env:
+            - name: ACME_STORAGE_LOCAL_ROOT_DIR
+              value: /var/acme/storage
+          volumeMounts:
+            - name: storage-root
+              mountPath: /var/acme/storage
+      volumes:
+        - name: storage-root
+          persistentVolumeClaim:
+            claimName: platform-infra-storage

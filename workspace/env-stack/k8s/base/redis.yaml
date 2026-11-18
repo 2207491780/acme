@@ -1,0 +1,73 @@
+# Redis —— 单实例两环境 ACL 隔离（2026-11-18-02）：prod/dev 各自 ACL 用户（口令限 hex 字符集）；
+# 键隔离靠 DB index（prod=0 / dev=1，服务侧 REDIS_DB 注入），pub/sub 通道隔离靠 & 前缀模式
+# （通道名经 KeyComposer 环境段前缀：prod:* / dev:*）。默认用户关闭——云端连接必须携带
+# REDIS_USERNAME；本地 .dev-stack 是独立实例（无 ACL），行为不变。纯缓存不持久化。
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels:
+    app: redis
+spec:
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: [sh, -c]
+          args:
+            - |
+              exec redis-server \
+                --user default off \
+                --user acme_prod on ">$REDIS_PASSWORD" "~*" "&prod:*" +@all -@dangerous \
+                --user acme_dev on ">$REDIS_DEV_PASSWORD" "~*" "&dev:*" +@all -@dangerous \
+                --maxmemory 96mb --maxmemory-policy allkeys-lru --save ""
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: acme-app-secrets, key: REDIS_PASSWORD }
+            - name: REDIS_DEV_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: acme-app-secrets, key: REDIS_DEV_PASSWORD }
+          ports:
+            - containerPort: 6379
+              name: redis
+          readinessProbe:
+            exec:
+              command: [sh, -c, redis-cli --user acme_prod -a "$REDIS_PASSWORD" ping | grep PONG]
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [sh, -c, redis-cli --user acme_prod -a "$REDIS_PASSWORD" ping | grep PONG]
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              # 96mb maxmemory + 进程底噪（原 48mb/64Mi 为单环境口径，上调覆盖两环境键量）
+              memory: 128Mi

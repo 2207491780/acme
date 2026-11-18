@@ -1,0 +1,44 @@
+# platform-system 测试域配置（遮蔽主 application.yml：无 Nacos 导入，16.2.1 测试不依赖共享环境）
+spring:
+  application:
+    name: platform-system
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        enabled: false
+  flyway:
+    enabled: true
+    # locations 继承 yml（REQ-20261118-002130 确认①）：迁移目录 per-service 子目录，测试不另覆盖
+    locations: classpath:db/migration/system
+    default-schema: public
+    schemas: public
+
+acme:
+  security:
+    public-paths: []
+    token:
+      hmac-secret: system-it-secret-0123456789abcdef
+  i18n:
+    basenames: i18n/acme-messages,i18n/platform-system-messages
+  flex:
+    id:
+      worker-id: 2
+  notify:
+    ws:
+      # WS 握手用户令牌验签（REQ-20261114-120102）：测试占位密钥，非生产取值（14.3.3 口径）；
+      # 无 Redis 环境下扇出订阅建立失败由 NotifyPushBus 防御化捕获，不阻断上下文启动
+      idle-timeout: 30s
+      sweep-interval: 2s
+  gateway:
+    user-token:
+      # 与网关同键单源（确认记录⑬）：测试占位密钥，非生产取值
+      hmac-secret: notify-ws-handshake-test-secret-0123456789abcdef
+      issuer: acme-auth
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true

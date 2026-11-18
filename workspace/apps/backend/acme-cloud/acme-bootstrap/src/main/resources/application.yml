@@ -1,0 +1,97 @@
+# acme-bootstrap 单体形态应用配置（REQ-20261118-002130 确认②③⑤；可选打包路径——本地联调/小部署，
+# 分布式为默认形态，能力差异见 BACKEND.md「双形态」）。
+# 本文件 = 单体自身运行面（共享中间件 + 形态开关）；三服务键语义合并面在 application-monolith.yml
+# （经 spring.config.import 载入，导入文件优先级低于本文件）。三服务 jar 内各自的 application.yml
+# 被 BOOT-INF/classes 本文件遮蔽（classpath 单资源语义，StandardConfigDataLocationResolver 非模式
+# 位置取首个命中），其键已手工并集维护于 application-monolith.yml——重复键取一，public-paths 取并集。
+# ⚠️ Nacos/Kafka 不出现在单体配置（软依赖关闭）；运行配置全部经环境变量注入（键与分布式一致）。
+spring:
+  application:
+    name: acme-monolith
+  main:
+    # Feign 声明重复消解（REQ-20261118-002130 确认②实地装配）：AuthorizationClient 被 auth 与 infra
+    # 两处 @EnableFeignClients(clients=…) 显式声明，FeignClientSpecification/工厂 bean 同名注册且定义
+    # 完全一致（同接口同配置）——单体上下文允许覆盖消解；跨服务同名组件（非 Feign）已用显式 bean 名
+    # 消歧（见 MonolithApplication 类注），不依赖本开关兜底
+    allow-bean-definition-overriding: true
+  config:
+    # 三服务键语义合并面（确认⑤；optional 防裸类路径运行时缺文件误报）。
+    # 优先级口径：config.import 导入面高于本文件（Spring Boot config data 语义）——两文件键面
+    # 不相交，无同名键覆盖；application-monolith.yml 内的 ${ACME_*} 占位符由环境变量解析
+    import: optional:classpath:application-monolith.yml
+  cloud:
+    nacos:
+      # Nacos 软依赖（确认③）：单体无配置中心导入、注册中心关闭（health-indicator 同关避免就绪探针空转）
+      config:
+        enabled: false
+      discovery:
+        enabled: false
+        health-indicator:
+          enabled: false
+    function:
+      # 审计消费函数清空（确认③：同 JVM 无 MQ 回环，本地 sink 直调落库）
+      definition: ""
+    stream:
+      # SCSt 全局关闭（防御性声明；实际生效面 = 无函数定义 + 无 binding 键 + acme.stream.enabled=false）
+      enabled: false
+    openfeign:
+      # Feign 惰性（确认②）：@EnableFeignClients 工厂 bean 惰性注册 + @Primary 本地适配器，
+      # Feign 代理永不实例化、跨域调用全部短路（LocalXxxClient 直调本域用例）
+      lazy-attributes-resolution: true
+  datasource:
+    # 三 schema 合并单池（确认③）：currentSchema=search_path 覆盖三 schema（表名无交集，已核对迁移脚本）；
+    # env 键与分布式一致（PG_HOST/PG_PORT/PG_DB/PG_USER/PG_PASSWORD）
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:acme}?currentSchema=platform_auth,platform_system,platform_infra
+    username: ${PG_USER:acme}
+    password: ${PG_PASSWORD:acme_local_pg_2026}
+  flyway:
+    # 三个手动 Flyway 实例承担迁移（MonolithFlywayConfig，schema/location 各自独占）；
+    # 本键同时承担 Boot Flyway 自动配置关闭（确认③）
+    enabled: false
+  data:
+    redis:
+      # Redis 一份（确认③：键前缀天然不冲突——auth:/system:/infra 段各归各）；env 键同分布式；
+      # ACL 用户名 + DB index（2026-11-18-02 单套 Redis 多环境隔离，可选打包路径同样适用；
+      # username 空 = 默认用户）
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:}
+      database: ${REDIS_DB:0}
+      password: ${REDIS_PASSWORD:acme_local_redis_2026}
+  servlet:
+    multipart:
+      # 文件服务上传容器面上限（platform-infra 主配置同值）
+      max-file-size: 12MB
+      max-request-size: 20MB
+
+server:
+  port: 9680
+
+acme:
+  stream:
+    # framework-stream 关闭（确认③；规避无 Kafka 时 binder 阻断，开关先例同 platform-infra 测试域）
+    enabled: false
+  flex:
+    id:
+      # 雪花 worker 标识（12.3.1）：单 JVM 一份雪花单例，取 auth 域值 1
+      worker-id: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # 就绪探针校验 DB（14.2.2）；单体无 Nacos 注册面（nacosDiscovery 指标不存在，不纳入）
+        readiness:
+          include: readinessState,db
+  health:
+    binders:
+      # stream 关闭形态下 kafka binder 无运行时面（无函数定义/无 binding 键）——binder 健康指标
+      # 会为占位 broker（localhost:9092）空转 AdminClient 并把 health 拉成 DOWN，显式关闭（单体
+      # 无 MQ 出站，无 binder 可言）；分布式 platform-infra 不受影响（该键仅单体配置面）
+      enabled: false

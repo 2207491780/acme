@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark" data-motion="true" data-view="both" data-density="comfortable">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ACME 多端设计令牌校验台</title>
+<style>
+  :root{
+    --accent:#5aa7a0; --accent-2:#6f92c4; --accent-3:#9188c9; --on-accent:#000000;
+    --magenta:#bd7ba0; --acid:#9db56a;
+    --bg:#14161a; --bg1:#191c21; --surface:#1d2127; --elevated:#242932; --surface3:#2c323c;
+    --text:#e8eaed; --text2:#b6bcc6; --muted:#8b929e;
+    --border:rgba(255,255,255,.08); --border-2:rgba(255,255,255,.05);
+    --glass-sider:rgba(29,33,39,.85); --glass-header:rgba(20,22,26,.8); --scrim:rgba(0,0,0,.4);
+    --t-muted:#8b929e; --t-info:#6f92c4; --t-violet:#9188c9; --t-warning:#cfa14f; --t-success:#6fa287; --t-danger:#c47b7b;
+    --shadow-card:0 8px 24px rgba(0,0,0,.16); --shadow-pop:0 4px 12px rgba(0,0,0,.12);
+    --radius:12px; --gap:16px; --card-pad:20px;
+    --m-card-r:16px; --m-btn-r:12px; --m-card-pad:16px; --m-gap:10px;
+    --font-sans:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    --font-mono:"Cascadia Code","JetBrains Mono",Consolas,monospace;
+    --fast:120ms; --base:200ms; --slow:320ms; --easing:cubic-bezier(.22,1,.36,1);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;line-height:1.5;}
+  ::selection{background:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--text);}
+  *{scrollbar-width:thin;scrollbar-color:var(--surface3) transparent;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:999px;border:2px solid var(--bg);}
+  ::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--muted) 55%,var(--surface3));}
+
+  .bg{position:fixed;inset:0;z-index:-2;background:linear-gradient(160deg,var(--bg),var(--bg1));}
+  @keyframes float{0%,100%{transform:translate3d(0,0,0);}50%{transform:translate3d(0,-8px,0);}}
+  @keyframes pulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+  [data-motion="false"] *,[data-motion="false"] *::before,[data-motion="false"] *::after{animation:none !important;transition:none !important;}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px 80px;}
+  .hero{position:relative;overflow:hidden;border-radius:16px;padding:30px;margin:26px 0 18px;border:1px solid var(--border);box-shadow:var(--shadow-card);}
+  .hero-in{position:relative;z-index:1;}
+  .eyebrow{font-size:11px;letter-spacing:2.4px;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:10px;}
+  .hero h1{margin:0;font-size:clamp(26px,3.4vw,36px);letter-spacing:-.4px;line-height:1.15;font-weight:700;}
+  .hero h1 .grad{color:var(--accent);}
+  .hero p{color:var(--text2);max-width:660px;margin:12px 0 0;line-height:1.7;}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+
+  /* 控制条：永久可见 */
+  .controls{position:sticky;top:0;z-index:40;margin:0 0 24px;padding:14px 22px;background:var(--glass-header);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);border-top:1px solid var(--border);}
+  .controls-in{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;}
+  .ctl{display:flex;flex-direction:column;gap:6px;}
+  .ctl > label{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);font-weight:700;}
+  .seg{display:inline-flex;background:color-mix(in srgb,var(--surface) 80%,transparent);border:1px solid var(--border);border-radius:10px;padding:3px;gap:3px;}
+  .seg button{border:0;background:transparent;color:var(--text2);font:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:7px;cursor:pointer;transition:all var(--base) var(--easing);}
+  .seg button:hover{color:var(--text);}
+  .seg button.active{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent);}
+  .swatches{display:inline-flex;gap:6px;}
+  .sw{width:26px;height:26px;border-radius:8px;border:2px solid transparent;cursor:pointer;padding:0;transition:transform var(--fast) var(--easing),border-color var(--fast);position:relative;}
+  .sw:hover{transform:translateY(-2px) scale(1.06);}
+  .sw.active{border-color:var(--text);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 50%,transparent);}
+  .rng{display:flex;align-items:center;gap:8px;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:104px;height:6px;border-radius:999px;background:var(--surface3);outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:var(--accent);cursor:pointer;}
+  .rng output{font-family:var(--font-mono);font-size:11px;color:var(--text2);min-width:34px;}
+  .toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--text2);font-weight:600;}
+  .toggle .track{width:38px;height:22px;border-radius:999px;background:var(--surface3);border:1px solid var(--border);position:relative;transition:background var(--base);}
+  .toggle .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:all var(--base) var(--easing);}
+  .toggle.on .track{background:color-mix(in srgb,var(--accent) 35%,transparent);}
+  .toggle.on .knob{left:18px;background:var(--accent);}
+  .acts{display:inline-flex;gap:8px;flex-wrap:wrap;}
+  .btn{border:1px solid var(--border);background:color-mix(in srgb,var(--surface) 80%,transparent);color:var(--text2);font:inherit;font-size:12px;font-weight:600;padding:7px 13px;border-radius:9px;cursor:pointer;transition:all var(--base) var(--easing);}
+  .btn:hover{border-color:var(--accent);color:var(--accent);}
+  .btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);}
+  .btn.primary:hover{color:var(--on-accent);filter:brightness(1.08);}
+
+  section{margin:34px 0;}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;}
+  .sec-head h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.3px;}
+  .sec-head .num{font-family:var(--font-mono);font-size:12px;color:var(--accent);font-weight:700;}
+  .sec-head .hint{font-size:12px;color:var(--muted);margin-left:auto;}
+  .card{background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad);}
+  .grid{display:grid;gap:var(--gap);}
+  .muted{color:var(--muted);}
+  .mono{font-family:var(--font-mono);}
+  code{font-family:var(--font-mono);font-size:12px;background:color-mix(in srgb,var(--elevated) 80%,transparent);padding:1px 6px;border-radius:6px;color:var(--text2);}
+
+  /* 调色板 */
+  .pal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+  .chip{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:color-mix(in srgb,var(--surface) 70%,transparent);cursor:pointer;transition:transform var(--base) var(--easing),border-color var(--base);}
+  .chip:hover{border-color:var(--accent);}
+  .chip .fill{height:64px;display:flex;align-items:flex-end;padding:8px;}
+  .chip .on{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;}
+  .chip .meta{padding:9px 11px;}
+  .chip .name{font-size:13px;font-weight:700;}
+  .chip .hex{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:2px;}
+  .neu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+  .neu{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;padding:9px 11px;background:color-mix(in srgb,var(--surface) 60%,transparent);}
+  .neu .sq{width:30px;height:30px;border-radius:8px;border:1px solid var(--border-2);flex:none;}
+  .neu .k{font-size:12px;font-weight:600;}
+  .neu .v{font-family:var(--font-mono);font-size:10px;color:var(--muted);word-break:break-all;}
+  .row-chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .mini{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:999px;padding:5px 12px 5px 6px;background:color-mix(in srgb,var(--surface) 60%,transparent);font-size:12px;}
+  .mini .sq{width:18px;height:18px;border-radius:6px;}
+
+  /* 语义对照表 */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border-2);}
+  th{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700;background:color-mix(in srgb,var(--elevated) 60%,transparent);}
+  td .swatch{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:7px;border:1px solid var(--border-2);}
+
+  /* 组件对照 */
+  .spec{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .cell{border:1px solid var(--border);border-radius:14px;padding:18px;background:color-mix(in srgb,var(--surface) 55%,transparent);min-width:0;}
+  .cell > .cap{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;font-weight:700;margin-bottom:14px;}
+  .cell.web > .cap{color:var(--accent-2);}
+  .cell.mobile > .cap{color:var(--t-success);}
+  .cell .demo{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  .cell .stack{display:flex;flex-direction:column;gap:12px;}
+  [data-view="web"] .cell.mobile{display:none;}
+  [data-view="mobile"] .cell.web{display:none;}
+  [data-view="web"] .spec,[data-view="mobile"] .spec{grid-template-columns:1fr;}
+  .subhead{font-size:12px;color:var(--muted);margin:14px 0 8px;font-weight:600;}
+
+  /* Web (AntD 风格) 标本 */
+  .w-btn{height:34px;padding:0 16px;border-radius:var(--radius);border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:filter var(--base);}
+  .w-btn:hover{filter:brightness(1.1);}
+  .w-btn.default{background:color-mix(in srgb,var(--surface) 90%,transparent);color:var(--text);border-color:var(--border);}
+  .w-btn.danger{background:var(--t-danger);border-color:var(--t-danger);color:#fff;}
+  .w-tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;line-height:20px;padding:0 8px;border-radius:6px;border:1px solid;}
+  .w-card{background:color-mix(in srgb,var(--surface) 88%,transparent);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad);width:100%;}
+  .w-card h4{margin:0 0 6px;font-size:15px;}
+  .w-input{height:34px;width:100%;max-width:260px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 11px;font:inherit;font-size:14px;outline:none;transition:border-color var(--base);}
+  .w-input:focus{border-color:var(--accent);}
+  .w-input::placeholder{color:var(--muted);}
+  .w-prog{height:8px;width:100%;max-width:260px;border-radius:999px;background:var(--surface3);overflow:hidden;}
+  .w-prog > i{display:block;height:100%;border-radius:999px;background:var(--accent);}
+  .w-menu{width:100%;max-width:230px;display:flex;flex-direction:column;gap:4px;}
+  .w-menu .it{padding:9px 12px;border-radius:8px;font-size:13px;color:var(--text2);cursor:pointer;}
+  .w-menu .it.active{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);font-weight:600;}
+  .w-table{width:100%;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:12px;}
+  .w-table .hd{display:grid;grid-template-columns:1.4fr 1fr 1fr;background:var(--elevated);padding:9px 12px;font-weight:700;color:var(--text2);}
+  .w-table .rw{display:grid;grid-template-columns:1.4fr 1fr 1fr;padding:9px 12px;border-top:1px solid var(--border-2);}
+  .w-table .rw.sel{background:color-mix(in srgb,var(--accent) 12%,transparent);}
+
+  /* Mobile (RN ui.tsx 精确复刻) 标本 */
+  .m-btn{border-radius:var(--m-btn-r);border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);font:inherit;font-size:14px;font-weight:700;padding:11px 16px;cursor:pointer;transition:opacity var(--fast);}
+  .m-btn:active{opacity:.65;}
+  .m-btn.small{padding:7px 12px;border-radius:10px;font-size:12px;}
+  .m-btn.ghost{background:transparent;color:var(--text2);border-color:var(--border);}
+  .m-btn.danger{background:transparent;color:var(--t-danger);border-color:color-mix(in srgb,var(--t-danger) 40%,transparent);}
+  .m-tag{display:inline-flex;align-self:flex-start;font-size:12px;font-weight:600;padding:3px 8px;border-radius:8px;border:1px solid;}
+  .m-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--m-card-r);padding:var(--m-card-pad);display:flex;flex-direction:column;gap:var(--m-gap);width:100%;}
+  .m-card .t{font-size:15px;font-weight:700;}
+  .m-input{width:100%;max-width:260px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:12px;font:inherit;font-size:14px;outline:none;}
+  .m-input::placeholder{color:var(--muted);}
+  .m-prog{height:6px;width:100%;max-width:260px;border-radius:999px;background:var(--elevated);overflow:hidden;}
+  .m-prog > i{display:block;height:100%;border-radius:999px;}
+  .m-tabs{display:flex;gap:4px;width:100%;max-width:300px;background:var(--glass-header);border:1px solid var(--border);border-radius:14px;padding:6px;}
+  .m-tabs .tb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px;border-radius:10px;font-size:10px;font-weight:600;color:var(--muted);cursor:pointer;}
+  .m-tabs .tb.active{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);}
+  .m-tabs .tb .ic{width:18px;height:18px;border-radius:5px;background:currentColor;opacity:.85;}
+  .m-list{width:100%;display:flex;flex-direction:column;gap:10px;}
+  .m-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--m-card-r);padding:13px 14px;display:flex;flex-direction:column;gap:8px;}
+  .m-row .top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .m-row .ti{font-size:14px;font-weight:700;}
+
+  /* 排版 */
+  .type-row{display:flex;align-items:baseline;gap:16px;padding:9px 0;border-bottom:1px solid var(--border-2);}
+  .type-row .lbl{font-family:var(--font-mono);font-size:11px;color:var(--muted);min-width:120px;flex:none;}
+  .type-row .sample{font-weight:700;min-width:0;overflow-wrap:anywhere;}
+
+  /* 间距/圆角 */
+  .space-grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;}
+  .space-item{text-align:center;}
+  .space-item .box{background:var(--accent);border-radius:6px;margin:0 auto 6px;}
+  .space-item .cap{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+  .radii-grid{display:flex;flex-wrap:wrap;gap:14px;}
+  .radii-item{width:80px;height:60px;background:color-mix(in srgb,var(--accent) 18%,var(--surface));border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;color:var(--text2);}
+
+  /* 渐变 */
+  .grad-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+  .grad-card{height:120px;border-radius:16px;border:1px solid var(--border);display:flex;align-items:flex-end;padding:14px;position:relative;overflow:hidden;}
+  .grad-card .gl{font-size:12px;font-weight:700;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.35);color:#fff;backdrop-filter:blur(4px);}
+  .grad-text{font-size:30px;font-weight:700;letter-spacing:-.5px;-webkit-background-clip:text;background-clip:text;color:transparent;}
+
+  /* 动效 */
+  .motion-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;}
+  .motion-box{border:1px solid var(--border);border-radius:14px;padding:18px;background:color-mix(in srgb,var(--surface) 55%,transparent);text-align:center;}
+  .orb-demo{width:48px;height:48px;border-radius:50%;margin:6px auto 14px;background:radial-gradient(circle at 35% 30%,var(--accent),var(--accent-2));animation:float 4s ease-in-out infinite;}
+  .lift{padding:12px;border-radius:12px;background:var(--elevated);border:1px solid var(--border);cursor:pointer;transition:all var(--base) var(--easing);font-size:13px;}
+  .lift:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:var(--shadow-pop);}
+  .tick-bar{height:8px;border-radius:999px;background:var(--surface3);overflow:hidden;margin-top:10px;}
+  .tick-bar > i{display:block;height:100%;width:40%;border-radius:999px;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;}
+
+  footer{margin-top:50px;padding-top:22px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;line-height:1.8;}
+  footer a{color:var(--accent);text-decoration:none;}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--elevated);border:1px solid var(--accent);color:var(--text);padding:11px 20px;border-radius:12px;font-size:13px;box-shadow:var(--shadow-pop);opacity:0;pointer-events:none;transition:all var(--slow) var(--easing);z-index:100;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media(max-width:820px){
+    .spec{grid-template-columns:1fr;}
+    .controls{margin:0 0 20px;}
+    .controls-in{flex-wrap:nowrap;overflow-x:auto;gap:16px;padding-bottom:6px;}
+    .ctl{flex:none;}
+    .acts{flex-wrap:nowrap;}
+    .hero{padding:22px;}
+  }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<div class="controls">
+  <div class="controls-in">
+    <div class="ctl">
+      <label>强调色 Accent</label>
+      <div class="swatches" id="accentSw"></div>
+    </div>
+    <div class="ctl">
+      <label>主题 Theme</label>
+      <div class="seg" id="themeSeg">
+        <button data-v="dark">暗色</button><button data-v="light">亮色</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>密度 Density</label>
+      <div class="seg" id="densitySeg">
+        <button data-v="comfortable">舒适</button><button data-v="compact">紧凑</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>视图 View</label>
+      <div class="seg" id="viewSeg">
+        <button data-v="both">双端</button><button data-v="web">Web</button><button data-v="mobile">Mobile</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label>圆角缩放 Radius</label>
+      <div class="rng"><input type="range" id="rScale" min="0.6" max="1.6" step="0.05" value="1" /><output id="rOut">1.00×</output></div>
+    </div>
+    <div class="ctl">
+      <label>间距缩放 Spacing</label>
+      <div class="rng"><input type="range" id="sScale" min="0.6" max="1.6" step="0.05" value="1" /><output id="sOut">1.00×</output></div>
+    </div>
+    <div class="ctl">
+      <label>动效 Motion</label>
+      <div class="toggle on" id="motionTgl"><span class="track"><span class="knob"></span></span><span id="motionLbl">开</span></div>
+    </div>
+    <div class="ctl">
+      <label>操作 Actions</label>
+      <div class="acts">
+        <button class="btn" id="randBtn">随机</button>
+        <button class="btn" id="resetBtn">重置</button>
+        <button class="btn" id="cssBtn">复制 CSS</button>
+        <button class="btn primary" id="exportBtn">导出令牌</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="hero" id="hero">
+    <div class="hero-in">
+      <div class="eyebrow">ACME · Design Tokens · Single Source</div>
+      <h1>多端设计令牌<span class="grad">校验台</span></h1>
+      <p>同一组 <code>@acme/core</code> 令牌，左侧 Web（Ant Design 风格）与右侧 Mobile（React Native 精确复刻）并排呈现。切换上方控制条即可实时核对两端一致性——所有色值/尺寸均派生自唯一事实源。</p>
+      <div class="hero-meta">
+        <span class="pill"><span class="dot"></span><span id="metaAccent">cyan</span></span>
+        <span class="pill" id="metaTheme">暗色 · 舒适</span>
+        <span class="pill mono" id="metaHex">#5aa7a0</span>
+        <span class="pill">事实源 core/src/theme.ts</span>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>调色板</h2><span class="hint">点击强调色卡片可切换全局</span></div>
+    <div class="subhead">强调色 · 唯一可选集（含 on-accent 前景）</div>
+    <div class="pal-grid" id="accentPal"></div>
+    <div class="subhead">语义色 · Web 由 AntD 算法渲染预设名，Mobile 直接渲染规范 hex（语义一致，hex 平台 idiomatic）</div>
+    <div class="card" style="padding:0;overflow-x:auto"><table id="toneTable"></table></div>
+    <div class="subhead">中性色 · 当前主题</div>
+    <div class="neu-grid" id="neuGrid"></div>
+    <div class="subhead">分类色 · Platform / Env / Health</div>
+    <div class="card"><div class="row-chips" id="classChips"></div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>组件对照</h2><span class="hint">Web · Ant Design ↔ Mobile · React Native</span></div>
+    <div id="components"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>排版</h2><span class="hint">FONT_SIZE / FONT_WEIGHT</span></div>
+    <div class="card" id="typeScale"></div>
+    <div class="card" style="margin-top:14px">
+      <div class="subhead" style="margin-top:0">字体族</div>
+      <div style="font-size:18px;font-weight:700">交付台 Sans · 敏捷发布 ABCabc 0123</div>
+      <div class="mono muted" style="margin-top:6px;font-size:13px" id="sansName"></div>
+      <div class="mono" style="font-size:18px;margin-top:14px">Mono · REL-2412 v1.4.2 0123456789</div>
+      <div class="mono muted" style="margin-top:6px;font-size:13px" id="monoName"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>间距与圆角</h2><span class="hint">SPACING / RADII</span></div>
+    <div class="card">
+      <div class="subhead" style="margin-top:0">间距 SPACING</div>
+      <div class="space-grid" id="spaceGrid"></div>
+      <div class="subhead">圆角 RADII</div>
+      <div class="radii-grid" id="radiiGrid"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">05</span><h2>渐变</h2><span class="hint">GRADIENTS · 当前强调色</span></div>
+    <div class="grad-grid" id="gradGrid"></div>
+    <div class="card" style="margin-top:14px;text-align:center">
+      <div class="grad-text" id="gradText">敏捷交付 · 多端同源</div>
+      <div class="muted mono" style="font-size:11px;margin-top:8px">GRADIENTS.text(accent)</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">06</span><h2>动效</h2><span class="hint">MOTION · 受上方动效开关控制</span></div>
+    <div class="motion-grid">
+      <div class="motion-box"><div class="orb-demo"></div><div class="muted" style="font-size:12px">漂浮 float</div></div>
+      <div class="motion-box"><div class="lift">悬停抬升 hover-lift</div><div class="muted" style="font-size:12px;margin-top:12px">base 200ms · easing</div></div>
+      <div class="motion-box"><div style="font-size:13px;font-weight:600">构建进度 tick</div><div class="tick-bar"><i></i></div><div class="muted" style="font-size:12px;margin-top:12px">tick 1200ms</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">07</span><h2>状态 → 语义映射</h2><span class="hint">statusTone / statusColor</span></div>
+    <div class="card" style="padding:0;overflow-x:auto"><table id="statusTable"></table></div>
+  </section>
+
+  <footer>
+    <div><strong style="color:var(--text2)">唯一事实源</strong> · <a href="../packages/core/src/theme.ts">packages/core/src/theme.ts</a> · 规范契约 <a href="../UI-SPEC.md">UI-SPEC.md</a></div>
+    <div>Web/PC 主题 <code>web/src/theme.ts → buildTheme()</code>；Mobile 主题 <code>mobile/src/theme.ts</code>；二者均程序派生自 core。</div>
+    <div class="mono" id="genAt" style="margin-top:6px"></div>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/*__TOKENS__*/
+
+const TONE_LABEL = { muted:'次要', info:'信息', violet:'测试', warning:'警告', success:'成功', danger:'危险' };
+const DEFAULTS = { accent:'cyan', theme:'dark', density:'comfortable', view:'both', rScale:1, sScale:1, motion:true };
+const state = { ...DEFAULTS };
+
+const $ = (id) => document.getElementById(id);
+function rgba(hex, a){ const h=hex.replace('#',''); const f=h.length===3?h.split('').map(x=>x+x).join(''):h; const r=parseInt(f.slice(0,2),16),g=parseInt(f.slice(2,4),16),b=parseInt(f.slice(4,6),16); return `rgba(${r}, ${g}, ${b}, ${a})`; }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function applyVars(){
+  const n = state.theme==='light'?T.light:T.dark;
+  const a = T.accents[state.accent], c = T.companions[state.accent], d = T.density[state.density];
+  const r = document.documentElement, set=(k,v)=>r.style.setProperty(k,v);
+  set('--accent',a); set('--accent-2',c.secondary); set('--accent-3',c.tertiary); set('--on-accent',T.onAccent[state.accent]);
+  set('--magenta',T.accents.magenta); set('--acid',T.accents.acid);
+  set('--bg',n.bg); set('--bg1',n.bg1); set('--surface',n.surface); set('--elevated',n.elevated); set('--surface3',n.surface3);
+  set('--text',n.text); set('--text2',n.text2); set('--muted',n.muted);
+  set('--border',n.border); set('--border-2',n.borderSecondary); set('--glass-sider',n.glassSider); set('--glass-header',n.glassHeader); set('--scrim',n.scrim);
+  set('--t-muted',T.tones.muted); set('--t-info',T.tones.info); set('--t-violet',T.tones.violet); set('--t-warning',T.tones.warning); set('--t-success',T.tones.success); set('--t-danger',T.tones.danger);
+  set('--radius',(d.radius*state.rScale).toFixed(1)+'px'); set('--gap',(d.gap*state.sScale).toFixed(1)+'px'); set('--card-pad',(d.cardPadding*state.sScale).toFixed(1)+'px');
+  set('--m-card-r',(16*state.rScale).toFixed(1)+'px'); set('--m-btn-r',(12*state.rScale).toFixed(1)+'px'); set('--m-card-pad',(16*state.sScale).toFixed(1)+'px'); set('--m-gap',(10*state.sScale).toFixed(1)+'px');
+  set('--font-sans',T.fontFamily.sans); set('--font-mono',T.fontFamily.mono);
+  set('--fast',T.motion.fast+'ms'); set('--base',T.motion.base+'ms'); set('--slow',T.motion.slow+'ms'); set('--easing',T.motion.easing);
+  r.dataset.theme=state.theme; r.dataset.motion=String(state.motion); r.dataset.view=state.view; r.dataset.density=state.density;
+  $('hero').style.background = T.gradients[state.accent][state.theme].hero;
+}
+
+function applyControls(){
+  document.querySelectorAll('#accentSw .sw').forEach(b=>b.classList.toggle('active', b.dataset.accent===state.accent));
+  ['theme','density','view'].forEach(k=>{
+    document.querySelectorAll('#'+k+'Seg button').forEach(b=>b.classList.toggle('active', b.dataset.v===state[k]));
+  });
+  $('rScale').value=state.rScale; $('rOut').textContent=state.rScale.toFixed(2)+'×';
+  $('sScale').value=state.sScale; $('sOut').textContent=state.sScale.toFixed(2)+'×';
+  $('motionTgl').classList.toggle('on', state.motion); $('motionLbl').textContent=state.motion?'开':'关';
+  $('metaAccent').textContent=state.accent; $('metaHex').textContent=T.accents[state.accent];
+  $('metaTheme').textContent=(state.theme==='dark'?'暗色':'亮色')+' · '+(state.density==='comfortable'?'舒适':'紧凑');
+}
+
+function renderAccentControls(){
+  $('accentSw').innerHTML = T.accentOrder.map(a=>`<button class="sw" data-accent="${a}" style="background:${T.accents[a]}" title="${a} ${T.accents[a]}" aria-label="强调色 ${a}"></button>`).join('');
+}
+
+function renderPalette(){
+  $('accentPal').innerHTML = T.accentOrder.map(a=>{
+    const hex=T.accents[a], on=T.onAccent[a];
+    return `<div class="chip" data-accent="${a}"><div class="fill" style="background:${hex}"><span class="on" style="background:${on};color:${hex}">Aa</span></div><div class="meta"><div class="name">${a}</div><div class="hex">${hex} · on ${on}</div></div></div>`;
+  }).join('');
+  const tones=Object.keys(T.tones);
+  $('toneTable').innerHTML = `<thead><tr><th>Tone</th><th>语义</th><th>Mobile hex（TONES）</th><th>Web AntD 预设</th><th>Web 主题化示意</th></tr></thead><tbody>`+
+    tones.map(t=>{
+      const hex=T.tones[t], name=T.toneAntd[t];
+      return `<tr><td><code>${t}</code></td><td>${TONE_LABEL[t]}</td><td><span class="swatch" style="background:${hex}"></span><span class="mono">${hex}</span></td><td><code>${name}</code></td><td><span class="w-tag" style="color:${hex};background:${rgba(hex,.12)};border-color:${rgba(hex,.35)}">${TONE_LABEL[t]}</span></td></tr>`;
+    }).join('')+`</tbody>`;
+  const n=state.theme==='light'?T.light:T.dark;
+  $('neuGrid').innerHTML = Object.entries(n).map(([k,v])=>`<div class="neu"><span class="sq" style="background:${v}"></span><span><span class="k">${k}</span><br><span class="v">${esc(v)}</span></span></div>`).join('');
+  const cc=[];
+  Object.entries(T.platformColors).forEach(([k,v])=>cc.push(`<span class="mini"><span class="sq" style="background:${v}"></span>${T.platformShort[k]} <span class="mono muted">${v}</span></span>`));
+  Object.entries(T.envColors).forEach(([k,v])=>cc.push(`<span class="mini"><span class="sq" style="background:${v}"></span>${T.envLabel[k]} <span class="mono muted">${v}</span></span>`));
+  Object.entries(T.healthColors).forEach(([k,v])=>cc.push(`<span class="mini"><span class="sq" style="background:${v}"></span>${T.healthLabels[k]} <span class="mono muted">${v}</span></span>`));
+  $('classChips').innerHTML=cc.join('');
+}
+
+function wTag(t){ const c=T.tones[t]; return `<span class="w-tag" style="color:${c};background:${rgba(c,.12)};border-color:${rgba(c,.35)}">${TONE_LABEL[t]}</span>`; }
+function mTag(t){ const c=T.tones[t]; return `<span class="m-tag" style="color:${c};background:${c}1f;border-color:${c}66">${TONE_LABEL[t]}</span>`; }
+
+function renderComponents(){
+  const tones=Object.keys(T.tones);
+  const blocks=[];
+  const spec=(title,web,mobile)=>`<div class="card" style="margin-bottom:16px"><div class="subhead" style="margin-top:0;font-size:14px;color:var(--text);font-weight:700">${title}</div><div class="spec"><div class="cell web"><div class="cap">Web · Ant Design</div>${web}</div><div class="cell mobile"><div class="cap">Mobile · React Native</div>${mobile}</div></div></div>`;
+
+  blocks.push(spec('Button 按钮',
+    `<div class="demo"><button class="w-btn">主要操作</button><button class="w-btn default">次要</button><button class="w-btn danger">删除</button></div>`,
+    `<div class="demo"><button class="m-btn">主要操作</button><button class="m-btn ghost">次要</button><button class="m-btn danger">删除</button><button class="m-btn small">小按钮</button></div>`));
+
+  blocks.push(spec('Tag 语义标签',
+    `<div class="demo">${tones.map(wTag).join('')}</div>`,
+    `<div class="demo">${tones.map(mTag).join('')}</div>`));
+
+  blocks.push(spec('Card 卡片',
+    `<div class="w-card"><h4>Web 控制台</h4><div class="muted" style="font-size:13px">v1.4.2 · 林晚 · 健康</div><div style="margin-top:10px">${wTag('success')}</div></div>`,
+    `<div class="m-card"><div class="t">Web 控制台</div><div class="muted" style="font-size:13px">v1.4.2 · 林晚</div><div>${mTag('success')}</div></div>`));
+
+  blocks.push(spec('Input 输入',
+    `<input class="w-input" placeholder="搜索发布单 / 版本…" />`,
+    `<input class="m-input" placeholder="搜索发布单 / 版本…" />`));
+
+  blocks.push(spec('Progress 进度',
+    `<div class="stack" style="width:100%"><div class="w-prog"><i style="width:62%"></i></div><div class="muted mono" style="font-size:11px">62% · accent 纯色</div></div>`,
+    `<div class="stack" style="width:100%"><div class="m-prog"><i style="width:62%;background:${T.tones.success}"></i></div><div class="muted mono" style="font-size:11px">62% · 轨道 elevated 高6</div></div>`));
+
+  blocks.push(spec('Nav 导航',
+    `<div class="w-menu"><div class="it">概览</div><div class="it active">发布单</div><div class="it">应用结构</div><div class="it">设置</div></div>`,
+    `<div class="m-tabs"><div class="tb"><span class="ic"></span>概览</div><div class="tb active"><span class="ic"></span>发布单</div><div class="tb"><span class="ic"></span>应用</div><div class="tb"><span class="ic"></span>设置</div></div>`));
+
+  blocks.push(spec('Table / List 列表',
+    `<div class="w-table"><div class="hd"><span>标题</span><span>状态</span><span>环境</span></div><div class="rw sel"><span>灰度发布</span><span>${wTag('info')}</span><span>${wTag('warning')}</span></div><div class="rw"><span>热修复</span><span>${wTag('success')}</span><span>${wTag('danger')}</span></div></div>`,
+    `<div class="m-list"><div class="m-row"><div class="top"><span class="ti">灰度发布</span>${mTag('info')}</div><div class="m-prog"><i style="width:45%;background:${T.tones.info}"></i></div></div><div class="m-row"><div class="top"><span class="ti">热修复</span>${mTag('success')}</div><div class="muted" style="font-size:12px">v1.4.2 · 生产</div></div></div>`));
+
+  $('components').innerHTML=blocks.join('');
+}
+
+function renderType(){
+  const order=['caption','small','body','base','lead','title','h2','h1','display'];
+  $('typeScale').innerHTML=order.map(k=>`<div class="type-row"><span class="lbl">${k} · ${T.fontSize[k]}px</span><span class="sample" style="font-size:${T.fontSize[k]}px">敏捷交付 Agile ${k}</span></div>`).join('');
+  $('sansName').textContent=T.fontFamily.sans; $('monoName').textContent=T.fontFamily.mono;
+}
+
+function renderSpace(){
+  $('spaceGrid').innerHTML=Object.entries(T.spacing).map(([k,v])=>`<div class="space-item"><div class="box" style="width:${v}px;height:${v}px"></div><div class="cap">${k} ${v}</div></div>`).join('');
+  $('radiiGrid').innerHTML=Object.entries(T.radii).map(([k,v])=>`<div class="radii-item" style="border-radius:${v}px">${k}<br>${v}</div>`).join('');
+}
+
+function renderGradients(){
+  const g=T.gradients[state.accent][state.theme];
+  $('gradGrid').innerHTML=[['brand','品牌标记',g.brand],['hero','英雄区',g.hero],['text','数值渐变',g.text]].map(([k,label,css])=>`<div class="grad-card" style="background:${css}"><span class="gl">${label} · ${k}</span></div>`).join('');
+  $('gradText').style.backgroundImage=g.text;
+}
+
+function renderStatus(){
+  $('statusTable').innerHTML=`<thead><tr><th>Status</th><th>文案</th><th>Tone</th><th>规范色 statusColor</th><th>Web</th><th>Mobile</th></tr></thead><tbody>`+
+    T.statusOrder.map(s=>{
+      const tone=T.statusTone[s], hex=T.statusColor[s];
+      return `<tr><td><code>${s}</code></td><td>${T.statusLabel[s]}</td><td><code>${tone}</code></td><td><span class="swatch" style="background:${hex}"></span><span class="mono">${hex}</span></td><td>${wTag(tone)}</td><td>${mTag(tone)}</td></tr>`;
+    }).join('')+`</tbody>`;
+}
+
+function renderAll(){ applyVars(); applyControls(); renderPalette(); renderComponents(); renderType(); renderSpace(); renderGradients(); renderStatus(); }
+
+let toastTimer;
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),1900); }
+
+function currentCss(){
+  const cs=getComputedStyle(document.documentElement);
+  const keys=['--accent','--accent-2','--accent-3','--on-accent','--bg','--bg1','--surface','--elevated','--surface3','--text','--text2','--muted','--border','--border-2','--radius','--gap','--card-pad','--font-sans','--font-mono'];
+  return ':root{\n'+keys.map(k=>'  '+k+': '+cs.getPropertyValue(k).trim()+';').join('\n')+'\n}';
+}
+
+function bind(){
+  $('accentSw').addEventListener('click',e=>{ const b=e.target.closest('.sw'); if(b){ state.accent=b.dataset.accent; renderAll(); }});
+  $('accentPal').addEventListener('click',e=>{ const c=e.target.closest('.chip'); if(c){ state.accent=c.dataset.accent; renderAll(); }});
+  ['theme','density','view'].forEach(k=>{
+    $(k+'Seg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ state[k]=b.dataset.v; renderAll(); }});
+  });
+  $('rScale').addEventListener('input',e=>{ state.rScale=parseFloat(e.target.value); applyVars(); applyControls(); renderComponents(); });
+  $('sScale').addEventListener('input',e=>{ state.sScale=parseFloat(e.target.value); applyVars(); applyControls(); renderComponents(); });
+  $('motionTgl').addEventListener('click',()=>{ state.motion=!state.motion; applyVars(); applyControls(); });
+  $('randBtn').addEventListener('click',()=>{ state.accent=T.accentOrder[Math.floor(Math.random()*T.accentOrder.length)]; renderAll(); toast('随机强调色：'+state.accent); });
+  $('resetBtn').addEventListener('click',()=>{ Object.assign(state,DEFAULTS); renderAll(); toast('已重置为默认令牌'); });
+  $('cssBtn').addEventListener('click',async()=>{ const css=currentCss(); try{ await navigator.clipboard.writeText(css); toast('已复制当前 CSS 变量'); }catch{ const ta=document.createElement('textarea'); ta.value=css; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('已复制当前 CSS 变量'); } });
+  $('exportBtn').addEventListener('click',()=>{ const blob=new Blob([JSON.stringify({state,tokens:T},null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='acme-tokens-'+state.accent+'-'+state.theme+'.json'; a.click(); URL.revokeObjectURL(url); toast('已导出令牌 JSON'); });
+}
+
+$('genAt').textContent='生成时间 '+T.generatedAt+' · 令牌数 '+Object.keys(T.accents).length+' 强调色 / '+Object.keys(T.tones).length+' 语义色';
+renderAccentControls();
+renderAll();
+bind();
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+# platform-infra 应用配置（Backend.md 8.1.3 前缀 acme.*；14.3.1 本地仅启动级配置）
+# 路径约定：Controller 映射含端别前缀 /admin/v1/infra/**（网关不 StripPrefix，平台服务同口径）
+spring:
+  application:
+    name: platform-infra
+  config:
+    # 配置中心集中配置（FR-018；不可达显式失败 fail-fast）
+    import: nacos:platform-infra.yaml
+  cloud:
+    nacos:
+      server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:acme_local_nacos_2026}
+      # 命名空间（2026-11-18-02 单套 Nacos 三环境隔离；空 = 默认 namespace，与本地现状一致）
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
+        # Nacos 注册健康纳入就绪探针（14.2.2）
+        health-indicator:
+          enabled: true
+      config:
+        namespace: ${NACOS_NAMESPACE:}
+    function:
+      # 审计事件消费函数（SCSt 函数绑定，13.2.4）
+      definition: auditEventIn
+    stream:
+      bindings:
+        # 审计事件出站（AuditEventMqSink；主题归发布方约定 13.2.3）
+        auditEventOut-out-0:
+          destination: infra-audit-events
+          content-type: application/json
+        # 审计事件入站（消费组=服务名，13.2.4）
+        auditEventIn-in-0:
+          destination: infra-audit-events
+          group: platform-infra
+          content-type: application/json
+      kafka:
+        binder:
+          brokers: ${KAFKA_ADDR:127.0.0.1:9092}
+        bindings:
+          auditEventIn-in-0:
+            consumer:
+              # 死信通道（13.2.2 必配；DlqConfigValidator 启动校验）
+              enable-dlq: true
+              dlq-name: infra-audit-events-dlq
+  datasource:
+    # 每服务独占 schema（12.1.1）与独立账号（12.1.3）
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:acme}?currentSchema=platform_infra
+    username: ${PG_USER:acme}
+    password: ${PG_PASSWORD:acme_local_pg_2026}
+  servlet:
+    multipart:
+      # 文件服务上传面（REQ-20261114-071607）：容器侧上限高于业务上限（acme.storage.upload.max-size），
+      # 业务超限以 FILE_SIZE_EXCEEDED 信封表达，容器侧仅兜底防滥用
+      max-file-size: 12MB
+      max-request-size: 20MB
+  flyway:
+    enabled: true
+    # 迁移脚本目录 per-service 化（REQ-20261118-002130 确认①）：infra 当前至 V18，版本号跨服务各自协调；
+    # 每服务只扫自己的子目录，分布式行为零变化
+    locations: classpath:db/migration/infra
+    default-schema: platform_infra
+    schemas: platform_infra
+  data:
+    redis:
+      # stream 消费去重门（M-12；键带服务前缀 12.3.2）
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # ACL 用户名 + DB index（2026-11-18-02 单套 Redis 三环境隔离；username 空 = 默认用户）
+      username: ${REDIS_USERNAME:}
+      database: ${REDIS_DB:0}
+      password: ${REDIS_PASSWORD:acme_local_redis_2026}
+
+server:
+  port: 9880
+
+acme:
+  login-log:
+    # 清理任务 cron（REQ-20261114-120105；retention-days 归 platform-auth，C 方案 schema 独占）
+    retention-cron: "0 30 3 * * *"
+  exception-log:
+    # 异常日志保留期清理（REQ-20261117-061017 确认②）：硬删软删超期 sys_op_exception 行（先查后删）
+    retention-days: 14
+    # 清理任务 cron（缺省每日 03:40）
+    retention-cron: "0 40 3 * * *"
+  audit:
+    # 审计事件保留期清理（REQ-20261117-061017 确认②）：硬删软删超期 acme_op_audit 行（先查后删）；
+    # enabled/content-max-length/mask-sensitive 等埋点配置归 framework-audit AuditProperties（缺省）
+    retention-days: 30
+    # 清理任务 cron（缺省每日 04:40）
+    retention-cron: "0 40 4 * * *"
+  storage:
+    # 文件服务存储选型（REQ-20261114-071607）：type=local 为缺省（本地 dev 无对象存储中间件；
+    # 生产经同一接口显式切 minio/oss）。落盘根目录经环境注入（env-stack dev overlay 持久卷挂载）。
+    type: local
+    local:
+      # 本地盘根目录（缺失启动显式失败 SYS-15-0006；路径经环境变量注入，不落仓库默认值）
+      root-dir: ${ACME_STORAGE_LOCAL_ROOT_DIR}
+      # 访问 URL 前缀（url = url-base + "/" + ObjectKey 路径；经网关/静态资源面暴露时配置）
+      url-base: ${ACME_STORAGE_LOCAL_URL_BASE:}
+    upload:
+      # 单文件大小上限（业务面，超限 FILE_SIZE_EXCEEDED；容器 multipart 上限另配，见 spring.servlet.multipart）
+      max-size: 10MB
+      # 类型白名单（扩展名或 contentType 命中其一即放行）
+      allowed-content-types: xlsx,pdf,png,jpg,jpeg,txt,csv
+      # 软删保留天数（file-retention-cleanup 清理口径，缺省 7）
+      retention-days: 7
+      # 清理任务 cron（缺省每日 03:00）
+      retention-cron: "0 0 3 * * *"
+      # 图片像素上限（image/* 可解码且宽高 ≤ 上限，REQ-20261117-045754 确认④；缺省 4096）
+      # max-image-px: 4096
+    # 租户存储配额（REQ-20261117-045754 确认③；缺省 1073741824=1GiB，0=不限；
+    # 口径=该租户 sys_file 未删行 size 总和＋本次大小，并发上传下为近似护栏）
+    # quota:
+    #   default-bytes: 1073741824
+  security:
+    # 本服务无公开业务端点（探针与指标面经服务端口直连，网关不路由）
+    public-paths:
+      - /actuator/**
+    token:
+      # 内部令牌校验密钥域（与网关签发同源；14.3.3 经环境注入、不落仓库默认值——未注入即启动失败）
+      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET}
+  i18n:
+    # zh/en 双语（NFR-007）：框架汇总资源 + 本服务资源（消息键=错误码）
+    basenames: i18n/acme-messages,i18n/platform-infra-messages
+  flex:
+    id:
+      # 雪花 worker 标识（12.3.1 必填；与 platform-auth=1 / platform-system=2 配不同值防碰撞）
+      worker-id: 3
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # 就绪探针校验关键依赖可用性（14.2.2）：DB / Nacos
+        readiness:
+          include: readinessState,db,nacosDiscovery

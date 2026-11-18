@@ -1,0 +1,72 @@
+# platform-system-service（9881）—— 仅 PG（schema platform_system），不连 Redis
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-system
+  labels:
+    app: platform-system
+spec:
+  selector:
+    app: platform-system
+  ports:
+    - name: http
+      port: 9881
+      targetPort: 9881
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platform-system
+  template:
+    metadata:
+      labels:
+        app: platform-system
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth
+      containers:
+        - name: system
+          image: acme/platform-system
+          envFrom:
+            - configMapRef:
+                name: acme-app-config
+            - secretRef:
+                name: acme-app-secrets
+          env:
+            # 服务级覆盖共享 acme-app-config 的 JAVA_TOOL_OPTIONS（k8s 规则：env 优先于 envFrom），
+            # 范式同 platform-infra（ADR 26）。5cc5d9c 权限判定改查库后类量增长，dev 实测
+            # metaspace 已达共享上限 96m 的 85%（81Mi），贴线必炸（ADR 28），随 auth 一并定容。
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=40 -XX:MaxMetaspaceSize=192m"
+          ports:
+            - containerPort: 9881
+              name: http
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9881
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9881
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9881
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 160Mi
+            limits:
+              # 320Mi + 共享 JVM 参数下 metaspace 实测 85% 贴线（2026-11-14 dev），扩到 512Mi 并按
+              # 服务覆盖 JVM 参数（见上方 env 注释）；容量核算同 platform-infra（ADR 26）
+              memory: 512Mi

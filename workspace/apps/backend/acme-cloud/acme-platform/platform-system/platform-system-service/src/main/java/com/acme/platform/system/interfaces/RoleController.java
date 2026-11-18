@@ -1,0 +1,155 @@
+package com.acme.platform.system.interfaces;
+
+import com.acme.common.contract.PageQuery;
+import com.acme.common.contract.PageResult;
+import com.acme.framework.audit.support.AuditLog;
+import com.acme.platform.system.api.EnableStatus;
+import com.acme.platform.system.api.SystemPermissions;
+import com.acme.platform.system.api.dto.AdminMenuIds;
+import com.acme.platform.system.api.dto.AdminMenuView;
+import com.acme.platform.system.api.dto.AdminPermissionIds;
+import com.acme.platform.system.api.dto.AdminPermissionView;
+import com.acme.platform.system.api.dto.AdminRoleCreate;
+import com.acme.platform.system.api.dto.AdminRoleUpdate;
+import com.acme.platform.system.api.dto.AdminRoleView;
+import com.acme.platform.system.api.dto.AdminStatusUpdate;
+import com.acme.platform.system.application.MenuUseCase;
+import com.acme.platform.system.application.PermissionUseCase;
+import com.acme.platform.system.application.RoleUseCase;
+import com.acme.platform.system.domain.SysRole;
+import com.acme.platform.system.security.RequirePermission;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/**
+ * 角色与绑定接口（FR-006/007/008：接口级权限点绑定 + 菜单级权限绑定）。
+ */
+@RestController
+@RequestMapping("/admin/v1/system/roles")
+public class RoleController {
+
+    private final RoleUseCase roleUseCase;
+    private final PermissionUseCase permissionUseCase;
+    private final MenuUseCase menuUseCase;
+
+    public RoleController(RoleUseCase roleUseCase, PermissionUseCase permissionUseCase, MenuUseCase menuUseCase) {
+        this.roleUseCase = roleUseCase;
+        this.permissionUseCase = permissionUseCase;
+        this.menuUseCase = menuUseCase;
+    }
+
+    @GetMapping
+    @RequirePermission(SystemPermissions.ROLE_LIST)
+    public PageResult<AdminRoleView> list(@RequestParam(defaultValue = "1") Integer page,
+                                          @RequestParam(defaultValue = "20") Integer size,
+                                          @RequestParam(required = false) String keyword) {
+        PageResult<SysRole> result = roleUseCase.page(new PageQuery(page, size), keyword);
+        return new PageResult<>(
+                result.records().stream().map(EntityViews::roleView).toList(), result.total());
+    }
+
+    /** 角色树（父子关系树状定义；子角色按 id 升序）。 */
+    @GetMapping("/tree")
+    @RequirePermission(SystemPermissions.ROLE_LIST)
+    public List<AdminRoleView> tree() {
+        return EntityViews.roleTree(roleUseCase.listAll());
+    }
+
+    @PostMapping
+    @RequirePermission(SystemPermissions.ROLE_CREATE)
+    @AuditLog(action = "system.role.create", targetType = "role",
+            contentParams = {"request.roleName", "request.roleCode"})
+    public AdminRoleView create(@Valid @RequestBody AdminRoleCreate request) {
+        return EntityViews.roleView(roleUseCase.create(request));
+    }
+
+    @GetMapping("/{roleId}")
+    @RequirePermission(SystemPermissions.ROLE_QUERY)
+    public AdminRoleView get(@PathVariable Long roleId) {
+        return EntityViews.roleView(roleUseCase.get(roleId));
+    }
+
+    @PutMapping("/{roleId}")
+    @RequirePermission(SystemPermissions.ROLE_UPDATE)
+    @AuditLog(action = "system.role.update", targetType = "role", targetId = "#roleId",
+            beforeQuery = "@roleUseCase.get(#roleId)",
+            contentParams = {"roleId", "request.roleName"})
+    public AdminRoleView update(@PathVariable Long roleId, @Valid @RequestBody AdminRoleUpdate request) {
+        return EntityViews.roleView(roleUseCase.update(roleId, request));
+    }
+
+    @DeleteMapping("/{roleId}")
+    @RequirePermission(SystemPermissions.ROLE_DELETE)
+    @AuditLog(action = "system.role.delete", targetType = "role", targetId = "#roleId",
+            contentParams = {"roleId"})
+    public void delete(@PathVariable Long roleId) {
+        roleUseCase.delete(roleId);
+    }
+
+    @PutMapping("/{roleId}/status")
+    @RequirePermission(SystemPermissions.ROLE_UPDATE)
+    @AuditLog(action = "system.role.updateStatus", targetType = "role", targetId = "#roleId",
+            contentParams = {"roleId", "request.status"})
+    public void updateStatus(@PathVariable Long roleId, @Valid @RequestBody AdminStatusUpdate request) {
+        roleUseCase.updateStatus(roleId, request.status());
+    }
+
+    @GetMapping("/{roleId}/permissions")
+    @RequirePermission(SystemPermissions.ROLE_QUERY)
+    public List<AdminPermissionView> permissions(@PathVariable Long roleId) {
+        roleUseCase.get(roleId);
+        return permissionUseCase.listByIds(roleUseCase.permissionIdsOf(roleId)).stream()
+                .map(EntityViews::permissionView).toList();
+    }
+
+    @PutMapping("/{roleId}/permissions")
+    @RequirePermission(SystemPermissions.ROLE_GRANT)
+    @AuditLog(action = "system.role.grantPermission", targetType = "role", targetId = "#roleId",
+            contentParams = {"roleId", "request.permissionIds"})
+    public void bindPermissions(@PathVariable Long roleId, @Valid @RequestBody AdminPermissionIds request) {
+        roleUseCase.bindPermissions(roleId, request.permissionIds());
+    }
+
+    @GetMapping("/{roleId}/menus")
+    @RequirePermission(SystemPermissions.ROLE_QUERY)
+    public List<AdminMenuView> menus(@PathVariable Long roleId) {
+        roleUseCase.get(roleId);
+        List<Long> menuIds = roleUseCase.menuIdsOf(roleId);
+        return EntityViews.menuTree(menuUseCase.listAll(), new java.util.LinkedHashSet<>(menuIds));
+    }
+
+    @PutMapping("/{roleId}/menus")
+    @RequirePermission(SystemPermissions.ROLE_GRANT)
+    @AuditLog(action = "system.role.grantMenu", targetType = "role", targetId = "#roleId",
+            contentParams = {"roleId", "request.menuIds"})
+    public void bindMenus(@PathVariable Long roleId, @Valid @RequestBody AdminMenuIds request) {
+        roleUseCase.bindMenus(roleId, request.menuIds());
+    }
+
+    /**
+     * 设置角色数据范围（REQ-20261114-120104）：五档枚举 + CUSTOM 部门集；
+     * 校验失败 DATA_SCOPE_INVALID，写 sys_role.data_scope + sys_role_dept 全量重写
+     * （统一响应体 Result 契约口径：void 语义显式出信封，code="0"）。
+     */
+    @PutMapping("/{roleId}/data-scope")
+    @RequirePermission(SystemPermissions.ROLE_SCOPE)
+    @AuditLog(action = "system.role.scope", targetType = "role", targetId = "#roleId",
+            beforeQuery = "@roleUseCase.get(#roleId)",
+            contentParams = {"roleId", "request"})
+    public com.acme.common.core.Result<Void> updateDataScope(
+            @PathVariable Long roleId,
+            @Valid @RequestBody com.acme.platform.system.api.dto.AdminRoleDataScope request) {
+        roleUseCase.updateDataScope(roleId, request);
+        return com.acme.common.core.Result.ok(null);
+    }
+}

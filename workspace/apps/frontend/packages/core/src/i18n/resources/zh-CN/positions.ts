@@ -1,0 +1,40 @@
+/** zh-CN 岗位管理资源包（REQ-20261114-120104，组织架构域）。 */
+export const positions = {
+  title: '岗位管理',
+  search: { placeholder: '搜索岗位名称 / 编码' },
+  reload: '刷新岗位清单',
+  create: '新建岗位',
+  total: '共 {{total}} 个岗位',
+  columns: {
+    positionCode: '岗位编码',
+    positionName: '岗位名称',
+    status: '状态',
+    createdAt: '创建时间',
+    actions: '操作',
+  },
+  actions: {
+    edit: '编辑',
+    delete: '删除',
+    deleteConfirm: '确认删除岗位 {{name}}？',
+  },
+  form: {
+    editTitle: '编辑岗位：{{name}}',
+    createTitle: '新建岗位',
+    name: '岗位名称',
+    nameRequired: '请输入岗位名称',
+    namePlaceholder: '岗位显示名称',
+    code: '岗位编码',
+    codeRequired: '请输入岗位编码',
+    codePlaceholder: '如 frontend_eng',
+    status: '状态',
+    lockNote: '按乐观锁提交（版本 {{version}}）；冲突时请刷新后重试。',
+    created: '岗位已创建',
+    updated: '岗位已更新',
+  },
+  errors: {
+    loadFailed: '岗位清单加载失败',
+    deleteFailed: '删除岗位失败，请稍后重试',
+    positionInUse: '岗位已被用户引用，无法删除',
+  },
+  deleted: '岗位 {{name}} 已删除',
+};

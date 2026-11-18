@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>acme-platform</artifactId>
+    <packaging>pom</packaging>
+    <name>acme-platform</name>
+    <description>
+        Acme Cloud 平台模块
+        - 本质：业务基础能力
+        - 解决的问题：这个能力每个业务都要用
+        - 定位：platform-** 的 parent 与子聚合器；platform-** 模块清单由本 POM 的 modules 自管（5.3.2）
+        - 准入方式：架构评审
+    </description>
+
+    <modules>
+        <!-- 模块清单由本 POM 自管（5.3.2）；G2.5 拆分评审结论（Backend.md 18.1.1、M-15）：首批仅两服务；
+             platform-infra 增补经 platform-infra-audit 拆分评审（4.3.7 架构评审口径） -->
+        <module>platform-auth</module>
+        <module>platform-system</module>
+        <module>platform-infra</module>
+    </modules>
+
+    <build>
+        <plugins>
+            <!-- 单测覆盖率量化（16.1/NFR-002：≥70% 量化出数；子模块自动继承） -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 4.4.2 / 4.4.3 / 17.1：platform 不得依赖 business，服务间仅经 *-api -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-platform-deps</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <exclude>com.acme:business-*</exclude>
+                                        <exclude>com.acme:*-service</exclude>
+                                    </excludes>
+                                    <message>platform 不得依赖 business，且不得依赖任何服务实现模块（4.4.2、4.4.3）</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
