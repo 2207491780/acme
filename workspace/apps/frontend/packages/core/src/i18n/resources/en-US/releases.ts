@@ -158,4 +158,17 @@ export const releases = {
     restored: 'Deleted releases restored',
     restoreConflict: 'Not restored: data may have changed, please review and retry',
   },
+  mobile: {
+    statusFilters: { all: 'All', active: 'Active', approved: 'Ready to publish', published: 'Published', failed: 'Failed' },
+    platformFilters: { all: 'All platforms', web: 'Web', desktop: 'Desktop', mobile: 'Mobile' },
+    searchPlaceholder: 'Search title / version / owner / app',
+    clearSearch: 'Clear search',
+    resultsCount: '{{count}} results',
+    resetFilters: 'Reset filters',
+    sortLabel: 'Sort · {{label}}',
+    empty: 'No matching releases — try adjusting or resetting the filters.',
+    updatedAt: 'updated {{time}}',
+    advance: 'Advance',
+    completed: 'Done',
+  },
 };

@@ -72,4 +72,7 @@ export const common = {
     updateFailed: '更新失败，请稍后重试',
     deleteFailed: '删除失败，请稍后重试',
   },
+  mobile: {
+    empty: '暂无数据',
+  },
 };

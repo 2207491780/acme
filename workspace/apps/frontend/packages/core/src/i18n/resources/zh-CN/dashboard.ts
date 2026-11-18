@@ -35,4 +35,8 @@ export const dashboard = {
     files: '文件管理',
   },
   noRelease: '暂无发布',
+  mobile: {
+    heroDesc: '统一管理 Web、Electron 桌面端与移动端的发布单。移动端共享 @acme/core 业务层，从构建、测试、审批到发布全程可追踪。',
+    recentActivity: '最近动态',
+  },
 };

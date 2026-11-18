@@ -56,6 +56,7 @@ export const nav = {
     loading: 'Loading permissions…',
     denied: 'Access denied',
     deniedDesc: 'Missing permission {{permission}}. Contact your tenant administrator to assign a role with it.',
+    back: 'Back',
   },
   storage: {
     unsaved: 'Data has not been saved locally',
@@ -69,5 +70,17 @@ export const nav = {
     sub: 'Frontend Ops',
     footTitle: 'Multi-client reuse',
     footText: 'Web is the single source of pages; Electron shells the web build; mobile shares the business layer for small screens.',
+  },
+  mobile: {
+    tabs: {
+      dashboard: 'Home',
+      releases: 'Releases',
+      apps: 'Apps',
+      settings: 'Settings',
+    },
+    sessionRestoring: 'Restoring session…',
+    offline: 'Network unavailable',
+    loginSub: 'MULTI-TENANT CLOUD · APP',
+    appSub: 'FRONTEND OPS · MOBILE',
   },
 };

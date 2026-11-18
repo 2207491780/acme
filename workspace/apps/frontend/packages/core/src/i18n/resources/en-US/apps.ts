@@ -60,4 +60,7 @@ export const apps = {
     description: 'Description',
     updated: 'App info updated',
   },
+  mobile: {
+    viewReleases: 'View {{platform}} releases',
+  },
 };

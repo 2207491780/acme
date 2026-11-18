@@ -35,4 +35,8 @@ export const dashboard = {
     files: 'Files',
   },
   noRelease: 'No releases yet',
+  mobile: {
+    heroDesc: 'Manage releases for web, Electron desktop and mobile in one place. Mobile shares the @acme/core business layer — track builds, testing, approval and publishing end to end.',
+    recentActivity: 'Recent activity',
+  },
 };

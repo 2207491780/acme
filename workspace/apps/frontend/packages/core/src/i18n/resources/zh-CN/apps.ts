@@ -60,4 +60,7 @@ export const apps = {
     description: '描述',
     updated: '应用信息已更新',
   },
+  mobile: {
+    viewReleases: '查看 {{platform}} 发布',
+  },
 };

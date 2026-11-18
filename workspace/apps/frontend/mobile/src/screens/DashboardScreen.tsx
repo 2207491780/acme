@@ -1,29 +1,26 @@
+import { useCallback, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import {
   metrics,
   sortReleases,
   relTime,
-  statusLabel,
   statusTone,
+  type NeutralPalette,
   type Platform,
   type Status,
 } from '@acme/core';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useStore } from '../store/useStore';
 import { useAccent } from '../hooks';
+import { useAppTheme } from '../theme';
+import { useTranslation } from '../i18n';
 import { Card, Screen, Title, Eyebrow, Muted, Tag } from '../components/ui';
 import { PlatformBadge } from '../components/icons';
-import { TONE_COLOR, HEALTH_COLOR, HEALTH_LABEL, palette } from '../theme';
-import type { ScreenProps } from '../nav';
+import { TONE_COLOR, HEALTH_COLOR } from '../theme';
+import type { MainTabParamList, TabKey } from '../nav';
 
-const STAGES: [Status, string][] = [
-  ['draft', '草稿'],
-  ['building', '构建'],
-  ['testing', '测试'],
-  ['approved', '审批'],
-  ['published', '发布'],
-];
-
-function StatTile({ value, label, color }: { value: number; label: string; color: string }) {
+function StatTile({ value, label, color, styles }: { value: number; label: string; color: string; styles: DashStyles }) {
   return (
     <View style={[styles.stat, { borderColor: `${color}33` }]}>
       <Text style={[styles.statN, { color }]}>{value}</Text>
@@ -32,10 +29,17 @@ function StatTile({ value, label, color }: { value: number; label: string; color
   );
 }
 
-export function DashboardScreen({ go }: ScreenProps) {
+type DashStyles = ReturnType<typeof makeStyles>;
+
+export function DashboardScreen() {
   const state = useStore((s) => s.state);
   const setQuery = useStore((s) => s.setQuery);
   const accent = useAccent();
+  const { t } = useTranslation();
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+  const go = useCallback((tab: TabKey) => navigation.navigate(tab), [navigation]);
   const m = metrics(state);
 
   const goPlatform = (platform: Platform) => {
@@ -50,34 +54,32 @@ export function DashboardScreen({ go }: ScreenProps) {
   return (
     <Screen>
       <View style={{ gap: 6 }}>
-        <Eyebrow>ACME · Frontend Delivery</Eyebrow>
-        <Title>多端交付，一屏掌控</Title>
-        <Muted>
-          统一管理 Web、Electron 桌面端与移动端的发布单。移动端共享 @acme/core 业务层，从构建、测试、审批到发布全程可追踪。
-        </Muted>
+        <Eyebrow>{t('dashboard.hero.eyebrow')}</Eyebrow>
+        <Title>{t('dashboard.hero.title')}</Title>
+        <Muted>{t('dashboard.mobile.heroDesc')}</Muted>
       </View>
 
       <View style={styles.statGrid}>
-        <StatTile value={m.active} label="进行中" color={TONE_COLOR.info} />
-        <StatTile value={m.approved} label="待发布" color={TONE_COLOR.warning} />
-        <StatTile value={m.publishedToday} label="今日发布" color={TONE_COLOR.success} />
-        <StatTile value={m.failed} label="失败待处理" color={TONE_COLOR.danger} />
+        <StatTile value={m.active} label={t('dashboard.stats.active')} color={TONE_COLOR.info} styles={styles} />
+        <StatTile value={m.approved} label={t('dashboard.stats.approved')} color={TONE_COLOR.warning} styles={styles} />
+        <StatTile value={m.publishedToday} label={t('dashboard.stats.publishedToday')} color={TONE_COLOR.success} styles={styles} />
+        <StatTile value={m.failed} label={t('dashboard.stats.failed')} color={TONE_COLOR.danger} styles={styles} />
       </View>
 
       <Card>
         <View style={styles.cardHead}>
-          <Text style={styles.cardTitle}>交付流水线</Text>
-          <Muted>共 {m.total} 个发布单</Muted>
+          <Text style={styles.cardTitle}>{t('dashboard.cards.pipeline')}</Text>
+          <Muted>{t('dashboard.cards.pipelineTotal', { total: m.total })}</Muted>
         </View>
         <View style={styles.pipeline}>
-          {STAGES.map(([key, label]) => (
+          {STAGE_ITEMS.map(([key, labelKey]) => (
             <Pressable
               key={key}
               onPress={() => goStatus(key)}
               style={({ pressed }) => [styles.stage, pressed && { opacity: 0.6 }]}
             >
               <Text style={[styles.stageN, { color: TONE_COLOR[statusTone(key)] }]}>{m.byStatus[key] || 0}</Text>
-              <Text style={styles.stageL}>{label}</Text>
+              <Text style={styles.stageL}>{t(labelKey)}</Text>
             </Pressable>
           ))}
         </View>
@@ -102,12 +104,12 @@ export function DashboardScreen({ go }: ScreenProps) {
                 </View>
                 <Muted>{app.description}</Muted>
                 <View style={styles.tagRow}>
-                  <Tag label={HEALTH_LABEL[app.health]} color={HEALTH_COLOR[app.health]} />
+                  <Tag label={t(`releases.health.${app.health}`)} color={HEALTH_COLOR[app.health]} />
                   <Tag label={`v${app.version}`} color={accent} />
                   {latest ? (
-                    <Tag label={statusLabel(latest.status)} color={TONE_COLOR[statusTone(latest.status)]} />
+                    <Tag label={t(`releases.status.${latest.status}`)} color={TONE_COLOR[statusTone(latest.status)]} />
                   ) : (
-                    <Muted>暂无发布</Muted>
+                    <Muted>{t('dashboard.noRelease')}</Muted>
                   )}
                 </View>
               </Card>
@@ -117,7 +119,7 @@ export function DashboardScreen({ go }: ScreenProps) {
       })}
 
       <Card>
-        <Text style={styles.cardTitle}>最近动态</Text>
+        <Text style={styles.cardTitle}>{t('dashboard.mobile.recentActivity')}</Text>
         <View style={{ gap: 12 }}>
           {state.activity.slice(0, 12).map((a) => (
             <View key={a.id} style={styles.activityRow}>
@@ -134,36 +136,46 @@ export function DashboardScreen({ go }: ScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  stat: {
-    flexBasis: '45%',
-    flexGrow: 1,
-    backgroundColor: palette.elevated,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
-    gap: 2,
-  },
-  statN: { fontSize: 30, fontWeight: '800' },
-  statL: { color: palette.text2, fontSize: 12 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { color: palette.text, fontSize: 16, fontWeight: '700' },
-  pipeline: { flexDirection: 'row', gap: 8 },
-  stage: {
-    flex: 1,
-    backgroundColor: palette.elevated,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    gap: 4,
-  },
-  stageN: { fontSize: 20, fontWeight: '800' },
-  stageL: { color: palette.text2, fontSize: 11 },
-  appHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  appName: { color: palette.text, fontSize: 16, fontWeight: '700' },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  activityRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  dot: { width: 9, height: 9, borderRadius: 99, marginTop: 5 },
-  activityText: { color: palette.text, fontSize: 13 },
-});
+// 交付流水线五段（标签键与 core dashboard.stages 域一致，运行时经 t() 取文案；顺序保留既有五段）。
+const STAGE_ITEMS: readonly [Status, string][] = [
+  ['draft', 'dashboard.stages.draft'],
+  ['building', 'dashboard.stages.building'],
+  ['testing', 'dashboard.stages.testing'],
+  ['approved', 'dashboard.stages.approved'],
+  ['published', 'dashboard.stages.published'],
+];
+
+const makeStyles = (p: NeutralPalette) =>
+  StyleSheet.create({
+    statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    stat: {
+      flexBasis: '45%',
+      flexGrow: 1,
+      backgroundColor: p.elevated,
+      borderRadius: 14,
+      borderWidth: 1,
+      padding: 14,
+      gap: 2,
+    },
+    statN: { fontSize: 30, fontWeight: '800' },
+    statL: { color: p.text2, fontSize: 12 },
+    cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    cardTitle: { color: p.text, fontSize: 16, fontWeight: '700' },
+    pipeline: { flexDirection: 'row', gap: 8 },
+    stage: {
+      flex: 1,
+      backgroundColor: p.elevated,
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+      gap: 4,
+    },
+    stageN: { fontSize: 20, fontWeight: '800' },
+    stageL: { color: p.text2, fontSize: 11 },
+    appHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    appName: { color: p.text, fontSize: 16, fontWeight: '700' },
+    tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+    activityRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+    dot: { width: 9, height: 9, borderRadius: 99, marginTop: 5 },
+    activityText: { color: p.text, fontSize: 13 },
+  });

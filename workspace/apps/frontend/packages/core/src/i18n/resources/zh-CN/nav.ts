@@ -56,6 +56,7 @@ export const nav = {
     loading: '权限信息加载中…',
     denied: '无访问权限',
     deniedDesc: '缺少权限码 {{permission}}，请联系租户管理员为当前账号分配对应角色。',
+    back: '返回',
   },
   storage: {
     unsaved: '数据尚未保存到本地',
@@ -69,5 +70,17 @@ export const nav = {
     sub: 'Frontend Ops',
     footTitle: '多端复用',
     footText: 'Web 端是页面唯一来源；Electron 套壳 Web 产物；移动端共享业务层并适配小屏。',
+  },
+  mobile: {
+    tabs: {
+      dashboard: '总览',
+      releases: '发布',
+      apps: '应用',
+      settings: '设置',
+    },
+    sessionRestoring: '会话恢复中…',
+    offline: '网络不可达',
+    loginSub: 'MULTI-TENANT CLOUD · APP',
+    appSub: 'FRONTEND OPS · MOBILE',
   },
 };

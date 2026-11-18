@@ -158,4 +158,17 @@ export const releases = {
     restored: '已恢复删除的发布单',
     restoreConflict: '未恢复：数据可能已变化，请检查后重试',
   },
+  mobile: {
+    statusFilters: { all: '全部', active: '进行中', approved: '待发布', published: '已发布', failed: '失败' },
+    platformFilters: { all: '全部端', web: 'Web', desktop: '桌面', mobile: '移动' },
+    searchPlaceholder: '搜索标题 / 版本 / 负责人 / 应用',
+    clearSearch: '清空搜索',
+    resultsCount: '{{count}} 个结果',
+    resetFilters: '重置筛选',
+    sortLabel: '排序 · {{label}}',
+    empty: '没有匹配的发布单，试试调整筛选或重置。',
+    updatedAt: '{{time}}更新',
+    advance: '推进',
+    completed: '已完成',
+  },
 };

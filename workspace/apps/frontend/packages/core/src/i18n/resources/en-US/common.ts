@@ -72,4 +72,7 @@ export const common = {
     updateFailed: 'Update failed, please try again later',
     deleteFailed: 'Deletion failed, please try again later',
   },
+  mobile: {
+    empty: 'Nothing here yet',
+  },
 };

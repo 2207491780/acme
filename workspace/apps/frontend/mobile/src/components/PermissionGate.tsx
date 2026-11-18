@@ -1,8 +1,11 @@
+import { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { ReactNode } from 'react';
+import { type NeutralPalette } from '@acme/core';
 import { useMeStore } from '../store/meStore';
 import { Card, Muted, Button } from './ui';
-import { TONE_COLOR, palette } from '../theme';
+import { TONE_COLOR, useAppTheme } from '../theme';
+import { useTranslation } from '../i18n';
 
 /**
  * Screen 级权限门禁（REQ-20261114-120110 AMB 裁决；语义对齐 web/src/App.tsx 范本，fail-closed）：
@@ -11,6 +14,7 @@ import { TONE_COLOR, palette } from '../theme';
  *   ② 画像未加载（加载中/未拉取）→ loading 占位（fail-closed，不渲染 children）；
  *   ③ 已加载缺权限码 → 403 兜底提示 + 「返回」入口（onBack 存在时）；
  * 有权限 → 渲染 children。
+ * REQ-20261119-032108：文案迁移 core nav.permissionGate 域 t() 键；样式随双主题派生。
  */
 export function PermissionGate({
   permission,
@@ -25,22 +29,25 @@ export function PermissionGate({
   const me = useMeStore((s) => s.me);
   const loading = useMeStore((s) => s.loading);
   const error = useMeStore((s) => s.error);
+  const { t } = useTranslation();
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
 
   if (!me) {
     if (error && !loading) {
       return (
         <Card style={styles.card}>
-          <Text style={[styles.title, { color: TONE_COLOR.danger }]}>画像加载失败</Text>
+          <Text style={[styles.title, { color: TONE_COLOR.danger }]}>{t('nav.permissionGate.loadFailed')}</Text>
           <Muted>{error}</Muted>
           <View style={styles.actionRow}>
-            <Button small variant="ghost" label="重试" onPress={() => void useMeStore.getState().load()} />
+            <Button small variant="ghost" label={t('components.errorBoundary.retry')} onPress={() => void useMeStore.getState().load()} />
           </View>
         </Card>
       );
     }
     return (
       <View style={styles.loading}>
-        <Muted>权限校验中…</Muted>
+        <Muted>{t('nav.permissionGate.loading')}</Muted>
       </View>
     );
   }
@@ -48,13 +55,11 @@ export function PermissionGate({
   if (!me.permissions.includes(permission)) {
     return (
       <Card style={styles.card}>
-        <Text style={styles.title}>403 · 无权访问</Text>
-        <Muted>
-          当前账号缺少权限 `{permission}`，如需访问请联系管理员开通权限。
-        </Muted>
+        <Text style={styles.title}>{t('nav.permissionGate.denied')}</Text>
+        <Muted>{t('nav.permissionGate.deniedDesc', { permission })}</Muted>
         {onBack ? (
           <View style={styles.actionRow}>
-            <Button small variant="ghost" label="返回" onPress={onBack} />
+            <Button small variant="ghost" label={t('nav.permissionGate.back')} onPress={onBack} />
           </View>
         ) : null}
       </Card>
@@ -64,9 +69,10 @@ export function PermissionGate({
   return <>{children}</>;
 }
 
-const styles = StyleSheet.create({
-  card: { margin: 16, gap: 8 },
-  title: { color: palette.text, fontSize: 16, fontWeight: '800' },
-  actionRow: { flexDirection: 'row', justifyContent: 'flex-end' },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-});
+const makeStyles = (p: NeutralPalette) =>
+  StyleSheet.create({
+    card: { margin: 16, gap: 8 },
+    title: { color: p.text, fontSize: 16, fontWeight: '800' },
+    actionRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+    loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  });

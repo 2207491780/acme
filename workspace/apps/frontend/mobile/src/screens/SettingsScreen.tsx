@@ -1,22 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { ReactNode } from 'react';
-import type { Accent } from '@acme/core';
+import { useLocaleStore, type Accent, type NeutralPalette, type Theme } from '@acme/core';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/authStore';
 import { useMeStore } from '../store/meStore';
 import { authApi } from '../api/auth';
 import { useAccent } from '../hooks';
-import { Card, Screen, Title, Eyebrow, Muted, Tag, Button } from '../components/ui';
-import { ACCENTS, ACCENT_ORDER, TONE_COLOR, palette, onAccent } from '../theme';
+import { useAppTheme } from '../theme';
+import { useTranslation } from '../i18n';
+import { Card, Screen, Title, Eyebrow, Muted, Tag, Button, toast } from '../components/ui';
+import { ACCENTS, ACCENT_ORDER, TONE_COLOR, onAccent } from '../theme';
 
-function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
+type SetStyles = ReturnType<typeof makeStyles>;
+
+function Toggle({
+  value,
+  onChange,
+  label,
+  styles,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  styles: SetStyles;
+}) {
   const accent = useAccent();
+  const { palette } = useAppTheme();
   return (
     <Pressable
       accessibilityLabel={label}
       accessibilityRole="switch"
       accessibilityState={{ checked: value }}
+      hitSlop={{ top: 9, bottom: 9 }}
       onPress={() => onChange(!value)}
       style={[
         styles.toggle,
@@ -28,7 +44,17 @@ function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: bool
   );
 }
 
-function SettingRow({ label, desc, control }: { label: string; desc: string; control: ReactNode }) {
+function SettingRow({
+  label,
+  desc,
+  control,
+  styles,
+}: {
+  label: string;
+  desc: string;
+  control: ReactNode;
+  styles: SetStyles;
+}) {
   return (
     <View style={styles.settingRow}>
       <View style={{ flex: 1 }}>
@@ -36,6 +62,77 @@ function SettingRow({ label, desc, control }: { label: string; desc: string; con
         <Muted style={{ fontSize: 12 }}>{desc}</Muted>
       </View>
       {control}
+    </View>
+  );
+}
+
+/** 主题分段选择（契约②：settings.theme dark/light，即时生效并写入共享状态）。 */
+function ThemeSegmented({ value, styles }: { value: Theme; styles: SetStyles }) {
+  const dispatch = useStore((s) => s.dispatch);
+  const { t } = useTranslation();
+  const { palette } = useAppTheme();
+  const options: { key: Theme; labelKey: string }[] = [
+    { key: 'dark', labelKey: 'settings.mobile.themeDark' },
+    { key: 'light', labelKey: 'settings.mobile.themeLight' },
+  ];
+  return (
+    <View style={styles.themeSegment}>
+      {options.map((option) => {
+        const selected = value === option.key;
+        return (
+          <Pressable
+            key={option.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={t(option.labelKey)}
+            onPress={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: option.key } })}
+            style={[
+              styles.themeOption,
+              selected ? { backgroundColor: palette.text, borderColor: palette.text } : null,
+            ]}
+          >
+            <Text style={[styles.themeOptionText, { color: selected ? palette.bg : palette.text2 }]}>
+              {t(option.labelKey)}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** 界面语言分段选择（契约③：core localeStore 单一动因切换 zh-CN / en-US）。 */
+function LocaleSegmented({ styles }: { styles: SetStyles }) {
+  const locale = useLocaleStore((s) => s.locale);
+  const setLocale = useLocaleStore((s) => s.setLocale);
+  const { t } = useTranslation();
+  const { palette } = useAppTheme();
+  const options: { key: 'zh-CN' | 'en-US'; labelKey: string }[] = [
+    { key: 'zh-CN', labelKey: 'nav.userMenu.languageZh' },
+    { key: 'en-US', labelKey: 'nav.userMenu.languageEn' },
+  ];
+  return (
+    <View style={styles.themeSegment}>
+      {options.map((option) => {
+        const selected = locale === option.key;
+        return (
+          <Pressable
+            key={option.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={t(option.labelKey)}
+            onPress={() => setLocale(option.key)}
+            style={[
+              styles.themeOption,
+              selected ? { backgroundColor: palette.text, borderColor: palette.text } : null,
+            ]}
+          >
+            <Text style={[styles.themeOptionText, { color: selected ? palette.bg : palette.text2 }]}>
+              {t(option.labelKey)}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -48,7 +145,9 @@ export function SettingsScreen() {
   const session = useAuthStore((s) => s.session);
   const clearSession = useAuthStore((s) => s.clear);
   const accent = useAccent();
-  const [logoutFlash, setLogoutFlash] = useState<string | null>(null);
+  const { t } = useTranslation();
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
 
   const handleLogout = () => {
     authApi
@@ -57,42 +156,43 @@ export function SettingsScreen() {
       .finally(() => {
         clearSession();
         useMeStore.getState().clear();
-        setLogoutFlash('已退出登录');
+        // App 壳 AuthNavigator 据 session 复位回登录 Stack；此处仅反馈结果
+        toast(t('settings.mobile.logoutDone'), 'success');
       });
   };
-  const [flash, setFlash] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!flash) return;
-    const t = setTimeout(() => setFlash(null), 1800);
-    return () => clearTimeout(t);
-  }, [flash]);
 
   return (
     <Screen>
       <View style={{ gap: 6 }}>
-        <Eyebrow>Preferences</Eyebrow>
-        <Title>设置</Title>
-        <Muted>强调色与动效即时生效并写入共享状态。移动端采用统一深色主题。</Muted>
+        <Eyebrow>{t('settings.head.eyebrow')}</Eyebrow>
+        <Title>{t('settings.head.title')}</Title>
+        <Muted>{t('settings.mobile.sub')}</Muted>
       </View>
 
       <Card>
-        <Text style={styles.cardTitle}>外观</Text>
-        <View style={styles.settingRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.settingLabel}>强调色</Text>
-            <Muted style={{ fontSize: 12 }}>影响按钮、导航与高亮</Muted>
-          </View>
-        </View>
+        <Text style={styles.cardTitle}>{t('settings.appearance.title')}</Text>
+        <SettingRow
+          label={t('settings.appearance.theme')}
+          desc={t('settings.appearance.themeDesc')}
+          styles={styles}
+          control={<ThemeSegmented value={settings.theme} styles={styles} />}
+        />
+        <SettingRow
+          label={t('settings.appearance.accent')}
+          desc={t('settings.appearance.accentDesc')}
+          styles={styles}
+          control={<View />}
+        />
         <View style={styles.swatchRow}>
           {ACCENT_ORDER.map((name: Accent) => {
             const selected = settings.accent === name;
             return (
               <Pressable
                 key={name}
-                accessibilityLabel={`强调色 ${name}`}
+                accessibilityLabel={t('settings.mobile.accentAria', { name })}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
+                hitSlop={4}
                 onPress={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { accent: name } })}
                 style={[
                   styles.swatch,
@@ -105,12 +205,14 @@ export function SettingsScreen() {
           })}
         </View>
         <SettingRow
-          label="构建动效"
-          desc="开启后构建进度实时推进（TICK）"
+          label={t('settings.mobile.motionLabel')}
+          desc={t('settings.mobile.motionDesc')}
+          styles={styles}
           control={
             <Toggle
-              label="构建动效"
+              label={t('settings.mobile.motionLabel')}
               value={settings.motion}
+              styles={styles}
               onChange={(v) => dispatch({ type: 'UPDATE_SETTINGS', patch: { motion: v } })}
             />
           }
@@ -118,56 +220,66 @@ export function SettingsScreen() {
       </Card>
 
       <Card>
-        <Text style={styles.cardTitle}>数据管理</Text>
+        <Text style={styles.cardTitle}>{t('settings.language.title')}</Text>
+        <SettingRow
+          label={t('settings.language.label')}
+          desc={t('settings.language.desc')}
+          styles={styles}
+          control={<LocaleSegmented styles={styles} />}
+        />
+      </Card>
+
+      <Card>
+        <Text style={styles.cardTitle}>{t('settings.data.title')}</Text>
         <View style={styles.statRow}>
           <View style={styles.statBox}>
             <Text style={[styles.statN, { color: accent }]}>{state.releases.length}</Text>
-            <Muted style={{ fontSize: 12 }}>发布单</Muted>
+            <Muted style={{ fontSize: 12 }}>{t('settings.mobile.stats.releases')}</Muted>
           </View>
           <View style={styles.statBox}>
             <Text style={[styles.statN, { color: accent }]}>{state.apps.length}</Text>
-            <Muted style={{ fontSize: 12 }}>应用</Muted>
+            <Muted style={{ fontSize: 12 }}>{t('settings.mobile.stats.apps')}</Muted>
           </View>
           <View style={styles.statBox}>
             <Text style={[styles.statN, { color: accent }]}>{state.savedViews.length}</Text>
-            <Muted style={{ fontSize: 12 }}>保存视图</Muted>
+            <Muted style={{ fontSize: 12 }}>{t('settings.mobile.stats.savedViews')}</Muted>
           </View>
         </View>
         <SettingRow
-          label="重置演示数据"
-          desc="恢复初始种子数据"
+          label={t('settings.data.reset')}
+          desc={t('settings.data.resetDesc')}
+          styles={styles}
           control={
             <Button
               small
               variant="danger"
-              label="重置"
+              label={t('settings.data.resetAction')}
               onPress={() => {
                 resetData();
-                setFlash('已重置为演示数据');
+                toast(t('settings.data.resetDone'), 'success');
               }}
             />
           }
         />
-        {flash ? <Text style={[styles.flash, { color: TONE_COLOR.success }]}>{flash}</Text> : null}
-        <Muted style={{ fontSize: 12 }}>导出 / 导入将在接入 expo-file-system 后启用。</Muted>
+        <Muted style={{ fontSize: 12 }}>{t('settings.mobile.exportPending')}</Muted>
       </Card>
 
       <Card>
-        <Text style={styles.cardTitle}>登录信息</Text>
+        <Text style={styles.cardTitle}>{t('settings.mobile.session')}</Text>
         <SettingRow
-          label={`已登录：${session?.phone ?? '未登录'}`}
-          desc="双令牌经安全存储持久化；access 过期前自动刷新轮换"
+          label={session ? t('settings.mobile.signedInAs', { phone: session.phone }) : t('settings.mobile.signedOut')}
+          desc={t('settings.mobile.sessionDesc')}
+          styles={styles}
           control={
-            <Button small variant="danger" label="退出登录" onPress={handleLogout} />
+            <Button small variant="danger" label={t('nav.userMenu.logout')} onPress={handleLogout} />
           }
         />
-        {logoutFlash ? <Text style={[styles.flash, { color: TONE_COLOR.success }]}>{logoutFlash}</Text> : null}
       </Card>
 
       <Card>
-        <Text style={styles.cardTitle}>运行环境</Text>
+        <Text style={styles.cardTitle}>{t('settings.runtime.label')}</Text>
         <View style={styles.runtimeRow}>
-          <Muted style={{ flex: 1 }}>React Native + Expo · 共享 @acme/core 业务层</Muted>
+          <Muted style={{ flex: 1 }}>{t('settings.mobile.runtimeInfo')}</Muted>
           <Tag label="Mobile" color={TONE_COLOR.success} />
         </View>
       </Card>
@@ -175,38 +287,48 @@ export function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  cardTitle: { color: palette.text, fontSize: 16, fontWeight: '700' },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    paddingVertical: 6,
-  },
-  settingLabel: { color: palette.text, fontSize: 14, fontWeight: '600' },
-  swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  swatch: {
-    width: 36,
-    height: 36,
-    borderRadius: 99,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  swatchDot: { width: 10, height: 10, borderRadius: 99, backgroundColor: onAccent },
-  toggle: { width: 46, height: 26, borderRadius: 99, borderWidth: 1, justifyContent: 'center' },
-  knob: { width: 20, height: 20, borderRadius: 99, backgroundColor: palette.text },
-  statRow: { flexDirection: 'row', gap: 10 },
-  statBox: {
-    flex: 1,
-    backgroundColor: palette.elevated,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    gap: 2,
-  },
-  statN: { fontSize: 24, fontWeight: '800' },
-  flash: { fontSize: 13, fontWeight: '600' },
-  runtimeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-});
+const makeStyles = (p: NeutralPalette) =>
+  StyleSheet.create({
+    cardTitle: { color: p.text, fontSize: 16, fontWeight: '700' },
+    settingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 16,
+      paddingVertical: 6,
+    },
+    settingLabel: { color: p.text, fontSize: 14, fontWeight: '600' },
+    swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    swatch: {
+      width: 36,
+      height: 36,
+      borderRadius: 99,
+      borderWidth: 3,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    swatchDot: { width: 10, height: 10, borderRadius: 99, backgroundColor: onAccent },
+    themeSegment: { flexDirection: 'row', borderWidth: 1, borderColor: p.border, borderRadius: 10, overflow: 'hidden' },
+    themeOption: {
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      minHeight: 44,
+      justifyContent: 'center',
+      borderRightWidth: 1,
+      borderRightColor: p.border,
+    },
+    themeOptionText: { fontSize: 12, fontWeight: '600' },
+    toggle: { width: 46, height: 26, borderRadius: 99, borderWidth: 1, justifyContent: 'center' },
+    knob: { width: 20, height: 20, borderRadius: 99, backgroundColor: p.text },
+    statRow: { flexDirection: 'row', gap: 10 },
+    statBox: {
+      flex: 1,
+      backgroundColor: p.elevated,
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: 'center',
+      gap: 2,
+    },
+    statN: { fontSize: 24, fontWeight: '800' },
+    runtimeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  });
