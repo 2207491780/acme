@@ -1,82 +1,78 @@
 #!/bin/sh
-# 用法：dev-tunnel.sh <dev|test> [up|down] —— 本地 ↔ 云端环境调试隧道（prod 禁用：只读红线）。
-# 前置：export ACME_SRV_HOST=<服务器地址>（必填，无缺省）；可选 ACME_SRV_PORT(22)/ACME_SRV_USER(ubuntu)/ACME_SRV_KEY(~/.ssh/acme_srv_deploy)。
-# up（默认）：SSH + kubectl port-forward，把云端 PG/Redis/Nacos/网关映射到本机回环：
-#   本地 15432 → 云 PG | 16379 → 云 Redis | 18848 → 云 Nacos HTTP | 19848 → Nacos gRPC | 19888 → 云网关
-#   服务器侧监听 27xxx 高位端口（仅绑 127.0.0.1），避开 seed-nacos.sh 的 18848，与部署并发互不干扰。
-# down：按 PID 文件 + 端口监听扫杀清理服务器侧残留（兜底异常断连）。up 状态下 Ctrl-C/断连由远端 trap 自动清理。
-# ⚠️ 由用户在本机终端执行：脚本打印云端凭证 export 行，属敏感输出，不得经 AI 工具运行或转录（.ai/rules 安全红线）。
-# 联调命令示例见脚本输出与 RUNBOOK「本地联调云端环境」。
+# 用法：dev-tunnel.sh [dev] —— 本地 ↔ 云端中间件隧道（ADR 2026-11-18-02：SSH 连【应用面机】，
+# 纯 ssh -L 直达中间件 ClusterIP；test 已并入 dev（别名）；prod 禁用：只读红线）。
+# 前置：仓库根 cloud-servers.yml 的 app-plane 块（host/ssh_port/user/password）——认证方式 =
+#   **密码**（SSH_ASKPASS 注入，规则见 .ai/rules/ai-guidelines.md 安全红线；禁止装公钥/密钥登录）。
+# 前置产物（local-deploy.sh 部署后自动同步到应用面机）：
+#   /opt/acme/mw-endpoints.env —— postgres/redis/nacos ClusterIP
+#   /opt/acme/tunnel/dev.env   —— dev 凭证 export 行（600）
+# 行为：
+#   1) SSH 拉取端点与 dev.env 凭证 export 行（敏感输出由用户终端承接，不得经 AI 工具运行或转录）
+#   2) 建立纯 ssh -L 转发（无远端进程，断连即拆）：
+#      15432 → postgres ClusterIP | 16379 → redis ClusterIP
+#      18848 → nacos ClusterIP:8848 | 19848 → nacos ClusterIP:9848（gRPC = 8848 + 1000）
+#   3) 本地服务注册进 Nacos dev namespace（ACME_ENV_ID=dev），prod 网关不可见——调试期泄漏已根治。
 set -eu
 
 ENV=${1:-dev}
-ACT=${2:-up}
-
+[ "$ENV" = test ] && ENV=dev
 case "$ENV" in
-  dev|test) ;;
+  dev) ;;
   prod) echo "❌ prod 禁用调试隧道（只读红线，见 .ai/rules 安全约束）" >&2; exit 1 ;;
-  *) echo "用法: $0 <dev|test> [up|down]" >&2; exit 2 ;;
-esac
-case "$ACT" in
-  up|down) ;;
-  *) echo "用法: $0 <dev|test> [up|down]" >&2; exit 2 ;;
+  *) echo "用法: $0 [dev]（test 为 dev 别名）" >&2; exit 2 ;;
 esac
 
-NS="acme-$ENV"
-HOST=${ACME_SRV_HOST:?需先 export ACME_SRV_HOST=<服务器地址>（无缺省值，避免误连）}
-RPORT=${ACME_SRV_PORT:-22}
-RUSER=${ACME_SRV_USER:-ubuntu}
-KEY=${ACME_SRV_KEY:-$HOME/.ssh/acme_srv_deploy}
+REPO_ROOT=$(git rev-parse --show-toplevel)
+SV_FILE="$REPO_ROOT/cloud-servers.yml"
+[ -f "$SV_FILE" ] || { echo "❌ 缺仓库根 cloud-servers.yml" >&2; exit 1; }
+svfield() { awk -v blk="$1:" -v fld="$2:" '
+    $0 ~ "^  " blk {inblk=1; next}
+    inblk && /^  [a-z-]+:/ {exit}
+    inblk && index($0, "    " fld) == 1 {
+      sub(/^[ ]{4}[^:]*:[ ]?/, ""); gsub(/\r$/, ""); gsub(/^["'\'']|["'\'']$/, ""); print; exit
+    }' "$SV_FILE" | sed -e "s/^['\"]//" -e "s/['\"]\$//"; }
+H=$(svfield app-plane host); P=$(svfield app-plane ssh_port); U=$(svfield app-plane user)
+PW=$(svfield app-plane password)
+P=${P:-22}
+: "${PW:?❌ cloud-servers.yml 的 app-plane 未填 password}"
 
-SSH_CMD="ssh -i $KEY -p $RPORT -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=15"
+ASK="$(mktemp -d)/.askpass.sh"
+printf '#!/bin/sh\necho "$ACME_SSH_PW"\n' > "$ASK"; chmod +x "$ASK"
+ssh_run() {
+  export ACME_SSH_PW=$PW SSH_ASKPASS="$ASK" SSH_ASKPASS_REQUIRE=force DISPLAY=:0
+  ssh -p "$P" -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive \
+    -o NumberOfPasswordPrompts=1 -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 \
+    -o ServerAliveInterval=15 -o LogLevel=ERROR "$U@$H" "$@"
+}
 
-if [ "$ACT" = down ]; then
-  # 孤儿 kubectl 的 argv 会被置零，pkill -f 匹配不到：按 PID 文件 + ss 端口监听定位，杀前校验 comm=kubectl。
-  $SSH_CMD "$RUSER@$HOST" '
-PF=/tmp/acme-tunnel-'"$NS"'.pids
-killt() { [ "$(cat /proc/$1/comm 2>/dev/null)" = kubectl ] && kill "$1" 2>/dev/null; }
-if [ -f "$PF" ]; then for p in $(cat "$PF"); do killt "$p"; done; rm -f "$PF"; fi
-for p in $(ss -ltnp "sport = :27432 or sport = :27379 or sport = :28848 or sport = :29848 or sport = :29888" 2>/dev/null | grep -oE "pid=[0-9]+" | cut -d= -f2 | sort -u); do killt "$p"; done
-if ss -ltn "sport = :27432 or sport = :27379 or sport = :28848 or sport = :29848 or sport = :29888" 2>/dev/null | tail -n +2 | grep -q .; then
-  echo "⚠️ 仍有隧道端口监听残留，请手动检查 ss -ltnp" >&2; exit 1
-fi' || { echo "❌ 清理失败（SSH 不可达或仍有残留）" >&2; exit 1; }
-  echo "✅ 服务器侧隧道已清理（$NS）"
-  exit 0
-fi
+echo "▶ 拉取中间件端点（应用面机 /opt/acme/mw-endpoints.env）："
+EP=$(ssh_run '. /opt/acme/mw-endpoints.env && echo "PG=$postgres REDIS=$redis NACOS=$nacos"')
+PG_IP=${EP#PG=};   PG_IP=${PG_IP%% *}
+REDIS_IP=${EP#*REDIS=}; REDIS_IP=${REDIS_IP%% *}
+NACOS_IP=${EP##*NACOS=}
+[ -n "$PG_IP" ] && [ -n "$REDIS_IP" ] && [ -n "$NACOS_IP" ] \
+  || { echo "❌ 端点缺失（$EP）——先跑 local-deploy.sh（部署后自动同步端点文件）" >&2; exit 1; }
+echo "  postgres/redis/nacos 端点已取得"
 
-echo "▶ 拉取云端 $NS 凭证（本地启动服务前 export）："
-$SSH_CMD "$RUSER@$HOST" "
-for k in PG_PASSWORD REDIS_PASSWORD NACOS_PASSWORD ACME_USER_TOKEN_HMAC_SECRET ACME_SECURITY_TOKEN_HMAC_SECRET \
-         ACME_SEED_SUPERADMIN_PASSWORD ACME_SEED_DEMO_ADMIN_PASSWORD ACME_SEED_DEMO_OPERATOR_PASSWORD; do
-  v=\$(kubectl -n $NS get secret acme-app-secrets -o jsonpath=\"{.data.\$k}\" | base64 -d)
-  [ -n \"\$v\" ] || continue  # 集群 Secret 缺该键（旧版 app.env 未登记）时跳过，不导出空值
-  printf 'export %s=\"%s\"\n' \"\$k\" \"\$v\"
-done"
+echo "▶ 拉取云端 dev 凭证（本地启动服务前 export；敏感输出由用户终端承接）："
+ssh_run "cat /opt/acme/tunnel/dev.env"
 
 cat <<EOF
-▶ 隧道映射（本机回环，Ctrl-C 拆除）：
-  15432 → $NS/postgres    16379 → $NS/redis
-  18848 → $NS/nacos(http) 19848 → $NS/nacos(grpc) 19888 → $NS/acme-gateway
+▶ 隧道映射（本机回环，Ctrl-C 拆除，无远端进程）：
+  15432 → postgres ClusterIP:5432   16379 → redis ClusterIP:6379
+  18848 → nacos ClusterIP:8848      19848 → nacos ClusterIP:9848（gRPC）
 ▶ 本地后端联调示例（先 export 上方凭证）：
   PG_HOST=127.0.0.1 PG_PORT=15432 REDIS_HOST=127.0.0.1 REDIS_PORT=16379 \\
   NACOS_ADDR=http://127.0.0.1:18848 \\
   mvn -f workspace/apps/backend/acme-cloud/pom.xml -pl acme-platform/platform-auth/platform-auth-service spring-boot:run
   ⚠️ platform-infra 本地启动另需 ACME_STORAGE_LOCAL_ROOT_DIR=<本机已存在目录>
-    （REQ-20261114-071607 文件服务落盘根；非集群 Secret，本地自定路径，不入库）
+    （文件服务落盘根；非集群 Secret，本地自定路径，不入库）
 EOF
 
-# -tt 强制 pty：无 pty 的 SSH 会话断连时 sshd 不发 SIGHUP，远端会孤儿化；有 pty 则内核必发 HUP 触发 trap 清理。
-exec $SSH_CMD -tt \
-  -L 15432:127.0.0.1:27432 -L 16379:127.0.0.1:27379 \
-  -L 18848:127.0.0.1:28848 -L 19848:127.0.0.1:29848 \
-  -L 19888:127.0.0.1:29888 \
-  "$RUSER@$HOST" "
-PF=/tmp/acme-tunnel-$NS.pids
-: > \"\$PF\"
-trap 'kill \$(cat \"\$PF\") 2>/dev/null; rm -f \"\$PF\"' HUP INT TERM EXIT
-kubectl -n $NS port-forward svc/postgres 27432:5432 --address=127.0.0.1 >/dev/null 2>&1 & echo \$! >> \"\$PF\"
-kubectl -n $NS port-forward svc/redis 27379:6379 --address=127.0.0.1 >/dev/null 2>&1 & echo \$! >> \"\$PF\"
-kubectl -n $NS port-forward svc/nacos 28848:8848 --address=127.0.0.1 >/dev/null 2>&1 & echo \$! >> \"\$PF\"
-kubectl -n $NS port-forward svc/nacos 29848:9848 --address=127.0.0.1 >/dev/null 2>&1 & echo \$! >> \"\$PF\"
-kubectl -n $NS port-forward svc/acme-gateway 29888:9888 --address=127.0.0.1 >/dev/null 2>&1 & echo \$! >> \"\$PF\"
-wait"
+exec ssh -p "$P" \
+  -o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive \
+  -o NumberOfPasswordPrompts=1 -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 \
+  -o ServerAliveInterval=15 -o LogLevel=ERROR \
+  -L 15432:$PG_IP:5432 -L 16379:$REDIS_IP:6379 \
+  -L 18848:$NACOS_IP:8848 -L 19848:$NACOS_IP:9848 \
+  "$U@$H"

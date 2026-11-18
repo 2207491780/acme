@@ -1,22 +1,20 @@
-# prod overlay —— CORS 收紧为显式白名单（覆盖 base 的通配默认；同源反代下仅对非同源调用生效，
-# TLS 上线后改 https://acmecloud.site，见决策 2026-11-14-25）
-# 部署审批走二期 CI 的 GitHub Environments required reviewers（决策 2026-11-13-06）
+# prod overlay —— 部署形态（ADR 2026-11-18-02 两台云机分层 + 单套中间件两环境逻辑隔离）：
+#   数据面（k3s server）：中间件（nodeSelector acme/role=env）+ Traefik 入口；
+#   应用面（k3s agent）：服务/web（nodeSelector acme/role=app）。
+# prod 部署 = 本地 local-deploy.sh 触发（ADR 2026-11-18-03，审批语义 = 人工执行）；云端常驻仅 prod。
+# CORS 收紧为显式白名单（覆盖 base 的通配默认；同源反代下仅对非同源调用生效，TLS 上线后改
+# https://acmecloud.site，见决策 2026-11-14-25）。
 #
-# REQ-20261114-071607 platform-infra 文件服务 storage root：prod 暂不启用（避免误开本地盘写入）——
-# 生产存储选型确认后，照抄 dev/test overlay 的 platform-infra-storage.yaml +
-# platform-infra-storage-patch.yaml 并挂到本文件 resources/patches。
-# 未注入 ACME_STORAGE_LOCAL_ROOT_DIR 时 platform-infra 启动即失败（fail-fast，属预期防误开）。
-#
-# REQ-20261117-045754 存储选型更新：MinIO 清单已就绪（base/minio.yaml，StatefulSet+SVC+PVC，交付
-# 未部署未实测）——prod 启用＝ uncomment base kustomization resources 中的 minio.yaml 登记＋在
-# /opt/acme/prod/app.env 增加 MINIO_ROOT_USER/MINIO_ROOT_PASSWORD 键＋platform-infra 的
-# acme.storage.* 切 minio（Nacos data-id 配置，ENV-STACK.md「对象存储」小节）＋同源反代
-# （web/nginx.conf 注释样例）。
+# 存储（REQ-20261114-071607 / REQ-20261117-045754）：prod 启用 LOCAL 落盘（platform-infra-storage
+# PVC，沿用 dev 实测模式）；MinIO 备选未实测——启用＝ base kustomization 登记 minio.yaml ＋
+# /opt/acme/prod/app.env 增 MINIO_ROOT_USER/MINIO_ROOT_PASSWORD ＋ Nacos data-id 切 acme.storage.type
+# ＋ 同源反代（web/nginx.conf 注释样例，ENV-STACK.md「对象存储」小节）。
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: acme-prod
 resources:
   - ../../base
+  - platform-infra-storage.yaml
 labels:
   - pairs:
       app.kubernetes.io/part-of: acme
@@ -27,8 +25,153 @@ configMapGenerator:
     behavior: merge
     literals:
       - ACME_CORS_ALLOWED_ORIGINS=http://acmecloud.site
+      # 两环境逻辑隔离 prod 恒定注入（2026-11-18-02）；dev 侧键值由本地凭证 export（dev-tunnel），
+      # 不入集群配置。PG_USER 键名对齐服务 yml 占位（${PG_USER}）——base 旧字面量 PG_USERNAME 仅
+      # 供 postgres 容器 superuser 使用（POSTGRES_USER），保留不动。
+      - PG_DB=acme_prod
+      - PG_USER=acme
+      - REDIS_USERNAME=acme_prod
+      - REDIS_DB=0
+      - NACOS_NAMESPACE=prod
+      - ACME_ENV_ID=prod
 patches:
   - path: ingress-host.yaml
     target:
       kind: Ingress
+      name: acme-web
+  - path: platform-infra-storage-patch.yaml
+    target:
+      kind: Deployment
+      name: platform-infra
+  # nodeSelector 两层调度：中间件钉数据面（prod/dev 中间件单套同库，dev 本地服务经隧道接入）
+  - patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: postgres
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: env
+    target:
+      kind: StatefulSet
+      name: postgres
+  - patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: redis
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: env
+    target:
+      kind: StatefulSet
+      name: redis
+  - patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: nacos
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: env
+    target:
+      kind: StatefulSet
+      name: nacos
+  - patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: minio
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: env
+    target:
+      kind: StatefulSet
+      name: minio
+  - patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: kafka
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: env
+    target:
+      kind: StatefulSet
+      name: kafka
+  # 服务/web 钉应用面（五件套 Deployment）
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: acme-gateway
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: app
+    target:
+      kind: Deployment
+      name: acme-gateway
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platform-auth
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: app
+    target:
+      kind: Deployment
+      name: platform-auth
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platform-infra
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: app
+    target:
+      kind: Deployment
+      name: platform-infra
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platform-system
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: app
+    target:
+      kind: Deployment
+      name: platform-system
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: acme-web
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              acme/role: app
+    target:
+      kind: Deployment
       name: acme-web

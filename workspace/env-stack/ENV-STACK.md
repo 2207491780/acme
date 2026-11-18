@@ -1,40 +1,55 @@
 # env-stack/ — 运行环境搭建
 
-存放「把整套环境跑起来」所需的一切：容器编排、初始化脚本、环境配置模板。目标：新机器/新协作者**只按本目录**就能从零搭出 dev（及 test）全套运行环境。
+存放「把整套环境跑起来」所需的一切：容器编排、初始化脚本、环境配置模板。目标：新机器/新协作者
+**只按本目录**就能搭出两台云机的分层部署环境（决策 `2026-11-18-02`：两台 4C4G 分层机型 + 单套中间件
+两环境逻辑隔离 prod/dev，test 并入 dev；`2026-11-18-03`：CI/CD 本地化）。
 
 ## 骨架
 
 ```text
 env-stack/
 ├── ENV-STACK.md   # 本文件：约定说明
-├── RUNBOOK.md     # 云服务器（k3s 单机）从零到部署的操作手册
-├── k8s/           # Kustomize 清单：base（环境无关）+ overlays/{dev,test,prod,monolith}
-├── scripts/       # deploy.sh / healthcheck.sh / seed-nacos.sh（deploy 幂等，失败非零退出）
-└── config/        # 凭证模板 *.example.env（真实值服务器侧 /opt/acme/<env>/，不入库）
+├── RUNBOOK.md     # 两台 4C4G 云机（两层机型 · k3s 两节点）从零到部署的操作手册
+├── k8s/           # Kustomize 清单：base（环境无关，中间件 nodeSelector 留 overlay 钉位）
+│                  #   + overlays/{prod,monolith}（dev/test 云端已退役——本地服务经 dev-tunnel 接中间件）
+├── scripts/       # local-build.sh / local-deploy.sh（本机 CI/CD）/ deploy.sh / healthcheck.sh /
+│                  #   seed-nacos.sh / status.sh / dev-tunnel.sh（deploy 幂等，失败非零退出）
+└── config/        # 凭证模板 *.example.env（真实值数据面机 /opt/acme/prod/ 与本机 .ai-tmp/，不入库）
 ```
 
-编排选型为 **k3s 单机 + Kustomize**（决策 `2026-11-13-06-k8s-k3s-single-node.md`）。
-应用镜像的 Dockerfile 不在本目录：后端 `workspace/apps/backend/Dockerfile`（上下文含
-acme-parent 兄弟目录）、前端 `workspace/apps/frontend/Dockerfile.web`（构建上下文与
-pnpm/Maven workspace 对齐）。
+编排选型为 **k3s 两节点（一 server 一 agent）+ Kustomize**（`2026-11-18-02`，取代单机方案）：
+数据面机 = k3s server + 单套中间件（nodeSelector `acme/role=env`）+ Traefik 入口 + prod 备份；
+应用面机 = k3s agent + prod 五件套（`acme/role=app`）。同一 k3s 集群，ClusterIP 跨节点路由；
+两台为轻量应用服务器（跨账号），组网走**公网 IP + wireguard-native 加密后端**（节点全注册公网 IP）。
+应用镜像 Dockerfile 不在本目录：后端 `workspace/apps/backend/Dockerfile`（自包含多阶段，保留）与
+`Dockerfile.prebuilt`（消费 local-build.sh 产物）、前端 `Dockerfile.web` / `Dockerfile.web.prebuilt`。
 
 ## 约定
 
-- 环境三态对齐 `.ai/env/cloud-{dev,test,prod}.yaml`（`env` 字段仍为 dev/test/prod）：本目录负责**搭**，`.ai/env/` 负责**连**（MCP）与运行环境定义。
-- 部署契约：`cd.yml` → `scripts/deploy.sh <env>` → `kubectl apply -k k8s/overlays/<env>` →
-  `scripts/healthcheck.sh <env>`；镜像地址由 deploy.sh 在临时目录向 overlay kustomization 追加 `images` 段注入
+- 云端常驻仅 **prod**（namespace `acme-prod`）：本地 dev/test 服务一律本地跑，经 `dev-tunnel.sh`
+  连中间件 dev 隔离面（凭证 `dev.env`，test 并入 dev 同一套）；本目录负责**搭**，`.ai/env/` 负责
+  **连**（MCP）与运行环境定义。
+- 部署契约（本地化）：`local-build.sh`（本机产物 → `.ai-tmp/build/prod-<sha7>/`）→
+  `local-deploy.sh`（push TCR → SSH 数据面 `deploy.sh prod` → `healthcheck.sh prod` → 端点与 dev.env
+  同步应用面机）；镜像地址由 deploy.sh 在临时目录向 overlay kustomization 追加 `images` 段注入
   （kubectl 内置 kustomize 渲染，不依赖独立 kustomize 二进制、不弄脏仓库文件）。
-- 真实凭证不入库：模板一律占位；服务器侧放 `/opt/acme/<env>/{app.env,registry.env}`，
-  由 deploy.sh 注入为集群 Secret（`acme-app-secrets` / `acme-registry-auth`）。
-- 4G 单机资源纪律：全部工作负载设内存 limit；**同一时间只常驻一个环境**（见 RUNBOOK 第 8 节）。
+- 真实凭证不入库：模板一律占位；数据面机放 `/opt/acme/prod/{app.env,registry.env}`
+  （app.env 含双环境键 `PG_DEV_PASSWORD`/`REDIS_DEV_PASSWORD`），由 deploy.sh 注入为集群 Secret
+  （`acme-app-secrets` / `acme-registry-auth`）；应用面机仅 `/opt/acme/tunnel/dev.env`（dev 凭证，
+  600）与 `/opt/acme/mw-endpoints.env`（ClusterIP 端点，**无凭证**）。
+- 中间件两环境隔离：PG 双库（acme_prod/acme_dev + dev 独立用户）、Nacos 双 namespace（seed-nacos.sh
+  建 namespace + 播种）、Redis 双 ACL 用户 + DB index（prod=0/dev=1）+ 默认用户关闭——键隔离靠
+  DB index、pub/sub 靠 KeyComposer 环境段（`ACME_ENV_ID`），二者互补（ADR 2026-11-18-02）。
+- 资源纪律：全部工作负载设内存 limit；中间件常驻数据面（不动），五件套常驻应用面。
 - 构建产物、容器卷、下载解压物放根目录 `.ai-tmp/`，不放本目录。
 - 每个脚本入口写清用法注释（`# 用法：…`），AI 与人都能直接执行。
 
 ## 对象存储（REQ-20261117-045754）
 
-> ⚠️ **本小节与 `k8s/base/minio.yaml` 为 REQ-20261117-045754 交付物，未部署未实测**；
-> 启用前必须先做数据面验证（建桶 + 上传/下载回环 + 同源反代回环）。当前各环境存储缺省仍为
-> LOCAL（本地盘，platform-infra-storage 持久卷）。
+> ✅ **2026-11-19 已启用并实测**：MinIO 部署于数据面（1/1），桶 `acme-prod` 已建（mc 回环验证），
+> prod 经 Nacos data-id 切 `acme.storage.type=minio`（endpoint 为公网同源地址，/object-storage/
+> 同源反代见 web/nginx.conf）；dev/test 并入 dev 保持 LOCAL 落盘。状态详见
+> `.ai-memory/playbooks/two-tier-deployment.md`。
 
 ### MinIO 清单（k8s/base/minio.yaml）
 
@@ -121,10 +136,10 @@ preparation 返回的 headers 原样携带 Content-Type 头）。
 
 - 后端 Dockerfile 增 `ARG PACKAGE=module`（module=现行为按 `MODULE_PATH` 构建；bootstrap=单体
   形态标记，等价于 `MODULE_PATH=acme-bootstrap` 的普通模块构建，实现取简）。
-- `cd.yml` dispatch/call 增输入 `package_mode`（distributed|monolith，默认 distributed）：
-  monolith 时 build 作业只构建 `acme-bootstrap→acme/acme-monolith:<env>-<sha7>` + web，
-  四服务镜像跳过，且跳过 deploy 作业（单体部署编排属后续可选；deploy.sh 清单驱动面向
-  分布式五件套，无需改）。
+- ~~`cd.yml` dispatch/call 增输入 `package_mode`~~（2026-11-19 cd.yml 随 CI/CD 本地化退役）：
+  单体构建为手动路径——`docker build --build-arg PACKAGE=bootstrap --build-arg
+  MODULE_PATH=acme-bootstrap`（镜像 `acme/acme-monolith:<tag>`，跳过四服务；单体部署编排属
+  后续可选；deploy.sh 清单驱动面向分布式五件套）。
 - 三服务镜像构建取用注意（REQ-20261118-002130）：三 `*-service` 的可执行 jar 改为
   `-exec` 分类器附加（主构件保持普通 jar 供 `acme-bootstrap` 单体聚合依赖——Boot 重打包的
   BOOT-INF 布局不可作为依赖 jar 复用）；Dockerfile 构建步骤优先取 `*-exec.jar`，

@@ -1,11 +1,16 @@
 #!/bin/sh
-# 用法：healthcheck.sh <dev|test|prod> —— 部署后健康检查（由 cd.yml 调用，也可本地手动执行）。
+# 用法：healthcheck.sh prod —— 部署后健康检查（由本机 local-deploy.sh SSH 调用，cd.yml 已退役）。
 # 检查：① 全部 Pod Ready；② 经节点 80 端口（k3s Traefik hostPort）以 Ingress Host 探 web 首页。
+# 探活在服务器本机执行，不过公网边缘，不受域名备案拦截影响（勿「修复」此口径）。
 # 任何一步失败非零退出以阻断流水线。
 set -eu
 
-[ "$#" -eq 1 ] || { echo "用法: $0 <dev|test|prod>" >&2; exit 2; }
+[ "$#" -eq 1 ] || { echo "用法: $0 prod" >&2; exit 2; }
 ENV=$1
+case "$ENV" in
+  prod) ;;
+  *) echo "❌ 仅支持 prod（dev/test 云端已退役）" >&2; exit 2 ;;
+esac
 NS="acme-$ENV"
 
 echo "▶ 等待 $NS 全部 Pod Ready"

@@ -12,7 +12,8 @@ import java.util.UUID;
 
 /**
  * L1 失效广播（FR-006/AC-006，Q-D002 定稿 Redis Pub/Sub）：写/删后 publish 清各实例 L1；
- * 通道 {@code acme:cache:invalidate:{service}}（12.3.2 服务前缀）；广播失败兜底清本地 + L1 短 TTL 过期（6.3）。
+ * 通道 {@code acme:cache:invalidate:{service}}（12.3.2 服务前缀；acme.env-id 非空时前置环境段，
+ * 单套 Redis 多环境隔离，与 KeyComposer 环境段同口径）；广播失败兜底清本地 + L1 短 TTL 过期（6.3）。
  * 消息带来源实例 id，收到后跳过自身（防回环清掉本实例刚写入的 L1）。
  */
 public class L1InvalidationBus implements MessageListener {
@@ -20,6 +21,8 @@ public class L1InvalidationBus implements MessageListener {
     private static final Logger log = LoggerFactory.getLogger(L1InvalidationBus.class);
 
     private static final char SOURCE_SEPARATOR = 1;
+
+    private static final String CHANNEL_PREFIX = "acme:cache:invalidate:";
 
     private final RedisTemplate<String, String> redisTemplate;
     private final String channel;
@@ -40,7 +43,13 @@ public class L1InvalidationBus implements MessageListener {
 
     /** 广播通道名（12.3.2 服务前缀）。 */
     public static String channelOf(String servicePrefix) {
-        return "acme:cache:invalidate:" + servicePrefix;
+        return channelOf(servicePrefix, "");
+    }
+
+    /** 广播通道名：envId 非空时前置环境段（单套 Redis 多环境隔离；空=历史格式逐字符一致）。 */
+    public static String channelOf(String servicePrefix, String envId) {
+        String env = envId == null ? "" : envId.trim();
+        return env.isEmpty() ? CHANNEL_PREFIX + servicePrefix : env + ":" + CHANNEL_PREFIX + servicePrefix;
     }
 
     /** 本实例标识（消息来源标记，订阅侧跳过自身）。 */

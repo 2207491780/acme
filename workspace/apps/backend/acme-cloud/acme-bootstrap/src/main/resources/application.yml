@@ -50,9 +50,13 @@ spring:
     enabled: false
   data:
     redis:
-      # Redis 一份（确认③：键前缀天然不冲突——auth:/system:/infra 段各归各）；env 键同分布式
+      # Redis 一份（确认③：键前缀天然不冲突——auth:/system:/infra 段各归各）；env 键同分布式；
+      # ACL 用户名 + DB index（2026-11-18-02 单套 Redis 多环境隔离，可选打包路径同样适用；
+      # username 空 = 默认用户）
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      username: ${REDIS_USERNAME:}
+      database: ${REDIS_DB:0}
       password: ${REDIS_PASSWORD:acme_local_redis_2026}
   servlet:
     multipart:

@@ -1,6 +1,7 @@
 # Nacos —— 注册中心 + 配置中心，standalone（内嵌 derby），JVM 降配适配 4G 单机
 # 注意：2.x 客户端走 gRPC 9848（= 8848 + 1000），Service 必须同时暴露。
-# dev/test 关闭鉴权（集群内访问）；种子配置 data-id 由 scripts/seed-nacos.sh 推送。
+# 单套实例承载 prod/dev 两 namespace（2026-11-18-02，seed-nacos.sh 建 namespace 并播种）；鉴权关闭
+# ——社区版 namespace 级 RBAC 不强制，残余风险靠 seed 防呆 + 运维纪律兜底（ADR 2026-11-18-02）。
 apiVersion: v1
 kind: Service
 metadata:

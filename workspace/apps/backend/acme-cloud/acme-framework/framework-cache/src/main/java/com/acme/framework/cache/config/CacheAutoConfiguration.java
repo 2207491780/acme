@@ -76,11 +76,11 @@ public class CacheAutoConfiguration extends AcmeModuleAutoConfiguration {
                                                KeyComposer keyComposer, Environment environment) {
         String instanceId = environment.getProperty("spring.application.instance-id",
                 java.util.UUID.randomUUID().toString());
-        return new L1InvalidationBus(redisTemplate, L1InvalidationBus.channelOf(keyComposer.servicePrefix()), l1,
-                instanceId);
+        return new L1InvalidationBus(redisTemplate, L1InvalidationBus.channelOf(keyComposer.servicePrefix(),
+                keyComposer.envSegment()), l1, instanceId);
     }
 
-    /** 广播订阅容器（通道 acme:cache:invalidate:{service}）。 */
+    /** 广播订阅容器（通道 acme:cache:invalidate:{service}，env 段可选前置——与 KeyComposer 同源）。 */
     @Bean
     @ConditionalOnMissingBean(name = "cacheInvalidationListenerContainer")
     public RedisMessageListenerContainer cacheInvalidationListenerContainer(RedisConnectionFactory connectionFactory,
@@ -88,7 +88,8 @@ public class CacheAutoConfiguration extends AcmeModuleAutoConfiguration {
                                                                             KeyComposer keyComposer) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(bus, new ChannelTopic(L1InvalidationBus.channelOf(keyComposer.servicePrefix())));
+        container.addMessageListener(bus, new ChannelTopic(L1InvalidationBus.channelOf(keyComposer.servicePrefix(),
+                keyComposer.envSegment())));
         return container;
     }
 

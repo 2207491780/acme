@@ -23,7 +23,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 站内信推送总线（REQ-20261114-120102 多实例扇出，模式照 framework-cache L1InvalidationBus 先例）：
  * 事务提交后事件（framework-core AfterCommitEventListener 惯例）→ Redis pub/sub 通道
- * {@code platform-system:notify:ws}（12.3.2 服务前缀，KeyComposer 拼接）→ 各实例订阅回调把帧投递给
+ * {@code platform-system:notify:ws}（12.3.2 服务前缀，KeyComposer 拼接；acme.env-id 非空时自动前置
+ * 环境段——单套 Redis 多环境隔离）→ 各实例订阅回调把帧投递给
  * 本地持有该 userId 的会话；发布实例自身同样经订阅回环收到（不跳过自身，与会话注册表语义一致）。
  * Redis 不可用时降级仅本实例投递（fail-open，可用性优先），订阅建立防御化（无 Redis 环境不阻断启动）。
  */

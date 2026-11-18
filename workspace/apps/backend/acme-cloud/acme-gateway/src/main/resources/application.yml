@@ -12,6 +12,10 @@ spring:
       # 即时失效特性被 FAIL_OPEN 静默架空；连接失败仍按 FAIL_OPEN 放行）
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # ACL 用户名 + DB index（2026-11-18-02 单套 Redis 三环境隔离：每环境独立 ACL 用户与
+      # DB index；username 空 = 默认用户仅密码认证，与本地 .dev-stack 现状一致）
+      username: ${REDIS_USERNAME:}
+      database: ${REDIS_DB:0}
       password: ${REDIS_PASSWORD:acme_local_redis_2026}
   cloud:
     nacos:
@@ -19,6 +23,9 @@ spring:
       # 注册与凭证经环境 / 配置中心注入（14.3.3；本地开发默认值仅连 .dev-stack）
       username: ${NACOS_USERNAME:nacos}
       password: ${NACOS_PASSWORD:acme_local_nacos_2026}
+      # 命名空间（2026-11-18-02 单套 Nacos 三环境隔离；空 = 默认 namespace，与本地现状一致）
+      discovery:
+        namespace: ${NACOS_NAMESPACE:}
     gateway:
       server:
         webflux:

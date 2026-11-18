@@ -8,9 +8,11 @@
 | 文件 | env 字段 | 环境 | 默认权限 |
 |---|---|---|---|
 | [local.yaml](local.yaml) | local | 本地（中间件本地运行） | 读写 |
-| [cloud-dev.yaml](cloud-dev.yaml) | dev | 云端开发（k3s acme-dev） | 读写 |
-| [cloud-test.yaml](cloud-test.yaml) | test | 云端测试（k3s acme-test） | 读写 |
-| [cloud-prod.yaml](cloud-prod.yaml) | prod | 云端生产（k3s acme-prod） | **只读**；任何写操作需用户明确批准 |
+| [cloud-dev.yaml](cloud-dev.yaml) | dev | 数据面单套中间件 dev 隔离面（经应用面机隧道接入；test 并入 dev 同一套） | 读写 |
+| [cloud-prod.yaml](cloud-prod.yaml) | prod | 云端生产（k3s acme-prod 两节点：数据面中间件 + 应用面五件套） | **只读**；任何写操作需用户明确批准 |
+
+> 2026-11-18/19 部署形态改造：dev/test 云端全栈退役（服务本地跑）、test 并入 dev、
+> cloud-test.yaml 退役；中间件单套两环境逻辑隔离，见 `.ai-memory/playbooks/two-tier-deployment.md`。
 
 文件名见名知意（local / cloud-<stage>）；`env` 字段保持部署阶段名，与 k8s overlays 和 CD 环境对齐。
 

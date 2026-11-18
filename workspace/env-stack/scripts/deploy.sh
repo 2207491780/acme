@@ -1,17 +1,23 @@
 #!/bin/sh
-# 用法：deploy.sh <dev|test|prod> —— 部署目标环境到 k3s（在服务器上或有 kubectl 的机器执行）。
-# 由 cd.yml 调用，也可本地手动执行。环境三态与 .ai/env/cloud-<env>.yaml 对齐；凭证一律经环境变量注入。
+# 用法：deploy.sh prod —— 部署 prod 到 k3s（数据面机执行，由本机 local-deploy.sh SSH 触发，ADR
+# 2026-11-18-03）。dev/test 云端已退役：本地服务经 dev-tunnel 连中间件（dev 凭证，test 并入 dev），
+# 见 .ai-memory/playbooks/two-tier-deployment.md。凭证一律经环境变量注入。
 #
 # 前置：
 #   1. kubectl 已连目标集群（k3s 服务器上 ~/.kube/config 就位即可）
-#   2. 服务器 /opt/acme/<env>/app.env 与 registry.env 已就位（模板见 env-stack/config/*.example.env）
+#   2. 数据面机 /opt/acme/prod/app.env 与 registry.env 已就位（模板见 env-stack/config/*.example.env，
+#      app.env 须含双环境中间件键 PG_DEV_PASSWORD / REDIS_DEV_PASSWORD）
 # 镜像地址注入：把 base+overlay 拷到临时目录并追加 images 段，用 kubectl 内置 kustomize 渲染，
 # 不依赖独立 kustomize 二进制，也不弄脏仓库文件。
 # 幂等：可重复执行；Secret 按内容更新，rollout 等待就绪失败则非零退出。
 set -eu
 
-[ "$#" -eq 1 ] || { echo "用法: $0 <dev|test|prod>" >&2; exit 2; }
+[ "$#" -eq 1 ] || { echo "用法: $0 prod" >&2; exit 2; }
 ENV=$1
+case "$ENV" in
+  prod) ;;
+  *) echo "❌ 仅支持 prod（dev/test 云端已退役，见 .ai-memory/playbooks/two-tier-deployment.md）" >&2; exit 2 ;;
+esac
 
 ENVSTACK=$(cd "$(dirname "$0")/.." && pwd)
 ENV_DIR=${ACME_ENV_DIR:-"/opt/acme/$ENV"}
@@ -60,11 +66,11 @@ sed -i 's|\.\./\.\./base|../base|' "$TMP/overlay/kustomization.yaml"
   done
 } >> "$TMP/overlay/kustomization.yaml"
 
-# 4) 应用清单（apply 后种子 Nacos 配置中心，服务 spring.config.import 依赖 data-id）
+# 4) 应用清单（先等中间件就绪，再种子 Nacos 配置中心——首部署 nacos 需拉镜像+冷启动，
+#    种子过早会失败；服务 spring.config.import 依赖 data-id）
 kubectl apply -k "$TMP/overlay"
-sh "$ENVSTACK/scripts/seed-nacos.sh" "$ENV"
 
-# 5) 等待就绪（失败非零退出，阻断流水线）
+# 5) 等待中间件就绪（失败非零退出，阻断流水线）
 for sts in postgres redis nacos; do
   kubectl -n "$NS" rollout status "statefulset/$sts" --timeout=300s
 done
@@ -75,8 +81,20 @@ if kubectl -n "$NS" get statefulset minio >/dev/null 2>&1; then
 else
   echo "ℹ️ minio 未部署（REQ-20261117-045754 交付未启用），跳过 rollout 等待"
 fi
+
+# 6) 种子 Nacos（中间件就绪后执行）
+sh "$ENVSTACK/scripts/seed-nacos.sh" "$ENV"
 for dep in acme-gateway platform-auth platform-infra platform-system acme-web; do
-  kubectl -n "$NS" rollout status "deployment/$dep" --timeout=600s
+  # 首次部署需从 TCR 公网拉取五镜像（跨账号轻量机走公网路径，带宽受限）——等待上限 1800s；
+  # 镜像已在节点缓存的重部署会提前秒级完成，无副作用
+  kubectl -n "$NS" rollout status "deployment/$dep" --timeout=1800s
 done
 
 echo "✅ $NS 部署完成"
+
+# 6) 中间件端点文件（数据面留存 → local-deploy.sh 同步应用面机，dev-tunnel v2 以 ClusterIP 建转发；
+#    ClusterIP 随 Service 重建才变化，deploy 每次重写保证新鲜）
+ENDPOINTS_FILE="/opt/acme/$ENV/mw-endpoints.env"
+kubectl -n "$NS" get svc postgres redis nacos \
+  -o jsonpath='{range .items[*]}{.metadata.name}={.spec.clusterIP}{"\n"}{end}' > "$ENDPOINTS_FILE"
+echo "ℹ️ 中间件端点已写 $ENDPOINTS_FILE（postgres/redis/nacos ClusterIP）"

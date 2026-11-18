@@ -22,6 +22,18 @@ class L1InvalidationBusTest {
     }
 
     @Test
+    void channelPrefixesEnvSegmentWhenEnvIdSet() {
+        assertThat(L1InvalidationBus.channelOf("order-service", "dev"))
+                .isEqualTo("dev:acme:cache:invalidate:order-service");
+    }
+
+    @Test
+    void channelFallsBackToLegacyFormatWhenEnvIdBlank() {
+        assertThat(L1InvalidationBus.channelOf("order-service", null))
+                .isEqualTo("acme:cache:invalidate:order-service");
+    }
+
+    @Test
     void subscriptionClearsLocalL1() {
         CaffeineL1Cache l1 = new CaffeineL1Cache(10, 60);
         l1.put("k", "v");

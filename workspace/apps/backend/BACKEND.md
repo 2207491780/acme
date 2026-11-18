@@ -141,11 +141,25 @@ PG_HOST=127.0.0.1 PG_PORT=5432 java -jar acme-bootstrap/target/acme-bootstrap-*.
 | lastActiveAt 逐请求刷新 | 网关每请求 HSET | 仅登录/续约/刷新时点 |
 | Nacos / Kafka | 必需 | 软依赖关闭（可完全离线） |
 
-镜像与部署：`Dockerfile` `PACKAGE=bootstrap` 形态标记 + cd.yml `package_mode` 输入
-（monolith 构建 `acme-bootstrap→acme/acme-monolith` 镜像、跳过四服务）；env-stack
+镜像与部署：`Dockerfile` `PACKAGE=bootstrap` 形态标记（monolith 构建
+`acme-bootstrap→acme/acme-monolith` 镜像、跳过四服务）；env-stack
 `overlays/monolith`（交付不部署）——见 [`ENV-STACK.md`](../../env-stack/ENV-STACK.md)「双形态」。
+
+## 键与 Pub/Sub 通道环境段（2026-11-18-02 单套中间件两环境隔离）
+
+单套中间件承载 prod/dev 两逻辑环境（test 并入 dev）：键隔离靠 Redis DB index（prod=0/dev=1，
+`REDIS_DB` 注入），pub/sub 通道隔离靠**环境段**——`KeyComposer` 读 `acme.env-id`（环境变量
+`ACME_ENV_ID`），非空时 `compose` 输出与广播通道统一前置环境段（`prod:acme:cache:invalidate:*` /
+`prod:platform-system:notify:ws` 等）；`NotifyPushBus` 经 compose 自动隔离，`L1InvalidationBus`
+经 `channelOf(servicePrefix, envId)` 同源接线。二者互补缺一不可：DB index 管键（网关撤销集
+`auth:revoke:{jti}` 为字面键不经 KeyComposer），环境段管 Pub/Sub（通道实例级全局、不受 DB index
+约束）。缺省空 = 键与通道格式与历史逐字符一致（本地 .dev-stack 零影响）。Redis 云端 ACL 双用户
+（acme_prod/acme_dev，独立口令 + `&prod:*`/`&dev:*` 通道限制 + `-@dangerous`），默认用户关闭，
+本地连接必须携带 `REDIS_USERNAME`。
 
 ## 依赖与环境
 
-- 外部依赖：Nacos（配置/注册）、PostgreSQL（主库）、Redis（缓存/令牌撤销）、Kafka（审计事件，经 framework-stream）、Minio（对象存储）。
+- 外部依赖：Nacos（配置/注册，单套双 namespace）、PostgreSQL（单实例双库 acme_prod/acme_dev）、
+  Redis（单实例双 ACL 用户 + DB index，缓存/令牌撤销）、Kafka（审计事件，经 framework-stream）、
+  Minio（对象存储，备选未实测）。
 - 真实凭证不写入本目录；环境**搭建**见 [`ENV-STACK.md`](../../env-stack/ENV-STACK.md)，**连接**（MCP）见 [`.ai/env/ENV-GUIDE.md`](../../../.ai/env/ENV-GUIDE.md)。
