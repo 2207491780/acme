@@ -466,7 +466,8 @@ test('should_inject_team_leader_trigger_per_mode_into_entry_stubs', async (t) =>
     await put(repo, CONFIG, yaml);
     succeeds(run(repo));
     assert.match(await readFile(join(repo, 'AGENTS.md'), 'utf8'), re);
-    assert.match(await readFile(join(repo, '.cursor/rules/project.mdc'), 'utf8'), re);
+    // Cursor project.mdc 为纯指针（ADR 2026-11-18-01），不重复入口存根的铁律节选正文
+    assert.ok(!(await readFile(join(repo, '.cursor/rules/project.mdc'), 'utf8')).includes('铁律（节选'));
     succeeds(run(repo, ['--check']));
   }
   // 缺省（配置缺失）= never：入口存根明示流程停用，向后兼容既有行为
@@ -536,6 +537,39 @@ test('should_derive_codebuddy_entries_as_official_aligned_references', async (t)
   succeeds(run(repo));
   await put(repo, '.codebuddy/agents/helper.md', '# drifted\n');
   fails(run(repo, ['--check']), /与 \.ai\/ 不同步/);
+});
+
+test('should_derive_cursor_entries_as_official_aligned_references', async (t) => {
+  // Cursor 官方对齐（ADR 2026-11-18-01）：rules 纯指针（不重复入口存根铁律/多代理开关），
+  // 三池引用存根（frontmatter 原样保留供注册，正文仅指针，磁盘零重复）。
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/agents/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\nmodel: inherit\n---\n\nSECRET-BODY-AGENT\n');
+  await put(repo, '.ai/skills/review/SKILL.md', '---\nname: review\ndescription: Review skill.\n---\n\nSECRET-BODY-SKILL\n');
+  await put(repo, '.ai/commands/review.md', '---\ndescription: Review command.\n---\n\nSECRET-BODY-COMMAND\n');
+  await put(repo, '.ai/commands/plain.md', '# Plain command\n');
+  succeeds(run(repo));
+  const rule = await readFile(join(repo, '.cursor/rules/project.mdc'), 'utf8');
+  assert.match(rule, /alwaysApply: true/);
+  assert.match(rule, /\.ai\/RULES\.md/);
+  assert.ok(!rule.includes('铁律（节选'), 'rules 存根不得重复入口存根的铁律节选');
+  const agent = await readFile(join(repo, '.cursor/agents/helper.md'), 'utf8');
+  assert.match(agent, /tools: \[Read\]/);
+  assert.match(agent, /model: inherit/);
+  assert.match(agent, /\.ai\/agents\/helper\.md/);
+  assert.ok(!agent.includes('SECRET-BODY-AGENT'));
+  const skill = await readFile(join(repo, '.cursor/skills/review/SKILL.md'), 'utf8');
+  assert.match(skill, /description: Review skill\./);
+  assert.match(skill, /\.ai\/skills\/review\/SKILL\.md/);
+  assert.ok(!skill.includes('SECRET-BODY-SKILL'));
+  const command = await readFile(join(repo, '.cursor/commands/review.md'), 'utf8');
+  assert.match(command, /description: Review command\./);
+  assert.match(command, /\.ai\/commands\/review\.md/);
+  assert.ok(!command.includes('SECRET-BODY-COMMAND'));
+  const plain = await readFile(join(repo, '.cursor/commands/plain.md'), 'utf8');
+  assert.match(plain, /^---\nname: plain\ndescription: /);
+  assert.ok(!plain.includes('# Plain command'));
+  assert.match(agent, /派生自 \.ai\/agents\/helper\.md/);
+  succeeds(run(repo, ['--check']));
 });
 
 test('should_derive_qoder_entries_as_non_duplicating_references', async (t) => {
