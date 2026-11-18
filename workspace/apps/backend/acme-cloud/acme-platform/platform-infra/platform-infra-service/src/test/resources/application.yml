@@ -11,6 +11,8 @@ spring:
         enabled: false
   flyway:
     enabled: true
+    # locations 继承 yml（REQ-20261118-002130 确认①）：迁移目录 per-service 子目录，测试不另覆盖
+    locations: classpath:db/migration/infra
     default-schema: public
     schemas: public
 
