@@ -1,9 +1,11 @@
 name: cd
 # 部署流水线 —— 源：.ai/ci/cd.yml（唯一事实源），由 .ai/sync.mjs 派生到 .github/workflows/。
-# 触发：手动 dispatch（选 dev/test/prod，在含本文件的分支上触发）；打 v* 标签 → 自动部署 prod
+# 触发：手动 dispatch（选 dev/test/prod 与打包形态，在含本文件的分支上触发）；打 v* 标签 → 自动部署 prod
 # （在 GitHub Environments 为 prod 配 required reviewers 人工审批）。
-# 链路：build 作业在云端 runner 构建五镜像并推 TCR（不占 4G 服务器构建资源，见 ADR 2026-11-13-06）；
+# 链路：build 作业在云端 runner 构建镜像并推 TCR（不占 4G 服务器构建资源，见 ADR 2026-11-13-06）；
 #       deploy 作业把 env-stack 同步到服务器后 SSH 执行 deploy.sh / healthcheck.sh，末尾 prune 节点旧镜像。
+# 打包形态（REQ-20261118-002130 确认⑥）：package_mode=distributed（默认，五镜像=四服务+web）|
+# monolith（构建 acme-bootstrap→acme-monolith 镜像 + web；四服务镜像跳过）。
 # Secrets 清单与平台接入步骤见 .ai/ci/CI-GUIDE.md。
 on:
   workflow_dispatch:
@@ -13,6 +15,21 @@ on:
         type: choice
         options: [dev, test, prod]
         default: dev
+      package_mode:
+        description: 打包形态（distributed=四服务+网关；monolith=单体 acme-monolith）
+        type: choice
+        options: [distributed, monolith]
+        default: distributed
+  workflow_call:
+    inputs:
+      env:
+        description: 目标环境
+        type: string
+        default: dev
+      package_mode:
+        description: 打包形态（distributed|monolith）
+        type: string
+        default: distributed
   push:
     tags: ['v*']
 
@@ -25,15 +42,18 @@ permissions:
 
 jobs:
   build:
-    name: 构建镜像（后端×4 + web）→ 推 TCR
+    name: 构建镜像（后端×4 + web | monolith）→ 推 TCR
     runs-on: ubuntu-latest
     env:
       TARGET_ENV: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
+      # 打包形态（REQ-20261118-002130 确认⑥）：dispatch/call 显式传参；v* 标签（prod）恒为分布式
+      PACKAGE_MODE: ${{ github.event_name == 'push' && 'distributed' || inputs.package_mode }}
     steps:
       - uses: actions/checkout@v4
       - name: 登录 TCR
         run: echo "${{ secrets.TCR_PASSWORD }}" | docker login "${{ secrets.TCR_REGISTRY_HOST }}" -u "${{ secrets.TCR_USERNAME }}" --password-stdin
-      - name: 构建并推送后端服务镜像
+      - name: 构建并推送后端服务镜像（distributed）
+        if: ${{ env.PACKAGE_MODE != 'monolith' }}
         working-directory: workspace/apps/backend
         run: |
           REG="${{ secrets.TCR_REGISTRY }}"
@@ -47,9 +67,21 @@ jobs:
                    "acme-platform/platform-system/platform-system-service platform-system"; do
             set -- $m
             echo ">>> build $2"
-            docker build --build-arg MODULE_PATH="$1" -t "$REG/$2:$TAG" .
+            docker build --build-arg PACKAGE=module --build-arg MODULE_PATH="$1" -t "$REG/$2:$TAG" .
             docker push "$REG/$2:$TAG"
           done
+      - name: 构建并推送单体镜像（monolith）
+        if: ${{ env.PACKAGE_MODE == 'monolith' }}
+        working-directory: workspace/apps/backend
+        run: |
+          REG="${{ secrets.TCR_REGISTRY }}"
+          TAG="${TARGET_ENV}-${GITHUB_SHA:0:7}"
+          # 单体聚合部署单元（REQ-20261118-002130 确认⑥）：acme-bootstrap → acme-monolith 镜像；
+          # 四服务镜像跳过（单体=单 JVM 聚合三服务实现）
+          echo ">>> build acme-monolith (PACKAGE=bootstrap)"
+          docker build --build-arg PACKAGE=bootstrap \
+            --build-arg MODULE_PATH=acme-bootstrap -t "$REG/acme-monolith:$TAG" .
+          docker push "$REG/acme-monolith:$TAG"
       - name: 构建并推送 web 镜像
         working-directory: workspace/apps/frontend
         # TARGET_ENV 取作业级 env（build 作业已定义），无需步骤级重复
@@ -61,6 +93,9 @@ jobs:
   deploy:
     name: 部署 (${{ github.event_name == 'push' && 'prod' || inputs.env }})
     needs: build
+    # monolith dispatch 仅构建推送（REQ-20261118-002130 确认⑥：单体部署编排/清单循环属后续可选，
+    # deploy.sh 现有清单驱动面向分布式五件套）——打包形态为 monolith 时跳过部署作业
+    if: ${{ github.event_name == 'push' || inputs.package_mode != 'monolith' }}
     runs-on: ubuntu-latest
     # GitHub Environment（需在仓库设置建 dev/test/prod；prod 配 required reviewers 人工审批）
     environment: ${{ github.event_name == 'push' && 'prod' || inputs.env }}
