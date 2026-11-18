@@ -14,7 +14,7 @@
 set -eu
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-ART=${ACME_ART_DIR:-"$(ls -d "$REPO_ROOT"/.ai-tmp/build/prod-* 2>/dev/null | sort | tail -1)"}
+ART=${ACME_ART_DIR:-"$(ls -dt "$REPO_ROOT"/.ai-tmp/build/prod-* 2>/dev/null | head -1)"}
 [ -n "$ART" ] && [ -f "$ART/meta.env" ] \
   || { echo "❌ 未找到产物目录（先跑 local-build.sh，或 export ACME_ART_DIR=<产物目录>）" >&2; exit 1; }
 # 产物元数据（TAG/SHA7/ENV/CREATED）
