@@ -60,7 +60,23 @@ public enum AuthError implements ErrorCode, HttpStatusAware {
     TENANT_SWITCH_FORBIDDEN(AuthErrorCodes.TENANT_SWITCH_FORBIDDEN, "无权执行跨租户切换", 403),
 
     /** 切换目标租户不可用（未知 / 停用 / 已过期统一口径，不泄露目标租户存在性差异）。 */
-    TENANT_SWITCH_FAILED(AuthErrorCodes.TENANT_SWITCH_FAILED, "目标租户不可用，无法切换", 409);
+    TENANT_SWITCH_FAILED(AuthErrorCodes.TENANT_SWITCH_FAILED, "目标租户不可用，无法切换", 409),
+
+    // ---- 06 段：APP 扫码登录票据域（REQ-20261119-040838 确认记录③④）----
+    // 票据状态类失败（EXPIRED/CANCELLED/INVALID）为业务失败信封（Result.code≠0，HTTP 200，
+    // 与 04 段状态机语义同型）；创建频控按限流语义 429（与 CAPTCHA_SEND_LIMITED 同型）。
+
+    /** 扫码票据创建过于频繁（10 次/分钟/IP）。 */
+    QR_TICKET_LIMITED(AuthErrorCodes.QR_TICKET_LIMITED, "扫码票据创建过于频繁，请稍后再试", 429),
+
+    /** 扫码票据不存在或已过期（120s TTL 自然失效）。 */
+    QR_TICKET_EXPIRED(AuthErrorCodes.QR_TICKET_EXPIRED, "扫码票据不存在或已过期，请刷新二维码", 200),
+
+    /** 扫码票据已取消（APP 侧取消后 info/confirm 拒绝）。 */
+    QR_TICKET_CANCELLED(AuthErrorCodes.QR_TICKET_CANCELLED, "扫码票据已取消", 200),
+
+    /** 扫码票据状态不允许当前操作（已确认后不可重复确认）。 */
+    QR_TICKET_INVALID(AuthErrorCodes.QR_TICKET_INVALID, "扫码票据状态无效", 200);
 
     private final String code;
     private final String defaultMessage;

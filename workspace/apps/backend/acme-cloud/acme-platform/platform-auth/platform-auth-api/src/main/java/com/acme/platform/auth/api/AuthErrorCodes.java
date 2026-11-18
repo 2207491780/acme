@@ -57,6 +57,20 @@ public final class AuthErrorCodes {
     /** 切换目标租户不可用（未知 / 停用 / 已过期统一口径，不泄露目标租户存在性差异）。 */
     public static final String TENANT_SWITCH_FAILED = "platform-auth-05-0002";
 
+    // ---- 06 段：APP 扫码登录票据域（REQ-20261119-040838 确认记录③④）----
+
+    /** 扫码票据创建过于频繁（429：10 次/分钟/IP 频控）。 */
+    public static final String QR_TICKET_LIMITED = "platform-auth-06-0001";
+
+    /** 扫码票据不存在或已过期（120s TTL 自然失效，Redis 键缺失兜底）。 */
+    public static final String QR_TICKET_EXPIRED = "platform-auth-06-0002";
+
+    /** 扫码票据已取消（APP 侧取消后 info/confirm 拒绝）。 */
+    public static final String QR_TICKET_CANCELLED = "platform-auth-06-0003";
+
+    /** 扫码票据状态不允许当前操作（如已确认后再次确认）。 */
+    public static final String QR_TICKET_INVALID = "platform-auth-06-0004";
+
     private AuthErrorCodes() {
     }
 }

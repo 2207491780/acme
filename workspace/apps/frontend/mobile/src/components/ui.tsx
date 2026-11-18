@@ -49,12 +49,15 @@ export function Button({
   variant = 'primary',
   small,
   disabled,
+  testID,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'ghost' | 'danger';
   small?: boolean;
   disabled?: boolean;
+  /** 测试定位锚（透传 RN Pressable testID；组件测试约定用语义 testID 而非文案匹配）。 */
+  testID?: string;
 }) {
   const styles = useStyles();
   const { palette } = useAppTheme();
@@ -71,6 +74,7 @@ export function Button({
       onPressOut={() => setPressed(false)}
       disabled={disabled}
       accessibilityState={{ disabled: !!disabled }}
+      testID={testID}
       // style 用静态数组（禁函数式 style）：RN 无碍，且组件级测试的 RN 宿主替身把
       // props 透传到 DOM 元素，函数式 style 会被 react-dom 拒绝。
       style={[

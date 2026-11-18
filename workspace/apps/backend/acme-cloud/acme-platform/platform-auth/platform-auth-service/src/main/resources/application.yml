@@ -59,13 +59,17 @@ acme:
     retention-days: 30
   security:
     # 服务侧公开端点（FR-012 最小集：B 端租户目录/图形验证码/验证码策略/公开站点配置/登录
-    # + C 端验证码/登录/刷新；与网关豁免清单一致；public-config REQ-20261117-025200 确认记录⑤）
+    # + C 端验证码/登录/刷新；与网关豁免清单一致；public-config REQ-20261117-025200 确认记录⑤；
+    # 扫码票据创建精确路径 + 单段通配轮询（REQ-20261119-040838 确认记录④）——AntPathMatcher
+    # 单段 * 不命中 info/confirm/cancel 双段后缀，仍走认证）
     public-paths:
       - /admin/v1/auth/captcha
       - /admin/v1/auth/captcha-policy
       - /admin/v1/auth/public-config
       - /admin/v1/auth/tenants
       - /admin/v1/auth/tokens
+      - /admin/v1/auth/qr-tickets
+      - /admin/v1/auth/qr-tickets/*
       - /app/v1/auth/captcha
       - /app/v1/auth/tokens
       - /app/v1/auth/tokens/refresh

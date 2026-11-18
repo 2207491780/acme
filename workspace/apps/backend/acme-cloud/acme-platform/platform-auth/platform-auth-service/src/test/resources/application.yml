@@ -28,6 +28,9 @@ acme:
       - /admin/v1/auth/captcha-policy
       # 公开站点配置豁免（REQ-20261117-025200 确认记录⑤；与主配置/网关豁免清单一致）
       - /admin/v1/auth/public-config
+      # 扫码票据创建 + 单段通配轮询（REQ-20261119-040838 确认记录④；与主配置/网关豁免清单一致）
+      - /admin/v1/auth/qr-tickets
+      - /admin/v1/auth/qr-tickets/*
     token:
       # ≥32 字节（jjwt HS256 密钥下限 256 位，31 字符取值会在 WeakKey 下启动失败）
       hmac-secret: auth-it-secret-0123456789abcdef0000

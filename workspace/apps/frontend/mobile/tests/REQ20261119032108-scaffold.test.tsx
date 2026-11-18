@@ -48,6 +48,14 @@ vi.mock('@react-native-async-storage/async-storage', () => {
   return { default: api, AsyncStorage: api };
 });
 
+// expo-camera 桩（REQ-20261119-040838）：App.tsx → QrConfirmScreen import 链兜底——
+// expo-camera 原生模块在 Node/vitest 不可加载（expo-modules-core 需 NativeModules），以替身代之。
+// 本文件仅测 AuthNavigator（不渲染相机屏），桩只保证 import 链可解析。
+vi.mock('expo-camera', () => ({
+  CameraView: () => null,
+  useCameraPermissions: () => [{ granted: false }, vi.fn(async () => ({ granted: false }))],
+}));
+
 // NetInfo 桩：测试用例直接驱动监听回调（AC-6 断网→横幅态）
 const net = vi.hoisted(() => {
   type NetState = { isConnected?: boolean | null; isInternetReachable?: boolean | null };

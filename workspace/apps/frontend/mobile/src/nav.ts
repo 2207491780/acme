@@ -8,9 +8,11 @@ export type TabKey = 'dashboard' | 'releases' | 'apps' | 'settings';
 
 export const TAB_KEYS: readonly TabKey[] = ['dashboard', 'releases', 'apps', 'settings'];
 
-/** Stack 层路由：登录屏为 Stack 首屏（initialRouteName），Main 承载主 Tabs。 */
+/** Stack 层路由：登录屏为 Stack 首屏（initialRouteName），Main 承载主 Tabs；
+ *  QrConfirm 为扫码确认屏（REQ-20261119-040838，Login push 进入，不参与深链映射）。 */
 export const LOGIN_ROUTE = 'Login' as const;
 export const MAIN_ROUTE = 'Main' as const;
+export const QR_CONFIRM_ROUTE = 'QrConfirm' as const;
 
 // type 别名（非 interface）：react-navigation v7 的 ParamListBase 约束要求可赋值给
 // { [key: string]: object | undefined }，type 字面量才具备隐式索引签名兼容。
@@ -18,6 +20,7 @@ export const MAIN_ROUTE = 'Main' as const;
 export type RootStackParamList = {
   Login: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
+  QrConfirm: undefined;
 };
 
 export type MainTabParamList = Record<TabKey, undefined>;

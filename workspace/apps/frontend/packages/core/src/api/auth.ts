@@ -86,7 +86,32 @@ export interface BatchKickView {
   skippedCount: number;
 }
 
-/** 登录域接口（认证域契约：图形验证码 / 租户目录 / 登录 / 登出）。 */
+/** 扫码票据状态（契约 REQ-20261119-040838：created/scanned/confirmed/cancelled/expired）。
+ *  未知/过期 ticketId → expired；confirmed 为唯一终态携 token，其余状态 token=null。 */
+export type QrTicketStatus = 'created' | 'scanned' | 'confirmed' | 'cancelled' | 'expired';
+
+/** 创建扫码票据视图（契约对齐 QrTicketCreatedView：expiresInSeconds=120；qrPayload 为待编码进
+ *  二维码的紧凑 JSON{t:ticketId} 字符串，web 端用 qrcode 库渲染 dataURL）。 */
+export interface QrTicketCreatedView {
+  ticketId: string;
+  qrPayload: string;
+  expiresInSeconds: number;
+}
+
+/** 轮询票据状态视图（契约对齐 QrTicketStatusView；GET 只读不消费票；
+ *  confirmed 时 token 携 AdminTokenIssued（确认者 B 端令牌，userId wire string））。 */
+export interface QrTicketStatusView {
+  status: QrTicketStatus;
+  token: TokenIssued | null;
+}
+
+/** 扫码取信息视图（契约对齐 QrTicketInfoView；APP B 令牌调用，status created→scanned 幂等）。 */
+export interface QrTicketInfoView {
+  status: QrTicketStatus;
+  createdAt: string;
+}
+
+/** 登录域接口（认证域契约：图形验证码 / 租户目录 / 登录 / 登出 / 扫码票据）。 */
 export const authApi = {
   /** 启用租户清单（公开端点；登录页可搜索下拉数据源）。 */
   tenants: (): Promise<TenantSummary[]> =>
@@ -124,6 +149,44 @@ export const authApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }, { auth: false }),
+  // ————— 扫码登录票据（REQ-20261119-040838：web 登录页扫码 Tab ↔ APP 员工扫码确认） —————
+  /** 创建扫码票据（公开端点，契约 API①；无 body，clientIp 服务端从请求取；
+   *  IP 频控 10 次/分钟，超限后端 QR_TICKET_LIMITED 429）。 */
+  qrCreate: (): Promise<QrTicketCreatedView> =>
+    apiFetch<QrTicketCreatedView>('/admin/v1/auth/qr-tickets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    }, { auth: false }),
+  /** 轮询票据状态（公开端点，契约 API②；1.5s 间隔只读轮询，GET 不消费票；
+   *  status=confirmed 时 token 非空（确认者 AdminTokenIssued），终态后由调用方停止轮询）。 */
+  qrPoll: (ticketId: string): Promise<QrTicketStatusView> =>
+    apiFetch<QrTicketStatusView>(
+      `/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}`,
+      { method: 'GET' },
+      { auth: false },
+    ),
+  /** 扫码取信息（认证端点，契约 API③；调用方持 B 端令牌（APP 员工会话），
+   *  status created→scanned 幂等；expired/cancelled → 业务失败码）。 */
+  qrInfo: (ticketId: string): Promise<QrTicketInfoView> =>
+    apiFetch<QrTicketInfoView>(
+      `/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/info`,
+      { method: 'GET' },
+    ),
+  /** 扫码确认（认证端点，契约 API④；B 端令牌，原子单次消费，成功返回确认者 AdminTokenIssued
+   *  并互踢旧 B 会话；非 confirmed/cancelled/expired 均可确认）。 */
+  qrConfirm: (ticketId: string): Promise<TokenIssued> =>
+    apiFetch<TokenIssued>(
+      `/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/confirm`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+    ),
+  /** 扫码取消（认证端点，契约 API⑤；B 端令牌，幂等；void 端点 2xx 空体=成功）。 */
+  qrCancel: (ticketId: string): Promise<void> =>
+    apiFetch<void>(
+      `/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/cancel`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+      { emptyAsSuccess: true },
+    ),
   /** 登出（需认证；当前会话即刻失效，已失效令牌幂等成功；void 端点 2xx 空体=成功）。 */
   logout: (): Promise<void> =>
     apiFetch<void>('/admin/v1/auth/tokens/current', { method: 'DELETE' }, { emptyAsSuccess: true }),

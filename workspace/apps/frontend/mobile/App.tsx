@@ -23,6 +23,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useStore } from './src/store/useStore';
 import { useAuthStore } from './src/store/authStore';
+import { useBSessionStore } from './src/store/bSessionStore';
 import { useMeStore } from './src/store/meStore';
 import { startAuthRenewal } from './src/api/client';
 import { initMobileStorage } from './src/utils/storage';
@@ -34,6 +35,7 @@ import { useTranslation } from './src/i18n';
 import {
   LOGIN_ROUTE,
   MAIN_ROUTE,
+  QR_CONFIRM_ROUTE,
   TAB_KEYS,
   linking,
   type MainTabParamList,
@@ -45,6 +47,7 @@ import { ReleasesScreen } from './src/screens/ReleasesScreen';
 import { AppsScreen } from './src/screens/AppsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { QrConfirmScreen } from './src/screens/QrConfirmScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ToastProvider } from './src/components/ui';
 import type { NeutralPalette } from '@acme/core';
@@ -171,6 +174,8 @@ function AppShell() {
 
   useEffect(() => {
     void hydrate();
+    // B 端员工会话（REQ-20261119-040838）：独立键恢复，仅驱动 Login 扫码确认入口（不进主 Tabs）
+    void useBSessionStore.getState().hydrate();
     const stopRenewal = startAuthRenewal();
     // 业务态持久化（REQ-20261114-120110 AC-3/AMB-5）：AsyncStorage 灌入同步镜像后重载
     // store（loadState/loadQuery 经 parse-state 运行时校验），字典缓存同步灌回；
@@ -238,6 +243,7 @@ function AppShell() {
             <Stack.Navigator initialRouteName={LOGIN_ROUTE} screenOptions={{ headerShown: false }}>
               <Stack.Screen name={LOGIN_ROUTE} component={LoginScreen} />
               <Stack.Screen name={MAIN_ROUTE} component={MainTabs} />
+              <Stack.Screen name={QR_CONFIRM_ROUTE} component={QrConfirmScreen} />
             </Stack.Navigator>
             <AuthNavigator />
           </NavigationContainer>

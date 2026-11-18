@@ -46,6 +46,33 @@ class AuthApiContractTest {
         // 05 段：超管跨租户切换（REQ-20261117-025200 确认记录④）
         assertThat(AuthErrorCodes.TENANT_SWITCH_FORBIDDEN).isEqualTo("platform-auth-05-0001");
         assertThat(AuthErrorCodes.TENANT_SWITCH_FAILED).isEqualTo("platform-auth-05-0002");
+        // 06 段：APP 扫码登录票据域（REQ-20261119-040838 确认记录③④）
+        assertThat(AuthErrorCodes.QR_TICKET_LIMITED).isEqualTo("platform-auth-06-0001");
+        assertThat(AuthErrorCodes.QR_TICKET_EXPIRED).isEqualTo("platform-auth-06-0002");
+        assertThat(AuthErrorCodes.QR_TICKET_CANCELLED).isEqualTo("platform-auth-06-0003");
+        assertThat(AuthErrorCodes.QR_TICKET_INVALID).isEqualTo("platform-auth-06-0004");
+    }
+
+    @Test
+    void qrTicketViewsShapeLocked() {
+        // REQ-20261119-040838 §API：创建/轮询/扫码取信息三视图形状锁定
+        QrTicketCreatedView created = new QrTicketCreatedView("ticket-1", "{\"t\":\"ticket-1\"}", 120);
+        assertThat(created.ticketId()).isEqualTo("ticket-1");
+        assertThat(created.qrPayload()).isEqualTo("{\"t\":\"ticket-1\"}");
+        assertThat(created.expiresInSeconds()).isEqualTo(120);
+
+        AdminTokenIssued confirmedToken = new AdminTokenIssued("token-value", null,
+                Instant.parse("2026-11-19T08:30:00Z"), 1234567890123456789L, "admin", "超级管理员");
+        QrTicketStatusView confirmed = new QrTicketStatusView("confirmed", confirmedToken);
+        assertThat(confirmed.status()).isEqualTo("confirmed");
+        assertThat(confirmed.token()).isSameAs(confirmedToken);
+        // 非 confirmed 态 token 为 null（确认记录④：仅 confirmed 携令牌）
+        assertThat(new QrTicketStatusView("expired", null).token()).isNull();
+        assertThat(new QrTicketStatusView("scanned", null).status()).isEqualTo("scanned");
+
+        QrTicketInfoView info = new QrTicketInfoView("scanned", "2026-11-19T08:28:00Z");
+        assertThat(info.status()).isEqualTo("scanned");
+        assertThat(info.createdAt()).isEqualTo("2026-11-19T08:28:00Z");
     }
 
     @Test

@@ -7,13 +7,18 @@ import {
 
 /** 认证域 handler（login-tenant-select / login-guard-captcha / 登录 / 登出 / 滑动续约 / 登录日志 / 在线用户）。
  *  REQ-20261117-011514 增验证码策略公开端点；REQ-20261117-025200 增公开站点配置与超管租户切换；
- *  REQ-20261117-061017 增登录日志导出与在线用户按用户名批量下线。 */
+ *  REQ-20261117-061017 增登录日志导出与在线用户按用户名批量下线；
+ *  REQ-20261119-040838 增扫码登录票据三段 mock（创建/轮询状态推进/取消）。 */
 
 /** 会话/登录日志内存态（fixtures 拷贝；批量下线直接改写集合，登出刷新页面恢复）。 */
 const store = { loginLogs: [...db.loginLogs], onlineUsers: [...db.onlineUsers] };
 
 /** mock 超管口径（与 me fixtures 对齐：admin = super_admin，批量下线跳过并计入 skipped）。 */
 const SUPERADMIN_USERNAME = 'admin';
+
+/** 扫码票据内存态（REQ-20261119-040838）：创建即登记，轮询推进/取消只改写内存票。 */
+const qrTickets = new Map<string, { status: 'created' | 'scanned' | 'confirmed' | 'cancelled'; polls: number }>();
+let qrTicketSeq = 1;
 
 export const authHandlers = [
   http.get('/admin/v1/auth/tenants', () => ok([
@@ -59,6 +64,53 @@ export const authHandlers = [
     captchaId: 'captcha-mock-1',
     imageBase64Data: CAPTCHA_IMAGE_DATA,
   })),
+  // ————— 扫码登录票据（REQ-20261119-040838 三段 mock：创建 / 轮询状态推进 / 取消） —————
+  // 内存票仓：创建→created；每次轮询推进 created→scanned→confirmed（demo 口径，真实推进由 APP
+  // info/confirm 驱动）；取消→cancelled（后续轮询保持 cancelled）；未知/删除票 → expired+token=null。
+  http.post('/admin/v1/auth/qr-tickets', async () => {
+    const ticketId = `qr-mock-${qrTicketSeq}`;
+    qrTicketSeq += 1;
+    qrTickets.set(ticketId, { status: 'created', polls: 0 });
+    return ok({
+      ticketId,
+      qrPayload: JSON.stringify({ t: ticketId }),
+      expiresInSeconds: 120,
+    });
+  }),
+  http.get('/admin/v1/auth/qr-tickets/:ticketId', ({ params }) => {
+    const ticket = qrTickets.get(String(params.ticketId));
+    if (!ticket) {
+      return ok({ status: 'expired', token: null });
+    }
+    ticket.polls += 1;
+    if (ticket.status === 'created' && ticket.polls >= 2) {
+      ticket.status = 'scanned';
+    }
+    if (ticket.status === 'scanned' && ticket.polls >= 3) {
+      ticket.status = 'confirmed';
+    }
+    if (ticket.status === 'confirmed') {
+      return ok({
+        status: 'confirmed',
+        token: {
+          accessToken: 'mock-access-token-qr',
+          tokenType: 'Bearer',
+          expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+          userId: '1001',
+          username: 'admin',
+          nickname: '超级管理员',
+        },
+      });
+    }
+    return ok({ status: ticket.status, token: null });
+  }),
+  http.post('/admin/v1/auth/qr-tickets/:ticketId/cancel', ({ params }) => {
+    const ticket = qrTickets.get(String(params.ticketId));
+    if (ticket) {
+      ticket.status = 'cancelled';
+    }
+    return empty();
+  }),
   http.post('/admin/v1/auth/tokens', async ({ request }) => {
     const body = await bodyOf(request);
     const username = typeof body.username === 'string' && body.username.length > 0 ? body.username : 'admin';

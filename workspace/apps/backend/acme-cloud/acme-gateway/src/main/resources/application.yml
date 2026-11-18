@@ -115,12 +115,16 @@ acme:
         public-paths:
           # 公开豁免最小集（FR-012）：登录端点 + 图形验证码 + 租户目录 + 验证码策略 + 公开站点配置
           # （login-guard-captcha / login-tenant-select / REQ-20261117-011514 captcha-policy /
-          # REQ-20261117-025200 public-config 页脚版权）；默认全部路由验签
+          # REQ-20261117-025200 public-config 页脚版权）+ 扫码票据创建/轮询（REQ-20261119-040838
+          # 确认记录④：精确创建路径 + 单段通配轮询；info/confirm/cancel 双段后缀仍验签）；
+          # 默认全部路由验签
           - /admin/v1/auth/captcha
           - /admin/v1/auth/captcha-policy
           - /admin/v1/auth/public-config
           - /admin/v1/auth/tenants
           - /admin/v1/auth/tokens
+          - /admin/v1/auth/qr-tickets
+          - /admin/v1/auth/qr-tickets/*
       c:
         public-paths:
           # C 端公开豁免最小集（11.4：验证码 / 登录 / 刷新自证；consumer-auth-refresh-dataperm）
