@@ -53,7 +53,9 @@ for id in platform-auth platform-infra platform-system; do
 acme:
   storage:
     type: minio
-    endpoint: http://acmecloud.site/object-storage
+    # ⚠️ endpoint 为裸域名（SDK 禁止带路径，no path allowed）——同源直传经 nginx 按桶路径
+    #    /acme-prod/ 反代（web/nginx.conf），预签名 URL 落同源（CSP connect-src 'self'）
+    endpoint: http://acmecloud.site
     bucket: acme-prod
 "
   else
