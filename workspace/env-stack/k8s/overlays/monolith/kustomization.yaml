@@ -1,0 +1,110 @@
+# monolith overlay —— 单体打包形态部署清单（REQ-20261118-002130 确认⑥；交付不部署，启用=手动
+# kubectl apply -k 本目录，前提：TCR 已有 acme/acme-monolith:<tag> 镜像 + app.env 凭据就位）。
+# 与分布式 env overlay（overlays/dev|test|prod）互斥：本 overlay 从 base 取 postgres/redis/nacos/
+# web/ingress，加本目录 acme-monolith.yaml（Deployment+SVC 9680，镜像占位）——契约⑥的
+# 「k8s/base/acme-monolith.yaml」落位于本 overlay（kustomize root-only 加载器禁止跨根单文件
+# 引用；目录级引用才可上溯，单文件放 base 会被 --dry-run 拒绝渲染）——base kustomization
+# 不登记本清单，分布式环境零影响。JSON6902 delete patch 剔除 gateway 与三服务部署单元；
+# ingress /ws 后端由 acme-gateway 改指 acme-monolith（WebSocket 升级透传直连单体，握手鉴权在服务侧）。
+# 镜像注入：本文件 images 段占位（tag=latest），部署时按 deploy.sh 同型方式以 TCR 实际地址覆盖
+# （newName: <REGISTRY>/acme-monolith, newTag: <env>-<sha7>）。web 的 nginx 反代仍指向网关
+# ——单体形态 /admin//app/ 流量走 web 反代需改其 nginx.conf（能力差异见 ENV-STACK.md「双形态」）。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: acme-monolith
+resources:
+  - ../../base
+  - acme-monolith.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: acme
+      acme.io/env: monolith
+    includeSelectors: false
+patches:
+  # 剔除分布式部署单元（gateway + 三服务）：单体聚合替代其全部职责
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: acme-gateway
+      $patch: delete
+    target:
+      kind: Service
+      name: acme-gateway
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: acme-gateway
+      $patch: delete
+    target:
+      kind: Deployment
+      name: acme-gateway
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: platform-auth
+      $patch: delete
+    target:
+      kind: Service
+      name: platform-auth
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platform-auth
+      $patch: delete
+    target:
+      kind: Deployment
+      name: platform-auth
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: platform-infra
+      $patch: delete
+    target:
+      kind: Service
+      name: platform-infra
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platform-infra
+      $patch: delete
+    target:
+      kind: Deployment
+      name: platform-infra
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: platform-system
+      $patch: delete
+    target:
+      kind: Service
+      name: platform-system
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platform-system
+      $patch: delete
+    target:
+      kind: Deployment
+      name: platform-system
+  # ingress /ws 后端改指单体（9680；原 acme-gateway:9888 在本形态不存在）
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/http/paths/1/backend/service/name
+        value: acme-monolith
+      - op: replace
+        path: /spec/rules/0/http/paths/1/backend/service/port/number
+        value: 9680
+    target:
+      kind: Ingress
+      name: acme-web
+images:
+  - name: acme/acme-monolith
+    newTag: latest

@@ -38,7 +38,7 @@ spec:
         - name: acme-registry-auth # 官方镜像不经过该 secret，统一注入以兼容私有 mirror 场景
       containers:
         - name: minio
-          image: minio/minio:RELEASE.2024-01-31T20-20-33Z
+          image: minio/minio:RELEASE.2024-10-13T13-34-11Z
           command: [sh, -c]
           args:
             - exec minio server /data

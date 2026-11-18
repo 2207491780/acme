@@ -36,6 +36,7 @@
         <module>acme-framework</module>
         <module>acme-gateway</module>
         <module>acme-platform</module>
+        <module>acme-bootstrap</module>
         <module>acme-business</module>
     </modules>
 
@@ -236,6 +237,12 @@
             <dependency>
                 <groupId>com.acme</groupId>
                 <artifactId>business-content-service</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 单体打包形态部署单元（REQ-20261118-002130 确认②：聚合三服务实现的启动单元） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>acme-bootstrap</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

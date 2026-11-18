@@ -8,7 +8,7 @@
 env-stack/
 ├── ENV-STACK.md   # 本文件：约定说明
 ├── RUNBOOK.md     # 云服务器（k3s 单机）从零到部署的操作手册
-├── k8s/           # Kustomize 清单：base（环境无关）+ overlays/{dev,test,prod}
+├── k8s/           # Kustomize 清单：base（环境无关）+ overlays/{dev,test,prod,monolith}
 ├── scripts/       # deploy.sh / healthcheck.sh / seed-nacos.sh（deploy 幂等，失败非零退出）
 └── config/        # 凭证模板 *.example.env（真实值服务器侧 /opt/acme/<env>/，不入库）
 ```
@@ -110,3 +110,41 @@ web 的 CSP `connect-src 'self'` 仅允许同源连接，预签名 URL 须落在
 `https://acmecloud.site/object-storage/acme/files/...?X-Amz-Signature=...`，PUT 时客户端按
 preparation 返回的 headers 原样携带 Content-Type 头）。
 
+
+## 双形态：分布式（默认）与单体打包（REQ-20261118-002130，交付不部署）
+
+分布式为默认形态（本目录既有编排：gateway + 三服务 + web + 中间件）。单体为可选打包路径：
+单 JVM 聚合三服务（镜像 `acme/acme-monolith`，端口 9680，无 Nacos/Kafka 运行面），面向本地
+联调 / 小部署。两者共用同一批中间件与 `acme-app-config` / `acme-app-secrets`。
+
+### 构建与镜像
+
+- 后端 Dockerfile 增 `ARG PACKAGE=module`（module=现行为按 `MODULE_PATH` 构建；bootstrap=单体
+  形态标记，等价于 `MODULE_PATH=acme-bootstrap` 的普通模块构建，实现取简）。
+- `cd.yml` dispatch/call 增输入 `package_mode`（distributed|monolith，默认 distributed）：
+  monolith 时 build 作业只构建 `acme-bootstrap→acme/acme-monolith:<env>-<sha7>` + web，
+  四服务镜像跳过，且跳过 deploy 作业（单体部署编排属后续可选；deploy.sh 清单驱动面向
+  分布式五件套，无需改）。
+- 三服务镜像构建取用注意（REQ-20261118-002130）：三 `*-service` 的可执行 jar 改为
+  `-exec` 分类器附加（主构件保持普通 jar 供 `acme-bootstrap` 单体聚合依赖——Boot 重打包的
+  BOOT-INF 布局不可作为依赖 jar 复用）；Dockerfile 构建步骤优先取 `*-exec.jar`，
+  取用行为对镜像产物不变。
+
+### monolith overlay（k8s/overlays/monolith）
+
+- `overlays/monolith/kustomization.yaml` + 同目录 `acme-monolith.yaml`（Deployment + Service
+  9680，镜像占位 `acme/acme-monolith:latest`）。manifest 落位说明：契约设想为
+  `k8s/base/acme-monolith.yaml`，因 kustomize root-only 加载器禁止跨根单文件引用（目录级
+  上溯引用才放行），落位在 overlay 内——base kustomization 不登记，分布式环境零影响。
+- 资源面：`../../base` 取 postgres/redis/nacos/web/ingress + acme-monolith；JSON6902 delete
+  patch 剔除 acme-gateway 与三服务部署单元；ingress `/ws` 后端由 acme-gateway:9888 改指
+  acme-monolith:9680（WS 升级透传直连单体）。
+- 启用步骤（未做部署冒烟，属后续可选）：① 服务器 app.env 就位（双 HMAC + 三种子密码 +
+  `ACME_STORAGE_LOCAL_ROOT_DIR`，键与分布式同源）→ ② 镜像注入：把 `images` 段换成
+  `newName: <REGISTRY>/acme-monolith, newTag: <env>-<sha7>`（deploy.sh 同型手法）→
+  ③ `kubectl apply -k k8s/overlays/monolith`。渲染验证（AC-9）：
+  `kubectl kustomize k8s/overlays/monolith`（无集群面时 `--dry-run=client` 需 API openapi，
+  纯渲染用 kustomize）。
+- 能力差异提示：web 的 nginx 反代仍指向网关（nginx.conf 打进镜像）——单体形态下
+  `/admin/`、`/app/` 流量经 web 反代需改其 upstream 指向 `acme-monolith:9680` 后重建 web
+  镜像，或直接经 ingress/直连单体端口访问；能力差异全表见 `apps/backend/BACKEND.md`「双形态」。

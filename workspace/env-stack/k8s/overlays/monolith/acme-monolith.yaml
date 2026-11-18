@@ -1,0 +1,77 @@
+# acme-monolith —— 单体打包形态部署单元（REQ-20261118-002130 确认⑥：交付不部署；
+# 启用 = overlays/monolith/kustomization.yaml 引用本文件 + 镜像注入，gateway 与三服务不部署）。
+# 端口 9680；镜像名 acme/acme-monolith（base/images 未登记占位 tag——由 overlays/monolith 或
+# deploy 侧 images 段注入，base 常驻 kustomization 不含本文件，分布式环境零影响）。
+# env 键与分布式同源（acme-app-config + acme-app-secrets）：PG/Redis/NACOS_ADDR 同键——单体
+# application.yml 已关闭 Nacos discovery/config（软依赖），NACOS_ADDR 注入不产生行为面；
+# 双 hmac 密钥域 + 种子密码三键 + ACME_STORAGE_LOCAL_ROOT_DIR 必须在 acme-app-secrets 就位。
+apiVersion: v1
+kind: Service
+metadata:
+  name: acme-monolith
+  labels:
+    app: acme-monolith
+spec:
+  selector:
+    app: acme-monolith
+  ports:
+    - name: http
+      port: 9680
+      targetPort: 9680
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acme-monolith
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: acme-monolith
+  template:
+    metadata:
+      labels:
+        app: acme-monolith
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth
+      containers:
+        - name: monolith
+          image: acme/acme-monolith
+          envFrom:
+            - configMapRef:
+                name: acme-app-config
+            - secretRef:
+                name: acme-app-secrets
+          env:
+            # 服务级覆盖共享 JVM 参数（k8s 规则：env 优先于 envFrom）：单 JVM 聚合三服务，
+            # 类与元空间需求显著高于单服务——按 platform-auth 512Mi 档上浮（容量核算备注：
+            # 三服务合计按 2×platform-auth 512Mi 档起步，dev 实测后调整，ADR 26 同型口径）
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=320m"
+          ports:
+            - containerPort: 9680
+              name: http
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9680
+            periodSeconds: 5
+            # 三 Flyway 迁移 + 三服务装配，冷启动显著长于单服务（本地实测 ~72s）——放宽失败阈值
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9680
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9680
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              memory: 1Gi
