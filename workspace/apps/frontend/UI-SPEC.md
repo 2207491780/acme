@@ -123,7 +123,9 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 | `glassHeader` | `rgba(20,22,26,0.8)` | `rgba(247,248,249,0.8)` | Web 顶栏半透明表面 |
 | `scrim` | `rgba(0,0,0,0.4)` | `rgba(20,24,32,0.25)` | 遮罩基色 |
 
-> Mobile 当前**仅暗色**（`palette` 取 `DARK_NEUTRALS`）。Web/PC 支持暗/亮，由 `settings.theme` 切换。
+> Mobile **双主题**（REQ-20261119-032108）：`mobile/src/theme.ts` 经 `ThemeProvider/useAppTheme()` 消费
+> `settings.theme`，dark→`DARK_NEUTRALS`、light→`LIGHT_NEUTRALS`（`resolvePalette` 派生），与 Web/PC 同一
+> `settings.theme` 开关；`palette` 静态导出保留 dark 缺省供兼容。可点目标 ≥44×44 与纯 View 绘制红线不变。
 
 ### 2.5 尺寸 / 圆角 / 间距
 
