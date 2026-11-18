@@ -225,3 +225,21 @@ tr.dragging { opacity: 0.45; }
 .notify-inbox-row { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 .notify-inbox-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notify-inbox-time { font-size: 11.5px; }
+
+/* 页签条（REQ-20261119-063129）：Header 下自绘 pill 条（不用 antd Tabs），令牌镜像 core——
+   活动项 accent 低饱和染色（12% 混面）+ 发丝描边；tab 与关闭/固定钮可点目标 ≥44px（关闭钮经 ::after 扩展命中区） */
+.tabbar { display: flex; align-items: stretch; gap: 8px; padding: 4px 16px; border-bottom: 1px solid var(--border); background: var(--surface); overflow-x: auto; flex: none; }
+.tabbar-tab { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px 0 14px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--text-2); font-size: 13px; cursor: pointer; user-select: none; white-space: nowrap; transition: border-color 0.2s, background 0.2s, color 0.2s; }
+.tabbar-tab:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--text); }
+.tabbar-tab-active { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--accent); font-weight: 600; }
+.tabbar-label { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.tabbar-close, .tabbar-pin { position: relative; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-left: 2px; padding: 0; border: none; border-radius: 999px; background: transparent; color: inherit; cursor: pointer; font-size: 11px; transition: background 0.2s, color 0.2s; }
+.tabbar-close::after, .tabbar-pin::after { content: ''; position: absolute; inset: -11px; }
+.tabbar-close:hover, .tabbar-pin:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+
+/* 命令面板（REQ-20261119-063129 契约⑤）：三节列表（页面/页签/快捷操作），行可点目标 ≥44px */
+.command-palette-section { padding: 10px 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase; color: var(--muted); }
+.command-palette-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 6px 10px; border: none; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.command-palette-item:hover, .command-palette-item[data-active="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.command-palette-item-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.command-palette-item-hint { flex: none; font-family: var(--mono); font-size: 11px; color: var(--muted); }

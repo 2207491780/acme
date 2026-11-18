@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, App as AntApp, Avatar, Badge, Button, Card, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Watermark } from 'antd';
+import { Alert, App as AntApp, Avatar, Badge, Button, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Watermark } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,6 +11,7 @@ import {
   DashboardOutlined,
   DownOutlined,
   FieldTimeOutlined,
+  FileOutlined,
   FileSearchOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
@@ -38,32 +39,17 @@ import {
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
 import dayjs from 'dayjs';
+import { PAGE_ROUTES, findPageRoute } from './routes';
+import { useTabsStore } from './store/tabsStore';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
 import { createNotifyClient } from './ws/notify-client';
-import { Dashboard } from './pages/Dashboard';
-import { Releases } from './pages/Releases';
-import { Apps } from './pages/Apps';
-import { Settings } from './pages/Settings';
-import { TenantsPage } from './pages/TenantsPage';
-import { UsersPage } from './pages/UsersPage';
-import { RolesPage } from './pages/RolesPage';
-import { DeptsPage } from './pages/DeptsPage';
-import { PositionsPage } from './pages/PositionsPage';
-import { PermissionsPage } from './pages/PermissionsPage';
-import { MenusPage } from './pages/MenusPage';
-import { DictsPage } from './pages/DictsPage';
-import { SystemConfigPage } from './pages/SystemConfigPage';
-import { AuditPage } from './pages/AuditPage';
-import { LoginLogsPage } from './pages/LoginLogsPage';
-import { OnlineUsersPage } from './pages/OnlineUsersPage';
-import { ExceptionsPage } from './pages/ExceptionsPage';
-import { JobsPage } from './pages/JobsPage';
-import { FilesPage } from './pages/FilesPage';
-import { NoticesPage } from './pages/NoticesPage';
 import { LoginPage } from './pages/LoginPage';
 import { NotificationBell } from './components/NotificationBell';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { PageBoundary, PermissionGate } from './components/PermissionGate';
+import { TabBar } from './components/TabBar';
+import { TabKeepAlive } from './components/TabKeepAlive';
+import { CommandPalette } from './components/CommandPalette';
 import { buildDynamicNav, type NavEntry } from './nav';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
@@ -73,55 +59,6 @@ import { LockScreenOverlay } from './components/LockScreenOverlay';
 import { useFullscreen } from './hooks/useFullscreen';
 
 const { Sider, Header, Content } = Layout;
-
-/**
- * 页面级权限门禁（p2-admin）：画像未加载放行占位（避免闪烁），已加载缺权限码 → 403 提示。
- * 加载失败进入错误态并给出重试入口（review 修复：此前失败后所有权限页永远停留在“加载中”）。
- */
-function PermissionGate({ permission, children }: { permission: string; children: ReactNode }) {
-  const { t } = useTranslation();
-  const me = useMeStore((s) => s.me);
-  const loading = useMeStore((s) => s.loading);
-  const error = useMeStore((s) => s.error);
-  if (!me) {
-    if (error && !loading) {
-      return (
-        <Card>
-          <Alert
-            type="error"
-            showIcon
-            message={t('nav.permissionGate.loadFailed')}
-            description={t('nav.permissionGate.loadFailedDesc', { error })}
-            action={
-              <Button size="small" onClick={() => void useMeStore.getState().load()}>
-                {t('common.actions.retry')}
-              </Button>
-            }
-          />
-        </Card>
-      );
-    }
-    return <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)' }}>{t('nav.permissionGate.loading')}</div>;
-  }
-  if (!me.permissions.includes(permission)) {
-    return (
-      <Card>
-        <Alert
-          type="warning"
-          showIcon
-          message={t('nav.permissionGate.denied')}
-          description={t('nav.permissionGate.deniedDesc', { permission })}
-        />
-      </Card>
-    );
-  }
-  return <>{children}</>;
-}
-
-/** 页面级局部错误边界：路由页面渲染抛错 → 局部兜底 UI + 重试（REQ-20261114-120103，AC-3）。 */
-function PageBoundary({ children }: { children: ReactNode }) {
-  return <ErrorBoundary variant="page">{children}</ErrorBoundary>;
-}
 
 const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: string }[] = [
   { path: '/', icon: <DashboardOutlined />, labelKey: 'nav.items.dashboard' },
@@ -143,8 +80,13 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   // 平台运营组（REQ-20261117-061017）：异常日志 / 定时任务，紧随审计与登录安全观测项之后
   { path: '/op-exceptions', icon: <BugOutlined />, labelKey: 'nav.items.opExceptions', permission: 'infra:exception:list' },
   { path: '/jobs', icon: <ScheduleOutlined />, labelKey: 'nav.items.jobs', permission: 'infra:job:list' },
+  // 文件管理（REQ-20261119-063129 契约⑥）：路由既有，NAV/i18n 条目补齐
+  { path: '/files', icon: <FileOutlined />, labelKey: 'nav.items.files', permission: 'infra:file:list' },
   { path: '/settings', icon: <SettingOutlined />, labelKey: 'nav.items.settings' },
 ];
+
+/** 静态 NAV 图标映射（页签条图标兜底；动态菜单 icon 优先）。 */
+const NAV_ICONS = new Map<string, ReactNode>(NAV.map((entry) => [entry.path, entry.icon]));
 
 /** 顶栏语言菜单展示名（复用 i18n 资源包 nav.userMenu.language*，语言名以自身语言展示）。 */
 const LOCALE_LABEL_KEYS: Record<AppLocale, string> = {
@@ -171,11 +113,19 @@ export function App() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
+  // 命令面板（REQ-20261119-063129 契约⑤）：Ctrl+K 开关（动作经 props 注入，见 CommandPalette）
+  const [paletteOpen, setPaletteOpen] = useState(false);
   // 超管跨租户切换（REQ-20261117-025200）：目标租户目录（用户菜单展开时拉取）+ 切换中防重复点击
   const [switchTargets, setSwitchTargets] = useState<TenantSummary[]>([]);
   const [switchTargetsLoading, setSwitchTargetsLoading] = useState(false);
   const [switchingTenant, setSwitchingTenant] = useState(false);
   const searchRef = useRef<InputRef>(null);
+  // 页签滚动位置（契约 AC-1）：Content 为共享滚动视口，切签时按 path 记忆/恢复 scrollTop
+  const contentRef = useRef<HTMLElement | null>(null);
+  const scrollTopsRef = useRef(new Map<string, number>());
+
+  // 多页签逃生口（契约⑦）：置 true 时退回单页路由渲染（无 TabBar/keepalive），仅测试装配使用
+  const tabsDisabled = Boolean(window.__ACME_TABS_DISABLED__);
 
   // 登录态（login-state / login-renew）：未登录渲染独立登录页；已登录进入控制台并启动滑动续约
   const session = useAuthStore((s) => s.session);
@@ -186,11 +136,14 @@ export function App() {
   // 依赖收敛为 isAuthed：滑动续约会整体替换 session 对象，以 session 为依赖会导致每次续约重复拉取 me。
   // 租户系统配置（REQ-20261116-230354）随会话就绪加载（水印显隐 + 闲置锁屏时长 + 页脚版权强制生效）；
   // 登出/会话失效复位为缺省（水印开/验证码关/闲置关/页脚不显示）并解除闲置计时。
+  // 页签（REQ-20261119-063129 AC-7）：登入 hydrate（新会话=空/刷新=还原持久化），登出/被踢清空。
   useEffect(() => {
     if (isAuthed) {
+      useTabsStore.getState().hydrate();
       void useMeStore.getState().load();
       void useSystemConfigStore.getState().load();
     } else {
+      useTabsStore.getState().clear();
       useMeStore.getState().clear();
       useSystemConfigStore.setState({
         watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
@@ -227,11 +180,14 @@ export function App() {
     return () => clearInterval(timer);
   }, [dispatch]);
 
+  // Ctrl+K（REQ-20261119-063129 契约⑤）：改开命令面板（登录态）；既有搜索框保留原语义
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        searchRef.current?.focus();
+        if (useAuthStore.getState().session !== null) {
+          setPaletteOpen(true);
+        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -277,6 +233,7 @@ export function App() {
       .finally(() => {
         useAuthStore.getState().clear();
         useMeStore.getState().clear();
+        useTabsStore.getState().clear(); // AC-7：登出清空页签并移除 acme.tabs.v1
         window.location.hash = '#/login';
       });
   };
@@ -360,6 +317,51 @@ export function App() {
     }
   }, [dynamicNav]);
 
+  // 页签同步（REQ-20261119-063129 契约①②）：location.pathname → tabsStore（渲染与 router 脱钩，
+  // navigate 仅承担「导航指令」）。/login 不进页签；未知路径（`*` 通配语义）replace 导航 '/'；
+  // 页签 label 打开时优先记动态菜单 menuName，否则由 labelKey 渲染时解析（TabBar）。
+  // 注意：本 effect 必须位于上方 hydrate effect 之后（同序执行，先还原再开当前签），
+  // 且在条件 return 之前——登录/登出切换时 hook 数量不得变化。
+  useEffect(() => {
+    if (tabsDisabled) {
+      return;
+    }
+    if (useAuthStore.getState().session === null) {
+      return;
+    }
+    const path = location.pathname;
+    if (path === '/login') {
+      return;
+    }
+    if (!findPageRoute(path)) {
+      navigate('/', { replace: true });
+      return;
+    }
+    const dynamicLabel = dynamicNav?.entries.find((entry) => entry.path === path)?.label;
+    useTabsStore.getState().openTab(path, dynamicLabel ? { label: dynamicLabel } : undefined);
+  }, [location.pathname, dynamicNav, navigate, tabsDisabled]);
+
+  // 页签切换滚动位置恢复（AC-1）：Content 为共享滚动视口（既有布局契约 overflow:auto 不变），
+  // 切签时记录旧激活签 scrollTop、恢复新激活签记忆值（keepalive 容器 display:none 不保留共享视口滚动）
+  const activeTabPath = useTabsStore((s) => s.activePath);
+  const prevTabRef = useRef<string | null>(null);
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) {
+      return;
+    }
+    const prev = prevTabRef.current;
+    if (prev && prev !== activeTabPath) {
+      scrollTopsRef.current.set(prev, el.scrollTop);
+    }
+    prevTabRef.current = activeTabPath;
+    const target = activeTabPath ? (scrollTopsRef.current.get(activeTabPath) ?? 0) : 0;
+    const raf = requestAnimationFrame(() => {
+      el.scrollTop = target;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [activeTabPath]);
+
   if (!session) {
     return <LoginPage />;
   }
@@ -376,6 +378,53 @@ export function App() {
     navigate(path);
     setMobileNav(false);
   };
+
+  // 页签条动作（REQ-20261119-063129 契约③）：store 变更后对齐 hash（关激活页切相邻）/
+  // 兜底空态（全部关闭且无 pinned 时按当前路由重开，内容区不留白）
+  const reconcileTabs = () => {
+    const { tabs: openTabs, activePath } = useTabsStore.getState();
+    if (openTabs.length === 0) {
+      if (findPageRoute(location.pathname)) {
+        useTabsStore.getState().openTab(location.pathname);
+      }
+      return;
+    }
+    if (activePath && activePath !== location.pathname) {
+      navigate(activePath);
+    }
+  };
+  const handleTabSelect = (path: string) => {
+    if (path !== location.pathname) {
+      navigate(path);
+      return;
+    }
+    useTabsStore.getState().setActive(path);
+  };
+  const handleTabClose = (path: string) => {
+    useTabsStore.getState().closeTab(path);
+    reconcileTabs();
+  };
+  const handleTabRefresh = (path: string) => {
+    useTabsStore.getState().refresh(path);
+  };
+  const handleTabTogglePin = (path: string) => {
+    useTabsStore.getState().togglePin(path);
+  };
+  const handleTabCloseOthers = (path: string) => {
+    useTabsStore.getState().closeOthers(path);
+    reconcileTabs();
+  };
+  const handleTabCloseRight = (path: string) => {
+    useTabsStore.getState().closeRight(path);
+    reconcileTabs();
+  };
+  const handleTabCloseAll = () => {
+    useTabsStore.getState().closeAll();
+    reconcileTabs();
+  };
+  // 页签图标：动态菜单 icon 优先，静态 NAV 兜底（icon 不可序列化，渲染时注入 TabBar）
+  const tabIconOf = (path: string): ReactNode =>
+    dynamicNav?.entries.find((entry) => entry.path === path)?.icon ?? NAV_ICONS.get(path) ?? null;
 
   const onSearch = (value: string) => {
     setQuery({ search: value });
@@ -496,7 +545,10 @@ export function App() {
               style={{ flex: 1, maxWidth: 420 }}
               suffix={
                 !isMobile ? (
-                  <kbd style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '1px 6px' }}>
+                  <kbd
+                    style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '1px 6px' }}
+                    title={t('nav.commandPalette.open')}
+                  >
                     Ctrl K
                   </kbd>
                 ) : undefined
@@ -609,8 +661,21 @@ export function App() {
               {!isMobile && t('nav.header.create')}
             </Button>
           </Header>
+          {/* 页签条（REQ-20261119-063129 契约③）：Header 下方自绘 pill 条；逃生口模式下不渲染 */}
+          {!tabsDisabled && (
+            <TabBar
+              iconOf={tabIconOf}
+              onSelect={handleTabSelect}
+              onClose={handleTabClose}
+              onRefresh={handleTabRefresh}
+              onTogglePin={handleTabTogglePin}
+              onCloseOthers={handleTabCloseOthers}
+              onCloseRight={handleTabCloseRight}
+              onCloseAll={handleTabCloseAll}
+            />
+          )}
           {/* 内容区视口内自滚：minHeight 0 解除 flex 子项最小尺寸约束，整页高度不随内容撑大 */}
-          <Content style={{ padding: isMobile ? '16px 14px 60px' : '24px 30px 60px', flex: 1, minHeight: 0, overflow: 'auto' }}>
+          <Content ref={contentRef} style={{ padding: isMobile ? '16px 14px 60px' : '24px 30px 60px', flex: 1, minHeight: 0, overflow: 'auto' }}>
             {(storageError || storageConflict) && (
               <Alert
                 type="warning"
@@ -622,168 +687,29 @@ export function App() {
                 action={<Button onClick={() => download('acme-unsaved-backup.json', JSON.stringify(useStore.getState().state, null, 2))}>{t('nav.storage.export')}</Button>}
               />
             )}
-            <Routes>
-              <Route path="/" element={<PageBoundary><Dashboard /></PageBoundary>} />
-              <Route path="/releases" element={<PageBoundary><Releases /></PageBoundary>} />
-              <Route path="/apps" element={<PageBoundary><Apps /></PageBoundary>} />
-              <Route
-                path="/tenants"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="system:tenant:list">
-                      <TenantsPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/users"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="system:user:list">
-                      <UsersPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/roles"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="system:role:list">
-                      <RolesPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/depts"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="system:dept:list">
-                      <DeptsPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/positions"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="system:position:list">
-                      <PositionsPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/permissions"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="system:permission:list">
-                      <PermissionsPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/menus"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="system:menu:list">
-                      <MenusPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/dicts"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="system:dict:list">
-                      <DictsPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/notices"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="system:notice:list">
-                      <NoticesPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/audit"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="infra:audit:list">
-                      <AuditPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/login-logs"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="auth:loginlog:list">
-                      <LoginLogsPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/online-users"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="auth:online:list">
-                      <OnlineUsersPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              <Route
-                path="/files"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="infra:file:list">
-                      <FilesPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              {/* 运行异常日志（REQ-20261117-061017）：权限点 infra:exception:list */}
-              <Route
-                path="/op-exceptions"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="infra:exception:list">
-                      <ExceptionsPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              {/* 定时任务（REQ-20261117-061017）：权限点 infra:job:list（手动执行 infra:job:run 页内分控） */}
-              <Route
-                path="/jobs"
-                element={(
-                  <PageBoundary>
-                    <PermissionGate permission="infra:job:list">
-                      <JobsPage />
-                    </PermissionGate>
-                  </PageBoundary>
-                )}
-              />
-              {/* 系统配置（REQ-20261116-230354）：GET 认证即可读，页面不设 PermissionGate；
-                  保存能力在页面内按 system:config:update fail-closed（AC-6） */}
-              <Route path="/system/config" element={<PageBoundary><SystemConfigPage /></PageBoundary>} />
-              <Route path="/settings" element={<PageBoundary><Settings /></PageBoundary>} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            {/* 渲染与 router 脱钩（REQ-20261119-063129 契约①）：常规=TabKeepAlive 按 tabsStore
+                已开页签渲染（keepalive）；逃生口（契约⑦ window.__ACME_TABS_DISABLED__）=单页路由
+                渲染（PAGE_ROUTES 逐页 PageBoundary+PermissionGate），仅供个别测试装配隔离。 */}
+            {tabsDisabled ? (
+              <Routes>
+                {PAGE_ROUTES.map((route) => (
+                  <Route
+                    key={route.path}
+                    path={route.path}
+                    element={(
+                      <PageBoundary>
+                        {route.permission
+                          ? <PermissionGate permission={route.permission}>{route.element}</PermissionGate>
+                          : route.element}
+                      </PageBoundary>
+                    )}
+                  />
+                ))}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            ) : (
+              <TabKeepAlive />
+            )}
             {/* 应用内页脚版权（REQ-20261117-025200，AC-10）：租户配置 footerVisible 且文案非空才渲染
                 （文案空串/null 一律不渲染空标签）；普通文档流不遮挡内容，水印覆盖属预期 */}
             {footerVisible && footerCopyright ? <footer className="app-foot">{footerCopyright}</footer> : null}
@@ -807,6 +733,33 @@ export function App() {
       <SaveViewModal />
       <AppFormModal />
       <LockScreenOverlay />
+      {/* 命令面板（REQ-20261119-063129 契约⑤）：Ctrl+K 开启；动作复用 App 既有 handlers */}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onOpenPage={(path) => {
+          setPaletteOpen(false);
+          navigate(path);
+        }}
+        onLock={() => {
+          setPaletteOpen(false);
+          useLockStore.getState().lock();
+        }}
+        onToggleTheme={() => {
+          dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: settings.theme === 'dark' ? 'light' : 'dark' } });
+        }}
+        onToggleLanguage={() => {
+          setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN');
+        }}
+        onCreateRelease={() => {
+          setPaletteOpen(false);
+          openModal({ type: 'release', id: null });
+        }}
+        onLogout={() => {
+          setPaletteOpen(false);
+          handleLogout();
+        }}
+      />
     </>
   );
   // App 级水印（AC-7；REQ-20261117-180000 模板化）：内容=模板渲染（未配置=仅账号）；

@@ -17,4 +17,7 @@ interface AcmeDesktopBridge {
 
 interface Window {
   acmeDesktop?: AcmeDesktopBridge;
+  /** 多页签逃生口（REQ-20261119-063129 契约⑦）：置 true 时 App 退回单页路由渲染
+   *  （无 TabBar/keepalive），仅供个别测试装配隔离使用；运行时默认不启用。 */
+  __ACME_TABS_DISABLED__?: boolean;
 }

@@ -206,6 +206,7 @@ afterEach(() => {
   window.sessionStorage.clear();
   useAuthStore.getState().clear();
   useMeStore.getState().clear();
+  delete window.__ACME_TABS_DISABLED__; // 逃生口复位（默认不启用）
 });
 
 describe('REQ20261114120103 在途请求中止（AC-4 组件面）', () => {
@@ -228,11 +229,18 @@ describe('REQ20261114120103 在途请求中止（AC-4 组件面）', () => {
   });
 
   it('should_abort_in_flight_request_when_route_switches', async () => {
+    // REQ-20261119-063129 契约⑦逃生口：keepalive 下切换路由不再卸载页面（在途请求合法存活），
+    // 「路由切换中止」语义仅在单页路由装配（window.__ACME_TABS_DISABLED__）下成立——本用例
+    // 显式启用逃生口维持原断言面（装配隔离，不改断言）。
+    window.__ACME_TABS_DISABLED__ = true;
     seedSession();
     const { fetchMock, signals } = setupAppApi();
     await useMeStore.getState().load();
     window.location.hash = '#/tenants';
-    render(<AntApp><HashRouter><App /></HashRouter></AntApp>);
+    // v7_startTransition 对齐生产装配（main.tsx 同 flag）：懒加载页在同步路由更新期间挂起时
+    // 以 transition 处理（回退 fallback），否则 React 18 抛 "suspended while responding to
+    // synchronous input"（REQ-20261119-063129 懒加载语义下的测试装配修正）
+    render(<AntApp><HashRouter future={{ v7_startTransition: true }}><App /></HashRouter></AntApp>);
 
     // 租户页在途请求已挂起
     await waitFor(() => {
