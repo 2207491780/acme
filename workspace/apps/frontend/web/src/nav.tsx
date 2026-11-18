@@ -25,12 +25,17 @@ interface NavNode {
   children?: NavNode[];
 }
 
-/** 单节点转换：visible=false / DISABLED / permissionCode 无权限 → 剔除；目录需保有意向子节点。 */
+/** 单节点转换：BUTTON / visible=false / DISABLED / permissionCode 无权限 → 剔除；目录需保有意向子节点。 */
 function toNavNode(node: AdminMenuView, permissions: string[]): NavNode | null {
   if (node.visible === false || node.status !== 'ENABLED') {
     return null;
   }
   if (node.permissionCode && !permissions.includes(node.permissionCode)) {
+    return null;
+  }
+  // BUTTON 节点（REQ-20261119-051119）：按钮级权限投影（无 path 叶子，仅授权树展示），
+  // 不承载导航——显式剔除，防未来 BUTTON 节点被误收录进侧边导航
+  if (node.menuType === 'BUTTON') {
     return null;
   }
   const icon = resolveMenuIcon(node.icon);

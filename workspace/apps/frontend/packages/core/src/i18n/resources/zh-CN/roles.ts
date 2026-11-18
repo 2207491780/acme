@@ -45,6 +45,7 @@ export const roles = {
   grant: {
     permissionsTitle: '权限点授权：{{name}}',
     menusTitle: '菜单授权：{{name}}',
+    menusButtonNote: '勾选「按钮」节点＝授予对应操作权限（随下次令牌签发生效）。',
     submitNote: '提交即全量覆盖；权限变更随下次令牌签发生效。',
     permissionsUpdated: '角色 {{code}} 权限已更新（新权限随下次令牌签发生效）',
     menusUpdated: '角色 {{code}} 菜单已更新',

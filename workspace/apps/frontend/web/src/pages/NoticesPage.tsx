@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { App, Button, Form, Input, Popconfirm, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import { formatDate, notifyApi, notifyErrorMessage, useCrud, useMeStore } from '@acme/core';
+import { formatDate, notifyApi, notifyErrorMessage, Auth, useCrud, useMeStore } from '@acme/core';
 import type { AdminNoticeView, NoticeStatus } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
@@ -109,32 +109,38 @@ export function NoticesPage() {
       title: t('notices.columns.actions'), key: 'actions', minWidth: 230, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:notice:update') && record.status !== 'PUBLISHED' ? (
-            <Button size="small" onClick={() => openEdit(record)}>{t('notices.actions.edit')}</Button>
-          ) : null}
-          {crud.can('system:notice:publish') && record.status !== 'PUBLISHED' ? (
-            <Button
-              size="small"
-              loading={actingId === record.id}
-              onClick={() => void runRowAction(record, () => notifyApi.noticePublish(record.id), 'notices.toast.publishSuccess', 'notices.toast.publishFailed')}
-            >
-              {t('notices.actions.publish')}
-            </Button>
-          ) : null}
-          {crud.can('system:notice:publish') && record.status === 'PUBLISHED' ? (
-            <Button
-              size="small"
-              loading={actingId === record.id}
-              onClick={() => void runRowAction(record, () => notifyApi.noticeOffline(record.id), 'notices.toast.offlineSuccess', 'notices.toast.offlineFailed')}
-            >
-              {t('notices.actions.offline')}
-            </Button>
-          ) : null}
-          {crud.can('system:notice:delete') ? (
+          <Auth code="system:notice:update">
+            {record.status !== 'PUBLISHED' ? (
+              <Button size="small" onClick={() => openEdit(record)}>{t('notices.actions.edit')}</Button>
+            ) : null}
+          </Auth>
+          <Auth code="system:notice:publish">
+            {record.status !== 'PUBLISHED' ? (
+              <Button
+                size="small"
+                loading={actingId === record.id}
+                onClick={() => void runRowAction(record, () => notifyApi.noticePublish(record.id), 'notices.toast.publishSuccess', 'notices.toast.publishFailed')}
+              >
+                {t('notices.actions.publish')}
+              </Button>
+            ) : null}
+          </Auth>
+          <Auth code="system:notice:publish">
+            {record.status === 'PUBLISHED' ? (
+              <Button
+                size="small"
+                loading={actingId === record.id}
+                onClick={() => void runRowAction(record, () => notifyApi.noticeOffline(record.id), 'notices.toast.offlineSuccess', 'notices.toast.offlineFailed')}
+              >
+                {t('notices.actions.offline')}
+              </Button>
+            ) : null}
+          </Auth>
+          <Auth code="system:notice:delete">
             <Popconfirm title={t('notices.actions.deleteConfirm', { title: record.title })} onConfirm={() => void runRowAction(record, () => notifyApi.noticeDelete(record.id), 'notices.toast.deleteSuccess', 'notices.toast.deleteFailed')}>
               <Button size="small" danger>{t('notices.actions.delete')}</Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
         </Space>
       ),
     },

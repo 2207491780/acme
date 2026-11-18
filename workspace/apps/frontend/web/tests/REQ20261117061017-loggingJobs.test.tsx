@@ -28,7 +28,9 @@ import { ExceptionsPage } from '../src/pages/ExceptionsPage';
 import { JobsPage } from '../src/pages/JobsPage';
 import { authApi, infraApi, auditApi, useAuthStore, useMeStore } from '@acme/core';
 
-vi.setConfig({ testTimeout: 15000 });
+// REQ-20261119-051119 装配放宽（对齐 crudPages 先例）：全量套件并行负载下 OnlineUsers 批量下线两例贴线超时
+// （隔离/受控负载下均 5-8s 通过，断言不变，仅预算 15000→25000）。
+vi.setConfig({ testTimeout: 25000 });
 
 // ————— 行为常量（范本口径：两字按钮 autoInsertSpace 兼容） —————
 const CONFIRM_BUTTON = /确\s*定|^OK$/i;

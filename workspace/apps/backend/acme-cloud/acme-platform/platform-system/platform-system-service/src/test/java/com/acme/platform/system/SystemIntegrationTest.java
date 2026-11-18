@@ -81,8 +81,9 @@ class SystemIntegrationTest {
     void flywaySeedPresent() {
         // 种子数据（V2 基线 + V3/V4 infra 增补 + V5 内容域增补 + V7 文件/任务/Excel 权限增补
         // + V8 通知公告/站内信权限增补 + V9 组织架构/数据范围权限增补 + V10 登录安全权限增补
-        // + V15 系统配置权限/菜单增补 + V19 日志中心权限/菜单增补）：默认租户 / 超管 / super_admin /
-        // 68 权限点（62+3+2+1，V19 续编 68）/ 10 菜单（AC-009 前置；me.menus 语义不动）
+        // + V15 系统配置权限/菜单增补 + V19 日志中心权限/菜单增补 + V20 按钮 BUTTON 菜单节点增补）：
+        // 默认租户 / 超管 / super_admin / 68 权限点（62+3+2+1，V19 续编 68；V20 无新权限点）/
+        // 39 菜单（12 + V20 BUTTON 节点 27；me.menus 语义不动，BUTTON 仅授权树投影）
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_tenant where tenant_code='default'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
@@ -92,7 +93,25 @@ class SystemIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_permission", Long.class)).isEqualTo(68L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_menu", Long.class)).isEqualTo(12L);
+                "select count(*) from sys_menu", Long.class)).isEqualTo(39L);
+        // REQ-20261119-051119 AC-1：BUTTON 节点入 sys_menu（permission_code=既有 API 码）且超管全绑
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_menu where menu_type='BUTTON'", Long.class)).isEqualTo(27L);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_menu where menu_type='BUTTON' "
+                        + "and (permission_code is null or permission_code = '' "
+                        + "or path is not null or component is not null or icon is not null)",
+                Long.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_role_menu rm join sys_menu m on m.id = rm.menu_id "
+                        + "where m.menu_type='BUTTON' and rm.role_id = "
+                        + "(select id from sys_role where role_code='super_admin' and tenant_id='default')",
+                Long.class)).isEqualTo(27L);
+        // AC-1 权限点总数恒 68（BUTTON 为投影，不新增权限点）
+        assertThat(jdbcTemplate.queryForList(
+                "select distinct m.permission_code from sys_menu m where m.menu_type='BUTTON' "
+                        + "and m.permission_code not in (select p.permission_code from sys_permission p)",
+                String.class)).isEmpty();
         // REQ-20261114-071607：文件服务/任务调度/Excel demo 权限点种子（接口级 http_method + http_path）
         assertThat(jdbcTemplate.queryForList(
                 "select permission_code from sys_permission where permission_code like 'infra:file:%' "
@@ -124,13 +143,14 @@ class SystemIntegrationTest {
 
     @Test
     void seedScriptReplayIsIdempotent() {
-        // 重放 V2/V8/V9/V15 的 INSERT 种子语句（幂等口径 AC-009：固定主键 + ON CONFLICT DO NOTHING
+        // 重放 V2/V8/V9/V15/V19/V20 的 INSERT 种子语句（幂等口径 AC-009：固定主键 + ON CONFLICT DO NOTHING
         // 不产生重复行）；DDL 由 Flyway 一次性执行、不在幂等重放范围（裸 CREATE TABLE 重跑必报已存在）
         replaySeedInserts("db/migration/system/V2__seed_baseline.sql");
         replaySeedInserts("db/migration/system/V8__notice_message_notify.sql");
         replaySeedInserts("db/migration/system/V9__org_structure_data_scope.sql");
         replaySeedInserts("db/migration/system/V15__system_config.sql");
         replaySeedInserts("db/migration/system/V19__log_menu_permission.sql");
+        replaySeedInserts("db/migration/system/V20__button_menu_nodes.sql");
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_user where username='admin'",
                 Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(68L);
@@ -139,6 +159,11 @@ class SystemIntegrationTest {
         // V9 幂等：绑定行与权限点不因重放翻倍（>=54 含 V9 9 条 + V10 3 条 + V15 2 条）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 54",
                 Long.class)).isEqualTo(15L);
+        // V20 幂等（REQ-20261119-051119 确认⑥）：BUTTON 节点与超管绑定行不因重放翻倍（13 起各 27 行）
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_menu where menu_type='BUTTON'", Long.class)).isEqualTo(27L);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_menu where id >= 13",
+                Long.class)).isEqualTo(27L);
     }
 
     @Test

@@ -3,7 +3,7 @@ import { App, Button, DatePicker, Form, Input, Popconfirm, Space, Tag, Typograph
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { ApiError, formatDate, systemApi, useCrud, useMeStore, type AdminTenantView } from '@acme/core';
+import { ApiError, Auth, formatDate, systemApi, useCrud, useMeStore, type AdminTenantView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 
@@ -126,8 +126,10 @@ export function TenantsPage() {
       title: t('tenants.columns.actions'), key: 'actions', minWidth: 180, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:tenant:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('common.actions.edit')}</Button> : null}
-          {crud.can('system:tenant:update') ? (
+          <Auth code="system:tenant:update">
+            <Button size="small" onClick={() => openEdit(record)}>{t('common.actions.edit')}</Button>
+          </Auth>
+          <Auth code="system:tenant:update">
             <Popconfirm
               title={t('tenants.status.toggleConfirm', { action: record.status === 'ENABLED' ? t('common.status.disabled') : t('common.status.enabled'), code: record.tenantCode })}
               onConfirm={() => void toggleStatus(record)}
@@ -136,7 +138,7 @@ export function TenantsPage() {
                 {record.status === 'ENABLED' ? t('common.status.disabled') : t('common.status.enabled')}
               </Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
         </Space>
       ),
     },

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { App, Button, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import { ApiError, systemApi, useCrud, useMeStore, type AdminPermissionView } from '@acme/core';
+import { ApiError, Auth, systemApi, useCrud, useMeStore, type AdminPermissionView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 
@@ -101,12 +101,14 @@ export function PermissionsPage() {
       title: t('permissions.columns.actions'), key: 'actions', minWidth: 140, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:permission:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('permissions.actions.edit')}</Button> : null}
-          {crud.can('system:permission:delete') ? (
+          <Auth code="system:permission:update">
+            <Button size="small" onClick={() => openEdit(record)}>{t('permissions.actions.edit')}</Button>
+          </Auth>
+          <Auth code="system:permission:delete">
             <Popconfirm title={t('permissions.actions.deleteConfirm', { code: record.permissionCode })} onConfirm={() => void remove(record)}>
               <Button size="small" danger>{t('permissions.actions.delete')}</Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
         </Space>
       ),
     },

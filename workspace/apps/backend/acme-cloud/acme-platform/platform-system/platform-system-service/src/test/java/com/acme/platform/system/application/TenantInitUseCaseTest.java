@@ -101,6 +101,44 @@ class TenantInitUseCaseTest {
     }
 
     @Test
+    void grantsButtonMenuNodesWithNonReservedCodes() {
+        // REQ-20261119-051119 确认①/AC-6：开通即授 BUTTON 节点——非保留域码的 BUTTON 节点入
+        // grantableMenus（授权树按钮级可见），其码对应的权限点经 grantablePermissions 一并授予；
+        // 保留域 BUTTON（system:tenant:*）连节点带权限均不授（既有保留域口径覆盖 BUTTON 投影）。
+        TenantContext.bind(new TenantContext("default"));
+        when(tenantRepository.existsByTenantCode("acme")).thenReturn(false);
+        when(tenantRepository.save(any(SysTenant.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roleRepository.save(any(SysRole.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.save(any(SysUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(permissionRepository.findAll()).thenReturn(List.of(
+                permission(3L, "system:user:create"), permission(29L, "system:tenant:create")));
+        when(menuRepository.findAll()).thenReturn(List.of(
+                menu(1L, 0L, null), menu(2L, 1L, "system:user:list"),
+                buttonMenu(13L, 2L, "system:user:create"),
+                menu(7L, 1L, "system:tenant:list"),
+                buttonMenu(29L, 7L, "system:tenant:create")));
+
+        useCase.initialize(
+                new AdminTenantInitRequest("acme", "Acme 租户", null, "acme_admin", "租户管理员"));
+
+        // 权限：非保留域码（含 BUTTON 对应码 system:user:create）授予，保留域码排除
+        ArgumentCaptor<List<com.acme.platform.system.domain.SysRolePermission>> permCaptor =
+                ArgumentCaptor.forClass(List.class);
+        verify(rolePermissionRepository).saveAll(permCaptor.capture());
+        assertThat(permCaptor.getValue())
+                .extracting(com.acme.platform.system.domain.SysRolePermission::getPermissionId)
+                .containsExactlyInAnyOrder(3L);
+
+        // 菜单：BUTTON 13 授予（其祖先 1/2 随父链补全保留）；保留域 BUTTON 29 与父菜单 7 排除
+        ArgumentCaptor<List<com.acme.platform.system.domain.SysRoleMenu>> menuCaptor =
+                ArgumentCaptor.forClass(List.class);
+        verify(roleMenuRepository).saveAll(menuCaptor.capture());
+        assertThat(menuCaptor.getValue())
+                .extracting(com.acme.platform.system.domain.SysRoleMenu::getMenuId)
+                .containsExactlyInAnyOrder(1L, 2L, 13L);
+    }
+
+    @Test
     void duplicatedTenantCodeRejected() {
         TenantContext.bind(new TenantContext("default"));
         when(tenantRepository.existsByTenantCode("acme")).thenReturn(true);
@@ -142,6 +180,14 @@ class TenantInitUseCaseTest {
 
     private static SysMenu menu(Long id, Long parentId, String permissionCode) {
         SysMenu menu = new SysMenu(parentId, "菜单" + id, MenuType.MENU, null, null, null, 0, true,
+                permissionCode);
+        setId(menu, id);
+        return menu;
+    }
+
+    /** BUTTON 节点桩（REQ-20261119-051119 确认①：menu_type=BUTTON，permission_code 必挂）。 */
+    private static SysMenu buttonMenu(Long id, Long parentId, String permissionCode) {
+        SysMenu menu = new SysMenu(parentId, "按钮" + id, MenuType.BUTTON, null, null, null, 0, true,
                 permissionCode);
         setId(menu, id);
         return menu;

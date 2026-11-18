@@ -46,4 +46,14 @@ public class SysRolePermissionRepositoryImpl extends FlexRepositorySupport<SysRo
     public int deleteByRoleId(Long roleId) {
         return forceDeleteByQuery(QueryWrapper.create().where(SysRolePermission::getRoleId).eq(roleId));
     }
+
+    @Override
+    public int deleteByRoleIdAndPermissionIdIn(Long roleId, Collection<Long> permissionIds) {
+        if (permissionIds == null || permissionIds.isEmpty()) {
+            return 0;
+        }
+        return forceDeleteByQuery(QueryWrapper.create()
+                .where(SysRolePermission::getRoleId).eq(roleId)
+                .and(SysRolePermission::getPermissionId).in(permissionIds));
+    }
 }

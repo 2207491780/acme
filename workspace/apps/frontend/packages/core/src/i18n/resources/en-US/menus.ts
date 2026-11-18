@@ -16,8 +16,10 @@ export const menus = {
   type: {
     directory: 'Directory',
     menu: 'Menu',
+    button: 'Button',
     directoryOption: 'Directory (container node)',
     menuOption: 'Menu (leaf page)',
+    buttonOption: 'Button (action permission)',
   },
   actions: {
     edit: 'Edit',
@@ -37,6 +39,7 @@ export const menus = {
     typeRequired: 'Please select the type',
     path: 'Path',
     pathPlaceholder: 'e.g. /tenants (route for leaf pages)',
+    pathButtonOptional: 'Button nodes have no route; the path may stay empty',
     component: 'Component',
     componentPlaceholder: 'Optional, component identifier',
     icon: 'Icon',
@@ -51,6 +54,7 @@ export const menus = {
     visible: 'Visibility',
     permissionCode: 'Permission code',
     permissionCodePlaceholder: 'Optional, menu-level permission code',
+    permissionCodeRequired: 'Button nodes require a permission code',
     lockNote: 'Submitted with optimistic lock (version {{version}}); if conflicts occur, refresh and try again.',
     created: 'Menu created',
     updated: 'Menu updated',

@@ -3,7 +3,7 @@ import { App, Button, Card, Form, Input, InputNumber, Popconfirm, Space, Table, 
 import type { ColumnsType } from 'antd/es/table';
 import { PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { ApiError, systemApi, useCrud, useMeStore, type AdminDictItemView, type AdminDictTypeView } from '@acme/core';
+import { ApiError, Auth, systemApi, useCrud, useMeStore, type AdminDictItemView, type AdminDictTypeView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 import { TableSettingsButton, useTableSettings } from '../components/tableSettings';
@@ -172,16 +172,16 @@ export function DictsPage() {
       title: t('dicts.types.columns.actions'), key: 'actions', minWidth: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:dict:update') ? (
+          <Auth code="system:dict:update">
             <Button size="small" onClick={() => { setTypeEditing(record); typeForm.setFieldsValue({ dictCode: record.dictCode, dictName: record.dictName, remark: record.remark ?? undefined }); setTypeCreating(false); }}>
               {t('common.actions.edit')}
             </Button>
-          ) : null}
-          {crud.can('system:dict:delete') ? (
+          </Auth>
+          <Auth code="system:dict:delete">
             <Popconfirm title={t('dicts.types.deleteConfirm', { code: record.dictCode })} onConfirm={() => void removeType(record)}>
               <Button size="small" danger>{t('common.actions.delete')}</Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
         </Space>
       ),
     },
@@ -195,16 +195,16 @@ export function DictsPage() {
       title: t('dicts.items.columns.actions'), key: 'actions', minWidth: 150, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:dict:update') ? (
+          <Auth code="system:dict:update">
             <Button size="small" onClick={() => { setItemEditing(record); itemForm.setFieldsValue({ itemLabel: record.itemLabel, itemValue: record.itemValue, sortOrder: record.sortOrder }); setItemCreating(false); }}>
               {t('common.actions.edit')}
             </Button>
-          ) : null}
-          {crud.can('system:dict:delete') ? (
+          </Auth>
+          <Auth code="system:dict:delete">
             <Popconfirm title={t('dicts.items.deleteConfirm', { label: record.itemLabel })} onConfirm={() => void removeItem(record)}>
               <Button size="small" danger>{t('common.actions.delete')}</Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
         </Space>
       ),
     },
@@ -238,11 +238,13 @@ export function DictsPage() {
         extra={
           <Space>
             <TableSettingsButton control={itemSettings} columns={itemColumns} paged={false} />
-            {selected && crud.can('system:dict:create') ? (
-              <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => { setItemEditing(null); itemForm.resetFields(); itemForm.setFieldsValue({ sortOrder: 0 }); setItemCreating(true); }}>
-                {t('dicts.items.create')}
-              </Button>
-            ) : null}
+            <Auth code="system:dict:create">
+              {selected ? (
+                <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => { setItemEditing(null); itemForm.resetFields(); itemForm.setFieldsValue({ sortOrder: 0 }); setItemCreating(true); }}>
+                  {t('dicts.items.create')}
+                </Button>
+              ) : null}
+            </Auth>
           </Space>
         }
       >

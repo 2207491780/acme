@@ -16,8 +16,10 @@ export const menus = {
   type: {
     directory: '目录',
     menu: '菜单',
+    button: '按钮',
     directoryOption: '目录（容器节点）',
     menuOption: '菜单（叶子页面）',
+    buttonOption: '按钮（操作权限）',
   },
   actions: {
     edit: '编辑',
@@ -37,6 +39,7 @@ export const menus = {
     typeRequired: '请选择类型',
     path: '路径',
     pathPlaceholder: '如 /tenants（叶子页面填路由）',
+    pathButtonOptional: '按钮节点无路由，路径可留空',
     component: '组件',
     componentPlaceholder: '选填，组件标识',
     icon: '图标',
@@ -51,6 +54,7 @@ export const menus = {
     visible: '可见',
     permissionCode: '权限码',
     permissionCodePlaceholder: '选填，菜单级权限码',
+    permissionCodeRequired: '按钮节点必须挂权限码',
     lockNote: '按乐观锁提交（版本 {{version}}）；冲突时请刷新后重试。',
     created: '菜单已创建',
     updated: '菜单已更新',

@@ -10,6 +10,7 @@ export * from './selectors';
 export * from './date-format';
 export * from './watermark';
 export * from './use-crud';
+export * from './auth';
 export * from './use-dict';
 export * from './use-dept-tree';
 export * from './use-excel';

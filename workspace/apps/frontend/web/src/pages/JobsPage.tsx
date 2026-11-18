@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { App, Button, Drawer, Popconfirm, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import {
-  TONE_ANTD,
+import {TONE_ANTD,
   formatDate,
   infraApi,
   systemErrorMessage,
@@ -11,6 +10,7 @@ import {
   useMeStore,
   type JobExecutionView,
   type JobView,
+  Auth,
 } from '@acme/core';
 import { CrudTable } from '../components/CrudTable';
 
@@ -109,11 +109,11 @@ export function JobsPage() {
       title: t('jobs.columns.actions'), key: 'actions', minWidth: 180, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('infra:job:run') ? (
+          <Auth code="infra:job:run">
             <Popconfirm title={t('jobs.actions.runConfirm')} onConfirm={() => void runJob(record)}>
               <Button size="small">{t('jobs.actions.run')}</Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
           <Button size="small" onClick={() => setExecJobKey(record.key)}>
             {t('jobs.actions.executions')}
           </Button>

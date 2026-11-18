@@ -18,4 +18,10 @@ public interface SysRolePermissionRepository extends FlexRepository<SysRolePermi
 
     /** 物理解绑（绑定表唯一键决定，重绑必须物理删除；返回删除行数）。 */
     int deleteByRoleId(Long roleId);
+
+    /**
+     * 定向物理解绑（REQ-20261119-051119 确认② BUTTON 联动差量删除专用）：仅删指定角色下
+     * 落在 permissionIds 子集内的绑定行（按钮来源子集），其余来源行不动；空集直接返回 0。
+     */
+    int deleteByRoleIdAndPermissionIdIn(Long roleId, Collection<Long> permissionIds);
 }

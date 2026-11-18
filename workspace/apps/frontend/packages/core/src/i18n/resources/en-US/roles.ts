@@ -45,6 +45,7 @@ export const roles = {
   grant: {
     permissionsTitle: 'Grant permissions: {{name}}',
     menusTitle: 'Grant menus: {{name}}',
+    menusButtonNote: 'Checking a "Button" node grants the corresponding action permission (effective with the next token issuance).',
     submitNote: 'Submitting fully overwrites the grants; permission changes take effect with the next token issuance.',
     permissionsUpdated: 'Permissions updated for role {{code}} (new permissions take effect with the next token issuance)',
     menusUpdated: 'Menus updated for role {{code}}',

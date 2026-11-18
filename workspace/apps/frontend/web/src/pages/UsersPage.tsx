@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import {
   ApiError,
+  Auth,
   formatDate,
   systemApi,
   useCrud,
@@ -234,18 +235,24 @@ export function UsersPage() {
       title: t('users.columns.actions'), key: 'actions', minWidth: 300, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:user:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('users.actions.edit')}</Button> : null}
-          {crud.can('system:user:assign-role') ? <Button size="small" onClick={() => openBind(record)}>{t('users.actions.assignRoles')}</Button> : null}
-          {crud.can('system:user:update') ? (
+          <Auth code="system:user:update">
+            <Button size="small" onClick={() => openEdit(record)}>{t('users.actions.edit')}</Button>
+          </Auth>
+          <Auth code="system:user:assign-role">
+            <Button size="small" onClick={() => openBind(record)}>{t('users.actions.assignRoles')}</Button>
+          </Auth>
+          <Auth code="system:user:update">
             <Popconfirm title={t('users.status.toggleConfirm', { action: record.status === 'ENABLED' ? t('users.status.disabled') : t('users.status.enabled'), name: record.username })} onConfirm={() => void toggleStatus(record)}>
               <Button size="small" danger={record.status === 'ENABLED'}>{record.status === 'ENABLED' ? t('users.status.disabled') : t('users.status.enabled')}</Button>
             </Popconfirm>
-          ) : null}
-          {crud.can('system:user:delete') && !record.builtIn ? (
-            <Popconfirm title={t('users.actions.deleteConfirm', { name: record.username })} onConfirm={() => void remove(record)}>
-              <Button size="small" danger>{t('users.actions.delete')}</Button>
-            </Popconfirm>
-          ) : null}
+          </Auth>
+          <Auth code="system:user:delete">
+            {!record.builtIn ? (
+              <Popconfirm title={t('users.actions.deleteConfirm', { name: record.username })} onConfirm={() => void remove(record)}>
+                <Button size="small" danger>{t('users.actions.delete')}</Button>
+              </Popconfirm>
+            ) : null}
+          </Auth>
           {record.builtIn ? <Text type="secondary" style={{ fontSize: 12 }}>{t('users.actions.builtIn')}</Text> : null}
         </Space>
       ),

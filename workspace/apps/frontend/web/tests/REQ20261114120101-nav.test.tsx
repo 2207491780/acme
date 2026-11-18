@@ -22,7 +22,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { App as AntApp } from 'antd';
 import { HashRouter } from 'react-router-dom';
 import { App } from '../src/App';
-import { getDateLocale, i18n, useAuthStore, useLocaleStore, useMeStore, useTimezoneStore } from '@acme/core';
+import { buildDynamicNav } from '../src/nav';
+import { getDateLocale, i18n, useAuthStore, useLocaleStore, useMeStore, useTimezoneStore, type AdminMenuView } from '@acme/core';
 
 vi.setConfig({ testTimeout: 15000 });
 
@@ -194,9 +195,44 @@ describe('REQ20261114120101 导航动态化（AC-7）', () => {
   });
 });
 
+// ————— REQ-20261119-051119：BUTTON 菜单节点显式剔除（纯结构单测，无需渲染 App） —————
+// 注意：直接调用 buildDynamicNav，节点须为 AdminMenuView 结构（id number / path 可空），与上方 wire fixture 无关
+const btnMenuNode = (over: Partial<AdminMenuView> = {}): AdminMenuView => ({
+  id: 31, parentId: 2, menuName: '', menuType: 'BUTTON', path: null, component: null, icon: null,
+  sortOrder: 9, visible: true, permissionCode: null, status: 'ENABLED', children: [], version: '0',
+  ...over,
+});
+
+describe('REQ20261119051119 导航剔除 BUTTON 节点', () => {
+  const treeWithButton: AdminMenuView[] = [
+    {
+      id: 2, parentId: 0, menuName: '系统管理', menuType: 'DIRECTORY', path: '/system', component: null,
+      icon: null, sortOrder: 2, visible: true, permissionCode: null, status: 'ENABLED', version: '0',
+      children: [
+        { id: 21, parentId: 2, menuName: '用户中心', menuType: 'MENU', path: '/users', component: null, icon: null, sortOrder: 1, visible: true, permissionCode: 'system:user:list', status: 'ENABLED', children: [], version: '0' },
+        btnMenuNode({ parentId: 2, menuName: '用户新建按钮', permissionCode: 'system:user:create' }),
+      ],
+    },
+  ];
+
+  it('should_exclude_button_nodes_from_nav_entries_and_items_when_menu_tree_contains_button', () => {
+    const nav = buildDynamicNav(treeWithButton, ['system:user:list', 'system:user:create']);
+    expect(nav).not.toBeNull();
+    // BUTTON 节点即便用户持码也不进导航（仅授权树展示）
+    expect(nav!.entries.map((e) => e.path)).toEqual(['/users']);
+    const serialized = JSON.stringify(nav!.items);
+    expect(serialized).not.toContain('用户新建按钮');
+    expect(serialized).toContain('用户中心');
+  });
+
+  it('should_return_null_when_only_button_roots_present', () => {
+    // 根级仅剩 BUTTON 叶子（无 path）→ 过滤后为空 → 回退静态 NAV 的 null 约定
+    expect(buildDynamicNav([btnMenuNode({ parentId: 0, menuName: '孤立按钮' })], [])).toBeNull();
+  });
+});
+
 // ————— App shell 布局：整页视口定高、内容区内部滚动（复用整棵 App 渲染 harness） —————
-describe('App shell 布局：内容区视口内自滚', () => {
-  it('should_scroll_content_inside_viewport_when_desktop_layout', async () => {
+describe('App shell 布局：内容区视口内自滚', () => {  it('should_scroll_content_inside_viewport_when_desktop_layout', async () => {
     await renderApp(HELD_PERMS, MENUS);
     await waitFor(() => {
       expect(menuItemCount()).toBeGreaterThanOrEqual(2);

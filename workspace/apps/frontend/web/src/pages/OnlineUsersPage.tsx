@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import {
   authApi,
+  Auth,
   formatDate,
   systemErrorMessage,
   useCrud,
@@ -79,16 +80,14 @@ export function OnlineUsersPage() {
     {
       title: t('onlineUsers.columns.actions'), key: 'actions', minWidth: 120, fixed: 'right',
       render: (_, record) => (
-        crud.can('auth:online:revoke') ? (
+        <Auth code="auth:online:revoke">
           <Popconfirm
             title={t('onlineUsers.revokeConfirm')}
             onConfirm={() => void revoke(record)}
           >
             <Button size="small" danger>{t('onlineUsers.revoke')}</Button>
           </Popconfirm>
-        ) : (
-          <Space size={4} />
-        )
+        </Auth>
       ),
     },
   ];
@@ -104,23 +103,25 @@ export function OnlineUsersPage() {
       paged={false}
       reloadAriaLabel={t('onlineUsers.reload')}
       totalText={(total) => t('onlineUsers.total', { total })}
-      actions={crud.can('auth:online:revoke') ? (
-        <Space size={4}>
-          <Input
-            allowClear
-            placeholder={t('onlineUsers.batchKick.placeholder')}
-            value={kickUsername}
-            onChange={(e) => setKickUsername(e.target.value)}
-            style={{ width: 180 }}
-          />
-          <Popconfirm
-            title={t('onlineUsers.batchKick.confirm', { username: kickUsername.trim() || '—' })}
-            onConfirm={() => void batchKick()}
-          >
-            <Button danger>{t('onlineUsers.batchKick.submit')}</Button>
-          </Popconfirm>
-        </Space>
-      ) : null}
+      actions={(
+        <Auth code="auth:online:revoke">
+          <Space size={4}>
+            <Input
+              allowClear
+              placeholder={t('onlineUsers.batchKick.placeholder')}
+              value={kickUsername}
+              onChange={(e) => setKickUsername(e.target.value)}
+              style={{ width: 180 }}
+            />
+            <Popconfirm
+              title={t('onlineUsers.batchKick.confirm', { username: kickUsername.trim() || '—' })}
+              onConfirm={() => void batchKick()}
+            >
+              <Button danger>{t('onlineUsers.batchKick.submit')}</Button>
+            </Popconfirm>
+          </Space>
+        </Auth>
+      )}
     />
   );
 }

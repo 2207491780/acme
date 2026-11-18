@@ -3,6 +3,7 @@ import { App, Button, Form, Input, Popconfirm, Select, Space, Tag, Typography } 
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import {
+  Auth,
   formatDate,
   systemApi,
   systemErrorMessage,
@@ -112,12 +113,14 @@ export function PositionsPage() {
       title: t('positions.columns.actions'), key: 'actions', minWidth: 160, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:position:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('positions.actions.edit')}</Button> : null}
-          {crud.can('system:position:delete') ? (
+          <Auth code="system:position:update">
+            <Button size="small" onClick={() => openEdit(record)}>{t('positions.actions.edit')}</Button>
+          </Auth>
+          <Auth code="system:position:delete">
             <Popconfirm title={t('positions.actions.deleteConfirm', { name: record.positionName })} onConfirm={() => void remove(record)}>
               <Button size="small" danger>{t('positions.actions.delete')}</Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
         </Space>
       ),
     },

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { App, Button, Form, Input, InputNumber, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import { ApiError, systemApi, useCrud, useMeStore, type AdminMenuView } from '@acme/core';
+import { ApiError, Auth, systemApi, useCrud, useMeStore, type AdminMenuView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 import { MenuIconPicker } from '../components/MenuIconPicker';
@@ -22,7 +22,9 @@ interface MenuFormValues {
 }
 
 /** 菜单管理（p3-admin）：树形表格全量展示 + 新建/编辑/删除；parent 下拉来自当前树。
- *  迁移 CRUD 范本（REQ-20261114-120101）：useCrud + CrudTable（树表 paged=false、无搜索）+ CrudFormModal。 */
+ *  迁移 CRUD 范本（REQ-20261114-120101）：useCrud + CrudTable（树表 paged=false、无搜索）+ CrudFormModal。
+ *  REQ-20261119-051119：menuTypes 增 BUTTON（按钮级权限投影）——BUTTON 节点必须挂 permissionCode、
+ *  path 无路由语义（可留空提示）。 */
 export function MenusPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
@@ -31,6 +33,7 @@ export function MenusPage() {
   const menuTypes = [
     { value: 'DIRECTORY', label: t('menus.type.directoryOption') },
     { value: 'MENU', label: t('menus.type.menuOption') },
+    { value: 'BUTTON', label: t('menus.type.buttonOption') },
   ];
 
   const crud = useCrud<AdminMenuView>({
@@ -51,6 +54,8 @@ export function MenusPage() {
   const [editing, setEditing] = useState<AdminMenuView | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<MenuFormValues>();
+  // BUTTON 校验联动（REQ-20261119-051119）：按钮节点必须挂权限码、path 可留空
+  const menuType = Form.useWatch('menuType', form);
 
   const openCreate = (parentId?: number) => {
     setEditing(null);
@@ -127,7 +132,7 @@ export function MenusPage() {
 
   const columns: ColumnsType<AdminMenuView> = [
     { title: t('menus.columns.menuName'), dataIndex: 'menuName', key: 'menuName', minWidth: 200, fixed: 'left' },
-    { title: t('menus.columns.menuType'), dataIndex: 'menuType', key: 'menuType', minWidth: 110, render: (v: string) => <Tag color={v === 'DIRECTORY' ? 'processing' : 'success'}>{v === 'DIRECTORY' ? t('menus.type.directory') : t('menus.type.menu')}</Tag> },
+    { title: t('menus.columns.menuType'), dataIndex: 'menuType', key: 'menuType', minWidth: 110, render: (v: string) => <Tag color={v === 'DIRECTORY' ? 'processing' : v === 'BUTTON' ? 'purple' : 'success'}>{v === 'DIRECTORY' ? t('menus.type.directory') : v === 'BUTTON' ? t('menus.type.button') : t('menus.type.menu')}</Tag> },
     { title: t('menus.columns.path'), dataIndex: 'path', key: 'path', minWidth: 180, ellipsis: true, render: (v: string | null) => v ?? '—' },
     { title: t('menus.columns.component'), dataIndex: 'component', key: 'component', minWidth: 200, ellipsis: true, render: (v: string | null) => v ?? '—' },
     { title: t('menus.columns.permissionCode'), dataIndex: 'permissionCode', key: 'permissionCode', minWidth: 200, ellipsis: true, render: (v: string | null) => (v ? <Text code>{v}</Text> : '—') },
@@ -140,13 +145,17 @@ export function MenusPage() {
       title: t('menus.columns.actions'), key: 'actions', minWidth: 180, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:menu:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('menus.actions.edit')}</Button> : null}
-          {crud.can('system:menu:create') ? <Button size="small" onClick={() => openCreate(record.id)}>{t('menus.actions.addChild')}</Button> : null}
-          {crud.can('system:menu:delete') ? (
+          <Auth code="system:menu:update">
+            <Button size="small" onClick={() => openEdit(record)}>{t('menus.actions.edit')}</Button>
+          </Auth>
+          <Auth code="system:menu:create">
+            <Button size="small" onClick={() => openCreate(record.id)}>{t('menus.actions.addChild')}</Button>
+          </Auth>
+          <Auth code="system:menu:delete">
             <Popconfirm title={t('menus.actions.deleteConfirm', { name: record.menuName })} onConfirm={() => void remove(record)}>
               <Button size="small" danger>{t('menus.actions.delete')}</Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
         </Space>
       ),
     },
@@ -190,7 +199,12 @@ export function MenusPage() {
         <Form.Item name="menuType" label={t('menus.form.type')} rules={[{ required: true, message: t('menus.form.typeRequired') }]}>
           <Select options={menuTypes} />
         </Form.Item>
-        <Form.Item name="path" label={t('menus.form.path')} rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}>
+        <Form.Item
+          name="path"
+          label={t('menus.form.path')}
+          rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}
+          extra={menuType === 'BUTTON' ? t('menus.form.pathButtonOptional') : undefined}
+        >
           <Input placeholder={t('menus.form.pathPlaceholder')} autoComplete="off" />
         </Form.Item>
         <Form.Item name="component" label={t('menus.form.component')} rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}>
@@ -210,7 +224,15 @@ export function MenusPage() {
             ]}
           />
         </Form.Item>
-        <Form.Item name="permissionCode" label={t('menus.form.permissionCode')} rules={[{ max: 128, message: t('common.validation.maxLength', { max: 128 }) }]}>
+        <Form.Item
+          name="permissionCode"
+          label={t('menus.form.permissionCode')}
+          rules={[
+            // BUTTON 节点必须挂码（操作权限投影）；其余类型仅约束长度
+            ...(menuType === 'BUTTON' ? [{ required: true, message: t('menus.form.permissionCodeRequired') }] : []),
+            { max: 128, message: t('common.validation.maxLength', { max: 128 }) },
+          ]}
+        >
           <Input placeholder={t('menus.form.permissionCodePlaceholder')} autoComplete="off" />
         </Form.Item>
         {editing ? (

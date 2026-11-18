@@ -3,6 +3,7 @@ import { App, Button, Form, Input, InputNumber, Popconfirm, Select, Space, Tag, 
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import {
+  Auth,
   invalidateDeptTree,
   systemApi,
   systemErrorMessage,
@@ -125,12 +126,14 @@ export function DeptsPage() {
       title: t('depts.columns.actions'), key: 'actions', minWidth: 160, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:dept:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('depts.actions.edit')}</Button> : null}
-          {crud.can('system:dept:delete') ? (
+          <Auth code="system:dept:update">
+            <Button size="small" onClick={() => openEdit(record)}>{t('depts.actions.edit')}</Button>
+          </Auth>
+          <Auth code="system:dept:delete">
             <Popconfirm title={t('depts.actions.deleteConfirm', { name: record.deptName })} onConfirm={() => void remove(record)}>
               <Button size="small" danger>{t('depts.actions.delete')}</Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
         </Space>
       ),
     },

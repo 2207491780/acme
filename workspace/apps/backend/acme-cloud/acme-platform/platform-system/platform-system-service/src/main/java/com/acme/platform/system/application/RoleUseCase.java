@@ -6,6 +6,7 @@ import com.acme.common.core.BizException;
 import com.acme.framework.web.support.WebError;
 import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.EnableStatus;
+import com.acme.platform.system.api.MenuType;
 import com.acme.platform.system.api.dto.AdminRoleCreate;
 import com.acme.platform.system.api.dto.AdminRoleUpdate;
 import com.acme.framework.security.support.DataScope;
@@ -31,10 +32,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 角色与绑定用例（FR-006/007/008，架构设计 5.1 角色行与绑定关系管理）：
  * 权限点 / 菜单绑定整体替换幂等（10.3.1）；菜单绑定自动补全父链保证树完整（openapi AdminMenuIds 契约）。
+ * REQ-20261119-051119：bindMenus 对 BUTTON 节点按 permission_code 联动差量同步 role_permission
+ * 按钮来源子集（确认②，非按钮来源绑定不动）。
  * 角色支持父子关系树状定义：根哨兵 0（sys_menu 同款）、父角色可调整（内置角色除外）、
  * 写入沿父链防环、存在子角色拒绝删除；树组装在接口层 EntityViews.roleTree。
  * REQ-20261114-120104：数据范围五档设置（sys_role.data_scope + CUSTOM 部门集 sys_role_dept 全量重写）。
@@ -244,18 +248,93 @@ public class RoleUseCase {
                 .anyMatch(permission.getPermissionCode()::startsWith);
     }
 
-    /** 菜单绑定整体替换（自动补全父链；缺失菜单 → 404）。 */
+    /**
+     * 菜单绑定整体替换（自动补全父链；缺失菜单 → 404）。
+     * REQ-20261119-051119 确认② BUTTON 联动：勾选 menu_type=BUTTON 节点按其 permission_code
+     * 映射既有 API 权限点 id，差量同步 role_permission 按钮来源子集（见
+     * {@link #syncButtonPermissionBindings}）；入参语义不变（menuIds 全量替换 role_menu），
+     * 联动与 role_menu 替换同事务完成。保留域守卫在任何写入前执行（整体拒绝）。
+     */
     @Transactional
     public void bindMenus(Long roleId, List<Long> menuIds) {
-        get(roleId);
+        SysRole role = get(roleId);
         Set<Long> requested = new LinkedHashSet<>(menuIds == null ? List.of() : menuIds);
         List<SysMenu> all = menuRepository.findAllById(requested);
         if (all.size() != requested.size()) {
             throw new BizException(SystemError.MENU_NOT_FOUND);
         }
+        // BUTTON 联动前置映射 + 保留域守卫（与 bindPermissions 同口径）：非内置角色勾选保留域码
+        // BUTTON 整体拒绝，任何写入（role_menu 替换 / role_permission 联动）均不发生
+        List<SysPermission> checkedButtons = buttonPermissions(all);
+        if (!Boolean.TRUE.equals(role.getBuiltIn())
+                && checkedButtons.stream().anyMatch(RoleUseCase::reservedPermissionCode)) {
+            throw new BizException(SystemError.ROLE_GRANT_RESERVED);
+        }
         Set<Long> closure = withAncestors(requested);
         roleMenuRepository.deleteByRoleId(roleId);
         roleMenuRepository.saveAll(closure.stream().map(menuId -> new SysRoleMenu(roleId, menuId)).toList());
+        syncButtonPermissionBindings(role, checkedButtons);
+    }
+
+    /**
+     * BUTTON 节点 permission_code → sys_permission 映射：仅取 menu_type=BUTTON 且码非空节点；
+     * 码在权限点目录无对应行（数据漂移）不入映射（无法落 role_permission）。
+     */
+    private List<SysPermission> buttonPermissions(List<SysMenu> menus) {
+        List<String> codes = menus.stream()
+                .filter(menu -> menu.getMenuType() == MenuType.BUTTON)
+                .map(SysMenu::getPermissionCode)
+                .filter(code -> code != null && !code.isBlank())
+                .distinct()
+                .toList();
+        if (codes.isEmpty()) {
+            return List.of();
+        }
+        return permissionRepository.findAll().stream()
+                .filter(permission -> codes.contains(permission.getPermissionCode()))
+                .toList();
+    }
+
+    /**
+     * BUTTON 联动差量同步（REQ-20261119-051119 确认②③④；保留域守卫已在 {@link #bindMenus}
+     * 写入前执行）：
+     * ① 目标子集 B = 本次勾选 BUTTON 节点映射的权限点 id 集；
+     * ② 按钮来源识别域 = B ∪ 当前 BUTTON 全集（全平台 BUTTON 节点映射集——无来源列，既有绑定中
+     *    落在识别域内的行视为按钮来源，以「当前勾选集」为权威重建该子集，确保取消勾选被删；
+     *    非内置角色识别域排除保留域，保留域既有行按非按钮来源不动）；
+     * ③ 差量同步：识别域内不在 B 的既有行物理解绑（{@code deleteByRoleIdAndPermissionIdIn}），
+     *    B 中尚无绑定行的补插；识别域外的行（直接权限勾选来源）不动；
+     * ④ B 与全集皆空（无 BUTTON 节点）时零影响早退。调用方保证事务内执行。
+     */
+    private void syncButtonPermissionBindings(SysRole role, List<SysPermission> checkedButtons) {
+        Long roleId = role.getId();
+        boolean builtIn = Boolean.TRUE.equals(role.getBuiltIn());
+        Set<Long> checkedButtonPermissionIds = checkedButtons.stream()
+                .map(SysPermission::getId).collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<Long> buttonScoped = new LinkedHashSet<>(checkedButtonPermissionIds);
+        for (SysPermission permission : buttonPermissions(menuRepository.findAll())) {
+            if (builtIn || !reservedPermissionCode(permission)) {
+                buttonScoped.add(permission.getId());
+            }
+        }
+        if (buttonScoped.isEmpty()) {
+            return;
+        }
+        Set<Long> present = rolePermissionRepository.findByRoleId(roleId).stream()
+                .map(SysRolePermission::getPermissionId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<Long> toRemove = new LinkedHashSet<>(buttonScoped);
+        toRemove.removeAll(checkedButtonPermissionIds);
+        toRemove.retainAll(present);
+        if (!toRemove.isEmpty()) {
+            rolePermissionRepository.deleteByRoleIdAndPermissionIdIn(roleId, toRemove);
+        }
+        Set<Long> toAdd = new LinkedHashSet<>(checkedButtonPermissionIds);
+        toAdd.removeAll(present);
+        if (!toAdd.isEmpty()) {
+            rolePermissionRepository.saveAll(toAdd.stream()
+                    .map(permissionId -> new SysRolePermission(roleId, permissionId)).toList());
+        }
     }
 
     /** 绑定行整体替换（批量写入，一次落库）。 */

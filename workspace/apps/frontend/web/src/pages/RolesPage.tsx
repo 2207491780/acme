@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { App, Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tag, Tree, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import {
   ApiError,
+  Auth,
   DATA_SCOPE_VALUES,
   systemApi,
   systemErrorMessage,
@@ -234,26 +236,30 @@ export function RolesPage() {
       title: t('roles.columns.actions'), key: 'actions', minWidth: 380, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('system:role:update') ? <Button size="small" onClick={() => openEdit(record)}>{t('roles.actions.edit')}</Button> : null}
-          {crud.can('system:role:grant') ? (
+          <Auth code="system:role:update">
+            <Button size="small" onClick={() => openEdit(record)}>{t('roles.actions.edit')}</Button>
+          </Auth>
+          <Auth code="system:role:grant">
             <Button size="small" onClick={() => void openGrant(record, 'permissions')}>{t('roles.actions.grantPermissions')}</Button>
-          ) : null}
-          {crud.can('system:role:grant') ? (
+          </Auth>
+          <Auth code="system:role:grant">
             <Button size="small" onClick={() => void openGrant(record, 'menus')}>{t('roles.actions.grantMenus')}</Button>
-          ) : null}
-          {crud.can('system:role:scope') ? (
+          </Auth>
+          <Auth code="system:role:scope">
             <Button size="small" onClick={() => openScope(record)}>{t('roles.actions.dataScope')}</Button>
-          ) : null}
-          {crud.can('system:role:update') ? (
+          </Auth>
+          <Auth code="system:role:update">
             <Popconfirm title={t('roles.actions.toggleConfirm', { action: record.status === 'ENABLED' ? t('common.status.disabled') : t('common.status.enabled'), name: record.roleName })} onConfirm={() => void toggleStatus(record)}>
               <Button size="small" danger={record.status === 'ENABLED'}>{record.status === 'ENABLED' ? t('common.status.disabled') : t('common.status.enabled')}</Button>
             </Popconfirm>
-          ) : null}
-          {crud.can('system:role:delete') && !record.builtIn ? (
-            <Popconfirm title={t('roles.actions.deleteConfirm', { code: record.roleCode })} onConfirm={() => void remove(record)}>
-              <Button size="small" danger>{t('roles.actions.delete')}</Button>
-            </Popconfirm>
-          ) : null}
+          </Auth>
+          <Auth code="system:role:delete">
+            {!record.builtIn ? (
+              <Popconfirm title={t('roles.actions.deleteConfirm', { code: record.roleCode })} onConfirm={() => void remove(record)}>
+                <Button size="small" danger>{t('roles.actions.delete')}</Button>
+              </Popconfirm>
+            ) : null}
+          </Auth>
           {record.builtIn ? <Text type="secondary" style={{ fontSize: 12 }}>{t('roles.actions.builtIn')}</Text> : null}
         </Space>
       ),
@@ -347,6 +353,11 @@ export function RolesPage() {
             <RoleMenuTree checkedIds={grantedIds} onChange={setGrantedIds} />
           </div>
         )}
+        {grantKind === 'menus' ? (
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 12 }}>
+            {t('roles.grant.menusButtonNote')}
+          </Text>
+        ) : null}
         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 12 }}>
           {t('roles.grant.submitNote')}
         </Text>
@@ -405,14 +416,19 @@ function collectTreeIds(nodes: AdminMenuView[]): string[] {
   return out;
 }
 
-/** 角色菜单树形勾选（antd Tree checkable；fieldNames 对齐 AdminMenuView）。 */
+/** 角色菜单树形勾选（antd Tree checkable；fieldNames 对齐 AdminMenuView）。
+ *  REQ-20261119-051119：BUTTON 节点（按钮级操作权限投影）在标题旁展示「按钮」Tag，
+ *  勾选语义由后端 bindMenus 联动承担（前端单树单提交不变）。 */
 function RoleMenuTree({ checkedIds, onChange }: { checkedIds: string[]; onChange: (ids: string[]) => void }) {
-  const [tree, setTree] = useState<{ id: number; menuName: string; children?: unknown }[]>([]);
+  const { t } = useTranslation();
+  const [tree, setTree] = useState<AdminMenuView[]>([]);
   useEffect(() => {
     systemApi.menuTree()
       .then(setTree)
       .catch(() => setTree([]));
   }, []);
+  // BUTTON 节点标题 → ReactNode（menuName + 「按钮」Tag）；其余保持纯文本（antd Tree title 接受 ReactNode）
+  const treeData = useMemo(() => decorateButtonTitles(tree, t('menus.type.button')), [tree, t]);
   return (
     <Tree
       checkable
@@ -420,7 +436,7 @@ function RoleMenuTree({ checkedIds, onChange }: { checkedIds: string[]; onChange
       selectable={false}
       defaultExpandAll
       blockNode
-      treeData={tree as never[]}
+      treeData={treeData as never[]}
       fieldNames={{ title: 'menuName', key: 'id', children: 'children' }}
       checkedKeys={checkedIds}
       onCheck={(checked) => {
@@ -429,4 +445,26 @@ function RoleMenuTree({ checkedIds, onChange }: { checkedIds: string[]; onChange
       }}
     />
   );
+}
+
+/** 装饰后树节点：menuName 升级为 ReactNode（BUTTON 节点附「按钮」Tag），children 递归同型。 */
+interface MenuTreeNodeTitle extends Omit<AdminMenuView, 'menuName' | 'children'> {
+  menuName: ReactNode;
+  children: MenuTreeNodeTitle[];
+}
+
+/** 递归装饰菜单树标题：menuType=BUTTON 节点附「按钮」Tag（其余节点原样）。 */
+function decorateButtonTitles(nodes: AdminMenuView[], buttonLabel: string): MenuTreeNodeTitle[] {
+  return nodes.map((node) => ({
+    ...node,
+    menuName: node.menuType === 'BUTTON'
+      ? (
+          <span>
+            {node.menuName}
+            <Tag style={{ marginLeft: 8 }} color="purple">{buttonLabel}</Tag>
+          </span>
+        )
+      : node.menuName,
+    children: node.children?.length ? decorateButtonTitles(node.children, buttonLabel) : [],
+  }));
 }

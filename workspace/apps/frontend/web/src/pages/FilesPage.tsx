@@ -7,6 +7,7 @@ import {
   EXCEL_DEMO_ENDPOINTS,
   FILE_ENDPOINTS,
   ApiError,
+  Auth,
   downloadFile,
   formatDate,
   formatFileSize,
@@ -83,7 +84,7 @@ export function FilesPage() {
       title: t('files.columns.actions'), key: 'actions', minWidth: 160, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
-          {crud.can('infra:file:download') ? (
+          <Auth code="infra:file:download">
             <Button
               size="small"
               icon={<DownloadOutlined />}
@@ -92,12 +93,12 @@ export function FilesPage() {
             >
               {t('files.actions.download')}
             </Button>
-          ) : null}
-          {crud.can('infra:file:delete') ? (
+          </Auth>
+          <Auth code="infra:file:delete">
             <Popconfirm title={t('files.actions.deleteConfirm', { name: record.originalName })} onConfirm={() => void remove(record)}>
               <Button size="small" danger>{t('files.actions.delete')}</Button>
             </Popconfirm>
-          ) : null}
+          </Auth>
         </Space>
       ),
     },
@@ -118,9 +119,9 @@ export function FilesPage() {
             label={t('files.actions.upload')}
             onUploaded={() => crud.reload(1)}
           />
-          {crud.can('infra:file:download') ? (
+          <Auth code="infra:file:download">
             <Button loading={exporting} onClick={() => void exportDemo()}>{t('files.actions.exportExcel')}</Button>
-          ) : null}
+          </Auth>
           <ExcelImportButton
             url={EXCEL_DEMO_ENDPOINTS.import}
             templateUrl={EXCEL_DEMO_ENDPOINTS.template}
