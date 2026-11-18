@@ -49,12 +49,12 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 |---|---|---|
 | `.ai/rules/*.md` | `.ai/RULES.md` | 拼接副本 |
 | `.ai/RULES.md` | 根部 `AGENTS.md` / `CLAUDE.md`（`@` 导入）/ `GEMINI.md` / `CODEBUDDY.md`（`@` 导入，不重复铁律节选） | 引用存根（默认）；`--links` 可选符号链接 |
-| 同上（存根形态） | `.cursor/rules/project.mdc`、`.github/copilot-instructions.md` | frontmatter 存根（Cursor 需 `alwaysApply`；Copilot 规避长度限制） |
+| 同上（存根形态） | `.cursor/rules/project.mdc`、`.github/copilot-instructions.md` | frontmatter 存根（Cursor：`alwaysApply` **纯指针**不重复铁律——同时读 AGENTS.md，ADR 2026-11-18-01；Copilot 规避长度限制） |
 | 同上（纯指针存根） | `.trae/rules/project_rules.md`、`.qoder/rules/project_rules.md` | frontmatter 存根（`alwaysApply`；不重复铁律——Trae 需手动开 AGENTS.md 开关、Qoder 双份加载 AGENTS.md 与本规则，ADR 2026-11-17-02 / 2026-11-17-04） |
 | `.ai/scopes/**` | 仓库同路径 `AGENTS.md` + 同级 `CLAUDE.md`（默认 `@` 导入存根；`--links` 模式为链接） | 副本 + 引用 |
-| `.ai/agents/` | `.claude/agents/`、`.gemini/agents/`（工具名映射）、`.qoder/agents/`（引用存根）、`.trae/agents/`（引用存根，frontmatter 适配 tools 字符串/移除 model inherit，ADR 2026-11-17-04）、`.codebuddy/agents/`（localOnly 引用存根，ADR 2026-11-17-03） | 拷贝派生 / 引用存根 |
-| `.ai/skills/` | `.claude/skills/`、`.qoder/skills/`（引用存根）、`.trae/skills/`（引用存根）、`.codebuddy/skills/`（localOnly 引用存根） | 拷贝派生 / 引用存根 |
-| `.ai/commands/` | `.claude/commands/`、`.qoder/commands/`（引用存根）、`.trae/commands/`（引用存根）、`.codebuddy/commands/`（localOnly 引用存根） | 拷贝派生 / 引用存根 |
+| `.ai/agents/` | `.claude/agents/`、`.gemini/agents/`（工具名映射）、`.cursor/agents/`（引用存根，ADR 2026-11-18-01）、`.qoder/agents/`（引用存根）、`.trae/agents/`（引用存根，frontmatter 适配 tools 字符串/移除 model inherit，ADR 2026-11-17-04）、`.codebuddy/agents/`（localOnly 引用存根，ADR 2026-11-17-03） | 拷贝派生 / 引用存根 |
+| `.ai/skills/` | `.claude/skills/`、`.cursor/skills/`（引用存根）、`.qoder/skills/`（引用存根）、`.trae/skills/`（引用存根）、`.codebuddy/skills/`（localOnly 引用存根） | 拷贝派生 / 引用存根 |
+| `.ai/commands/` | `.claude/commands/`、`.cursor/commands/`（引用存根）、`.qoder/commands/`（引用存根）、`.trae/commands/`（引用存根）、`.codebuddy/commands/`（localOnly 引用存根） | 拷贝派生 / 引用存根 |
 | `.ai/tools/<工具>/**` | 对应工具目录 | 拷贝派生（目录说明文件如 `CLAUDE-CODE.md` 自动前置「生成产物」标头）；`zcode`/`codebuddy` 键标记 localOnly——目标目录 git 忽略、不入库，`--check` 对缺失跳过不判错，存在必须一致 |
 | `.ai/ci/**` | `.github/workflows/` | 拷贝派生 |
 

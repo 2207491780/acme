@@ -68,18 +68,25 @@ AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\
 AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\`.ai-memory/playbooks/ai-config.md\`）。`,
   },
   {
+    // Cursor 同时自动读取根/嵌套 AGENTS.md 与 `.cursor/rules/*.mdc`（官方四类生效方式；规则内
+    // `@` 提及不会内联文件内容，与 Claude `@` 导入不同）。本存根为纯指针，不重复入口存根的铁律
+    // 节选与多代理开关，避免双份加载重复声明（ADR 2026-11-18-01）。
     tool: 'Cursor',
     file: '.cursor/rules/project.mdc',
     frontmatter: ['---', 'description: ACME 项目规范入口（自动生成，引用 .ai/RULES.md）', 'alwaysApply: true', '---'],
+    stub: `本仓库 AI 规范唯一完整副本是 \`.ai/RULES.md\`——开始任何任务前必须先完整阅读（Cursor 规则内 \`@\` 提及不会内联文件内容，请主动用工具读取该文件）。
+入口存根（铁律节选与多代理流程开关）见根目录 \`AGENTS.md\`，Cursor 会自动读取；分层规范见各目录 \`AGENTS.md\`（官方支持 nested，更具体者优先）。本文件不重复其内容。
+跨工具公共池见 \`.cursor/agents|skills|commands/\`（引用存根 → \`.ai/\` 源）。
+AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\`.ai-memory/playbooks/ai-config.md\`）。`,
   },
 ];
 
 /** 跨工具公共池：.ai/<src>/** → 各工具目录（doc 仅作源目录说明，不派生）。
  *  targets 项为字符串或 { dir, transform }：transform 在派生 .md 时做目标工具的格式适配。 */
 const POOLS = [
-  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }, { dir: '.qoder/agents', transform: makePoolRefStub('agents') }] },
-  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills', { dir: '.qoder/skills', transform: makePoolRefStub('skills') }] },
-  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands', { dir: '.qoder/commands', transform: makePoolRefStub('commands') }] },
+  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }, { dir: '.qoder/agents', transform: makePoolRefStub('agents') }, { dir: '.cursor/agents', transform: makePoolRefStub('agents', 'Cursor') }] },
+  { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills', { dir: '.qoder/skills', transform: makePoolRefStub('skills') }, { dir: '.cursor/skills', transform: makePoolRefStub('skills', 'Cursor') }] },
+  { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands', { dir: '.qoder/commands', transform: makePoolRefStub('commands') }, { dir: '.cursor/commands', transform: makePoolRefStub('commands', 'Cursor') }] },
 ];
 
 /** 工具专属配置：.ai/tools/<key>/** → <target>/**（doc 派生为工具目录内的说明文件） */

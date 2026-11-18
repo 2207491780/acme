@@ -17,7 +17,7 @@
 | 厂商 | 工具 | 读取的配置入口 | 接入方式 |
 |---|---|---|---|
 | Anthropic | Claude Code | `CLAUDE.md` + `.claude/` | 专属目录 |
-| Anysphere | Cursor | `.cursor/rules/*.mdc` | 专属目录 |
+| Anysphere | Cursor | `.cursor/rules/*.mdc` + `AGENTS.md` + `.cursor/{agents,skills,commands}/` | 专属目录（引用存根，ADR 2026-11-18-01） |
 | GitHub（微软） | GitHub Copilot | `.github/copilot-instructions.md` | 专属目录 |
 | OpenAI | Codex | `AGENTS.md` | 通用标准 |
 | Google | Gemini CLI / Antigravity | `GEMINI.md` + `.gemini/` | 专属目录 |

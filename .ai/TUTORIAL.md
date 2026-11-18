@@ -28,10 +28,10 @@
 
 ## 3. Cursor（Anysphere）
 
-- **读什么**：`.cursor/rules/project.mdc`（`alwaysApply: true` 常驻加载；Cursor 也读根 `AGENTS.md`）。
-- **冒烟**：Settings → Rules 中应能看到 `project.mdc`；或 Agent 模式问通用测试句。
-- **维护配置**：同 Codex（说意图 + 点名手册）。
-- **注意**：私有按文件类型生效的规则，源放 `.ai/tools/cursor/rules/*.mdc`（用 `globs` frontmatter）。
+- **读什么**：根/嵌套 `AGENTS.md`（入口存根，含铁律节选与多代理开关）+ `.cursor/rules/project.mdc`（`alwaysApply: true` 常驻；**纯指针**不重复铁律，引导读 `.ai/RULES.md`）；`.cursor/agents|skills|commands/` 为公共池引用存根。
+- **冒烟**：Customize → Rules 可见 `project.mdc`；Skills/Commands 可见 `ai-config` / `/req`；Agent 模式问通用测试句。
+- **维护配置**：同 Codex（说意图 + 点名手册）；亦可 `/` 调用 `ai-config` 技能。
+- **注意**：私有按文件类型生效的规则，源放 `.ai/tools/cursor/rules/*.mdc`（用 `globs` frontmatter）。官方方案与差异见 ADR 2026-11-18-01。
 
 ## 4. GitHub Copilot（GitHub/微软）
 
@@ -90,7 +90,8 @@
 | Gemini CLI | `GEMINI.md` + `.gemini/` | ✅ | — | 可省 |
 | CodeBuddy | `CODEBUDDY.md`（`@` 导入）+ `.codebuddy/`（本机 localOnly） | ✅（引用存根） | ✅（引用存根） | **建议加** |
 | Qoder | `AGENTS.md` + `.qoder/` | ✅（引用存根） | ✅（引用存根） | **建议加** |
-| Codex / Cursor / Copilot / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
+| Cursor | `AGENTS.md` + `.cursor/rules/`（纯指针）+ `.cursor/` | ✅（引用存根） | ✅（引用存根） | **建议加** |
+| Codex / Copilot / ZCode / 标准族 | 各自存根 / `AGENTS.md` | — | — | **建议加** |
 | Trae | `.trae/rules/`（纯指针）+ `.trae/` | ✅（引用存根，需开 Subagents 开关） | ✅（引用存根） | **建议加** |
 
 ## 排障
