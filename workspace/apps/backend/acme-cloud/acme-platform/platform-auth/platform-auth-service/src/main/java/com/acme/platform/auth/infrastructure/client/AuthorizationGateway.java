@@ -15,8 +15,9 @@ import java.util.Set;
  * 跨域权限判定网关（FR-008 接口级权限点在 auth 域的执行面）：
  * 调用方主体（经网关注入的内部令牌 claims）经 platform-system 判定；未授权抛
  * platform-system-07-0001 PERMISSION_DENIED（403，权限目录平台级统一、错误码归 system 段，openapi 契约）。
+ * 显式 bean 名（REQ-20261118-002130）：与 infra 域同名类在单体裁装下消歧，纯命名注解无行为变化。
  */
-@Component
+@Component("authAuthorizationGateway")
 public class AuthorizationGateway {
 
     private final AuthorizationClient authorizationClient;

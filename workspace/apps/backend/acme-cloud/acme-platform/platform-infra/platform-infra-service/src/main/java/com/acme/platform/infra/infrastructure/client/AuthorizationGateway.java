@@ -12,8 +12,9 @@ import org.springframework.stereotype.Component;
  * 跨域权限判定网关（权限目录平台级统一、错误码归 system 段，与 platform-auth AuthorizationGateway 同先例）：
  * 调用方主体（网关注入的内部令牌 claims → UserContext）经 platform-system 判定；
  * 未授权抛 PERMISSION_DENIED（403）。同步调用链：网关→infra→system = 3 压线合规（M-07）。
+ * 显式 bean 名（REQ-20261118-002130）：与 auth 域同名类在单体裁装下消歧，纯命名注解无行为变化。
  */
-@Component
+@Component("infraAuthorizationGateway")
 public class AuthorizationGateway {
 
     private final AuthorizationClient authorizationClient;

@@ -42,6 +42,7 @@ public class SystemConfigController {
     public ResponseEntity<Result<Object>> handleConfigError(BizException exception) {
         ResponseEntity<Result<Object>> response = exceptionTranslator.handleBiz(exception);
         if (exception.errorCode() == SystemError.SYSTEM_CONFIG_INVALID
+                || exception.errorCode() == SystemError.SYSTEM_WATERMARK_TEMPLATE_INVALID
                 || exception.errorCode() == WebError.CONCURRENCY_CONFLICT
                 || exception.errorCode() == FlexError.STALE_WRITE) {
             return ResponseEntity.ok(response.getBody());

@@ -243,6 +243,7 @@ class REQ20261117025200TenantSwitchIntegrationTest {
 
     @Test
     void should_rejectWithSwitchFailed_when_targetTenantDisabled() {
+        seedActiveSession(925411L, OLD_TOKEN, 1L, "default");
         stubSuperAdminAndTarget(new TenantInternalView(TARGET, "目标租户", "DISABLED", null));
 
         JsonNode body = bodyOf(performSwitch(TARGET, "1", "default", Set.of("super_admin")));
@@ -254,6 +255,7 @@ class REQ20261117025200TenantSwitchIntegrationTest {
 
     @Test
     void should_rejectWithSwitchFailed_when_targetTenantExpired() {
+        seedActiveSession(925412L, OLD_TOKEN, 1L, "default");
         stubSuperAdminAndTarget(new TenantInternalView(TARGET, "目标租户", "ENABLED",
                 Instant.now().minusSeconds(3600)));
 
@@ -267,6 +269,7 @@ class REQ20261117025200TenantSwitchIntegrationTest {
 
     @Test
     void should_rejectWithSwitchFailed_when_targetTenantUnknown() {
+        seedActiveSession(925413L, OLD_TOKEN, 1L, "default");
         when(authorizationGateway.currentBuiltinRoles()).thenReturn(Set.of("super_admin"));
         // 未知租户：system 返回 404 错误信封 → framework-feign 解码为 BizException（AMB-4 镜像）
         when(tenantClient.findByCode(TARGET)).thenThrow(new BizException(new TenantNotFound()));

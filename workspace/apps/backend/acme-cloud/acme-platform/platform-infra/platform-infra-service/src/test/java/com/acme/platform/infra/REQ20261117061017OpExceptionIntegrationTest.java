@@ -12,6 +12,7 @@ import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.InternalTokenVerifier;
 import com.acme.framework.web.event.OpExceptionCapturedEvent;
 import com.acme.platform.infra.infrastructure.client.AuthorizationGateway;
+import com.acme.platform.infra.infrastructure.redis.OpExceptionDedupStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -108,7 +111,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "spring.cloud.nacos.discovery.enabled=false",
         "acme.stream.enabled=false",
         "acme.audit.enabled=false",
-        "acme.security.token.hmac-secret=req061017-opex-secret-0123456789"
+        "acme.security.token.hmac-secret=req061017-opex-secret-0123456789",
+        // 类内任务触发用例共享同一任务锁：归零锁最短持有（同 JobScheduleIntegrationTest 口径），
+        // 否则上一用例完成后 60s 内的下一次手动触发会落 JOB_ALREADY_RUNNING
+        "acme.job.lock-at-least-for=PT0S"
 })
 class REQ20261117061017OpExceptionIntegrationTest {
 
@@ -136,6 +142,17 @@ class REQ20261117061017OpExceptionIntegrationTest {
     private static final GenericContainer<?> REDIS =
             new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
 
+    /** 本地存储落盘根（framework-storage 本地模式 bean 装配必填，缺失显式失败 SYS-15-0006）。 */
+    private static final Path STORAGE_ROOT = createStorageRoot();
+
+    private static Path createStorageRoot() {
+        try {
+            return Files.createTempDirectory("req061017-opex-it-storage");
+        } catch (IOException ex) {
+            throw new IllegalStateException("创建本地盘存储根失败", ex);
+        }
+    }
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
@@ -145,6 +162,7 @@ class REQ20261117061017OpExceptionIntegrationTest {
         registry.add("spring.flyway.schemas", () -> "public");
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
     }
 
     @Autowired
@@ -162,6 +180,22 @@ class REQ20261117061017OpExceptionIntegrationTest {
     @Autowired
     private ApplicationEventPublisher eventPublisher;
 
+    /** 去重键清理面（@AfterEach 清 60s 去重窗口，方法间隔离——见类注 AMB 说明）。 */
+    @Autowired
+    private org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+
+    /** ShedLock 行清理 + 内存注册表同步（同 JobScheduleIntegrationTest 口径：只删行不清缓存
+     *  会让下一次获取跳过 INSERT 直走 UPDATE，0 行 → 误判锁被持）。 */
+    @Autowired
+    private net.javacrumbs.shedlock.core.LockProvider lockProvider;
+
+    private void clearShedLockState() {
+        jdbcTemplate.update("delete from shedlock_locks");
+        if (lockProvider instanceof net.javacrumbs.shedlock.support.StorageBasedLockProvider storage) {
+            storage.clearCache();
+        }
+    }
+
     /** 权限判定桩件：默认放行，缺权限用例内切换为拒绝。 */
     @MockitoBean
     private AuthorizationGateway authorizationGateway;
@@ -178,11 +212,16 @@ class REQ20261117061017OpExceptionIntegrationTest {
 
     @AfterEach
     void cleanUp() {
-        // 共享环境脏数据 teardown：物理清表（V18 表 sys_op_exception + 审计底账 + 执行记录 + ShedLock 锁行）
+        // 共享环境脏数据 teardown：物理清表（V18 表 sys_op_exception + 审计底账 + 执行记录 + ShedLock 锁行/缓存）
         jdbcTemplate.update("delete from sys_op_exception");
         jdbcTemplate.update("delete from acme_op_audit");
         jdbcTemplate.update("delete from sys_job_execution");
-        jdbcTemplate.update("delete from shedlock_locks");
+        clearShedLockState();
+        // 60s 去重窗口键清理（Redis 残留会让同键用例跨方法互相吞事件——REQ20261117-061017 实测教训）
+        var dedupKeys = redisTemplate.keys(OpExceptionDedupStore.KEY_PREFIX + "*");
+        if (dedupKeys != null && !dedupKeys.isEmpty()) {
+            redisTemplate.delete(dedupKeys);
+        }
         TenantContext.clear();
         UserContext.clear();
     }
@@ -576,7 +615,14 @@ class REQ20261117061017OpExceptionIntegrationTest {
 
     /** 手动触发任务并轮询等待执行完成（异步 TaskTrigger，AMB-7）。 */
     private void triggerJobAndWait(String jobKey, int expectedExecutions) throws Exception {
+        // 触发 + JOB_ALREADY_RUNNING 短窗重试（类内跨用例锁释放竞态容忍；PT0S 下窗口毫秒级闭合）
+        long deadline = System.nanoTime() + ASYNC_SETTLE.toNanos();
         JsonNode triggered = call(post("/admin/v1/infra/jobs/{jobKey}/run", jobKey));
+        while ("JOB_ALREADY_RUNNING".equals(triggered.path("code").asText(null))
+                && System.nanoTime() < deadline) {
+            Thread.sleep(200L);
+            triggered = call(post("/admin/v1/infra/jobs/{jobKey}/run", jobKey));
+        }
         assertThat(triggered.path("code").asText()).as("手动触发应受理成功").isEqualTo("0");
         awaitTrue(ASYNC_SETTLE, () -> {
             Long finished = jdbcTemplate.queryForObject(
@@ -598,21 +644,32 @@ class REQ20261117061017OpExceptionIntegrationTest {
                 .as("导出行数（数据行+表头行，AMB-5）应为 %d", expectedTotalRows).isEqualTo(expectedTotalRows);
     }
 
-    /** xlsx 行元素计数（JDK ZipInputStream 解析 worksheet XML，不引新依赖）。 */
+    /** xlsx 行元素计数（按 central directory 读 worksheet XML，不引新依赖）。
+     *  不用 ZipInputStream：FastExcel/POI 写出的条目带 data descriptor（local header size=0、
+     *  flags=0x8），JDK 25 ZipInputStream 对该布局误报 invalid entry size——产物本身
+     *  Excel/ZipFile 均可正常打开，属流式解析器兼容面缺陷，故走临时文件 + ZipFile 解析。 */
     private static int xlsxRowCount(byte[] bytes) throws IOException {
         int rows = 0;
-        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(bytes))) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
-                if (entry.getName().startsWith("xl/worksheets/") && entry.getName().endsWith(".xml")) {
-                    String xml = new String(zip.readAllBytes(), StandardCharsets.UTF_8);
-                    int index = 0;
-                    while ((index = xml.indexOf("<row", index)) >= 0) {
-                        rows++;
-                        index += 4;
+        java.nio.file.Path temp = java.nio.file.Files.createTempFile("req061017-opex-export", ".xlsx");
+        try {
+            java.nio.file.Files.write(temp, bytes);
+            try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(temp.toFile())) {
+                var entries = zip.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    if (entry.getName().startsWith("xl/worksheets/") && entry.getName().endsWith(".xml")) {
+                        String xml = new String(zip.getInputStream(entry).readAllBytes(),
+                                StandardCharsets.UTF_8);
+                        int index = 0;
+                        while ((index = xml.indexOf("<row", index)) >= 0) {
+                            rows++;
+                            index += 4;
+                        }
                     }
                 }
             }
+        } finally {
+            java.nio.file.Files.deleteIfExists(temp);
         }
         assertThat(rows).as("xlsx 应含 worksheet 行").isGreaterThan(0);
         return rows;

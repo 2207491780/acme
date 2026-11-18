@@ -259,29 +259,32 @@ class REQ20261116230354SystemConfigApiIntegrationTest {
         JsonNode defaults = call(get("/admin/v1/system/config"));
         assertThat(defaults.path("data").path("watermarkTemplate").isNull()).isTrue();
 
-        // upsert 建行带模板 → 回读一致
+        // upsert 建行带模板 → 回读一致。防方法序依赖加固：类内其他用例可能已 upsert 建行
+        // （乐观锁 version 递增）——首次 upsert 以 GET 当前 version 驱动，避免钉死 "0" 撞 409 版本冲突
+        String currentVersion = defaults.path("data").path("version").asText("0");
         String template = "{username} {date} {time}";
         JsonNode created = call(put("/admin/v1/system/config")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(configBody(true, false, 0, template, "0"))));
+                .content(JSON.writeValueAsString(configBody(true, false, 0, template, currentVersion))));
         assertThat(created.path("code").asText()).isEqualTo("0");
         assertThat(created.path("data").path("watermarkTemplate").asText()).isEqualTo(template);
         JsonNode reloaded = call(get("/admin/v1/system/config"));
         assertThat(reloaded.path("data").path("watermarkTemplate").asText()).isEqualTo(template);
+        String updatedVersion = reloaded.path("data").path("version").asText(currentVersion);
 
-        // 未知占位符 → 业务失败 CONFIG_INVALID 同段新码，值不回改
+        // 未知占位符 → 业务失败 CONFIG_INVALID 同段新码，值不回改（以当前 version 驱动，排除 409 干扰）
         JsonNode invalid = call(put("/admin/v1/system/config")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(configBody(true, false, 0, "{bogus}", "0"))));
+                .content(JSON.writeValueAsString(configBody(true, false, 0, "{bogus}", updatedVersion))));
         assertThat(invalid.path("success").asBoolean()).isFalse();
         assertThat(invalid.path("code").asText()).isEqualTo("platform-system-12-0002");
         JsonNode after = call(get("/admin/v1/system/config"));
         assertThat(after.path("data").path("watermarkTemplate").asText()).isEqualTo(template);
 
-        // 置空（null）→ 回到未配置口径
+        // 置空（null）→ 回到未配置口径（version 沿用当前值）
         JsonNode cleared = call(put("/admin/v1/system/config")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(configBody(true, false, 0, null, "1"))));
+                .content(JSON.writeValueAsString(configBody(true, false, 0, null, updatedVersion))));
         assertThat(cleared.path("code").asText()).isEqualTo("0");
         assertThat(cleared.path("data").path("watermarkTemplate").isNull()).isTrue();
     }

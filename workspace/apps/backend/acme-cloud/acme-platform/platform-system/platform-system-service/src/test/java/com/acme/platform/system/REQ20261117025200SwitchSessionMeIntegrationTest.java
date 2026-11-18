@@ -53,7 +53,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req025200-me-secret-012345678"
+        "acme.security.token.hmac-secret=req025200-me-secret-0123456789abcd"
 })
 class REQ20261117025200SwitchSessionMeIntegrationTest {
 

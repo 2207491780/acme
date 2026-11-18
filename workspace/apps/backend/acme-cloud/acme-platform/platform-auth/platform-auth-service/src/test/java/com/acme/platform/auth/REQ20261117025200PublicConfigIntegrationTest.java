@@ -5,6 +5,7 @@ import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
+import com.acme.framework.security.config.SecurityProperties;
 import com.acme.framework.security.interceptor.InternalTokenAuthFilter;
 import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.InternalTokenVerifier;
@@ -125,6 +126,11 @@ class REQ20261117025200PublicConfigIntegrationTest {
     @Autowired
     private InternalTokenVerifier tokenVerifier;
 
+    /** 生产装配同源公开路径（SecurityAutoConfiguration.ServletChannelConfig 注入口径）；本类
+     *  断言「公开端点未认证可读」，过滤器须携带真实 public-paths 而非空集。 */
+    @Autowired
+    private SecurityProperties securityProperties;
+
     @Autowired
     private InternalTokenIssuer tokenIssuer;
 
@@ -156,7 +162,7 @@ class REQ20261117025200PublicConfigIntegrationTest {
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders.webAppContextSetup(webContext)
-                .addFilters(new InternalTokenAuthFilter(tokenVerifier, List.of()))
+                .addFilters(new InternalTokenAuthFilter(tokenVerifier, securityProperties.getPublicPaths()))
                 .build();
         // 画像桩返回种子超管画像（user_id=1 对齐 V2 凭据种子，LoginCaptchaPolicy 口径）
         when(authProfileGateway.findByUsername("admin")).thenReturn(

@@ -16,8 +16,9 @@ import java.time.Instant;
  * ≥2 天口径）的行；未软删行与未超期软删行不受影响（tester 400d/1d 双档口径）。
  * 幂等可重复调用，返回「本次物理清理条数」。「仅插入不改」=业务路径不改写日志，
  * deleted 软删列为保留期例外口径预留（确认记录⑦）。
+ * 显式 bean 名（REQ-20261118-002130）：与 infra 域同名类在单体裁装下消歧，纯命名注解无行为变化。
  */
-@Service
+@Service("authLoginLogRetentionCleanupUseCase")
 public class LoginLogRetentionCleanupUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(LoginLogRetentionCleanupUseCase.class);

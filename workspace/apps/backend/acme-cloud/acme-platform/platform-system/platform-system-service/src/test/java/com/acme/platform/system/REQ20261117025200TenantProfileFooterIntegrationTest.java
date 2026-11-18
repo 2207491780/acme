@@ -364,9 +364,11 @@ class REQ20261117025200TenantProfileFooterIntegrationTest {
 
         JsonNode list = callInternal(get("/internal/v1/tenants"));
         assertThat(list.path("code").asText()).isEqualTo("0");
+        // V2 基线种子的 default 租户（启用未过期）同样在列——断言锁定 req025200-* 四态过滤语义
         assertThat(tenantCodesOf(list))
-                .as("下拉仅返回启用且未过期租户（按租户代码排序）")
-                .containsExactly("req025200-live", "req025200-long");
+                .as("下拉仅返回启用且未过期租户：过期/停用被排除，启用未过期（含种子 default）保留")
+                .contains("default", "req025200-live", "req025200-long")
+                .doesNotContain("req025200-expired", "req025200-off");
     }
 
     // ---------- 支撑 ----------

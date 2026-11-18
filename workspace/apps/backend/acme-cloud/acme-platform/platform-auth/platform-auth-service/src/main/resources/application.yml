@@ -22,6 +22,9 @@ spring:
     password: ${PG_PASSWORD:acme_local_pg_2026}
   flyway:
     enabled: true
+    # 迁移脚本目录 per-service 化（REQ-20261118-002130 确认①）：单 JVM classpath 合流（单体形态）时
+    # 同路径迁移会互相污染；每服务只扫自己的子目录，分布式行为零变化（checksum 与路径无关）
+    locations: classpath:db/migration/auth
     default-schema: platform_auth
     schemas: platform_auth
     placeholders:

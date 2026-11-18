@@ -5,6 +5,7 @@ import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
+import com.acme.framework.security.config.SecurityProperties;
 import com.acme.framework.security.interceptor.InternalTokenAuthFilter;
 import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.InternalTokenVerifier;
@@ -131,6 +132,12 @@ class REQ20261117011514LoginCaptchaPolicyIntegrationTest {
     @Autowired
     private InternalTokenVerifier tokenVerifier;
 
+    /** 生产装配同源公开路径（SecurityAutoConfiguration.ServletChannelConfig 注入口径）；本类
+     *  AC-5/边界用例断言「公开端点未认证可读」，过滤器须携带真实 public-paths 而非空集
+     *  （空集口径仅适用于全部请求均携内部令牌的用例类，见 LoginLog 系列测试）。 */
+    @Autowired
+    private SecurityProperties securityProperties;
+
     @Autowired
     private InternalTokenIssuer tokenIssuer;
 
@@ -166,7 +173,7 @@ class REQ20261117011514LoginCaptchaPolicyIntegrationTest {
     @BeforeEach
     void setUp() {
         mvc = MockMvcBuilders.webAppContextSetup(webContext)
-                .addFilters(new InternalTokenAuthFilter(tokenVerifier, List.of()))
+                .addFilters(new InternalTokenAuthFilter(tokenVerifier, securityProperties.getPublicPaths()))
                 .build();
         // 画像桩返回种子超管画像（user_id=1 对齐 V2 凭据种子，LoginLog 口径）
         when(authProfileGateway.findByUsername("admin")).thenReturn(
@@ -407,3 +414,4 @@ class REQ20261117011514LoginCaptchaPolicyIntegrationTest {
         return JSON.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
     }
 }
+

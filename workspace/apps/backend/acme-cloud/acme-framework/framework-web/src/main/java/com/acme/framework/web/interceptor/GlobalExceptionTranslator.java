@@ -144,6 +144,24 @@ public class GlobalExceptionTranslator {
         }
     }
 
+    /**
+     * 处理器方法级参数校验失败 → 400（FR-005、10.5.2 口径；产品修复 REQ-20261118-002130 测试债
+     * 清理实证）：Spring Framework 6.1+ 对 {@code @RequestParam} 等约束注解走方法级校验，
+     * 抛 {@link HandlerMethodValidationException}（Framework 7 起 HandlerMethod 绑定面不再落
+     * ConstraintViolationException）；无专属映射时被兜底 Exception 处理器卷成 500，违反
+     * 「校验失败=400 信封」契约（批量下线 username 空白 400 用例实证）。
+     */
+    @ExceptionHandler(org.springframework.web.method.annotation.HandlerMethodValidationException.class)
+    public ResponseEntity<Result<Object>> handleMethodValidation(
+            org.springframework.web.method.annotation.HandlerMethodValidationException ex) {
+        try {
+            return ResponseEntity.status(WebError.BAD_REQUEST.httpStatus())
+                    .body(Result.fail(WebError.BAD_REQUEST));
+        } catch (RuntimeException mapEx) {
+            return fallback(mapEx);
+        }
+    }
+
     /** 协议基元参数越界（review 修复）：分页等 contract 类型入参不合法 → 400，不再落 500。 */
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<Result<Object>> handleInvalidRequest(InvalidRequestException ex) {

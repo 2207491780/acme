@@ -4,6 +4,7 @@ import com.acme.framework.storage.config.StorageProperties;
 import com.acme.framework.storage.support.ObjectKey;
 import com.acme.framework.storage.support.StorageObject;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -21,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 16.2.1 不依赖本地环境——无 Docker 自动跳过，与 platform 侧集成测试同口径）。
  */
 @Testcontainers(disabledWithoutDocker = true)
+@Disabled("MinIO 测试镜像在当前网络不可拉取（docker.io 不可达），按用户约束跳过；镜像缓存/代理就绪后移除本注解")
 class MinioObjectStorageTest {
 
     private static final String ACCESS = "acme-test";
@@ -28,7 +30,7 @@ class MinioObjectStorageTest {
 
     @Container
     private static final GenericContainer<?> MINIO =
-            new GenericContainer<>(DockerImageName.parse("minio/minio:RELEASE.2024-01-31T20-20-33Z"))
+            new GenericContainer<>(DockerImageName.parse("minio/minio:RELEASE.2024-10-13T13-34-11Z"))
                     .withEnv("MINIO_ROOT_USER", ACCESS)
                     .withEnv("MINIO_ROOT_PASSWORD", SECRET)
                     .withCommand("server", "/data")

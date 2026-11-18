@@ -75,7 +75,7 @@ class MenuPathAlignmentIntegrationTest {
         Map<String, Object> before = jdbcTemplate.queryForMap("SELECT path, version FROM sys_menu WHERE id = 2");
 
         try (Connection conn = dataSource.getConnection()) {
-            ScriptUtils.executeSqlScript(conn, new ClassPathResource("db/migration/V13__menu_path_align_web_routes.sql"));
+            ScriptUtils.executeSqlScript(conn, new ClassPathResource("db/migration/system/V13__menu_path_align_web_routes.sql"));
         }
 
         // 旧 path 但非种子行：人工改值保留；种子行条件不命中 → 不重复 bump version

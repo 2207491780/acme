@@ -138,6 +138,18 @@ class REQ20261114071607FileServiceIntegrationTest {
     @MockitoBean
     private AuthorizationGateway authorizationGateway;
 
+    /** ShedLock 行清理 + 内存注册表同步（同 JobScheduleIntegrationTest 口径：只删行不清缓存
+     *  会让下一次获取跳过 INSERT 直走 UPDATE，0 行 → 误判锁被持）。 */
+    @Autowired
+    private net.javacrumbs.shedlock.core.LockProvider lockProvider;
+
+    private void clearShedLockState() {
+        jdbcTemplate.update("delete from shedlock_locks");
+        if (lockProvider instanceof net.javacrumbs.shedlock.support.StorageBasedLockProvider storage) {
+            storage.clearCache();
+        }
+    }
+
     private MockMvc mvc;
 
     @BeforeEach
@@ -155,7 +167,7 @@ class REQ20261114071607FileServiceIntegrationTest {
         // 共享环境脏数据 teardown：物理清表（绕开过滤面）+ 清空本地盘对象
         jdbcTemplate.update("delete from sys_file");
         jdbcTemplate.update("delete from sys_job_execution");
-        jdbcTemplate.update("delete from shedlock_locks");
+        clearShedLockState();
         clearStorageRoot();
         TenantContext.clear();
         UserContext.clear();

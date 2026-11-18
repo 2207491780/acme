@@ -1,0 +1,82 @@
+# acme-bootstrap 三服务键语义合并面（REQ-20261118-002130 确认⑤）：platform-auth / platform-system /
+# platform-infra 三份 application.yml 的键并集手工维护（重复键取一；public-paths 取并集）——
+# 三服务 jar 内各自的 application.yml 在单体 classpath 被遮蔽（见 application.yml 头注），本文件是
+# 三服务键在单体的唯一载体。经 application.yml 的 spring.config.import 载入（其键优先级更高）。
+# 双 hmac 密钥域与分布式同键同义（ACME_USER_TOKEN_HMAC_SECRET=用户令牌域；
+# ACME_SECURITY_TOKEN_HMAC_SECRET=内部令牌域；两域必须不同值，≥32 字节，14.3.3 不落仓库默认值）。
+
+acme:
+  security:
+    # 服务侧公开端点并集（FR-012 最小集）：actuator 探针 + auth 8 条（B 端登录/验证码/策略/公开配置/租户
+    # + C 端验证码/登录/刷新）+ system /ws/system/**（WS 握手经 NotifyHandshakeInterceptor 令牌验签为
+    # 唯一强制门）——BootstrapAuthFilter 与 InternalTokenAuthFilter 同清单消费
+    public-paths:
+      - /actuator/**
+      - /admin/v1/auth/captcha
+      - /admin/v1/auth/captcha-policy
+      - /admin/v1/auth/public-config
+      - /admin/v1/auth/tenants
+      - /admin/v1/auth/tokens
+      - /app/v1/auth/captcha
+      - /app/v1/auth/tokens
+      - /app/v1/auth/tokens/refresh
+      - /ws/system/**
+    token:
+      # 内部令牌校验密钥域（InternalTokenAuthFilter 消费；与网关签发同源）
+      hmac-secret: ${ACME_SECURITY_TOKEN_HMAC_SECRET}
+  gateway:
+    user-token:
+      # WS 握手 + 单体边缘认证验签同键单源（确认记录⑬）：密钥=用户令牌域，与内部令牌域隔离（11.6.2）
+      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET}
+      issuer: acme-auth
+  auth:
+    token:
+      # 用户令牌签发密钥（platform-auth 签发方；与 acme.gateway.user-token 同值）
+      hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET}
+      issuer: acme-auth
+      ttl-seconds: 1800
+      # C 端双令牌（11.4：access 2h / refresh 14d，一次性轮换）
+      consumer:
+        access-ttl-seconds: 7200
+        refresh-ttl-seconds: 1209600
+        captcha-ttl-seconds: 300
+        captcha-send-interval-seconds: 60
+        captcha-max-failures: 5
+    login:
+      # 防爆破（Q-002：默认 5 次 / 15 分钟窗口 / 锁 15 分钟；Redis 异常 fail-open）
+      max-failures: 5
+      window-seconds: 900
+      lock-seconds: 900
+  login-log:
+    # retention-days=auth 清理用例读键；retention-cron=infra 调度读键（同前缀双字段，跨服务合并保留）
+    retention-days: 30
+    retention-cron: "0 30 3 * * *"
+  exception-log:
+    # 异常日志保留期清理（REQ-20261117-061017 确认②）
+    retention-days: 14
+    retention-cron: "0 40 3 * * *"
+  audit:
+    # 埋点开启（确认③：本地 sink 直调落库，AC-5）+ 审计事件保留期清理（infra 读键）
+    enabled: true
+    retention-days: 30
+    retention-cron: "0 40 4 * * *"
+  storage:
+    # 文件服务存储选型（platform-infra 键合并）：type=local 缺省；生产经同一接口显式切 minio/oss；
+    # 落盘根目录经环境注入（无仓库内缺省值——未注入即启动失败，同 infra 分布式口径）
+    type: local
+    local:
+      root-dir: ${ACME_STORAGE_LOCAL_ROOT_DIR}
+      url-base: ${ACME_STORAGE_LOCAL_URL_BASE:}
+    upload:
+      max-size: 10MB
+      allowed-content-types: xlsx,pdf,png,jpg,jpeg,txt,csv
+      retention-days: 7
+      retention-cron: "0 0 3 * * *"
+  notify:
+    ws:
+      # 站内信 WS 推送（platform-system 键合并；心跳空闲超时钉死键确认记录⑧）
+      idle-timeout: 30s
+      sweep-interval: 2s
+  i18n:
+    # zh/en 双语（NFR-007）：框架汇总资源 + 三服务资源并集（消息键=错误码，8.2）
+    basenames: i18n/acme-messages,i18n/platform-auth-messages,i18n/platform-system-messages,i18n/platform-infra-messages

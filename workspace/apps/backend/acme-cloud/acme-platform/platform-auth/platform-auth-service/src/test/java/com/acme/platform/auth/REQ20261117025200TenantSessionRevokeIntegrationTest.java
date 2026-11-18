@@ -40,7 +40,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -197,7 +197,7 @@ class REQ20261117025200TenantSessionRevokeIntegrationTest {
         seedActiveSession(925301L, TOKEN_S1, 1L, TENANT_A);
         seedActiveSession(925302L, TOKEN_S2, 2L, TENANT_A);
         doThrow(new RuntimeException("req025200-revoke-down"))
-                .when(sessionRedis).revoke(anyString(), any());
+                .when(sessionRedis).revoke(anyString(), anyLong());
 
         JsonNode body = callRevocation(TENANT_A);
 

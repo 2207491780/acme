@@ -8,6 +8,7 @@ import com.acme.framework.core.support.ClientContextDraft;
 import com.acme.framework.job.support.JobLockKeys;
 import com.acme.framework.security.interceptor.InternalTokenAuthFilter;
 import com.acme.framework.security.support.InternalTokenIssuer;
+import net.javacrumbs.shedlock.core.LockProvider;
 import com.acme.framework.security.support.InternalTokenVerifier;
 import com.acme.platform.infra.infrastructure.client.AuthorizationGateway;
 import org.junit.jupiter.api.AfterEach;
@@ -80,7 +81,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "acme.security.token.hmac-secret=req-job-it-secret-0123456789abcdef",
         "acme.storage.type=local",
         "acme.storage.local.url-base=http://files.integration.test/acme",
-        "acme.storage.upload.retention-days=1"
+        "acme.storage.upload.retention-days=1",
+        // 类内多触发用例共享同一任务锁：默认 lockAtLeastFor=PT1M 会让上一用例完成后 60s 内的
+        // 下一触发落到 JOB_ALREADY_RUNNING（REQ-20261114-071607 AC-15 用例实证）——测试语境
+        // 归零锁最短持有；AC-14 并发断言不受影响（预置锁行 lock_until=+10min 仍拦截）
+        "acme.job.lock-at-least-for=PT0S"
 })
 class REQ20261114071607JobScheduleIntegrationTest {
 
@@ -133,6 +138,9 @@ class REQ20261114071607JobScheduleIntegrationTest {
     private JobLockKeys jobLockKeys;
 
     @Autowired
+    private LockProvider lockProvider;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
@@ -148,12 +156,23 @@ class REQ20261114071607JobScheduleIntegrationTest {
         doAnswer(invocation -> null).when(authorizationGateway).requirePermission(anyString());
     }
 
+    /** ShedLock 锁行清理 + 内存注册表同步（REQ-20261118-002130 测试债清理实证）：
+     *  {@link net.javacrumbs.shedlock.support.StorageBasedLockProvider} 缓存"最近创建"锁名，
+     *  只删行不清缓存会让下一次获取跳过 INSERT 直走 UPDATE（0 行）→ 误判锁被持（JOB_ALREADY_RUNNING）。
+     */
+    private void clearShedLockState() {
+        jdbcTemplate.update("delete from shedlock_locks");
+        if (lockProvider instanceof net.javacrumbs.shedlock.support.StorageBasedLockProvider storage) {
+            storage.clearCache();
+        }
+    }
+
     @AfterEach
     void cleanUp() throws IOException {
-        // 共享环境脏数据 teardown：物理清表（含 ShedLock 锁行）+ 清空本地盘对象
+        // 共享环境脏数据 teardown：物理清表（含 ShedLock 锁行 + 内存注册表同步）+ 清空本地盘对象
         jdbcTemplate.update("delete from sys_file");
         jdbcTemplate.update("delete from sys_job_execution");
-        jdbcTemplate.update("delete from shedlock_locks");
+        clearShedLockState();
         clearStorageRoot();
         TenantContext.clear();
         UserContext.clear();
@@ -242,7 +261,11 @@ class REQ20261114071607JobScheduleIntegrationTest {
         writeObject("req-it/2026/01/02/fresh.txt", "fresh-content");
         writeObject("req-it/2026/01/02/active-old.txt", "active-old-content");
 
-        JsonNode body = triggerRun();
+        // 触发重试（AC-15 用例稳健性）：上一用例的执行锁释放与本次触发间存在 ShedLock
+        // lock_until/时钟可见性竞态（full-module 实测偶发 JOB_ALREADY_RUNNING 且锁表为空）——
+        // AC-14 的断言口径不重试（预置锁行 10 分钟），仅本用例短窗重试直至受理
+        clearShedLockState();
+        JsonNode body = triggerRunWithRetry();
 
         assertThat(body.path("code").asText()).isEqualTo("0");
         assertThat(awaitTrue(TRIGGER_SETTLE, () -> latestExecution().get("finished_at") != null))
@@ -308,6 +331,18 @@ class REQ20261114071607JobScheduleIntegrationTest {
         } catch (Exception ex) {
             throw new IllegalStateException("手动触发请求失败", ex);
         }
+    }
+
+    /** 触发 + JOB_ALREADY_RUNNING 短窗重试（AC-15 类内跨用例锁释放竞态容忍；重试耗尽原样返回）。 */
+    private JsonNode triggerRunWithRetry() throws Exception {
+        long deadline = System.nanoTime() + TRIGGER_SETTLE.toNanos();
+        JsonNode body = triggerRun();
+        while ("JOB_ALREADY_RUNNING".equals(body.path("code").asText(null))
+                && System.nanoTime() < deadline) {
+            Thread.sleep(200L);
+            body = triggerRun();
+        }
+        return body;
     }
 
     private int executionCount() {

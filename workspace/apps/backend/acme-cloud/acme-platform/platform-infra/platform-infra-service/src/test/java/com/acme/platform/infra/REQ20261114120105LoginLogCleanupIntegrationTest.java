@@ -29,7 +29,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -38,6 +41,7 @@ import java.util.function.BooleanSupplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -81,6 +85,17 @@ class REQ20261114120105LoginLogCleanupIntegrationTest {
     private static final GenericContainer<?> REDIS =
             new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
 
+    /** 本地存储落盘根（framework-storage 本地模式 bean 装配必填，缺失显式失败 SYS-15-0006）。 */
+    private static final Path STORAGE_ROOT = createStorageRoot();
+
+    private static Path createStorageRoot() {
+        try {
+            return Files.createTempDirectory("req120105-infra-it-storage");
+        } catch (IOException ex) {
+            throw new IllegalStateException("创建本地盘存储根失败", ex);
+        }
+    }
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
@@ -90,6 +105,7 @@ class REQ20261114120105LoginLogCleanupIntegrationTest {
         registry.add("spring.flyway.schemas", () -> "public");
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
     }
 
     @Autowired
@@ -107,6 +123,23 @@ class REQ20261114120105LoginLogCleanupIntegrationTest {
     @MockitoBean
     private com.acme.platform.infra.infrastructure.client.AuthorizationGateway authorizationGateway;
 
+    /** ShedLock 行清理 + 内存注册表同步（同 JobScheduleIntegrationTest 口径：只删行不清缓存
+     *  会让下一次获取跳过 INSERT 直走 UPDATE，0 行 → 误判锁被持）。 */
+    @Autowired
+    private net.javacrumbs.shedlock.core.LockProvider lockProvider;
+
+    private void clearShedLockState() {
+        jdbcTemplate.update("delete from shedlock_locks");
+        if (lockProvider instanceof net.javacrumbs.shedlock.support.StorageBasedLockProvider storage) {
+            storage.clearCache();
+        }
+    }
+
+    /** 跨域清理 Feign 桩（AMB-2）：platform-auth 在本测试上下文不存在，任务体经该桩受理触发——
+     *  清理行为断言在 auth 侧 REQ20261114120105LoginLogRetentionPurgeIntegrationTest，本类不重复。 */
+    @MockitoBean
+    private com.acme.platform.infra.internal.client.LoginLogCleanupClient cleanupClient;
+
     private MockMvc mvc;
 
     @BeforeEach
@@ -115,13 +148,15 @@ class REQ20261114120105LoginLogCleanupIntegrationTest {
                 .addFilters(new InternalTokenAuthFilter(tokenVerifier, List.of()))
                 .build();
         doAnswer(invocation -> null).when(authorizationGateway).requirePermission(anyString());
+        when(cleanupClient.purgeCleanup()).thenReturn(
+                new com.acme.platform.system.api.ContractResult<>(true, "0", null, 0));
     }
 
     @AfterEach
     void cleanUp() {
-        // 共享环境脏数据 teardown：执行记录 + ShedLock 锁行（本文件不触 sys_login_log）
+        // 共享环境脏数据 teardown：执行记录 + ShedLock 锁行 + 内存注册表同步（本文件不触 sys_login_log）
         jdbcTemplate.update("delete from sys_job_execution");
-        jdbcTemplate.update("delete from shedlock_locks");
+        clearShedLockState();
         TenantContext.clear();
         UserContext.clear();
     }

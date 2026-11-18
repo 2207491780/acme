@@ -81,8 +81,8 @@ class SystemIntegrationTest {
     void flywaySeedPresent() {
         // 种子数据（V2 基线 + V3/V4 infra 增补 + V5 内容域增补 + V7 文件/任务/Excel 权限增补
         // + V8 通知公告/站内信权限增补 + V9 组织架构/数据范围权限增补 + V10 登录安全权限增补
-        // + V15 系统配置权限/菜单增补）：默认租户 / 超管 / super_admin /
-        // 67 权限点（62+3+2）/ 10 菜单（AC-009 前置；me.menus 语义不动）
+        // + V15 系统配置权限/菜单增补 + V19 日志中心权限/菜单增补）：默认租户 / 超管 / super_admin /
+        // 68 权限点（62+3+2+1，V19 续编 68）/ 10 菜单（AC-009 前置；me.menus 语义不动）
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_tenant where tenant_code='default'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
@@ -90,9 +90,9 @@ class SystemIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_role where role_code='super_admin'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_permission", Long.class)).isEqualTo(67L);
+                "select count(*) from sys_permission", Long.class)).isEqualTo(68L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_menu", Long.class)).isEqualTo(10L);
+                "select count(*) from sys_menu", Long.class)).isEqualTo(12L);
         // REQ-20261114-071607：文件服务/任务调度/Excel demo 权限点种子（接口级 http_method + http_path）
         assertThat(jdbcTemplate.queryForList(
                 "select permission_code from sys_permission where permission_code like 'infra:file:%' "
@@ -126,18 +126,19 @@ class SystemIntegrationTest {
     void seedScriptReplayIsIdempotent() {
         // 重放 V2/V8/V9/V15 的 INSERT 种子语句（幂等口径 AC-009：固定主键 + ON CONFLICT DO NOTHING
         // 不产生重复行）；DDL 由 Flyway 一次性执行、不在幂等重放范围（裸 CREATE TABLE 重跑必报已存在）
-        replaySeedInserts("db/migration/V2__seed_baseline.sql");
-        replaySeedInserts("db/migration/V8__notice_message_notify.sql");
-        replaySeedInserts("db/migration/V9__org_structure_data_scope.sql");
-        replaySeedInserts("db/migration/V15__system_config.sql");
+        replaySeedInserts("db/migration/system/V2__seed_baseline.sql");
+        replaySeedInserts("db/migration/system/V8__notice_message_notify.sql");
+        replaySeedInserts("db/migration/system/V9__org_structure_data_scope.sql");
+        replaySeedInserts("db/migration/system/V15__system_config.sql");
+        replaySeedInserts("db/migration/system/V19__log_menu_permission.sql");
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_user where username='admin'",
                 Long.class)).isEqualTo(1L);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(67L);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(68L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 46",
-                Long.class)).isEqualTo(22L);
+                Long.class)).isEqualTo(23L);
         // V9 幂等：绑定行与权限点不因重放翻倍（>=54 含 V9 9 条 + V10 3 条 + V15 2 条）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 54",
-                Long.class)).isEqualTo(14L);
+                Long.class)).isEqualTo(15L);
     }
 
     @Test

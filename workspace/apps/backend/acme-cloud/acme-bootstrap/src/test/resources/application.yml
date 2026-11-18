@@ -1,0 +1,60 @@
+# acme-bootstrap 测试域配置（遮蔽主 application.yml：无 Nacos 导入，16.2.1 测试不依赖共享环境）；
+# 形态开关镜像主配置（单体面），三服务键经 application-monolith.yml 导入（同主配置路径），
+# 容器面（datasource/redis/种子密码/存储根目录）由 MonolithContextSmokeTest @DynamicPropertySource 注入。
+spring:
+  application:
+    name: acme-monolith
+  main:
+    # 同主配置（AuthorizationClient 双声明消解，见 application.yml 注）
+    allow-bean-definition-overriding: true
+  config:
+    import: optional:classpath:application-monolith.yml
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        enabled: false
+        health-indicator:
+          enabled: false
+    function:
+      definition: ""
+    stream:
+      enabled: false
+    openfeign:
+      lazy-attributes-resolution: true
+  flyway:
+    enabled: false
+  servlet:
+    multipart:
+      max-file-size: 12MB
+      max-request-size: 20MB
+
+acme:
+  stream:
+    enabled: false
+  flex:
+    id:
+      worker-id: 1
+  security:
+    token:
+      hmac-secret: monolith-it-secret-0123456789abcdef
+  gateway:
+    user-token:
+      hmac-secret: monolith-it-user-token-secret-0123456789abcdef
+      issuer: acme-auth
+  auth:
+    token:
+      hmac-secret: monolith-it-user-token-secret-0123456789abcdef
+      issuer: acme-auth
+      ttl-seconds: 1800
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    binders:
+      # 同主配置（stream 关闭形态下关闭 binder 健康指标，防 kafka 占位 broker 空转）
+      enabled: false

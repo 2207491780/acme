@@ -10,8 +10,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 /**
  * 接口级权限拦截器（架构设计 5.2）：解析 HandlerMethod 上的 {@link RequirePermission}，
  * 交由 {@link PermissionDecisionService} 本地判定；异常经 framework-web 全局异常映射为标准 403 信封。
+ * 显式 bean 名（REQ-20261118-002130）：与 infra 域同名类在单体裁装下消歧，纯命名注解无行为变化。
  */
-@Component
+@Component("systemRequirePermissionInterceptor")
 public class RequirePermissionInterceptor implements HandlerInterceptor {
 
     private final PermissionDecisionService decisionService;

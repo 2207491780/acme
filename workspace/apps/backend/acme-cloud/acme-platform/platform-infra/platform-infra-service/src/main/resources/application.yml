@@ -51,6 +51,9 @@ spring:
       max-request-size: 20MB
   flyway:
     enabled: true
+    # 迁移脚本目录 per-service 化（REQ-20261118-002130 确认①）：infra 当前至 V18，版本号跨服务各自协调；
+    # 每服务只扫自己的子目录，分布式行为零变化
+    locations: classpath:db/migration/infra
     default-schema: platform_infra
     schemas: platform_infra
   data:

@@ -230,6 +230,12 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- 可执行 jar 附加 -exec 分类器（REQ-20261118-002130 确认②）：主构件保持普通 jar
+                        形态供 acme-bootstrap 单体聚合编译/打包（Boot 重打包的 BOOT-INF 布局不可作为
+                        依赖 jar 复用）；镜像构建（Dockerfile）按 -exec 优先取可执行 jar，行为不变 -->
+                    <classifier>exec</classifier>
+                </configuration>
             </plugin>
         </plugins>
     </build>

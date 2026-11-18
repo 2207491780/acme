@@ -72,7 +72,7 @@ class AuthSeedIntegrationTest {
     void seedScriptReplayIsIdempotent() throws Exception {
         // 重放 V2 种子（AC-009 幂等：固定主键 + ON CONFLICT 不重复）
         try (java.io.InputStream in = AuthSeedIntegrationTest.class.getClassLoader()
-                .getResourceAsStream("db/migration/V2__seed_superadmin_credential.sql")) {
+                .getResourceAsStream("db/migration/auth/V2__seed_superadmin_credential.sql")) {
             assertThat(in).isNotNull();
             String seed = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
             jdbcTemplate.execute(seed);

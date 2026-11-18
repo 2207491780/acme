@@ -110,8 +110,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req061017-kick-secret-012345678",
-        "acme.auth.token.hmac-secret=req061017-kick-secret-012345678"
+        "acme.security.token.hmac-secret=req061017-kick-secret-0123456789abcd",
+        "acme.auth.token.hmac-secret=req061017-kick-secret-0123456789abcd"
 })
 class REQ20261117061017OnlineBatchKickIntegrationTest {
 
@@ -192,6 +192,12 @@ class REQ20261117061017OnlineBatchKickIntegrationTest {
         mvc = MockMvcBuilders.webAppContextSetup(webContext)
                 .addFilters(new InternalTokenAuthFilter(tokenVerifier, List.of()))
                 .build();
+        // 方法间隔离（JVM 内方法序非声明序）：本类 login() 会产生真实会话底账（UUID token_id，
+        // AfterEach 的 req061017 前缀清理不覆盖）——批量下线按 username 枚举 ACTIVE 集合，
+        // 残留行会污染 kicked/skipped 计数断言，故每用例前清空会话表与单会话索引
+        jdbcTemplate.update("delete from auth_session");
+        redisTemplate.delete(SessionRedis.SESSION_INDEX_PREFIX + "1");
+        redisTemplate.delete(SessionRedis.SESSION_INDEX_PREFIX + "3");
         doNothing().when(imageCaptchaUseCase).verify(anyString(), anyString());
         when(authProfileGateway.findByUsername("admin")).thenReturn(
                 new AuthProfileView("1", "admin", "超级管理员", "default", "ENABLED", Set.of("super_admin")));
@@ -210,9 +216,9 @@ class REQ20261117061017OnlineBatchKickIntegrationTest {
 
     @AfterEach
     void cleanUp() {
-        // 共享环境脏数据 teardown：登录日志 + 预置会话 + 防爆破计数 + 撤销键/会话索引（本类独立容器，库内残留随容器销毁）
+        // 共享环境脏数据 teardown：登录日志 + 会话底账（含 login 真实行）+ 防爆破计数 + 撤销键/会话索引（本类独立容器，库内残留随容器销毁）
         jdbcTemplate.update("delete from sys_login_log");
-        jdbcTemplate.update("delete from auth_session where token_id like 'req061017-%'");
+        jdbcTemplate.update("delete from auth_session");
         loginGuard.clearFailures("admin");
         for (String tokenId : seededTokenIds) {
             redisTemplate.delete(SessionRedis.REVOKE_KEY_PREFIX + tokenId);
@@ -261,7 +267,9 @@ class REQ20261117061017OnlineBatchKickIntegrationTest {
         seedSession(930012, "req061017-sa-2", 1L);
         seedSession(930013, "req061017-op-1", 3L);
 
-        JsonNode body = call(delete("/admin/v1/auth/online-users").queryParam("username", "admin"));
+        // 操作者必须为非超管（OnlineSessionUseCase 语义：超管会话跳过仅对非超管操作者生效，
+        // 超管操作者批量下线不受保护拦截）——以 demo_operator 身份承载内部令牌
+        JsonNode body = callAsOperator(delete("/admin/v1/auth/online-users").queryParam("username", "admin"));
 
         assertThat(body.path("code").asText()).isEqualTo("0");
         JsonNode data = body.path("data");
@@ -452,21 +460,32 @@ class REQ20261117061017OnlineBatchKickIntegrationTest {
         return -1L;
     }
 
-    /** xlsx 行元素计数（JDK ZipInputStream 解析 worksheet XML，不引新依赖）。 */
+    /** xlsx 行元素计数（按 central directory 读 worksheet XML，不引新依赖）。
+     *  不用 ZipInputStream：FastExcel/POI 写出的条目带 data descriptor（local header size=0、
+     *  flags=0x8），JDK 25 ZipInputStream 对该布局误报 invalid entry size——产物本身
+     *  Excel/ZipFile 均可正常打开，属流式解析器兼容面缺陷，故走临时文件 + ZipFile 解析。 */
     private static int xlsxRowCount(byte[] bytes) throws IOException {
         int rows = 0;
-        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(bytes))) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
-                if (entry.getName().startsWith("xl/worksheets/") && entry.getName().endsWith(".xml")) {
-                    String xml = new String(zip.readAllBytes(), StandardCharsets.UTF_8);
-                    int index = 0;
-                    while ((index = xml.indexOf("<row", index)) >= 0) {
-                        rows++;
-                        index += 4;
+        java.nio.file.Path temp = java.nio.file.Files.createTempFile("req061017-export", ".xlsx");
+        try {
+            java.nio.file.Files.write(temp, bytes);
+            try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(temp.toFile())) {
+                var entries = zip.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement();
+                    if (entry.getName().startsWith("xl/worksheets/") && entry.getName().endsWith(".xml")) {
+                        String xml = new String(zip.getInputStream(entry).readAllBytes(),
+                                StandardCharsets.UTF_8);
+                        int index = 0;
+                        while ((index = xml.indexOf("<row", index)) >= 0) {
+                            rows++;
+                            index += 4;
+                        }
                     }
                 }
             }
+        } finally {
+            java.nio.file.Files.deleteIfExists(temp);
         }
         assertThat(rows).as("xlsx 应含 worksheet 行").isGreaterThan(0);
         return rows;
@@ -474,11 +493,21 @@ class REQ20261117061017OnlineBatchKickIntegrationTest {
 
     /** 信封请求（默认放行桩件下）；操作者身份经内部令牌承载（范本口径）。 */
     private JsonNode call(AbstractMockHttpServletRequestBuilder<?> request) {
+        return envelopeOf(request, "1", "default", Set.of("super_admin"));
+    }
+
+    /** 非超管操作者信封请求（超管保护/跳过分支用例：UserContext roles 不含 super_admin）。 */
+    private JsonNode callAsOperator(AbstractMockHttpServletRequestBuilder<?> request) {
+        return envelopeOf(request, "3", "default", Set.of("operator"));
+    }
+
+    private JsonNode envelopeOf(AbstractMockHttpServletRequestBuilder<?> request,
+                                String userId, String tenantId, Set<String> roles) {
         try {
             MvcResult result = mvc.perform(request
                             .header("X-Acme-Channel", "B")
                             .header("X-Acme-Token", tokenIssuer.issue(
-                                    new AuthenticatedSubject("1", "default", Channel.B, Set.of("super_admin"))))
+                                    new AuthenticatedSubject(userId, tenantId, Channel.B, roles)))
                             .requestAttr(ClientContextDraft.ATTRIBUTE_NAME,
                                     new ClientContextDraft(null, "dev-1", "1.0")))
                     .andReturn();

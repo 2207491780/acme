@@ -16,8 +16,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * 网关经 ObjectProvider 惰性解析：Feign 客户端创建会牵动 WebMvc 配置装配，
  * 构造期直接依赖会形成「Feign→WebMvc 配置→拦截器→网关→Feign」环（启动环依赖，
  * business-api-integration G3 后端联调暴露，与 business-content 同步修复）。
+ * 显式 bean 名（REQ-20261118-002130）：与 system 域同名类在单体裁装下消歧，纯命名注解无行为变化。
  */
-@Component
+@Component("infraRequirePermissionInterceptor")
 public class RequirePermissionInterceptor implements HandlerInterceptor {
 
     private final ObjectProvider<AuthorizationGateway> authorizationGateways;

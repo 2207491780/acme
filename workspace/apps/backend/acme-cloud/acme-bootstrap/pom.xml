@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>acme-bootstrap</artifactId>
+    <packaging>jar</packaging>
+    <name>acme-bootstrap</name>
+    <description>
+        单体打包形态部署单元（REQ-20261118-002130 确认②③④）：聚合 platform-auth/platform-system/
+        platform-infra 三服务实现为单 JVM 启动单元（本地联调 / 小部署可选形态；分布式为默认形态）。
+        依赖三 *-service（compile）+ framework-security/trace/audit；不声明 framework-gateway/WebFlux
+        与 stream/kafka 依赖（stream 经 acme.stream.enabled=false 关闭、审计走本地 sink 直调）。
+        边缘认证由 BootstrapAuthFilter（用户令牌验签 + 撤销检查 + 内部令牌签发）承接网关职责。
+    </description>
+
+    <dependencies>
+        <!-- 三服务实现（单体聚合唯一形态要求，4.4.3 服务间仅经 *-api 的禁令不适用于聚合部署单元） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-auth-service</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-system-service</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-infra-service</artifactId>
+        </dependency>
+        <!-- 边缘认证面（确认④）：UserTokenAccessVerifier（用户令牌验签）与 JwsInternalTokenIssuer
+            （内部令牌签发，经 InternalTokenIssuer bean）；trace 模块为 services 已传递的过滤链基线，
+            audit 为本地审计 sink 的 SPI 载体（显式声明防隐式依赖） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-trace</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-audit</artifactId>
+        </dependency>
+        <!-- 实引用直接声明（Modules.md 2.2.3）：过滤器/适配器使用的上下文与信封基元（服务依赖已传递，显式登记） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-contract</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+
+        <!-- 测试域（16 章；单体上下文冒烟：Testcontainers PG + Redis，无 Docker 自动跳过） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.acme.bootstrap.MonolithApplication</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

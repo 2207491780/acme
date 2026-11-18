@@ -12,8 +12,9 @@ import org.springframework.stereotype.Service;
  * 任务体经 Feign 调 platform-auth 内部清理端点（POST /internal/v1/login-logs/purge-cleanup），
  * 表访问与物理删除逻辑收敛 platform-auth（schema 独占口径不破）。
  * 返回「本次物理清理条数」；调用失败向上抛出（任务终态 FAILED，FR-028 执行记录口径）。
+ * 显式 bean 名（REQ-20261118-002130）：与 auth 域同名类在单体裁装下消歧，纯命名注解无行为变化。
  */
-@Service
+@Service("infraLoginLogRetentionCleanupUseCase")
 public class LoginLogRetentionCleanupUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(LoginLogRetentionCleanupUseCase.class);

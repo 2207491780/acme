@@ -120,7 +120,7 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
 
     /** 水印模板含未知占位符（REQ-20261117-180000）。 */
     SYSTEM_WATERMARK_TEMPLATE_INVALID(SystemErrorCodes.SYSTEM_WATERMARK_TEMPLATE_INVALID,
-            "水印模板包含不支持的占位符", 409);
+            "水印模板包含不支持的占位符", 400);
 
     private final String code;
     private final String defaultMessage;
