@@ -49,6 +49,7 @@ import { NotificationBell } from './components/NotificationBell';
 import { PageBoundary, PermissionGate } from './components/PermissionGate';
 import { TabBar } from './components/TabBar';
 import { TabKeepAlive } from './components/TabKeepAlive';
+import { DateTimePrefsRefresh } from './components/DateTimePrefsRefresh';
 import { CommandPalette } from './components/CommandPalette';
 import { buildDynamicNav, type NavEntry } from './nav';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
@@ -702,8 +703,8 @@ export function App() {
                     element={(
                       <PageBoundary>
                         {route.permission
-                          ? <PermissionGate permission={route.permission}>{route.element}</PermissionGate>
-                          : route.element}
+                          ? <PermissionGate permission={route.permission}><DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh></PermissionGate>
+                          : <DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh>}
                       </PageBoundary>
                     )}
                   />

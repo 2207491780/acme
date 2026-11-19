@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { findPageRoute } from '../routes';
 import { useTabsStore } from '../store/tabsStore';
 import { PageBoundary, PermissionGate } from './PermissionGate';
+import { DateTimePrefsRefresh } from './DateTimePrefsRefresh';
 
 /**
  * 多页签保活容器（REQ-20261119-063129 契约③④）：按 tabsStore 已开页签逐 tab 渲染容器 div
@@ -39,8 +40,8 @@ export function TabKeepAlive() {
             <Suspense fallback={<Skeleton active title paragraph={{ rows: 6 }} style={{ marginTop: 8 }} />}>
               <PageBoundary>
                 {route.permission
-                  ? <PermissionGate permission={route.permission}>{route.element}</PermissionGate>
-                  : route.element}
+                  ? <PermissionGate permission={route.permission}><DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh></PermissionGate>
+                  : <DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh>}
               </PageBoundary>
             </Suspense>
           </div>
