@@ -1,13 +1,11 @@
 package com.acme.bootstrap.local;
 
-import com.acme.common.context.UserContext;
+import com.acme.framework.core.support.ServiceIdentityScope;
 import com.acme.platform.auth.application.LoginLogRetentionCleanupUseCase;
 import com.acme.platform.infra.internal.client.LoginLogCleanupClient;
 import com.acme.platform.system.api.ContractResult;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
-
-import java.util.Set;
 
 /**
  * 单体本地短路适配器（REQ-20261118-002130 确认②）：单体本地短路；分布式由 Feign 提供
@@ -35,12 +33,7 @@ public class LocalLoginLogCleanupClient implements LoginLogCleanupClient {
     /** 软删标记 + 物理清理（幂等）；data=本次物理清理条数。 */
     @Override
     public ContractResult<Integer> purgeCleanup() {
-        UserContext previous = UserContext.get();
-        UserContext.bind(new UserContext(SERVICE_IDENTITY, Set.of()));
-        try {
-            return LocalContractResults.ok(cleanupUseCase.cleanupExpired());
-        } finally {
-            UserContext.bind(previous);
-        }
+        return ServiceIdentityScope.runAs(SERVICE_IDENTITY,
+                () -> LocalContractResults.ok(cleanupUseCase.cleanupExpired()));
     }
 }

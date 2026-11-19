@@ -1,6 +1,6 @@
 package com.acme.platform.system.application;
 
-import com.acme.common.context.UserContext;
+import com.acme.framework.core.support.ServiceIdentityScope;
 import com.acme.platform.auth.api.LoginLogStatsClient;
 import com.acme.platform.auth.api.OnlineCountClient;
 import com.acme.platform.infra.api.AuditStatsClient;
@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -149,13 +148,7 @@ public class DashboardUseCase {
      * 主体调用，finally 恢复原上下文（调用方主体不被出站覆盖）。
      */
     private <T> T withServiceIdentity(Supplier<T> call) {
-        UserContext previous = UserContext.get();
-        UserContext.bind(new UserContext(SERVICE_IDENTITY, Set.of()));
-        try {
-            return call.get();
-        } finally {
-            UserContext.bind(previous);
-        }
+        return ServiceIdentityScope.runAs(SERVICE_IDENTITY, call);
     }
 
     /**

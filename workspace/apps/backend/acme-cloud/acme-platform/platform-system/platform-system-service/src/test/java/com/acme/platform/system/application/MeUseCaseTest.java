@@ -4,10 +4,8 @@ import com.acme.common.context.UserContext;
 import com.acme.common.core.BizException;
 import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.EnableStatus;
-import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysUser;
 import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
-import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRepository;
 import com.acme.platform.system.security.PermissionDecisionService;
 import org.junit.jupiter.api.AfterEach;
@@ -30,16 +28,16 @@ import static org.mockito.Mockito.when;
  * 当前登录者视图用例单元测试（纯 JUnit 无 Spring）：
  * REQ-20261117-025200 切换会话跨租户回退分支（确认记录④）——本租户角色未命中时仅对 claims 中
  * 命中的内置角色取跨租户行（非内置角色码丢弃），菜单走内置角色绑定旁路面；本租户命中走既有口径。
- * save/查询桩镜像仓储语义（RoleAndTenantUseCaseTest 同款）。
+ * 角色解析经 {@link PermissionDecisionService#enabledRoleIdsOf} / {@link PermissionDecisionService#builtInRoleIdsOf}
+ * 共用面（S14 收敛后与权限判定同源），桩镜像解析语义（S14 前直桩 roleRepository 同口径）。
  */
 class MeUseCaseTest {
 
     private final SysUserRepository userRepository = mock(SysUserRepository.class);
-    private final SysRoleRepository roleRepository = mock(SysRoleRepository.class);
     private final SysDeptRepository deptRepository = mock(SysDeptRepository.class);
     private final MenuUseCase menuUseCase = mock(MenuUseCase.class);
     private final PermissionDecisionService decisionService = mock(PermissionDecisionService.class);
-    private final MeUseCase useCase = new MeUseCase(userRepository, roleRepository, deptRepository,
+    private final MeUseCase useCase = new MeUseCase(userRepository, deptRepository,
             menuUseCase, decisionService);
 
     @AfterEach
@@ -63,28 +61,14 @@ class MeUseCaseTest {
         return user;
     }
 
-    private static SysRole builtInRole(Long id, String code) {
-        SysRole role = new SysRole(SysRole.ROOT_PARENT_ID, code, code, null, true);
-        try {
-            var field = com.acme.framework.flex.support.AuditBase.class.getDeclaredField("id");
-            field.setAccessible(true);
-            field.set(role, id);
-        } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException(ex);
-        }
-        return role;
-    }
-
     @Test
     void should_fallbackToBuiltInRolesAndBypassMenuLookup_when_localRoleLookupMisses() {
         // 切换会话（claims=super_admin、上下文=目标租户）：本租户角色未命中 → 仅内置角色跨租户回退，
         // 菜单走 visibleMenuIdsOfBuiltIn 旁路面；user 行走 PK 全局直读（findByIdGlobal）
         bindOperator("1", Set.of("super_admin"));
         when(userRepository.findByIdGlobal(1L)).thenReturn(Optional.of(user(1L, "admin")));
-        when(roleRepository.findByRoleCodeInAndStatus(Set.of("super_admin"), EnableStatus.ENABLED))
-                .thenReturn(List.of());
-        when(roleRepository.findBuiltInByRoleCodeIn(Set.of("super_admin")))
-                .thenReturn(List.of(builtInRole(1L, "super_admin")));
+        when(decisionService.enabledRoleIdsOf(Set.of("super_admin"))).thenReturn(List.of());
+        when(decisionService.builtInRoleIdsOf(Set.of("super_admin"))).thenReturn(List.of(1L));
         when(decisionService.permissionCodesOfRoles(Set.of("super_admin")))
                 .thenReturn(Set.of("system:user:list"));
         when(menuUseCase.visibleMenuIdsOfBuiltIn(List.of(1L))).thenReturn(Set.of(1L, 10L));
@@ -105,8 +89,7 @@ class MeUseCaseTest {
         // 本租户命中（常态会话）：既有口径不变——本租户角色 id + 租户过滤菜单绑定，不触发内置旁路
         bindOperator("7", Set.of("it_viewer"));
         when(userRepository.findByIdGlobal(7L)).thenReturn(Optional.of(user(7L, "viewer")));
-        when(roleRepository.findByRoleCodeInAndStatus(Set.of("it_viewer"), EnableStatus.ENABLED))
-                .thenReturn(List.of(builtInRole(9L, "it_viewer")));
+        when(decisionService.enabledRoleIdsOf(Set.of("it_viewer"))).thenReturn(List.of(9L));
         when(decisionService.permissionCodesOfRoles(Set.of("it_viewer"))).thenReturn(Set.of());
         when(menuUseCase.visibleMenuIdsOf(List.of(9L))).thenReturn(Set.of(2L));
 
@@ -116,18 +99,17 @@ class MeUseCaseTest {
         assertThat(snapshot.menuIds()).containsExactly(2L);
         verify(menuUseCase).visibleMenuIdsOf(List.of(9L));
         verify(menuUseCase, never()).visibleMenuIdsOfBuiltIn(any());
-        verify(roleRepository, never()).findBuiltInByRoleCodeIn(anySet());
+        verify(decisionService, never()).builtInRoleIdsOf(anySet());
     }
 
     @Test
     void should_dropNonBuiltInRoleCodes_when_fallbackResolvesBuiltInRolesOnly() {
-        // 防提权口径（PermissionDecisionService 同款）：回退仅取 findBuiltInByRoleCodeIn 命中的内置角色行，
+        // 防提权口径（PermissionDecisionService 同款）：回退仅取内置角色行命中集，
         // 伪造同名非内置编码被丢弃（查询面 built_in=true 过滤承担）
         bindOperator("7", Set.of("ops", "super_admin"));
         when(userRepository.findByIdGlobal(7L)).thenReturn(Optional.of(user(7L, "viewer")));
-        when(roleRepository.findByRoleCodeInAndStatus(anySet(), any())).thenReturn(List.of());
-        when(roleRepository.findBuiltInByRoleCodeIn(Set.of("ops", "super_admin")))
-                .thenReturn(List.of(builtInRole(1L, "super_admin")));
+        when(decisionService.enabledRoleIdsOf(anySet())).thenReturn(List.of());
+        when(decisionService.builtInRoleIdsOf(Set.of("ops", "super_admin"))).thenReturn(List.of(1L));
         when(decisionService.permissionCodesOfRoles(anySet())).thenReturn(Set.of());
         when(menuUseCase.visibleMenuIdsOfBuiltIn(List.of(1L))).thenReturn(Set.of(1L));
 
@@ -163,8 +145,7 @@ class MeUseCaseTest {
 
     private void stubLocalRoleChain(String userId, Set<String> roles) {
         when(userRepository.findByIdGlobal(Long.valueOf(userId))).thenReturn(Optional.of(user(Long.valueOf(userId), "viewer")));
-        when(roleRepository.findByRoleCodeInAndStatus(roles, EnableStatus.ENABLED))
-                .thenReturn(List.of(builtInRole(9L, roles.iterator().next())));
+        when(decisionService.enabledRoleIdsOf(roles)).thenReturn(List.of(9L));
         when(decisionService.permissionCodesOfRoles(roles)).thenReturn(Set.of());
         when(menuUseCase.visibleMenuIdsOf(List.of(9L))).thenReturn(Set.of());
     }

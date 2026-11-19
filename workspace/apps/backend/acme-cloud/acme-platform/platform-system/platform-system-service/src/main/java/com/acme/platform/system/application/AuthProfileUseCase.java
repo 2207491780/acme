@@ -16,10 +16,14 @@ import com.acme.platform.system.infrastructure.repository.SysUserRoleRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * 登录认证画像用例（架构设计 3.3 / 4.2，FR-001）：
@@ -50,21 +54,18 @@ public class AuthProfileUseCase {
         if (user == null) {
             throw new BizException(SystemError.USER_NOT_FOUND);
         }
-        Set<String> roleCodes = new LinkedHashSet<>();
-        List<Long> roleIds = userRoleRepository.findByUserId(user.getId()).stream()
-                .map(SysUserRole::getRoleId).toList();
-        if (!roleIds.isEmpty()) {
-            for (SysRole role : roleRepository.findAllById(roleIds)) {
-                roleCodes.add(role.getRoleCode());
-            }
-        }
+        List<SysUserRole> bindings = userRoleRepository.findByUserId(user.getId());
+        Set<String> roleCodes = roleCodesOf(bindings, rolesByIdOf(bindings));
         return new AuthProfileView(String.valueOf(user.getId()), user.getUsername(), user.getNickname(),
-                user.getTenantId(), effectiveStatus(user).name(), roleCodes);
+                user.getTenantId(), effectiveStatus(user,
+                () -> tenantRepository.findByTenantCode(user.getTenantId())).name(), roleCodes);
     }
 
     /**
      * 按 userId 批量查认证画像（REQ-20261114-120105：在线用户列表 username/超管判定富化）；
-     * 不存在的 userId 不产生条目（消费方按缺省展示处理）。角色解析复用单查口径。
+     * 不存在的 userId 不产生条目（消费方按缺省展示处理）。
+     * S14 N+1 收敛：绑定行、角色行与租户行改批量查询（循环内逐用户走库改集合一次取回），
+     * 各用户画像内容与单查口径逐字段一致（角色码集合无序契约）。
      */
     @IgnoreTenant("online-user-profile-lookup")
     public List<AuthProfileView> findByUserIds(List<Long> userIds) {
@@ -72,28 +73,77 @@ public class AuthProfileUseCase {
             return List.of();
         }
         List<Long> distinct = userIds.stream().distinct().toList();
+        List<SysUserRole> bindings = userRoleRepository.findByUserIdIn(distinct);
+        Map<Long, List<SysUserRole>> bindingsByUserId = bindings.stream()
+                .collect(Collectors.groupingBy(SysUserRole::getUserId));
+        Map<Long, SysRole> rolesById = rolesByIdOf(bindings);
+        List<SysUser> users = userRepository.findAllById(distinct);
+        Map<String, Optional<SysTenant>> tenantsByCode = tenantsByCodeOf(users);
         List<AuthProfileView> views = new ArrayList<>(distinct.size());
-        for (SysUser user : userRepository.findAllById(distinct)) {
-            Set<String> roleCodes = new LinkedHashSet<>();
-            List<Long> roleIds = userRoleRepository.findByUserId(user.getId()).stream()
-                    .map(SysUserRole::getRoleId).toList();
-            if (!roleIds.isEmpty()) {
-                for (SysRole role : roleRepository.findAllById(roleIds)) {
-                    roleCodes.add(role.getRoleCode());
-                }
-            }
+        for (SysUser user : users) {
+            Set<String> roleCodes = roleCodesOf(
+                    bindingsByUserId.getOrDefault(user.getId(), List.of()), rolesById);
             views.add(new AuthProfileView(String.valueOf(user.getId()), user.getUsername(), user.getNickname(),
-                    user.getTenantId(), effectiveStatus(user).name(), roleCodes));
+                    user.getTenantId(),
+                    effectiveStatus(user,
+                            () -> tenantsByCode.getOrDefault(user.getTenantId(), Optional.empty())).name(),
+                    roleCodes));
         }
         return views;
     }
 
-    /** 生效状态：用户或所属租户任一停用即停用（停用级联，登录链统一拒绝口径）。 */
-    private EnableStatus effectiveStatus(SysUser user) {
+    /** 批量用户 → 租户目录索引（S14 N+1 收敛：停用级联所需租户行一次取回；平台目录表无租户列）。 */
+    private Map<String, Optional<SysTenant>> tenantsByCodeOf(List<SysUser> users) {
+        List<String> tenantCodes = users.stream()
+                .map(SysUser::getTenantId)
+                .filter(code -> code != null && !code.isBlank())
+                .distinct()
+                .toList();
+        if (tenantCodes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Optional<SysTenant>> tenantsByCode = new HashMap<>();
+        for (SysTenant tenant : tenantRepository.findByTenantCodeIn(tenantCodes)) {
+            tenantsByCode.putIfAbsent(tenant.getTenantCode(), Optional.of(tenant));
+        }
+        return tenantsByCode;
+    }
+
+    /** 绑定行 → 角色行索引（单查一次取回；角色行缺失（脏数据）跳过，与逐用户口径一致）。 */
+    private Map<Long, SysRole> rolesByIdOf(List<SysUserRole> bindings) {
+        List<Long> roleIds = bindings.stream().map(SysUserRole::getRoleId).distinct().toList();
+        if (roleIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, SysRole> rolesById = new HashMap<>();
+        for (SysRole role : roleRepository.findAllById(roleIds)) {
+            rolesById.putIfAbsent(role.getId(), role);
+        }
+        return rolesById;
+    }
+
+    /** 绑定行 + 角色索引 → 角色编码集（编码集无序契约，消费方按 Set 消费）。 */
+    private static Set<String> roleCodesOf(List<SysUserRole> bindings, Map<Long, SysRole> rolesById) {
+        Set<String> roleCodes = new LinkedHashSet<>();
+        for (SysUserRole binding : bindings) {
+            SysRole role = rolesById.get(binding.getRoleId());
+            if (role != null) {
+                roleCodes.add(role.getRoleCode());
+            }
+        }
+        return roleCodes;
+    }
+
+    /**
+     * 生效状态：用户或所属租户任一停用即停用（停用级联，登录链统一拒绝口径）。
+     * 租户行经 {@code tenantLookup} 供给（用户停用时短路不查，与既有惰性口径一致；
+     * 批量面由调用方预取避免循环内逐用户走库）。
+     */
+    private EnableStatus effectiveStatus(SysUser user, Supplier<Optional<SysTenant>> tenantLookup) {
         if (user.getStatus() == EnableStatus.DISABLED) {
             return EnableStatus.DISABLED;
         }
-        Optional<SysTenant> tenant = tenantRepository.findByTenantCode(user.getTenantId());
+        Optional<SysTenant> tenant = tenantLookup.get();
         return tenant.map(value -> value.getStatus() == EnableStatus.DISABLED
                 ? EnableStatus.DISABLED : user.getStatus())
                 .orElse(user.getStatus());

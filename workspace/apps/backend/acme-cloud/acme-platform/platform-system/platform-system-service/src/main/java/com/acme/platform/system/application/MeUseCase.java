@@ -3,12 +3,9 @@ package com.acme.platform.system.application;
 import com.acme.common.context.UserContext;
 import com.acme.common.core.BizException;
 import com.acme.platform.system.SystemError;
-import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.dto.AdminMeUpdate;
-import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysUser;
 import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
-import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRepository;
 import com.acme.platform.system.security.PermissionDecisionService;
 import org.springframework.stereotype.Service;
@@ -36,16 +33,14 @@ public class MeUseCase {
     }
 
     private final SysUserRepository userRepository;
-    private final SysRoleRepository roleRepository;
     private final SysDeptRepository deptRepository;
     private final MenuUseCase menuUseCase;
     private final PermissionDecisionService decisionService;
 
-    public MeUseCase(SysUserRepository userRepository, SysRoleRepository roleRepository,
+    public MeUseCase(SysUserRepository userRepository,
                      SysDeptRepository deptRepository, MenuUseCase menuUseCase,
                      PermissionDecisionService decisionService) {
         this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
         this.deptRepository = deptRepository;
         this.menuUseCase = menuUseCase;
         this.decisionService = decisionService;
@@ -132,8 +127,7 @@ public class MeUseCase {
     private MeSnapshot loadMeOf(SysUser user, UserContext context) {
         Set<String> roles = context.roles();
         Set<String> permissions = decisionService.permissionCodesOfRoles(roles);
-        List<Long> roleIds = roleRepository.findByRoleCodeInAndStatus(roles, EnableStatus.ENABLED).stream()
-                .map(SysRole::getId).toList();
+        List<Long> roleIds = decisionService.enabledRoleIdsOf(roles);
         Set<Long> menuIds;
         if (!roleIds.isEmpty()) {
             // 本租户命中：绑定行同租户读取（既有口径不变）
@@ -141,8 +135,7 @@ public class MeUseCase {
         } else {
             // 切换会话回退（REQ-20261117-025200，确认记录④）：仅 claims 中命中内置角色行的编码
             // 取其跨租户行（findBuiltInByRoleCodeIn 旁路+审计），非内置角色码一律丢弃（防提权不回退）
-            List<Long> builtInRoleIds = roleRepository.findBuiltInByRoleCodeIn(roles).stream()
-                    .map(SysRole::getId).toList();
+            List<Long> builtInRoleIds = decisionService.builtInRoleIdsOf(roles);
             menuIds = menuUseCase.visibleMenuIdsOfBuiltIn(builtInRoleIds);
         }
         return new MeSnapshot(user, new LinkedHashSet<>(roles), permissions, menuIds, deptNameOf(user));

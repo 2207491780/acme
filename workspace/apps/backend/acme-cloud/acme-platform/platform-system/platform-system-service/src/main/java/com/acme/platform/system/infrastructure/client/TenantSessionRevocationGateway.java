@@ -1,12 +1,10 @@
 package com.acme.platform.system.infrastructure.client;
 
-import com.acme.common.context.UserContext;
+import com.acme.framework.core.support.ServiceIdentityScope;
 import com.acme.platform.auth.api.TenantSessionRevokeClient;
 import com.acme.platform.auth.api.TenantSessionRevokeRequest;
 import com.acme.platform.auth.api.TenantSessionRevokeView;
 import org.springframework.stereotype.Component;
-
-import java.util.Set;
 
 /**
  * 租户会话批量撤销网关（REQ-20261117-025200 确认记录②）：system 停用租户事务提交后调用，
@@ -32,15 +30,11 @@ public class TenantSessionRevocationGateway {
      * @return 撤销 / 失败计数（未知租户为 0/0 幂等成功）
      */
     public RevocationOutcome revokeByTenant(String tenantCode) {
-        UserContext previous = UserContext.get();
-        UserContext.bind(new UserContext(SERVICE_IDENTITY, Set.of()));
-        try {
+        return ServiceIdentityScope.runAs(SERVICE_IDENTITY, () -> {
             TenantSessionRevokeView view = revokeClient
                     .revokeByTenant(new TenantSessionRevokeRequest(tenantCode)).payload();
             return new RevocationOutcome(view.revokedCount(), view.failedCount());
-        } finally {
-            UserContext.bind(previous);
-        }
+        });
     }
 
     /** 撤销结果载体（计数口径同 TenantSessionRevokeView）。 */

@@ -30,7 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 租户开通初始化用例（tenant-management-complete）：建租户 + 租户管理员角色（默认授权）+ 初始管理员
@@ -139,6 +141,8 @@ public class TenantInitUseCase {
     /** 可见菜单：权限码不属保留域，且目录类节点须保有可见后代（空目录不绑定，防悬空目录）。 */
     private List<SysMenu> grantableMenus() {
         List<SysMenu> all = menuRepository.findAll();
+        Map<Long, SysMenu> byId = all.stream()
+                .collect(Collectors.toMap(SysMenu::getId, menu -> menu, (first, second) -> first));
         Set<Long> kept = new LinkedHashSet<>();
         for (SysMenu menu : all) {
             String code = menu.getPermissionCode();
@@ -148,15 +152,13 @@ public class TenantInitUseCase {
                 }
             }
         }
-        // 向上补全被保留菜单的祖先目录（含可见后代判定）
+        // 向上补全被保留菜单的祖先目录（含可见后代判定）；id 索引直查父行（S14：免全表逐层扫描）
         for (SysMenu menu : all) {
             if (kept.contains(menu.getId())) {
                 Long parentId = menu.getParentId();
                 while (parentId != null && parentId != SysMenu.ROOT_PARENT_ID && kept.add(parentId)) {
-                    Long finalParentId = parentId;
-                    parentId = all.stream()
-                            .filter(candidate -> finalParentId.equals(candidate.getId()))
-                            .findFirst().map(SysMenu::getParentId).orElse(null);
+                    SysMenu parent = byId.get(parentId);
+                    parentId = parent == null ? null : parent.getParentId();
                 }
             }
         }

@@ -7,6 +7,8 @@ import com.acme.platform.system.infrastructure.mapper.SysTenantMapper;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /** 租户仓库实现（MyBatis-Flex 底座；平台级表不过滤租户）。 */
@@ -32,5 +34,14 @@ public class SysTenantRepositoryImpl extends FlexRepositorySupport<SysTenant> im
     public Optional<SysTenant> findByTenantCode(String tenantCode) {
         return Optional.ofNullable(
                 mapper().selectOneByQuery(QueryWrapper.create().where(SysTenant::getTenantCode).eq(tenantCode)));
+    }
+
+    @Override
+    public List<SysTenant> findByTenantCodeIn(Collection<String> tenantCodes) {
+        if (tenantCodes == null || tenantCodes.isEmpty()) {
+            return List.of();
+        }
+        return mapper().selectListByQuery(
+                QueryWrapper.create().where(SysTenant::getTenantCode).in(tenantCodes));
     }
 }

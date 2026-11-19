@@ -10,6 +10,7 @@ import com.acme.platform.system.infrastructure.repository.SysRolePermissionRepos
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -106,6 +107,30 @@ public class PermissionDecisionService {
     }
 
     /**
+     * 角色编码集 → 本租户启用角色 id 集（S14 收敛：权限判定与 /me 菜单解析共用主路径，
+     * 租户过滤 12.4.1；无命中返回空集）。
+     */
+    public List<Long> enabledRoleIdsOf(Set<String> roleCodes) {
+        List<Long> roleIds = new ArrayList<>();
+        for (SysRole role : roleRepository.findByRoleCodeInAndStatus(roleCodes, EnableStatus.ENABLED)) {
+            roleIds.add(role.getId());
+        }
+        return roleIds;
+    }
+
+    /**
+     * 角色编码集 → 命中内置角色行 id 集（S14 收敛：内置角色跨租户旁路查询单源——
+     * built_in 行仅系统种子路径可建，防提权语义不回退；/me 切换会话菜单回退用；无命中返回空集）。
+     */
+    public List<Long> builtInRoleIdsOf(Set<String> roleCodes) {
+        List<Long> roleIds = new ArrayList<>();
+        for (SysRole role : roleRepository.findBuiltInByRoleCodeIn(roleCodes)) {
+            roleIds.add(role.getId());
+        }
+        return roleIds;
+    }
+
+    /**
      * 角色集 → 启用角色绑定的权限点 id 集（无启用角色或无绑定返回空集）：
      * ① 本租户启用角色（主路径，租户过滤 12.4.1）；
      * ② 内置角色跨租户兜底（REQ-20261114-120104 AC-6 跨租户管理面 + SystemIntegrationTest tenant-a
@@ -113,13 +138,8 @@ public class PermissionDecisionService {
      *    不回退——非内置角色仍严格本租户解析），使内置超管在任意租户上下文持全量权限点绑定。
      */
     private Set<Long> resolvePermissionIds(Set<String> roleCodes) {
-        Set<Long> roleIds = new LinkedHashSet<>();
-        for (SysRole role : roleRepository.findByRoleCodeInAndStatus(roleCodes, EnableStatus.ENABLED)) {
-            roleIds.add(role.getId());
-        }
-        for (SysRole role : roleRepository.findBuiltInByRoleCodeIn(roleCodes)) {
-            roleIds.add(role.getId());
-        }
+        Set<Long> roleIds = new LinkedHashSet<>(enabledRoleIdsOf(roleCodes));
+        roleIds.addAll(builtInRoleIdsOf(roleCodes));
         if (roleIds.isEmpty()) {
             return Set.of();
         }

@@ -4,6 +4,8 @@ import com.acme.framework.flex.repository.FlexRepository;
 
 import com.acme.platform.system.domain.SysTenant;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /** 租户仓库（平台级表，不参与租户过滤）。 */
@@ -18,4 +20,7 @@ public interface SysTenantRepository extends FlexRepository<SysTenant> {
     boolean existsByTenantCode(String tenantCode);
 
     Optional<SysTenant> findByTenantCode(String tenantCode);
+
+    /** 按租户代码批量取（S14 N+1 收敛：画像批量面停用级联一次取回；未知代码不在结果中）。 */
+    List<SysTenant> findByTenantCodeIn(Collection<String> tenantCodes);
 }
