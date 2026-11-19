@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, apiJson } from './client';
 import { bAuthHeaders } from '../store/bSessionStore';
 
 /** C 端登录域接口（契约对齐 AppAuthController；路径 /app/v1/auth）。
@@ -8,25 +8,13 @@ import { bAuthHeaders } from '../store/bSessionStore';
 export const authApi = {
   /** 发送短信验证码（公开端点；60s/手机号频控，命中返回 CAPTCHA_SEND_LIMITED；void 端点 2xx 空体=成功）。 */
   sendCaptcha: (phone: string): Promise<void> =>
-    apiFetch<void>('/app/v1/auth/captcha', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone }),
-    }, { auth: false, emptyAsSuccess: true }),
+    apiJson<void>('/app/v1/auth/captcha', 'POST', { phone }, { auth: false, emptyAsSuccess: true }),
   /** 验证码登录（公开端点；首登自动注册，签发双令牌 access 2h / refresh 14d）。 */
   login: (phone: string, captcha: string): Promise<AppTokenIssued> =>
-    apiFetch<AppTokenIssued>('/app/v1/auth/tokens', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, captcha }),
-    }, { auth: false }),
+    apiJson<AppTokenIssued>('/app/v1/auth/tokens', 'POST', { phone, captcha }, { auth: false }),
   /** 刷新轮换（公开端点自证；一次性轮换，旧对即用即废）。 */
   refresh: (refreshToken: string): Promise<AppTokenIssued> =>
-    apiFetch<AppTokenIssued>('/app/v1/auth/tokens/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    }, { auth: false }),
+    apiJson<AppTokenIssued>('/app/v1/auth/tokens/refresh', 'POST', { refreshToken }, { auth: false }),
   /** 登出（需认证；双令牌一并撤销，幂等成功；void 端点 2xx 空体=成功）。 */
   logout: (): Promise<void> =>
     apiFetch<void>('/app/v1/auth/tokens/current', { method: 'DELETE' }, { emptyAsSuccess: true }),
@@ -44,11 +32,7 @@ export const authApi = {
   /** 员工账密登录（公开端点，契约对齐 POST /admin/v1/auth/tokens）：签发 B 端短会话令牌，
    *  写入 BSessionStore（acme.auth.bsession.v1）——不进主 Tabs（主 Tabs 仍属 C 端会话）。 */
   adminLogin: (payload: AdminLoginPayload): Promise<AdminTokenIssued> =>
-    apiFetch<AdminTokenIssued>('/admin/v1/auth/tokens', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }, { auth: false }),
+    apiJson<AdminTokenIssued>('/admin/v1/auth/tokens', 'POST', payload, { auth: false }),
   // ————— 扫码票据确认（B 令牌认证端点；Authorization 经 bAuthHeaders 显式携带） —————
   /** 扫码取信息（status created→scanned 幂等；expired/cancelled → 业务失败码）。 */
   qrInfo: (ticketId: string): Promise<QrTicketInfoView> =>
@@ -58,17 +42,15 @@ export const authApi = {
     ),
   /** 扫码确认（原子单次；成功返回确认者 AdminTokenIssued 并互踢旧 B 会话）。 */
   qrConfirm: (ticketId: string): Promise<AdminTokenIssued> =>
-    apiFetch<AdminTokenIssued>(
-      `/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/confirm`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json', ...bAuthHeaders() }, body: JSON.stringify({}) },
-    ),
+    apiJson<AdminTokenIssued>(`/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/confirm`, 'POST', {}, {
+      extraHeaders: bAuthHeaders(),
+    }),
   /** 扫码取消（幂等；void 端点 2xx 空体=成功）。 */
   qrCancel: (ticketId: string): Promise<void> =>
-    apiFetch<void>(
-      `/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/cancel`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json', ...bAuthHeaders() }, body: JSON.stringify({}) },
-      { emptyAsSuccess: true },
-    ),
+    apiJson<void>(`/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/cancel`, 'POST', {}, {
+      emptyAsSuccess: true,
+      extraHeaders: bAuthHeaders(),
+    }),
 };
 
 /** 令牌签发结果（契约对齐 AppTokenIssued；expiresAt / refreshExpiresAt 为 ISO-8601）。

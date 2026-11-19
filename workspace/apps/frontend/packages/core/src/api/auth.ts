@@ -1,4 +1,4 @@
-import { apiFetch } from '../http/client';
+import { apiFetch, apiJson, buildQuery } from '../http/client';
 import type { PageResult } from './system';
 
 /** 启用租户摘要（login-tenant-select）。 */
@@ -154,27 +154,15 @@ export const authApi = {
   /** 超管跨租户切换（认证端点，REQ-20261117-025200；非超管 403，目标租户未知/停用/过期业务错误码）。
    *  成功=签发目标租户新令牌并互踢旧会话；返回 AdminTokenIssued（userId wire string，同 login）。 */
   tenantSwitch: (targetTenantCode: string): Promise<TokenIssued> =>
-    apiFetch<TokenIssued>('/admin/v1/auth/tenant-switch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetTenantCode }),
-    }),
+    apiJson<TokenIssued>('/admin/v1/auth/tenant-switch', 'POST', { targetTenantCode }),
   /** 登录（公开端点；成功签发 B 端 JWS 访问令牌，默认 30 分钟短会话）。 */
   login: (payload: LoginPayload): Promise<TokenIssued> =>
-    apiFetch<TokenIssued>('/admin/v1/auth/tokens', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }, { auth: false }),
+    apiJson<TokenIssued>('/admin/v1/auth/tokens', 'POST', payload, { auth: false }),
   // ————— 扫码登录票据（REQ-20261119-040838：web 登录页扫码 Tab ↔ APP 员工扫码确认） —————
   /** 创建扫码票据（公开端点，契约 API①；无 body，clientIp 服务端从请求取；
    *  IP 频控 10 次/分钟，超限后端 QR_TICKET_LIMITED 429）。 */
   qrCreate: (): Promise<QrTicketCreatedView> =>
-    apiFetch<QrTicketCreatedView>('/admin/v1/auth/qr-tickets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    }, { auth: false }),
+    apiJson<QrTicketCreatedView>('/admin/v1/auth/qr-tickets', 'POST', {}, { auth: false }),
   /** 轮询票据状态（公开端点，契约 API②；1.5s 间隔只读轮询，GET 不消费票；
    *  status=confirmed 时 token 非空（确认者 AdminTokenIssued），终态后由调用方停止轮询）。 */
   qrPoll: (ticketId: string): Promise<QrTicketStatusView> =>
@@ -193,17 +181,10 @@ export const authApi = {
   /** 扫码确认（认证端点，契约 API④；B 端令牌，原子单次消费，成功返回确认者 AdminTokenIssued
    *  并互踢旧 B 会话；非 confirmed/cancelled/expired 均可确认）。 */
   qrConfirm: (ticketId: string): Promise<TokenIssued> =>
-    apiFetch<TokenIssued>(
-      `/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/confirm`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
-    ),
+    apiJson<TokenIssued>(`/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/confirm`, 'POST', {}),
   /** 扫码取消（认证端点，契约 API⑤；B 端令牌，幂等；void 端点 2xx 空体=成功）。 */
   qrCancel: (ticketId: string): Promise<void> =>
-    apiFetch<void>(
-      `/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/cancel`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
-      { emptyAsSuccess: true },
-    ),
+    apiJson<void>(`/admin/v1/auth/qr-tickets/${encodeURIComponent(ticketId)}/cancel`, 'POST', {}, { emptyAsSuccess: true }),
   /** 登出（需认证；当前会话即刻失效，已失效令牌幂等成功；void 端点 2xx 空体=成功）。 */
   logout: (): Promise<void> =>
     apiFetch<void>('/admin/v1/auth/tokens/current', { method: 'DELETE' }, { emptyAsSuccess: true }),
@@ -211,11 +192,7 @@ export const authApi = {
   /** 自助改密（契约③）：成功返回 Result<Void> 且当前会话保持（响应头令牌不变），其他会话全部
    *  KICKED+撤销；旧密码错误 → OLD_PASSWORD_INVALID，新旧相同 → SAME_PASSWORD。 */
   selfPassword: (payload: SelfPasswordPayload): Promise<void> =>
-    apiFetch<void>('/admin/v1/auth/me/password', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<void>('/admin/v1/auth/me/password', 'PUT', payload),
   /** 本人在线会话列表（契约④）：tokenId/ip/issuedAt/lastActiveAt + current 标记。 */
   selfSessions: (): Promise<SelfSessionView[]> =>
     apiFetch<SelfSessionView[]>('/admin/v1/auth/me/sessions'),
@@ -232,15 +209,11 @@ export const authApi = {
     size: number,
     filters: LoginLogFilters = {},
     signal?: AbortSignal,
-  ): Promise<PageResult<AdminLoginLogView>> => {
-    const qs = new URLSearchParams({ page: String(page), size: String(size) });
-    if (filters.username) qs.set('username', filters.username);
-    if (filters.userType) qs.set('userType', filters.userType);
-    if (filters.result) qs.set('result', filters.result);
-    if (filters.from) qs.set('from', filters.from);
-    if (filters.to) qs.set('to', filters.to);
-    return apiFetch<PageResult<AdminLoginLogView>>(`/admin/v1/auth/login-logs?${qs.toString()}`, { signal });
-  },
+  ): Promise<PageResult<AdminLoginLogView>> =>
+    apiFetch<PageResult<AdminLoginLogView>>(
+      `/admin/v1/auth/login-logs?${buildQuery({ page, size, username: filters.username, userType: filters.userType, result: filters.result, from: filters.from, to: filters.to })}`,
+      { signal },
+    ),
   /** 在线用户列表（权限点 auth:online:list；来源=AuthSession 未过期集合，非分页数组）。 */
   onlineUsers: (signal?: AbortSignal): Promise<AdminOnlineUserView[]> =>
     apiFetch<AdminOnlineUserView[]>('/admin/v1/auth/online-users', { signal }),
@@ -259,13 +232,7 @@ export const authApi = {
   /** 登录日志导出 URL（REQ-20261117-061017；xlsx 附件豁免信封，权限复用 auth:loginlog:list；
    *  同筛选参数；交 useExcelExport.exportFile(url) 走 downloadFile 二进制下载）。 */
   loginLogsExport: (filters: LoginLogFilters = {}): string => {
-    const qs = new URLSearchParams();
-    if (filters.username) qs.set('username', filters.username);
-    if (filters.userType) qs.set('userType', filters.userType);
-    if (filters.result) qs.set('result', filters.result);
-    if (filters.from) qs.set('from', filters.from);
-    if (filters.to) qs.set('to', filters.to);
-    const query = qs.toString();
+    const query = buildQuery({ username: filters.username, userType: filters.userType, result: filters.result, from: filters.from, to: filters.to });
     return query ? `/admin/v1/auth/login-logs/export?${query}` : '/admin/v1/auth/login-logs/export';
   },
 };

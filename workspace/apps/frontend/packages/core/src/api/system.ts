@@ -1,4 +1,4 @@
-import { apiFetch } from '../http/client';
+import { apiFetch, apiJson, buildQuery } from '../http/client';
 import type { FileView } from './infra';
 
 /** 分页信封（契约对齐 PageResult；total 为 Long——按数字容错解析）。 */
@@ -286,11 +286,7 @@ export const systemApi = {
   // ---- 个人中心（REQ-20261119-082531；全部认证即可，无新权限点） ----
   /** 更新本人资料（契约①）：成功返回最新 AdminMeView（调用方据此刷新 meStore）。 */
   meUpdate: (payload: MeUpdatePayload): Promise<AdminMeView> =>
-    apiFetch<AdminMeView>('/admin/v1/system/me', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminMeView>('/admin/v1/system/me', 'PUT', payload),
   /** 上传本人头像（契约②+TL 裁决两步上传第一步）：multipart POST /admin/v1/infra/me/avatar
    *  → FileView(url)；url 由调用方经 meUpdate.avatarUrl 提交后才落 sys_user.avatar_url。
    *  旧头像文件不删（后端保留期任务自然清理）。 */
@@ -304,18 +300,10 @@ export const systemApi = {
     apiFetch<UserPreferenceView>('/admin/v1/system/me/preferences'),
   /** 更新本人通知偏好（契约⑤；本人行 upsert，字段集 {messagePush}）。 */
   mePreferencesUpdate: (payload: { messagePush: boolean }): Promise<UserPreferenceView> =>
-    apiFetch<UserPreferenceView>('/admin/v1/system/me/preferences', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<UserPreferenceView>('/admin/v1/system/me/preferences', 'PUT', payload),
   /** 注册推送令牌（契约⑤；本人 token upsert——同 token 幂等；void 端点兼容空体）。 */
   pushTokenRegister: (payload: { token: string; platform: PushTokenPlatform }): Promise<void> =>
-    apiFetch<void>(PUSH_TOKEN_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }, { emptyAsSuccess: true }),
+    apiJson<void>(PUSH_TOKEN_ENDPOINT, 'POST', payload, { emptyAsSuccess: true }),
   /** 移除推送令牌（契约⑤；DELETE ?token= 删本人行；幂等成功）。 */
   pushTokenRemove: (token: string): Promise<void> =>
     apiFetch<void>(`${PUSH_TOKEN_ENDPOINT}?token=${encodeURIComponent(token)}`, { method: 'DELETE' }, { emptyAsSuccess: true }),
@@ -325,11 +313,7 @@ export const systemApi = {
   configGet: (): Promise<AdminSystemConfigView> => apiFetch<AdminSystemConfigView>('/admin/v1/system/config'),
   /** 更新当前租户配置（upsert；version 乐观锁，成功 version+1）。 */
   configUpdate: (payload: AdminSystemConfigUpdate): Promise<AdminSystemConfigView> =>
-    apiFetch<AdminSystemConfigView>('/admin/v1/system/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminSystemConfigView>('/admin/v1/system/config', 'PUT', payload),
 
   // ---- 租户管理（TENANT_* 权限码） ----
   /** 租户分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */
@@ -337,25 +321,13 @@ export const systemApi = {
     apiFetch<PageResult<AdminTenantView>>(`/admin/v1/system/tenants?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
   /** 新建租户（tenantCode 全局唯一且不可改；REQ-20261117-025200 增联系人/联系电话/有效期，可空=长期）。 */
   tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null }): Promise<AdminTenantView> =>
-    apiFetch<AdminTenantView>('/admin/v1/system/tenants', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminTenantView>('/admin/v1/system/tenants', 'POST', payload),
   /** 租户改名/备注/联系人/有效期（version 乐观锁）。 */
   tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; version: string }): Promise<AdminTenantView> =>
-    apiFetch<AdminTenantView>(`/admin/v1/system/tenants/${tenantId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminTenantView>(`/admin/v1/system/tenants/${tenantId}`, 'PUT', payload),
   /** 停用/启用租户（停用即"删除"，FR-007）。 */
   tenantStatus: (tenantId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>
-    apiFetch<void>(`/admin/v1/system/tenants/${tenantId}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    }),
+    apiJson<void>(`/admin/v1/system/tenants/${tenantId}/status`, 'PUT', { status }),
 
   // ---- 用户管理（USER_* 权限码） ----
   /** 用户分页（username 匹配、status/deptId 过滤——deptId 含子部门递归为后端语义；signal 为可选取消信号，透传 apiFetch）。 */
@@ -363,44 +335,19 @@ export const systemApi = {
     apiFetch<PageResult<AdminUserView>>(`/admin/v1/system/users?page=${page}&size=${size}${username ? `&username=${encodeURIComponent(username)}` : ''}${status ? `&status=${status}` : ''}${deptId ? `&deptId=${encodeURIComponent(deptId)}` : ''}`, { signal }),
   /** 新建用户（首密码经管理端 credentials 接口另行重置；deptId/positionId 可空=未分配）。 */
   userCreate: (payload: { username: string; nickname: string; email?: string; phone?: string; roleIds: string[]; deptId?: string | null; positionId?: string | null }): Promise<AdminUserView> =>
-    apiFetch<AdminUserView>('/admin/v1/system/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...payload,
-        roleIds: payload.roleIds.map(Number),
-        deptId: payload.deptId ? Number(payload.deptId) : null,
-        positionId: payload.positionId ? Number(payload.positionId) : null,
-      }),
-    }),
+    apiJson<AdminUserView>('/admin/v1/system/users', 'POST', { ...payload, roleIds: payload.roleIds.map(Number), deptId: payload.deptId ? Number(payload.deptId) : null, positionId: payload.positionId ? Number(payload.positionId) : null, }),
   /** 用户改名/邮箱/手机/部门/岗位（version 乐观锁）。 */
   userUpdate: (userId: string, payload: { nickname: string; email?: string; phone?: string; deptId?: string | null; positionId?: string | null; version: string }): Promise<AdminUserView> =>
-    apiFetch<AdminUserView>(`/admin/v1/system/users/${userId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...payload,
-        deptId: payload.deptId ? Number(payload.deptId) : null,
-        positionId: payload.positionId ? Number(payload.positionId) : null,
-      }),
-    }),
+    apiJson<AdminUserView>(`/admin/v1/system/users/${userId}`, 'PUT', { ...payload, deptId: payload.deptId ? Number(payload.deptId) : null, positionId: payload.positionId ? Number(payload.positionId) : null, }),
   /** 删除用户（builtIn 内置账号由后端拒绝）。 */
   userDelete: (userId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/users/${userId}`, { method: 'DELETE' }),
   /** 启用/停用用户。 */
   userStatus: (userId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>
-    apiFetch<void>(`/admin/v1/system/users/${userId}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    }),
+    apiJson<void>(`/admin/v1/system/users/${userId}/status`, 'PUT', { status }),
   /** 绑定角色（全量覆盖语义）。 */
   userBindRoles: (userId: string, roleIds: string[]): Promise<void> =>
-    apiFetch<void>(`/admin/v1/system/users/${userId}/roles`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roleIds: roleIds.map(Number) }),
-    }),
+    apiJson<void>(`/admin/v1/system/users/${userId}/roles`, 'PUT', { roleIds: roleIds.map(Number) }),
 
   // ---- 角色管理（ROLE_* / ROLE_GRANT 权限码，P3） ----
   /** 角色分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */
@@ -408,25 +355,13 @@ export const systemApi = {
     apiFetch<PageResult<AdminRoleView>>(`/admin/v1/system/roles?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
   /** 新建角色（roleCode 模式与租户代码同型；parentId 空为顶级）。 */
   roleCreate: (payload: { parentId?: number | null; roleCode: string; roleName: string; remark?: string }): Promise<AdminRoleView> =>
-    apiFetch<AdminRoleView>('/admin/v1/system/roles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, parentId: payload.parentId ?? null }),
-    }),
+    apiJson<AdminRoleView>('/admin/v1/system/roles', 'POST', { ...payload, parentId: payload.parentId ?? null }),
   /** 角色改名/父级/备注（version 乐观锁）。 */
   roleUpdate: (roleId: string, payload: { roleName: string; remark?: string; parentId?: number | null; version: string }): Promise<AdminRoleView> =>
-    apiFetch<AdminRoleView>(`/admin/v1/system/roles/${roleId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, parentId: payload.parentId ?? null }),
-    }),
+    apiJson<AdminRoleView>(`/admin/v1/system/roles/${roleId}`, 'PUT', { ...payload, parentId: payload.parentId ?? null }),
   /** 启用/停用角色。 */
   roleStatus: (roleId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>
-    apiFetch<void>(`/admin/v1/system/roles/${roleId}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    }),
+    apiJson<void>(`/admin/v1/system/roles/${roleId}/status`, 'PUT', { status }),
   /** 删除角色（被引用时由后端拒绝）。 */
   roleDelete: (roleId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/roles/${roleId}`, { method: 'DELETE' }),
@@ -435,28 +370,16 @@ export const systemApi = {
     apiFetch<AdminPermissionView[]>(`/admin/v1/system/roles/${roleId}/permissions`),
   /** 绑定权限点（全量覆盖语义）。 */
   roleBindPermissions: (roleId: string, permissionIds: string[]): Promise<void> =>
-    apiFetch<void>(`/admin/v1/system/roles/${roleId}/permissions`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ permissionIds: permissionIds.map(Number) }),
-    }),
+    apiJson<void>(`/admin/v1/system/roles/${roleId}/permissions`, 'PUT', { permissionIds: permissionIds.map(Number) }),
   /** 角色已绑菜单全量清单（树形）。 */
   roleMenus: (roleId: string): Promise<AdminMenuView[]> =>
     apiFetch<AdminMenuView[]>(`/admin/v1/system/roles/${roleId}/menus`),
   /** 绑定菜单（全量覆盖语义）。 */
   roleBindMenus: (roleId: string, menuIds: number[]): Promise<void> =>
-    apiFetch<void>(`/admin/v1/system/roles/${roleId}/menus`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ menuIds }),
-    }),
+    apiJson<void>(`/admin/v1/system/roles/${roleId}/menus`, 'PUT', { menuIds }),
   /** 设置角色数据范围（REQ-20261114-120104；CUSTOM 时 deptIds 必传非空，由后端校验 DATA_SCOPE_INVALID）。 */
   roleDataScope: (roleId: string, dataScope: RoleDataScope, deptIds: string[]): Promise<AdminRoleView> =>
-    apiFetch<AdminRoleView>(`/admin/v1/system/roles/${roleId}/data-scope`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataScope, deptIds: deptIds.map(Number) }),
-    }),
+    apiJson<AdminRoleView>(`/admin/v1/system/roles/${roleId}/data-scope`, 'PUT', { dataScope, deptIds: deptIds.map(Number) }),
 
   // ---- 权限点管理（PERMISSION_* 权限码，P3） ----
   /** 权限点分页（平台级目录；signal 为可选取消信号，透传 apiFetch）。 */
@@ -464,18 +387,10 @@ export const systemApi = {
     apiFetch<PageResult<AdminPermissionView>>(`/admin/v1/system/permissions?page=${page}&size=${size}`, { signal }),
   /** 新建权限点（permissionCode 模式 ^[a-z][a-z0-9:-]*$）。 */
   permissionCreate: (payload: { permissionCode: string; permissionName: string; permissionType: string; httpMethod?: string; httpPath?: string }): Promise<AdminPermissionView> =>
-    apiFetch<AdminPermissionView>('/admin/v1/system/permissions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminPermissionView>('/admin/v1/system/permissions', 'POST', payload),
   /** 权限点改名/方法/路径（version 乐观锁；code 不可改）。 */
   permissionUpdate: (permissionId: string, payload: { permissionName: string; httpMethod?: string; httpPath?: string; version: string }): Promise<AdminPermissionView> =>
-    apiFetch<AdminPermissionView>(`/admin/v1/system/permissions/${permissionId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminPermissionView>(`/admin/v1/system/permissions/${permissionId}`, 'PUT', payload),
   /** 删除权限点。 */
   permissionDelete: (permissionId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/permissions/${permissionId}`, { method: 'DELETE' }),
@@ -484,26 +399,15 @@ export const systemApi = {
   /** 菜单树（全量；前端渲染树形表格）。page/size 为可选分页参数：全量树不截断，
    *  仅用于统一列表请求携带分页口径（后端按全量返回）；signal 为可选取消信号，透传 apiFetch。 */
   menuTree: (page?: number, size?: number, signal?: AbortSignal): Promise<AdminMenuView[]> => {
-    const qs = new URLSearchParams();
-    if (page !== undefined) qs.set('page', String(page));
-    if (size !== undefined) qs.set('size', String(size));
-    const suffix = page !== undefined || size !== undefined ? `?${qs.toString()}` : '';
+    const suffix = page !== undefined || size !== undefined ? `?${buildQuery({ page, size })}` : '';
     return apiFetch<AdminMenuView[]>(`/admin/v1/system/menus${suffix}`, { signal });
   },
   /** 新建菜单（parentId 空=根；menuType DIRECTORY|MENU）。 */
   menuCreate: (payload: { parentId?: number | null; menuName: string; menuType: string; path?: string; component?: string; icon?: string; sortOrder: number; visible?: boolean; permissionCode?: string }): Promise<AdminMenuView> =>
-    apiFetch<AdminMenuView>('/admin/v1/system/menus', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, parentId: payload.parentId ?? null }),
-    }),
+    apiJson<AdminMenuView>('/admin/v1/system/menus', 'POST', { ...payload, parentId: payload.parentId ?? null }),
   /** 菜单改名/形态/排序/可见性（version 乐观锁）。 */
   menuUpdate: (menuId: number, payload: { menuName: string; path?: string; component?: string; icon?: string; sortOrder: number; visible?: boolean; permissionCode?: string; version: string }): Promise<AdminMenuView> =>
-    apiFetch<AdminMenuView>(`/admin/v1/system/menus/${menuId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminMenuView>(`/admin/v1/system/menus/${menuId}`, 'PUT', payload),
   /** 删除菜单。 */
   menuDelete: (menuId: number): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/menus/${menuId}`, { method: 'DELETE' }),
@@ -514,18 +418,10 @@ export const systemApi = {
     apiFetch<AdminDeptView[]>('/admin/v1/system/depts', { signal }),
   /** 新建部门（parentId 空=根部门；sortOrder/status 随体提交）。 */
   deptCreate: (payload: { parentId?: number | null; deptName: string; sortOrder: number; status?: 'ENABLED' | 'DISABLED' }): Promise<AdminDeptView> =>
-    apiFetch<AdminDeptView>('/admin/v1/system/depts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, parentId: payload.parentId ?? null }),
-    }),
+    apiJson<AdminDeptView>('/admin/v1/system/depts', 'POST', { ...payload, parentId: payload.parentId ?? null }),
   /** 部门改名/父级/排序/状态（version 乐观锁）。 */
   deptUpdate: (deptId: string, payload: { parentId?: number | null; deptName: string; sortOrder: number; status?: 'ENABLED' | 'DISABLED'; version: string }): Promise<AdminDeptView> =>
-    apiFetch<AdminDeptView>(`/admin/v1/system/depts/${deptId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, parentId: payload.parentId ?? null }),
-    }),
+    apiJson<AdminDeptView>(`/admin/v1/system/depts/${deptId}`, 'PUT', { ...payload, parentId: payload.parentId ?? null }),
   /** 删除部门（有子部门/有用户由后端拒绝：DEPT_HAS_CHILDREN/DEPT_HAS_USERS）。 */
   deptDelete: (deptId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/depts/${deptId}`, { method: 'DELETE' }),
@@ -536,18 +432,10 @@ export const systemApi = {
     apiFetch<PageResult<AdminPositionView>>(`/admin/v1/system/positions?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
   /** 新建岗位（positionCode 全局唯一且不可改）。 */
   positionCreate: (payload: { positionCode: string; positionName: string; status?: 'ENABLED' | 'DISABLED' }): Promise<AdminPositionView> =>
-    apiFetch<AdminPositionView>('/admin/v1/system/positions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminPositionView>('/admin/v1/system/positions', 'POST', payload),
   /** 岗位改名/编码/状态（version 乐观锁）。 */
   positionUpdate: (positionId: string, payload: { positionCode: string; positionName: string; status?: 'ENABLED' | 'DISABLED'; version: string }): Promise<AdminPositionView> =>
-    apiFetch<AdminPositionView>(`/admin/v1/system/positions/${positionId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminPositionView>(`/admin/v1/system/positions/${positionId}`, 'PUT', payload),
   /** 删除岗位（被用户引用由后端拒绝：POSITION_IN_USE）。 */
   positionDelete: (positionId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/positions/${positionId}`, { method: 'DELETE' }),
@@ -558,44 +446,25 @@ export const systemApi = {
     apiFetch<PageResult<AdminDictTypeView>>(`/admin/v1/system/dict-types?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
   /** 新建字典类型。 */
   dictTypeCreate: (payload: { dictCode: string; dictName: string; remark?: string }): Promise<AdminDictTypeView> =>
-    apiFetch<AdminDictTypeView>('/admin/v1/system/dict-types', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminDictTypeView>('/admin/v1/system/dict-types', 'POST', payload),
   /** 字典类型改名/备注（version 乐观锁）。 */
   dictTypeUpdate: (typeId: string, payload: { dictName: string; remark?: string; version: string }): Promise<AdminDictTypeView> =>
-    apiFetch<AdminDictTypeView>(`/admin/v1/system/dict-types/${typeId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminDictTypeView>(`/admin/v1/system/dict-types/${typeId}`, 'PUT', payload),
   /** 删除字典类型（含条目时由后端拒绝）。 */
   dictTypeDelete: (typeId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/dict-types/${typeId}`, { method: 'DELETE' }),
   /** 字典条目清单（按类型）。page/size 可选：useDict 消费时传大页取全量（确认记录⑥）；
    *  缺省不携带查询参数（既有管理端调用不变）；signal 为可选取消信号，透传 apiFetch。 */
   dictItemList: (typeId: string, page?: number, size?: number, signal?: AbortSignal): Promise<AdminDictItemView[]> => {
-    const qs = new URLSearchParams();
-    if (page !== undefined) qs.set('page', String(page));
-    if (size !== undefined) qs.set('size', String(size));
-    const suffix = page !== undefined || size !== undefined ? `?${qs.toString()}` : '';
+    const suffix = page !== undefined || size !== undefined ? `?${buildQuery({ page, size })}` : '';
     return apiFetch<AdminDictItemView[]>(`/admin/v1/system/dict-types/${typeId}/items${suffix}`, { signal });
   },
   /** 新建字典条目。 */
   dictItemCreate: (typeId: string, payload: { itemLabel: string; itemValue: string; sortOrder: number }): Promise<AdminDictItemView> =>
-    apiFetch<AdminDictItemView>(`/admin/v1/system/dict-types/${typeId}/items`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminDictItemView>(`/admin/v1/system/dict-types/${typeId}/items`, 'POST', payload),
   /** 字典条目改标签/值/排序（version 乐观锁）。 */
   dictItemUpdate: (itemId: string, payload: { itemLabel: string; itemValue: string; sortOrder: number; version: string }): Promise<AdminDictItemView> =>
-    apiFetch<AdminDictItemView>(`/admin/v1/system/dict-items/${itemId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminDictItemView>(`/admin/v1/system/dict-items/${itemId}`, 'PUT', payload),
   /** 删除字典条目。 */
   dictItemDelete: (itemId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/dict-items/${itemId}`, { method: 'DELETE' }),

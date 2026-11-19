@@ -1,4 +1,4 @@
-import { apiFetch } from '../http/client';
+import { apiFetch, apiJson, buildQuery } from '../http/client';
 import type { PageResult } from './system';
 
 /**
@@ -189,26 +189,18 @@ export const JOB_ENDPOINTS = {
 /** 组装 op-exceptions 导出 URL（xlsx 附件；权限复用 infra:exception:list；同筛选参数）：
  *  走 useExcelExport.exportFile(url) → downloadFile 二进制下载，不在信封解析范围。 */
 export function opExceptionsExportUrl(filters: OpExceptionFilters = {}): string {
-  const qs = new URLSearchParams();
-  if (filters.service) qs.set('service', filters.service);
-  if (filters.traceId) qs.set('traceId', filters.traceId);
-  if (filters.exceptionType) qs.set('exceptionType', filters.exceptionType);
-  if (filters.from) qs.set('from', filters.from);
-  if (filters.to) qs.set('to', filters.to);
-  const query = qs.toString();
+  const query = buildQuery({ service: filters.service, traceId: filters.traceId, exceptionType: filters.exceptionType, from: filters.from, to: filters.to });
   return query ? `${OP_EXCEPTION_ENDPOINTS.export}?${query}` : OP_EXCEPTION_ENDPOINTS.export;
 }
 
 /** 基础设施域接口（platform-infra）。 */
 export const infraApi = {
   /** 文件分页（bizType/bizId 精确过滤、keyword 按原名模糊；权限点 infra:file:list；signal 为可选取消信号）。 */
-  fileList: (page: number, size: number, filters: FileListFilters = {}, signal?: AbortSignal): Promise<PageResult<FileView>> => {
-    const qs = new URLSearchParams({ page: String(page), size: String(size) });
-    if (filters.bizType) qs.set('bizType', filters.bizType);
-    if (filters.bizId) qs.set('bizId', filters.bizId);
-    if (filters.keyword) qs.set('keyword', filters.keyword);
-    return apiFetch<PageResult<FileView>>(`${FILE_ENDPOINTS.base}?${qs.toString()}`, { signal });
-  },
+  fileList: (page: number, size: number, filters: FileListFilters = {}, signal?: AbortSignal): Promise<PageResult<FileView>> =>
+    apiFetch<PageResult<FileView>>(
+      `${FILE_ENDPOINTS.base}?${buildQuery({ page, size, bizType: filters.bizType, bizId: filters.bizId, keyword: filters.keyword })}`,
+      { signal },
+    ),
   /** 上传文件（multipart file + 可选 bizType/bizId；权限点 infra:file:upload）。
    *  超限/类型拒绝由后端以 FILE_SIZE_EXCEEDED/FILE_TYPE_REJECTED 拒绝（前端经 transferErrorMessage 转译）。 */
   fileUpload: (file: File, meta: { bizType?: string; bizId?: string } = {}): Promise<FileView> =>
@@ -216,19 +208,11 @@ export const infraApi = {
   /** 直传准备（REQ-20261117-045754；权限点 infra:file:upload）：校验+生成带租户段 objectKey，
    *  返回 LOCAL 票据端点或 MINIO/OSS 预签名 PUT 地址。配额超限以 STORAGE_QUOTA_EXCEEDED（413 语义）拒绝。 */
   fileDirectUploadPrepare: (payload: DirectUploadPreparePayload): Promise<DirectUploadPreparationView> =>
-    apiFetch<DirectUploadPreparationView>(FILE_ENDPOINTS.directUploadPreparations, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<DirectUploadPreparationView>(FILE_ENDPOINTS.directUploadPreparations, 'POST', payload),
   /** 直传完成（REQ-20261117-045754；权限点 infra:file:upload）：对象存在+大小一致+图片语义校验，
    *  幂等落库返回 FileView。失败码经 uploadErrorMessage 转译（QUOTA/IMAGE/TICKET/SIZE_MISMATCH/MISSING 族）。 */
   fileDirectUploadComplete: (payload: DirectUploadCompletePayload): Promise<FileView> =>
-    apiFetch<FileView>(FILE_ENDPOINTS.directUploadCompletions, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<FileView>(FILE_ENDPOINTS.directUploadCompletions, 'POST', payload),
   /** 删除文件（软删 + 对象移除；幂等：已删/对象不存在均成功；权限点 infra:file:delete）。 */
   fileDelete: (fileId: string): Promise<void> =>
     apiFetch<void>(`${FILE_ENDPOINTS.base}/${fileId}`, { method: 'DELETE' }),
@@ -239,15 +223,11 @@ export const infraApi = {
     size: number,
     filters: OpExceptionFilters = {},
     signal?: AbortSignal,
-  ): Promise<PageResult<AdminOpExceptionView>> => {
-    const qs = new URLSearchParams({ page: String(page), size: String(size) });
-    if (filters.service) qs.set('service', filters.service);
-    if (filters.traceId) qs.set('traceId', filters.traceId);
-    if (filters.exceptionType) qs.set('exceptionType', filters.exceptionType);
-    if (filters.from) qs.set('from', filters.from);
-    if (filters.to) qs.set('to', filters.to);
-    return apiFetch<PageResult<AdminOpExceptionView>>(`${OP_EXCEPTION_ENDPOINTS.base}?${qs.toString()}`, { signal });
-  },
+  ): Promise<PageResult<AdminOpExceptionView>> =>
+    apiFetch<PageResult<AdminOpExceptionView>>(
+      `${OP_EXCEPTION_ENDPOINTS.base}?${buildQuery({ page, size, service: filters.service, traceId: filters.traceId, exceptionType: filters.exceptionType, from: filters.from, to: filters.to })}`,
+      { signal },
+    ),
   /** 运行异常详情（REQ-20261117-061017；权限点 infra:exception:list；返回含 stackSummary 全文）。 */
   opExceptionGet: (exceptionId: string, signal?: AbortSignal): Promise<AdminOpExceptionView> =>
     apiFetch<AdminOpExceptionView>(OP_EXCEPTION_ENDPOINTS.detail(exceptionId), { signal }),
@@ -261,8 +241,9 @@ export const infraApi = {
   jobRun: (jobKey: string): Promise<void> =>
     apiFetch<void>(JOB_ENDPOINTS.run(jobKey), { method: 'POST' }, { emptyAsSuccess: true }),
   /** 任务执行记录分页（REQ-20261117-061017；权限点 infra:job:list；后端按 started_at 倒序）。 */
-  jobExecutions: (jobKey: string, page: number, size: number, signal?: AbortSignal): Promise<PageResult<JobExecutionView>> => {
-    const qs = new URLSearchParams({ page: String(page), size: String(size) });
-    return apiFetch<PageResult<JobExecutionView>>(`${JOB_ENDPOINTS.executions(jobKey)}?${qs.toString()}`, { signal });
-  },
+  jobExecutions: (jobKey: string, page: number, size: number, signal?: AbortSignal): Promise<PageResult<JobExecutionView>> =>
+    apiFetch<PageResult<JobExecutionView>>(
+      `${JOB_ENDPOINTS.executions(jobKey)}?${buildQuery({ page, size })}`,
+      { signal },
+    ),
 };

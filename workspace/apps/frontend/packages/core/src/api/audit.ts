@@ -1,4 +1,4 @@
-import { apiFetch } from '../http/client';
+import { apiFetch, buildQuery } from '../http/client';
 import type { PageResult } from './system';
 
 /** 审计事件视图（契约对齐 AdminAuditEventView；id 序列化为字符串）。 */
@@ -27,25 +27,15 @@ export const auditApi = {
     size: number,
     filters: { operatorId?: string; action?: string; traceId?: string; from?: string; to?: string } = {},
     signal?: AbortSignal,
-  ): Promise<PageResult<AdminAuditEventView>> => {
-    const qs = new URLSearchParams({ page: String(page), size: String(size) });
-    if (filters.operatorId) qs.set('operatorId', filters.operatorId);
-    if (filters.action) qs.set('action', filters.action);
-    if (filters.traceId) qs.set('traceId', filters.traceId);
-    if (filters.from) qs.set('from', filters.from);
-    if (filters.to) qs.set('to', filters.to);
-    return apiFetch<PageResult<AdminAuditEventView>>(`/admin/v1/infra/audit-events?${qs.toString()}`, { signal });
-  },
+  ): Promise<PageResult<AdminAuditEventView>> =>
+    apiFetch<PageResult<AdminAuditEventView>>(
+      `/admin/v1/infra/audit-events?${buildQuery({ page, size, operatorId: filters.operatorId, action: filters.action, traceId: filters.traceId, from: filters.from, to: filters.to })}`,
+      { signal },
+    ),
   /** 审计事件导出 URL（REQ-20261117-061017；xlsx 附件豁免信封，权限复用 infra:audit:list；
    *  同筛选参数；交 useExcelExport.exportFile(url) 走 downloadFile 二进制下载）。 */
   eventsExport: (filters: { operatorId?: string; action?: string; traceId?: string; from?: string; to?: string } = {}): string => {
-    const qs = new URLSearchParams();
-    if (filters.operatorId) qs.set('operatorId', filters.operatorId);
-    if (filters.action) qs.set('action', filters.action);
-    if (filters.traceId) qs.set('traceId', filters.traceId);
-    if (filters.from) qs.set('from', filters.from);
-    if (filters.to) qs.set('to', filters.to);
-    const query = qs.toString();
+    const query = buildQuery({ operatorId: filters.operatorId, action: filters.action, traceId: filters.traceId, from: filters.from, to: filters.to });
     return query ? `/admin/v1/infra/audit-events/export?${query}` : '/admin/v1/infra/audit-events/export';
   },
 };

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { isSupportedTimezone, setTimezone, type TimezonePref } from '../date-format';
+import { loadPersistedPreference, persistPreference } from './persist';
 
 /**
  * 展示时区 store（日期国际化·时区维度）：
@@ -17,26 +18,11 @@ interface TimezoneStore {
 
 /** 读取持久化时区：损坏/未知值/存储不可用一律回退缺省 system（不阻塞应用）。 */
 export function loadPersistedTimezone(): TimezonePref {
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) {
-      return 'system';
-    }
-    const parsed: unknown = JSON.parse(raw);
-    // 兼容两种落盘形状：裸字符串 或 { timezone } 信封（版本化升级预留）
-    const value = typeof parsed === 'string' ? parsed : (parsed as { timezone?: unknown })?.timezone;
-    return isSupportedTimezone(value) ? value : 'system';
-  } catch {
-    return 'system';
-  }
+  return loadPersistedPreference(KEY, 'timezone', 'system', isSupportedTimezone);
 }
 
 function persistTimezone(timezone: TimezonePref): void {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(timezone));
-  } catch {
-    // 存储不可用（隐私模式等）：仅保留内存态
-  }
+  persistPreference(KEY, timezone);
 }
 
 const persisted = loadPersistedTimezone();

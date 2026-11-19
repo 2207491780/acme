@@ -82,12 +82,12 @@ body {
 .filter-panel-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 12px 16px; align-items: center; }
 .filter-panel-fields > * { min-width: 0; max-width: 100%; }
 .filter-field { display: flex; align-items: center; gap: 8px; }
-.filter-field-label { flex: 0 0 auto; margin-bottom: 0; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--text2); }
+.filter-field-label { flex: 0 0 auto; margin-bottom: 0; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--text-2); }
 .filter-field-wide { grid-column: span 2; }
 .filter-panel .ant-form-item { margin-bottom: 0; }
 .filter-panel .ant-form-item-row { flex-wrap: nowrap; align-items: center; }
 .filter-panel .ant-form-item-label { flex: 0 0 auto; padding-bottom: 0; text-align: left; }
-.filter-panel .ant-form-item-label > label { height: auto; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--text2); }
+.filter-panel .ant-form-item-label > label { height: auto; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--text-2); }
 .filter-panel .ant-form-item-control { flex: 1 1 auto; min-width: 0; }
 .filter-panel .ant-input-group-wrapper,
 .filter-panel .ant-select,

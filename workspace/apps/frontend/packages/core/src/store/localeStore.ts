@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { setDateLocale } from '../date-format';
 import { i18n, initI18n, isSupportedLocale, type AppLocale } from '../i18n';
+import { loadPersistedPreference, persistPreference } from './persist';
 
 /**
  * 展示 locale store（REQ-20261114-120103，确认记录①）：
@@ -18,26 +19,11 @@ interface LocaleStore {
 
 /** 读取持久化 locale：损坏/未知值/存储不可用一律回退缺省 zh-CN（不阻塞应用）。 */
 export function loadPersistedLocale(): AppLocale {
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) {
-      return 'zh-CN';
-    }
-    const parsed: unknown = JSON.parse(raw);
-    // 兼容两种落盘形状：裸字符串 或 { locale } 信封（版本化升级预留）
-    const value = typeof parsed === 'string' ? parsed : (parsed as { locale?: unknown })?.locale;
-    return isSupportedLocale(value) ? value : 'zh-CN';
-  } catch {
-    return 'zh-CN';
-  }
+  return loadPersistedPreference(KEY, 'locale', 'zh-CN', isSupportedLocale);
 }
 
 function persistLocale(locale: AppLocale): void {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(locale));
-  } catch {
-    // 存储不可用（隐私模式等）：仅保留内存态
-  }
+  persistPreference(KEY, locale);
 }
 
 const persisted = loadPersistedLocale();

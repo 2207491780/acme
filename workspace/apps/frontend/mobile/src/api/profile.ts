@@ -1,5 +1,5 @@
 import type { AdminMeView, PushTokenPlatform, UserPreferenceView } from '@acme/core';
-import { apiFetch } from './client';
+import { apiFetch, apiJson } from './client';
 import { bAuthHeaders } from '../store/bSessionStore';
 
 /**
@@ -13,18 +13,13 @@ export const profileApi = {
     apiFetch<AdminMeView>('/admin/v1/system/me', { headers: bAuthHeaders() }),
   /** 更新本人资料（契约①；APP 精简版仅提交 nickname，可空字段语义由后端裁量）。 */
   meUpdate: (payload: { nickname: string }): Promise<AdminMeView> =>
-    apiFetch<AdminMeView>('/admin/v1/system/me', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...bAuthHeaders() },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminMeView>('/admin/v1/system/me', 'PUT', payload, { extraHeaders: bAuthHeaders() }),
   /** 自助改密（契约③）：成功后其他会话全部 KICKED+撤销、当前会话保持（Result<Void>）。 */
   selfPassword: (payload: { oldPassword: string; newPassword: string }): Promise<void> =>
-    apiFetch<void>('/admin/v1/auth/me/password', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...bAuthHeaders() },
-      body: JSON.stringify(payload),
-    }, { emptyAsSuccess: true }),
+    apiJson<void>('/admin/v1/auth/me/password', 'PUT', payload, {
+      emptyAsSuccess: true,
+      extraHeaders: bAuthHeaders(),
+    }),
   /** 下线本人其他会话（契约④；保留当前设备；幂等成功）。 */
   selfKickOthers: (): Promise<void> =>
     apiFetch<void>('/admin/v1/auth/me/sessions/others', {
@@ -36,16 +31,11 @@ export const profileApi = {
     apiFetch<UserPreferenceView>('/admin/v1/system/me/preferences', { headers: bAuthHeaders() }),
   /** 更新本人通知偏好（契约⑤；本人行 upsert）。 */
   mePreferencesUpdate: (payload: { messagePush: boolean }): Promise<UserPreferenceView> =>
-    apiFetch<UserPreferenceView>('/admin/v1/system/me/preferences', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...bAuthHeaders() },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<UserPreferenceView>('/admin/v1/system/me/preferences', 'PUT', payload, { extraHeaders: bAuthHeaders() }),
   /** 注册推送令牌（契约⑤；本人 token upsert，同 token 幂等；void 端点兼容空体）。 */
   pushTokenRegister: (payload: { token: string; platform: PushTokenPlatform }): Promise<void> =>
-    apiFetch<void>('/admin/v1/system/me/push-tokens', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...bAuthHeaders() },
-      body: JSON.stringify(payload),
-    }, { emptyAsSuccess: true }),
+    apiJson<void>('/admin/v1/system/me/push-tokens', 'POST', payload, {
+      emptyAsSuccess: true,
+      extraHeaders: bAuthHeaders(),
+    }),
 };

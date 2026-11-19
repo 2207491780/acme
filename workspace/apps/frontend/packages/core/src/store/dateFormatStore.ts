@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { isSupportedDateFormatTemplate, setDateFormatTemplate, type DateFormatTemplate } from '../date-format';
+import { loadPersistedPreference, persistPreference } from './persist';
 
 /**
  * 日期时间模板 store（日期国际化·模板维度，独立于语言与时区）：
@@ -17,26 +18,11 @@ interface DateFormatStore {
 
 /** 读取持久化模板：损坏/未知值/存储不可用一律回退缺省 auto（不阻塞应用）。 */
 export function loadPersistedDateFormat(): DateFormatTemplate {
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) {
-      return 'auto';
-    }
-    const parsed: unknown = JSON.parse(raw);
-    // 兼容两种落盘形状：裸字符串 或 { template } 信封（版本化升级预留）
-    const value = typeof parsed === 'string' ? parsed : (parsed as { template?: unknown })?.template;
-    return isSupportedDateFormatTemplate(value) ? value : 'auto';
-  } catch {
-    return 'auto';
-  }
+  return loadPersistedPreference(KEY, 'template', 'auto', isSupportedDateFormatTemplate);
 }
 
 function persistTemplate(template: DateFormatTemplate): void {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(template));
-  } catch {
-    // 存储不可用（隐私模式等）：仅保留内存态
-  }
+  persistPreference(KEY, template);
 }
 
 const persisted = loadPersistedDateFormat();

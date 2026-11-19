@@ -1,4 +1,4 @@
-import { apiFetch } from '../http/client';
+import { apiFetch, apiJson } from '../http/client';
 import type { PageResult } from './system';
 
 /**
@@ -62,18 +62,10 @@ export const notifyApi = {
     apiFetch<AdminNoticeView>(`/admin/v1/system/notices/${noticeId}`),
   /** 新建公告草稿（title/content 富文本 HTML）。 */
   noticeCreate: (payload: { title: string; content: string }): Promise<AdminNoticeView> =>
-    apiFetch<AdminNoticeView>('/admin/v1/system/notices', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminNoticeView>('/admin/v1/system/notices', 'POST', payload),
   /** 编辑公告（version 乐观锁；PUBLISHED 由后端拒绝）。 */
   noticeUpdate: (noticeId: string, payload: { title: string; content: string; version: string }): Promise<AdminNoticeView> =>
-    apiFetch<AdminNoticeView>(`/admin/v1/system/notices/${noticeId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<AdminNoticeView>(`/admin/v1/system/notices/${noticeId}`, 'PUT', payload),
   /** 发布公告（触发全员扇出；重复发布幂等，OFFLINE 再发布为新一轮扇出）。 */
   noticePublish: (noticeId: string): Promise<AdminNoticeView> =>
     apiFetch<AdminNoticeView>(`/admin/v1/system/notices/${noticeId}/publish`, { method: 'PUT' }),
@@ -87,11 +79,7 @@ export const notifyApi = {
   // ---- 站内信（system:message:*） ----
   /** 发送站内信给指定用户（system:message:send）。 */
   messageSend: (payload: AdminMessageSend): Promise<void> =>
-    apiFetch<void>('/admin/v1/system/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
+    apiJson<void>('/admin/v1/system/messages', 'POST', payload),
   /** 我的收件箱分页（isRead 筛选可选）。 */
   messageList: (page: number, size: number, isRead?: boolean): Promise<PageResult<AdminMessageView>> =>
     apiFetch<PageResult<AdminMessageView>>(`/admin/v1/system/messages?page=${page}&size=${size}${isRead === undefined ? '' : `&isRead=${isRead}`}`),

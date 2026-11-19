@@ -261,6 +261,41 @@ export async function apiFetch<T>(
   return promise;
 }
 
+/** JSON 体请求快捷面（apiJson）：Content-Type + JSON.stringify 样板收敛，行为与手写 init 逐字等价。 */
+export function apiJson<T>(
+  path: string,
+  method: 'POST' | 'PUT' | 'PATCH',
+  payload: unknown,
+  options: ApiFetchOptions = {},
+): Promise<T> {
+  return apiFetch<T>(
+    path,
+    {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    options,
+  );
+}
+
+/** buildQuery 入参值域：falsy（undefined/null/空串）键省略，其余 String() 化。 */
+export type QueryParams = Record<string, string | number | boolean | undefined | null>;
+
+/**
+ * 过滤对象 → URL 查询串（buildQuery）：仅非空键入串，键序=入参字面量序。
+ * 输出与既有「new URLSearchParams + 逐键 if-set」写法逐字等价（同一 URLSearchParams 编码口径）。
+ */
+export function buildQuery(params: QueryParams): string {
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      qs.set(key, String(value));
+    }
+  }
+  return qs.toString();
+}
+
 /**
  * 原始响应获取（文件流下载/导出等二进制端点）：与 apiFetch 同源携带鉴权并复用
  * 单飞续约（401 续约一次后原样重试；续约失败清会话回登录页），不做信封解析——

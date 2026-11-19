@@ -102,6 +102,31 @@ export async function apiFetch<T>(
   return envelope.data;
 }
 
+/** JSON 体请求快捷面（apiJson）：Content-Type + JSON.stringify 样板收敛，行为与手写 init 逐字等价；
+ *  extraHeaders 供 B 端认证端点合并 bAuthHeaders（展开序在 Content-Type 之后，可覆盖语义不变）。 */
+export function apiJson<T>(
+  path: string,
+  method: 'POST' | 'PUT' | 'PATCH',
+  payload: unknown,
+  options: {
+    auth?: boolean;
+    retried?: boolean;
+    emptyAsSuccess?: boolean;
+    extraHeaders?: Record<string, string>;
+  } = {},
+): Promise<T> {
+  const { auth = true, retried = false, emptyAsSuccess = false, extraHeaders } = options;
+  return apiFetch<T>(
+    path,
+    {
+      method,
+      headers: { 'Content-Type': 'application/json', ...extraHeaders },
+      body: JSON.stringify(payload),
+    },
+    { auth, retried, emptyAsSuccess },
+  );
+}
+
 /**
  * 续约守护循环（login-app）：每 30s 巡检，access 将在 2 分钟内过期即刷新轮换；
  * 刷新失败且已实际过期 → 清会话回登录屏。返回停止函数。
