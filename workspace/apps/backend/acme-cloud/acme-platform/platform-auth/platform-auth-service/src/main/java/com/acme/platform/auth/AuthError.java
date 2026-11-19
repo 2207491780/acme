@@ -76,7 +76,15 @@ public enum AuthError implements ErrorCode, HttpStatusAware {
     QR_TICKET_CANCELLED(AuthErrorCodes.QR_TICKET_CANCELLED, "扫码票据已取消", 200),
 
     /** 扫码票据状态不允许当前操作（已确认后不可重复确认）。 */
-    QR_TICKET_INVALID(AuthErrorCodes.QR_TICKET_INVALID, "扫码票据状态无效", 200);
+    QR_TICKET_INVALID(AuthErrorCodes.QR_TICKET_INVALID, "扫码票据状态无效", 200),
+
+    // ---- 07 段：自助账号安全域（REQ-20261119-082531 确认记录③；改密表单校验语义对齐 02 段 400 先例）----
+
+    /** 旧密码不正确（自助改密 BCrypt 校验失败，密码未变）。 */
+    OLD_PASSWORD_INVALID(AuthErrorCodes.OLD_PASSWORD_INVALID, "旧密码不正确", 400),
+
+    /** 新密码与旧密码相同（自助改密要求新密码不得与旧密码一致）。 */
+    SAME_PASSWORD(AuthErrorCodes.SAME_PASSWORD, "新密码不得与旧密码相同", 400);
 
     private final String code;
     private final String defaultMessage;

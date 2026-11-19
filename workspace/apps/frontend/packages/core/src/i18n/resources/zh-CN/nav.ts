@@ -21,6 +21,7 @@ export const nav = {
     jobs: '定时任务',
     files: '文件管理',
     settings: '设置',
+    profile: '个人中心',
   },
   tabs: {
     label: '页签',
@@ -64,6 +65,7 @@ export const nav = {
     rolesSeparator: '、',
     rolesLoading: '加载中…',
     tenantLabel: '{{name}}（租户 {{tenant}}）',
+    profile: '个人中心',
     tenantSwitch: '切换租户',
     tenantSwitchLoading: '租户目录加载中…',
     tenantSwitchSuccess: '已切换至租户 {{tenant}}',

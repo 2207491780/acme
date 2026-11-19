@@ -118,6 +118,9 @@ public final class SystemErrorCodes {
     /** 水印模板含未知占位符（409；REQ-20261117-180000，合法集 {username,nickname,userId,tenantCode,deptName,date,time}）。 */
     public static final String SYSTEM_WATERMARK_TEMPLATE_INVALID = "platform-system-12-0002";
 
+    /** 个人资料非法（400；REQ-20261119-082531 确认记录①：avatar_url 非 http(s)/相对地址等自助资料值域违规）。 */
+    public static final String PROFILE_INVALID = "platform-system-13-0001";
+
     private SystemErrorCodes() {
     }
 }

@@ -8,6 +8,7 @@ import com.mybatisflex.annotation.Table;
 /**
  * 用户（7.2.2：租户归属实体，租户列自动注入与过滤 12.4.1；username 全局唯一=登录定位依据；软删除）。
  * REQ-20261114-120104：dept_id / position_id 部门岗位归属（可空——存量用户不归属，语义不变）。
+ * REQ-20261119-082531：avatar_url 头像地址（可空；文件服务 URL 或相对地址，个人中心资料卡消费）。
  */
 @Table("sys_user")
 public class SysUser extends AuditBase {
@@ -38,6 +39,9 @@ public class SysUser extends AuditBase {
 
     @Column("position_id")
     private Long positionId;
+
+    @Column("avatar_url")
+    private String avatarUrl;
 
     protected SysUser() {
     }
@@ -109,5 +113,13 @@ public class SysUser extends AuditBase {
 
     public void setPositionId(Long positionId) {
         this.positionId = positionId;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 }

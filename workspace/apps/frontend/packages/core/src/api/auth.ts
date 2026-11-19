@@ -111,6 +111,23 @@ export interface QrTicketInfoView {
   createdAt: string;
 }
 
+/** 本人在线会话视图（REQ-20261119-082531 契约④）：tokenId=令牌 jti；current=当前请求所持会话；
+ *  issuedAt/lastActiveAt 为 ISO-8601 时间串。仅返回本人 ACTIVE 未过期会话（免权限点）。 */
+export interface SelfSessionView {
+  tokenId: string;
+  ip: string;
+  issuedAt: string;
+  lastActiveAt: string;
+  current: boolean;
+}
+
+/** 自助改密载荷（REQ-20261119-082531 契约③）：旧密码 BCrypt 校验（失败 OLD_PASSWORD_INVALID），
+ *  新密码 8-64 策略且不得与旧密码相同（SAME_PASSWORD）；成功后其他会话全部 KICKED+撤销、当前会话保持。 */
+export interface SelfPasswordPayload {
+  oldPassword: string;
+  newPassword: string;
+}
+
 /** 登录域接口（认证域契约：图形验证码 / 租户目录 / 登录 / 登出 / 扫码票据）。 */
 export const authApi = {
   /** 启用租户清单（公开端点；登录页可搜索下拉数据源）。 */
@@ -190,6 +207,24 @@ export const authApi = {
   /** 登出（需认证；当前会话即刻失效，已失效令牌幂等成功；void 端点 2xx 空体=成功）。 */
   logout: (): Promise<void> =>
     apiFetch<void>('/admin/v1/auth/tokens/current', { method: 'DELETE' }, { emptyAsSuccess: true }),
+  // ————— 自助账户安全（REQ-20261119-082531；全部免权限点，仅本人） —————
+  /** 自助改密（契约③）：成功返回 Result<Void> 且当前会话保持（响应头令牌不变），其他会话全部
+   *  KICKED+撤销；旧密码错误 → OLD_PASSWORD_INVALID，新旧相同 → SAME_PASSWORD。 */
+  selfPassword: (payload: SelfPasswordPayload): Promise<void> =>
+    apiFetch<void>('/admin/v1/auth/me/password', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  /** 本人在线会话列表（契约④）：tokenId/ip/issuedAt/lastActiveAt + current 标记。 */
+  selfSessions: (): Promise<SelfSessionView[]> =>
+    apiFetch<SelfSessionView[]>('/admin/v1/auth/me/sessions'),
+  /** 下线本人指定会话（契约④；仅本人会话可删，非本人=NOT_FOUND 语义防探测；幂等成功）。 */
+  selfKickSession: (sessionId: string): Promise<void> =>
+    apiFetch<void>(`/admin/v1/auth/me/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }, { emptyAsSuccess: true }),
+  /** 下线本人其他会话（契约④；保留当前会话）。 */
+  selfKickOthers: (): Promise<void> =>
+    apiFetch<void>('/admin/v1/auth/me/sessions/others', { method: 'DELETE' }, { emptyAsSuccess: true }),
   /** 登录日志分页（权限点 auth:loginlog:list；username/userType/result/时间区间筛选；
    *  from/to 为 ISO-8601 时间串；signal 为可选取消信号）。 */
   loginLogs: (

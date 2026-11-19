@@ -40,7 +40,8 @@ class SystemApiContractTest {
         AdminUserView view = new AdminUserView(1234567890123456789L, "admin", "超级管理员",
                 "a@acme.com", "13800000000", 876543210987654321L, 1024L,
                 EnableStatus.ENABLED, true, List.of(1L),
-                Instant.parse("2026-10-22T08:00:00Z"), Instant.parse("2026-10-22T08:00:00Z"), 0L);
+                Instant.parse("2026-10-22T08:00:00Z"), Instant.parse("2026-10-22T08:00:00Z"), 0L,
+                "http://files.acme.test/avatar.png");
         String json = mapper.writeValueAsString(view);
         // Long→String（openapi 契约：id / roleIds / version 均为 string；deptId/positionId 为
         // REQ-20261114-120104 增补的同型 Long 字段）
@@ -53,6 +54,8 @@ class SystemApiContractTest {
         assertThat(json).contains("\"status\":\"ENABLED\"");
         // 时间 ISO-8601
         assertThat(json).contains("\"createdAt\":\"2026-10-22T08:00:00Z\"");
+        // avatarUrl 透传（REQ-20261119-082531 确认记录①）
+        assertThat(json).contains("\"avatarUrl\":\"http://files.acme.test/avatar.png\"");
         // 回读稳定
         AdminUserView back = mapper.readValue(json, AdminUserView.class);
         assertThat(back.id()).isEqualTo(view.id());
@@ -60,6 +63,7 @@ class SystemApiContractTest {
         assertThat(back.deptId()).isEqualTo(view.deptId());
         assertThat(back.positionId()).isEqualTo(view.positionId());
         assertThat(back.status()).isEqualTo(EnableStatus.ENABLED);
+        assertThat(back.avatarUrl()).isEqualTo("http://files.acme.test/avatar.png");
     }
 
     @Test

@@ -72,6 +72,12 @@ const DATA_SCOPE_ENUM: RoleDataScope[] = ['ALL', 'DEPT', 'DEPT_AND_CHILD', 'SELF
 const store = {
   tenants: [...db.tenants],
   users: [...db.users],
+  /** 本人画像（REQ-20261119-082531）：PUT /me 与头像上传改写此行，GET /me 回显。 */
+  meUser: { ...db.me.user } as AdminUserView,
+  /** 本人通知偏好（REQ-20261119-082531 契约⑤；sys_user_preference dev 演示行）。 */
+  preferences: { messagePush: false },
+  /** 本人推送令牌（REQ-20261119-082531 契约⑤；token upsert/删除演示态）。 */
+  pushTokens: [] as { token: string; platform: string }[],
   roles: [...db.roles],
   depts: cloneDeptTree(db.depts),
   positions: [...db.positions],
@@ -92,7 +98,92 @@ const nowIso = (): string => new Date().toISOString();
 
 export const systemHandlers = [
   // ---- me ----
-  http.get('/admin/v1/system/me', () => ok({ ...db.me, menus: store.menus })),
+  http.get('/admin/v1/system/me', () => ok({ ...db.me, user: store.meUser, menus: store.menus })),
+
+  // ---- 个人中心：本人资料/头像/偏好/推送令牌（REQ-20261119-082531） ----
+  // PUT /me（契约①）：nickname 必填 ≤32；email 可空 email 格式；phone 可空 1\d{10}
+  //（镜像后端 UserController 校验口径）；avatarUrl 可空（null=不改动头像语义由后端裁量为整体覆盖）
+  http.put('/admin/v1/system/me', async ({ request }) => {
+    const body = await bodyOf(request);
+    const nickname = typeof body.nickname === 'string' ? body.nickname.trim() : '';
+    if (!nickname || nickname.length > 32) {
+      return fail('PROFILE_INVALID', '昵称必填且不超过 32 字符', 200);
+    }
+    const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null;
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return fail('PROFILE_INVALID', '邮箱格式不正确', 200);
+    }
+    const phone = typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null;
+    if (phone && !/^1\d{10}$/.test(phone)) {
+      return fail('PROFILE_INVALID', '手机号格式不正确（1 开头 11 位）', 200);
+    }
+    const avatarUrl = typeof body.avatarUrl === 'string' && body.avatarUrl.trim() ? body.avatarUrl.trim() : null;
+    store.meUser = {
+      ...store.meUser,
+      nickname,
+      email,
+      phone,
+      avatarUrl,
+      updatedAt: nowIso(),
+      version: String(Number(store.meUser.version) + 1),
+    };
+    return ok({ ...db.me, user: store.meUser, menus: store.menus });
+  }),
+  // POST /admin/v1/infra/me/avatar（TL 裁决：头像上传落 infra 认证面，免 infra:file:upload；
+  // multipart file → FileView；非图片/超大拒绝镜像 FileUseCase 图片校验口径）
+  http.post('/admin/v1/infra/me/avatar', async ({ request }) => {
+    const form = await request.formData().catch(() => null);
+    const file = form?.get('file');
+    if (!(file instanceof File)) {
+      return fail('FILE_TYPE_REJECTED', '缺少上传文件', 400);
+    }
+    if (!file.type.startsWith('image/')) {
+      return fail('FILE_TYPE_REJECTED', '头像仅支持图片文件', 200);
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return fail('FILE_SIZE_EXCEEDED', '文件大小超出限制', 200);
+    }
+    const id = genId();
+    return ok({
+      id,
+      originalName: file.name,
+      size: file.size,
+      contentType: file.type,
+      url: `/files/avatar-${id}${file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '.png'}`,
+      bizType: 'avatar',
+      bizId: store.meUser.id,
+      createdAt: nowIso(),
+    });
+  }),
+  // preferences（契约⑤）：GET 缺省 messagePush=false；PUT upsert 本人行（布尔校验 PREFERENCE_INVALID）
+  http.get('/admin/v1/system/me/preferences', () => ok(store.preferences)),
+  http.put('/admin/v1/system/me/preferences', async ({ request }) => {
+    const body = await bodyOf(request);
+    if (typeof body.messagePush !== 'boolean') {
+      return fail('PREFERENCE_INVALID', '偏好参数非法：messagePush 必须为布尔', 200);
+    }
+    store.preferences = { messagePush: body.messagePush };
+    return ok(store.preferences);
+  }),
+  // push-tokens（契约⑤）：POST upsert（同 token 幂等）/ DELETE ?token= 删本人行（幂等成功）
+  http.post('/admin/v1/system/me/push-tokens', async ({ request }) => {
+    const body = await bodyOf(request);
+    const token = typeof body.token === 'string' ? body.token.trim() : '';
+    const platform = typeof body.platform === 'string' ? body.platform : 'web';
+    if (!token) {
+      return fail('PREFERENCE_INVALID', '推送 token 缺失', 200);
+    }
+    store.pushTokens = [
+      ...store.pushTokens.filter((row) => row.token !== token),
+      { token, platform },
+    ];
+    return empty();
+  }),
+  http.delete('/admin/v1/system/me/push-tokens', ({ request }) => {
+    const token = urlOf(request).searchParams.get('token') ?? '';
+    store.pushTokens = store.pushTokens.filter((row) => row.token !== token);
+    return empty();
+  }),
 
   // ---- 租户系统配置（REQ-20261116-230354；REQ-20261117-011514 增 captchaEnabled；REQ-20261117-025200 增页脚版权；REQ-20261117-180000 增水印模板） ----
   http.get('/admin/v1/system/config', () => ok(store.systemConfig)),

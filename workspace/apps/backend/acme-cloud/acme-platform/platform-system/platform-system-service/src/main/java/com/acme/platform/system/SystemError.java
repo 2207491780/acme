@@ -120,7 +120,12 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
 
     /** 水印模板含未知占位符（REQ-20261117-180000）。 */
     SYSTEM_WATERMARK_TEMPLATE_INVALID(SystemErrorCodes.SYSTEM_WATERMARK_TEMPLATE_INVALID,
-            "水印模板包含不支持的占位符", 400);
+            "水印模板包含不支持的占位符", 400),
+
+    // ---- 13 段：个人中心自助资料域（REQ-20261119-082531 确认记录①）----
+
+    /** 个人资料非法（avatar_url 非 http(s)/相对地址等自助资料值域违规，MeUseCase 校验承载）。 */
+    PROFILE_INVALID(SystemErrorCodes.PROFILE_INVALID, "个人资料非法", 400);
 
     private final String code;
     private final String defaultMessage;

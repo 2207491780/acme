@@ -51,6 +51,9 @@ class AuthApiContractTest {
         assertThat(AuthErrorCodes.QR_TICKET_EXPIRED).isEqualTo("platform-auth-06-0002");
         assertThat(AuthErrorCodes.QR_TICKET_CANCELLED).isEqualTo("platform-auth-06-0003");
         assertThat(AuthErrorCodes.QR_TICKET_INVALID).isEqualTo("platform-auth-06-0004");
+        // 07 段：自助账号安全域（REQ-20261119-082531 确认记录③）
+        assertThat(AuthErrorCodes.OLD_PASSWORD_INVALID).isEqualTo("platform-auth-07-0001");
+        assertThat(AuthErrorCodes.SAME_PASSWORD).isEqualTo("platform-auth-07-0002");
     }
 
     @Test
@@ -112,5 +115,23 @@ class AuthApiContractTest {
         assertThat(issued.accessToken()).isEqualTo("access-token");
         assertThat(issued.refreshToken()).isEqualTo("refresh-token");
         assertThat(issued.refreshExpiresAt()).isAfter(issued.accessExpiresAt());
+    }
+
+    @Test
+    void selfSessionViewShapeLocked() {
+        // REQ-20261119-082531 确认记录④ §API：本人在线会话视图形状锁定
+        Instant issuedAt = Instant.parse("2026-11-19T08:30:00Z");
+        Instant lastActiveAt = Instant.parse("2026-11-19T09:00:00Z");
+        SelfSessionView view = new SelfSessionView("jti-1", "10.0.0.1", issuedAt, lastActiveAt, true);
+        assertThat(view.tokenId()).isEqualTo("jti-1");
+        assertThat(view.ip()).isEqualTo("10.0.0.1");
+        assertThat(view.issuedAt()).isEqualTo(issuedAt);
+        assertThat(view.lastActiveAt()).isEqualTo(lastActiveAt);
+        assertThat(view.current()).isTrue();
+        // 会话信息缺失回退：ip 可空、current 非 current 标记 false
+        SelfSessionView fallback = new SelfSessionView("jti-2", null, issuedAt, issuedAt, false);
+        assertThat(fallback.ip()).isNull();
+        assertThat(fallback.lastActiveAt()).isEqualTo(issuedAt);
+        assertThat(fallback.current()).isFalse();
     }
 }

@@ -35,6 +35,7 @@ export const me = {
     nickname: '超级管理员',
     email: 'admin@acme.local',
     phone: null,
+    avatarUrl: null,
     status: 'ENABLED',
     builtIn: true,
     roleIds: ['1'],

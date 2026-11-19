@@ -21,6 +21,7 @@ export const nav = {
     jobs: 'Scheduled Jobs',
     files: 'Files',
     settings: 'Settings',
+    profile: 'Profile',
   },
   tabs: {
     label: 'Tabs',
@@ -64,6 +65,7 @@ export const nav = {
     rolesSeparator: ', ',
     rolesLoading: 'Loading…',
     tenantLabel: '{{name}} (tenant {{tenant}})',
+    profile: 'Profile',
     tenantSwitch: 'Switch tenant',
     tenantSwitchLoading: 'Loading tenant directory…',
     tenantSwitchSuccess: 'Switched to tenant {{tenant}}',

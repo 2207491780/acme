@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, App as AntApp, Avatar, Badge, Button, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Watermark } from 'antd';
+import { Alert, App as AntApp, Badge, Button, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Watermark } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
@@ -40,6 +40,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
 import dayjs from 'dayjs';
 import { PAGE_ROUTES, findPageRoute } from './routes';
+import { Avatar } from './components/Avatar';
 import { useTabsStore } from './store/tabsStore';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
@@ -84,6 +85,8 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   // 文件管理（REQ-20261119-063129 契约⑥）：路由既有，NAV/i18n 条目补齐
   { path: '/files', icon: <FileOutlined />, labelKey: 'nav.items.files', permission: 'infra:file:list' },
   { path: '/settings', icon: <SettingOutlined />, labelKey: 'nav.items.settings' },
+  // 个人中心（REQ-20261119-082531 契约⑦）：认证即可；icon 取 id-card 类标识（与注册表 positions 同族）
+  { path: '/profile', icon: <IdcardOutlined />, labelKey: 'nav.items.profile' },
 ];
 
 /** 静态 NAV 图标映射（页签条图标兜底；动态菜单 icon 优先）。 */
@@ -283,6 +286,8 @@ export function App() {
     },
     ...(isSuperAdmin ? tenantSwitchGroup : []),
     { type: 'divider' },
+    // 个人中心（REQ-20261119-082531 契约⑦）：用户菜单直达 /profile
+    { key: 'profile', icon: <IdcardOutlined />, label: t('nav.userMenu.profile') },
     { key: 'logout', icon: <LogoutOutlined />, label: t('nav.userMenu.logout'), danger: true },
   ];
 
@@ -435,6 +440,10 @@ export function App() {
   const onUserMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'logout') {
       handleLogout();
+      return;
+    }
+    if (key === 'profile') {
+      go('/profile');
       return;
     }
     if (key.startsWith('tenant-switch-')) {
@@ -656,7 +665,8 @@ export function App() {
             >
               <Button type="text" aria-label={t('nav.header.openUserMenu')} style={{ paddingInline: 6 }}>
                 <Space size={6}>
-                  <Avatar size={26} style={{ background: 'var(--accent)' }} icon={<UserOutlined />} />
+                  {/* 个人中心（REQ-20261119-082531 契约⑦）：用户区头像（avatarUrl 或昵称首字符） */}
+                  <Avatar avatarUrl={me?.user.avatarUrl} name={displayName} size={26} />
                   {!isMobile && <DownOutlined style={{ fontSize: 10, color: 'var(--muted)' }} />}
                 </Space>
               </Button>

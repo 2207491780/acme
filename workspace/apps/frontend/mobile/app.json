@@ -50,6 +50,9 @@
     "plugins": [
       "expo-secure-store",
       "expo-camera"
-    ]
+    ],
+    "extra": {
+      "projectId": ""
+    }
   }
 }

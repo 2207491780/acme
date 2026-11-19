@@ -56,6 +56,12 @@ vi.mock('expo-camera', () => ({
   useCameraPermissions: () => [{ granted: false }, vi.fn(async () => ({ granted: false }))],
 }));
 
+// expo-notifications 桩（REQ-20261119-082531）：App.tsx → utils/push import 链兜底——
+// 推送原生模块在 Node/vitest 不可加载（同 expo-camera 口径），以替身代之；本文件不驱动注册。
+vi.mock('expo-notifications', () => ({
+  getDevicePushTokenAsync: vi.fn(async () => ({ type: 'ios', data: 'stub-token' })),
+}));
+
 // NetInfo 桩：测试用例直接驱动监听回调（AC-6 断网→横幅态）
 const net = vi.hoisted(() => {
   type NetState = { isConnected?: boolean | null; isInternetReachable?: boolean | null };

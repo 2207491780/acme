@@ -26,12 +26,13 @@ import { useAuthStore } from './src/store/authStore';
 import { useBSessionStore } from './src/store/bSessionStore';
 import { useMeStore } from './src/store/meStore';
 import { startAuthRenewal } from './src/api/client';
+import { registerPushTokenAfterLogin } from './src/utils/push';
 import { initMobileStorage } from './src/utils/storage';
 import { hydrateDicts } from './src/use-dict';
 import { useAccent } from './src/hooks';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
 import { ThemeProvider, useAppTheme, barStyleFor, onAccent } from './src/theme';
-import { useTranslation } from './src/i18n';
+import { i18n, useTranslation } from './src/i18n';
 import {
   LOGIN_ROUTE,
   MAIN_ROUTE,
@@ -49,7 +50,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { QrConfirmScreen } from './src/screens/QrConfirmScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
-import { ToastProvider } from './src/components/ui';
+import { ToastProvider, toast } from './src/components/ui';
 import type { NeutralPalette } from '@acme/core';
 import { BrandMark, IconDashboard, IconReleases, IconApps, IconSettings } from './src/components/icons';
 
@@ -204,6 +205,22 @@ function AppShell() {
     const timer = setInterval(() => dispatch({ type: 'TICK' }), 1200);
     return () => clearInterval(timer);
   }, [dispatch, motion]);
+
+  // 推送令牌注册（REQ-20261119-082531 契约⑧，AC-8）：员工 B 会话建立（登录/冷启动恢复）后注册——
+  // EXPO_PUBLIC_PROJECT_ID 缺省时降级跳过（不触系统模块、零外呼）并告知用户；同 token upsert 幂等。
+  const bSession = useBSessionStore((s) => s.session);
+  useEffect(() => {
+    if (!bSession) {
+      return;
+    }
+    void registerPushTokenAfterLogin().then((outcome) => {
+      if (outcome === 'registered') {
+        toast(i18n.t('profile.mobile.pushRegistered') as string, 'success');
+      } else if (outcome === 'skipped-no-project') {
+        toast(i18n.t('profile.mobile.pushSkipNoProject') as string, 'info');
+      }
+    });
+  }, [bSession]);
 
   if (!hydrated || !businessReady) {
     return (

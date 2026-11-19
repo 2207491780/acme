@@ -13,6 +13,16 @@ import {
 /** 会话/登录日志内存态（fixtures 拷贝；批量下线直接改写集合，登出刷新页面恢复）。 */
 const store = { loginLogs: [...db.loginLogs], onlineUsers: [...db.onlineUsers] };
 
+/** 自助会话内存态（REQ-20261119-082531 契约④）：tokenId 即令牌 jti；current=当前请求会话。
+ *  demo 种子含当前会话与一台其他设备；改密/下线其他只移除非 current 行。 */
+const selfSessionStore = {
+  password: 'admin123',
+  sessions: [
+    { tokenId: 'jti-self-current', ip: '10.0.0.8', issuedAt: '2026-11-19T01:00:00Z', lastActiveAt: '2026-11-19T02:30:00Z', current: true },
+    { tokenId: 'jti-other-device', ip: '10.0.0.21', issuedAt: '2026-11-18T09:00:00Z', lastActiveAt: '2026-11-19T01:40:00Z', current: false },
+  ] as { tokenId: string; ip: string; issuedAt: string; lastActiveAt: string; current: boolean }[],
+};
+
 /** mock 超管口径（与 me fixtures 对齐：admin = super_admin，批量下线跳过并计入 skipped）。 */
 const SUPERADMIN_USERNAME = 'admin';
 
@@ -129,6 +139,40 @@ export const authHandlers = [
     expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
   })),
   http.delete('/admin/v1/auth/tokens/current', () => empty()),
+  // ————— 自助账户安全（REQ-20261119-082531：改密 / 本人会话列表 / 逐条与批量下线） —————
+  // 自助改密（契约③）：旧密码错误 → OLD_PASSWORD_INVALID；新旧相同 → SAME_PASSWORD；
+  // 成功 → 其他会话 KICKED+撤销（当前会话保持）→ Result<Void>
+  http.put('/admin/v1/auth/me/password', async ({ request }) => {
+    const body = await bodyOf(request);
+    const oldPassword = typeof body.oldPassword === 'string' ? body.oldPassword : '';
+    const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+    if (oldPassword !== selfSessionStore.password) {
+      return fail('OLD_PASSWORD_INVALID', '当前密码不正确', 200);
+    }
+    if (newPassword === oldPassword) {
+      return fail('SAME_PASSWORD', '新密码不能与当前密码相同', 200);
+    }
+    selfSessionStore.password = newPassword;
+    selfSessionStore.sessions = selfSessionStore.sessions.filter((row) => row.current);
+    return ok(null);
+  }),
+  // 本人在线会话（契约④）：current 标记由 mock 种子给定
+  http.get('/admin/v1/auth/me/sessions', () => ok(selfSessionStore.sessions)),
+  // 下线其他会话（契约④）：先于 :sessionId 注册（静态段优先），保留当前会话
+  http.delete('/admin/v1/auth/me/sessions/others', () => {
+    selfSessionStore.sessions = selfSessionStore.sessions.filter((row) => row.current);
+    return empty();
+  }),
+  // 下线本人指定会话（契约④）：非本人/不存在=NOT_FOUND 语义防探测；当前会话不可自踢（保留）
+  http.delete('/admin/v1/auth/me/sessions/:sessionId', ({ params }) => {
+    const tokenId = String(params.sessionId);
+    const target = selfSessionStore.sessions.find((row) => row.tokenId === tokenId);
+    if (!target) {
+      return fail('SESSION_NOT_FOUND', '会话不存在或已失效', 404);
+    }
+    selfSessionStore.sessions = selfSessionStore.sessions.filter((row) => row.tokenId !== tokenId);
+    return empty();
+  }),
   // ————— 登录日志（REQ-20261114-120105 端点 + REQ-20261117-061017 导出） —————
   http.get('/admin/v1/auth/login-logs', ({ request }) => {
     const params = urlOf(request).searchParams;
