@@ -69,6 +69,76 @@ export interface UserPreferenceView {
   messagePush: boolean;
 }
 
+/** 登录趋势点（REQ-20261119-011524 契约①，对齐 LoginTrendPoint；date=YYYY-MM-DD 按日桶）。 */
+export interface DashboardTrendPoint {
+  date: string;
+  count: number;
+}
+
+/** 审计动作分布点（REQ-20261119-011524 契约①，对齐 ActionCount；top N by action）。 */
+export interface DashboardActionCount {
+  action: string;
+  count: number;
+}
+
+/** 平台概览聚合视图（REQ-20261119-011524 契约①，对齐 DashboardSummaryView）。
+ *  wire Long→string 口径的数字字段已在 api 层容错解析为 number，下游统一消费数值；
+ *  下游 Feign 降级时对应字段由后端给 0/空（认证即可，无新权限点）。 */
+export interface DashboardSummaryView {
+  users: number;
+  roles: number;
+  tenants: number;
+  onlineUsers: number;
+  unreadMessages: number;
+  loginTrend: DashboardTrendPoint[];
+  auditTopActions: DashboardActionCount[];
+}
+
+/** summary wire 形态（后端 Long→string；字段缺失/空对应下游降级 0/空口径）。 */
+type DashboardSummaryWire = {
+  users?: string | number | null;
+  roles?: string | number | null;
+  tenants?: string | number | null;
+  onlineUsers?: string | number | null;
+  unreadMessages?: string | number | null;
+  loginTrend?: Array<{ date?: string | null; count?: string | number | null }> | null;
+  auditTopActions?: Array<{ action?: string | null; count?: string | number | null }> | null;
+};
+
+/** wire 数字容错解析（Long→string 口径为主，number 直收兼容序列化口径演进；缺失/非法 → 0）。 */
+const wireCount = (value: unknown): number => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+/** wire → 视图解析（外部输入运行时校验，不做类型断言；无 data → null，调用方按降级展示）。 */
+const parseDashboardSummary = (raw: DashboardSummaryWire | null): DashboardSummaryView | null => {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  return {
+    users: wireCount(raw.users),
+    roles: wireCount(raw.roles),
+    tenants: wireCount(raw.tenants),
+    onlineUsers: wireCount(raw.onlineUsers),
+    unreadMessages: wireCount(raw.unreadMessages),
+    loginTrend: (Array.isArray(raw.loginTrend) ? raw.loginTrend : []).map((point) => ({
+      date: typeof point?.date === 'string' ? point.date : '',
+      count: wireCount(point?.count),
+    })),
+    auditTopActions: (Array.isArray(raw.auditTopActions) ? raw.auditTopActions : []).map((point) => ({
+      action: typeof point?.action === 'string' ? point.action : '',
+      count: wireCount(point?.count),
+    })),
+  };
+};
+
 /** 推送令牌平台枚举（REQ-20261119-082531 契约⑤；sys_push_token.platform varchar(8)）。 */
 export type PushTokenPlatform = 'ios' | 'android' | 'web';
 
@@ -206,6 +276,12 @@ export interface AdminDictItemView {
 export const systemApi = {
   /** 当前登录者视图（认证即可访问；会话恢复校验 + 身份/角色/权限/菜单引导）。 */
   me: (): Promise<AdminMeView> => apiFetch<AdminMeView>('/admin/v1/system/me'),
+
+  // ---- 平台概览（REQ-20261119-011524；认证即可，无新权限点） ----
+  /** 聚合统计（六数字 + 近14日登录趋势 + 审计动作分布 top5；wire 数字已在 api 层解析为 number）。
+   *  后端下游 Feign 失败时对应字段降级 0/空；data 缺失（异常信封）返回 null 由调用方按降级展示。 */
+  dashboardSummary: (): Promise<DashboardSummaryView | null> =>
+    apiFetch<DashboardSummaryWire | null>('/admin/v1/system/dashboard/summary').then(parseDashboardSummary),
 
   // ---- 个人中心（REQ-20261119-082531；全部认证即可，无新权限点） ----
   /** 更新本人资料（契约①）：成功返回最新 AdminMeView（调用方据此刷新 meStore）。 */

@@ -32,6 +32,13 @@
             <groupId>com.acme</groupId>
             <artifactId>platform-auth-api</artifactId>
         </dependency>
+        <!-- 服务间依赖（REQ-20261119-011524 确认记录①③：system → infra 单向，仅经 *-api，4.4.2；
+            供首页概览聚合审计动作分布（提供方 platform-infra，统计端点 internal 不经网关；
+            infra 消费 auth-api 先例反向对称，system 为三向消费聚合域）） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-infra-api</artifactId>
+        </dependency>
         <!-- framework 按需（Modules.md 3.1；架构设计 9.1） -->
         <dependency>
             <groupId>com.acme</groupId>

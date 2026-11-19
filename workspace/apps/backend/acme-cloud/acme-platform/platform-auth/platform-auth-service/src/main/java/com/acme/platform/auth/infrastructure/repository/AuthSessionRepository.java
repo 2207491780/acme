@@ -21,6 +21,12 @@ public interface AuthSessionRepository extends FlexRepository<AuthSession> {
     List<AuthSession> findActiveNotExpiredBefore(Instant now);
 
     /**
+     * 活跃且未过期会话计数（REQ-20261119-011524 在线数统计数据源，确认记录②）：
+     * 计数独立无排序 QueryWrapper（防 ORDER BY 泄入 count），列表同口径（status=ACTIVE 且未过期）。
+     */
+    long countActiveNotExpiredBefore(Instant now);
+
+    /**
      * 指定租户活跃且未过期会话集合（REQ-20261117-025200 租户停用批量撤销数据源，确认记录①：
      * tenant_id 归属列 + status=ACTIVE + 未过期；tenant_id 存租户代码，全局定位不过滤）。
      */

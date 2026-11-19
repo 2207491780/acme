@@ -4,6 +4,7 @@ import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
 import com.acme.framework.excel.config.ExcelProperties;
 import com.acme.platform.auth.api.AdminLoginLogView;
+import com.acme.platform.auth.api.LoginLogStatsPoint;
 import com.acme.platform.auth.domain.SysLoginLog;
 import com.acme.platform.auth.infrastructure.client.AuthorizationGateway;
 import com.acme.platform.auth.infrastructure.repository.LoginLogRepository;
@@ -11,6 +12,8 @@ import com.acme.platform.system.api.SystemPermissions;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -18,6 +21,7 @@ import java.util.List;
  * 权限点 auth:loginlog:list（经 system 判定，越权 403 PERMISSION_DENIED）。
  * REQ-20261117-061017 确认④：同步导出（上限 10000 行并受 acme.excel.max-rows 收窄，超限截断），
  * 权限判定位置与 page 同径。
+ * REQ-20261119-011524 确认记录②：按日统计（GET /internal/v1/login-log-stats 数据源，免权限点内部口径）。
  */
 @Service
 public class LoginLogQueryUseCase {
@@ -70,6 +74,21 @@ public class LoginLogQueryUseCase {
         boolean truncated = fetched.size() > cap;
         List<SysLoginLog> records = truncated ? fetched.subList(0, (int) cap) : fetched;
         return new ExportResult<>(records, truncated);
+    }
+
+    /**
+     * 近 N 日登录日志按日统计（REQ-20261119-011524 确认记录②，GET /internal/v1/login-log-stats）：
+     * 免权限点内部统计口径（服务身份调用，Q-D08）——聚合面仅日期+条数，无身份/敏感列，无越权面；
+     * 平台级表无租户过滤（Q-D04 同型）。days 下界折算为自当前日往前 days 天的 0 点（系统时区）。
+     *
+     * @param days 统计天数窗口（&lt;1 视为 1，防御非法入参）
+     * @return 按日升序统计点（date=YYYY-MM-DD，无日志日不出行）
+     */
+    public List<LoginLogStatsPoint> dailyStats(int days) {
+        int window = Math.max(days, 1);
+        Instant from = LocalDate.now(ZoneId.systemDefault()).minusDays(window - 1L)
+                .atStartOfDay(ZoneId.systemDefault()).toInstant();
+        return loginLogRepository.dailyStats(from);
     }
 
     private static AdminLoginLogView toView(SysLoginLog entity) {

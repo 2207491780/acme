@@ -13,8 +13,10 @@
     <packaging>jar</packaging>
     <name>platform-infra-api</name>
     <description>
-        基础设施域服务契约（Backend.md 9.1；本期无服务间同步消费方，薄契约）：
-        AdminAuditEventView DTO；错误码文本常量供消费方判定
+        基础设施域服务契约（Backend.md 9.1）：
+        AdminAuditEventView DTO；错误码文本常量供消费方判定。
+        REQ-20261119-011524 增补：审计动作分布统计契约（AuditStatsClient + ActionCount，实现于
+        infra-service，消费方 platform-system 首页概览聚合）
     </description>
 
     <dependencies>
@@ -22,6 +24,18 @@
         <dependency>
             <groupId>com.acme</groupId>
             <artifactId>common-core</artifactId>
+        </dependency>
+        <!-- 服务间信封复用（REQ-20261119-011524 确认记录③：统计契约声明于本模块，
+            ContractResult 信封复用 platform-system-api（auth-api 先例口径），infra → system 单向不破 4.4.2） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-system-api</artifactId>
+        </dependency>
+        <!-- 调用契约声明（9.1.2 口径同 platform-auth-api：仅注解与编解码契约，不含 Web 容器；
+            REQ-20261119-011524 AuditStatsClient 经此声明） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-openfeign-core</artifactId>
         </dependency>
 
         <!-- 测试域 -->
@@ -55,15 +69,14 @@
                                 <bannedDependencies>
                                     <searchTransitive>true</searchTransitive>
                                     <excludes>
-                                        <!-- Web 容器 -->
+                                        <!-- Web 容器（spring-web 注解经 openfeign-core 传递属契约声明面，不禁；
+                                            同 platform-auth-api 口径，REQ-20261119-011524 契约声明放开） -->
                                         <exclude>org.springframework.boot:spring-boot-starter-web</exclude>
                                         <exclude>org.springframework.boot:spring-boot-webmvc</exclude>
                                         <exclude>org.springframework.boot:spring-boot-starter-webflux</exclude>
                                         <exclude>org.springframework.boot:spring-boot-webflux</exclude>
                                         <exclude>org.springframework:spring-webmvc</exclude>
                                         <exclude>org.springframework:spring-webflux</exclude>
-                                        <exclude>org.springframework:spring-web</exclude>
-                                        <exclude>org.springframework.cloud:spring-cloud-openfeign-core</exclude>
                                         <exclude>jakarta.servlet:*</exclude>
                                         <!-- ORM 与数据访问 -->
                                         <exclude>org.springframework.boot:spring-boot-data-jpa</exclude>

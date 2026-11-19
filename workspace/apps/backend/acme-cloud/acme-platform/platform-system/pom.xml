@@ -18,7 +18,9 @@
         - 结构：platform-system-api（契约）+ platform-system-service（实现与启动，5.3.2）
         - 数据独占 schema：platform_system（12.1.1）
         - 服务间依赖：platform-system-service 消费 platform-auth-api（REQ-20261117-025200 system → auth
-          单向撤销契约；auth 侧仅经 platform-system-api 调用，两方向均 4.4.2 单向不构成环）
+          单向撤销契约；auth 侧仅经 platform-system-api 调用，两方向均 4.4.2 单向不构成环）；
+          消费 platform-infra-api（REQ-20261119-011524 首页概览聚合审计分布，system → infra 单向，
+          与 auth 方向并列单向不构成环）
     </description>
 
     <modules>

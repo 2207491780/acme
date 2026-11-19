@@ -66,6 +66,15 @@ public class OnlineSessionUseCase {
     }
 
     /**
+     * 活跃会话计数（REQ-20261119-011524 确认记录②，GET /internal/v1/online-count 数据源）：
+     * 免权限点内部统计口径（服务身份调用，Q-D08）——与 listActive 同口径的 SQL 计数（ACTIVE 且未过期），
+     * 不过滤租户（Q-D04），不暴露会话明细，无越权面。
+     */
+    public long countActive() {
+        return sessionRecorder.countActive();
+    }
+
+    /**
      * 踢下线（AC-4/AC-5）：目标可踢（存在 / 非终态 / 未过期，否则 SESSION_NOT_FOUND）→
      * 超管保护判定（目标超管且操作者非超管 = REVOKE_SUPERADMIN_FORBIDDEN；超管互踢允许）→
      * 底账置 KICKED → 撤销集写入（剩余 TTL；写失败显式失败响应，不得「成功但令牌仍可用」，FR-004 同口径）。

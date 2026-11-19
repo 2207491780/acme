@@ -1,16 +1,22 @@
 package com.acme.bootstrap;
 
 import com.acme.bootstrap.audit.LocalAuditEventSink;
+import com.acme.bootstrap.local.LocalAuditStatsClient;
 import com.acme.bootstrap.local.LocalAuthProfileClient;
 import com.acme.bootstrap.local.LocalAuthorizationClient;
 import com.acme.bootstrap.local.LocalDataScopeClient;
 import com.acme.bootstrap.local.LocalLoginLogCleanupClient;
+import com.acme.bootstrap.local.LocalLoginLogStatsClient;
+import com.acme.bootstrap.local.LocalOnlineCountClient;
 import com.acme.bootstrap.local.LocalSystemConfigClient;
 import com.acme.bootstrap.local.LocalTenantClient;
 import com.acme.bootstrap.local.LocalTenantSessionRevokeClient;
 import com.acme.framework.audit.support.AuditEvent;
 import com.acme.framework.audit.support.AuditEventSink;
+import com.acme.platform.auth.api.LoginLogStatsClient;
+import com.acme.platform.auth.api.OnlineCountClient;
 import com.acme.platform.auth.api.TenantSessionRevokeClient;
+import com.acme.platform.infra.api.AuditStatsClient;
 import com.acme.platform.infra.internal.client.LoginLogCleanupClient;
 import com.acme.platform.system.api.AuthProfileClient;
 import com.acme.platform.system.api.AuthorizationClient;
@@ -49,7 +55,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>AC-2：三 Flyway 实例各自迁移落位（platform_auth/platform_system/platform_infra 三 schema
  *       的表与 flyway_schema_history 各自独立）；上下文无缺失 bean（含 @MapperScan 三服务 mapper 面）；</li>
- *   <li>AC-4：7 个本地适配器 bean 存在且 @Primary（按类型解析全部命中本地短路实现），
+ *   <li>AC-4：10 个本地适配器 bean 存在且 @Primary（按类型解析全部命中本地短路实现），
  *       Feign 工厂 bean 定义惰性（lazy-attributes-resolution 实地验证，永不实例化）；</li>
  *   <li>AC-3：B 端登录 200（公开端点经 BootstrapAuthFilter 豁免）→ /me 携令牌 200
  *       （用户令牌验签→撤销检查→内部令牌注入→InternalTokenAuthFilter 上下文绑定全链）、
@@ -158,6 +164,12 @@ class MonolithContextSmokeTest {
                 .isInstanceOf(LocalTenantSessionRevokeClient.class);
         assertThat(beanFactory.getBean(LoginLogCleanupClient.class))
                 .isInstanceOf(LocalLoginLogCleanupClient.class);
+        assertThat(beanFactory.getBean(OnlineCountClient.class))
+                .isInstanceOf(LocalOnlineCountClient.class);
+        assertThat(beanFactory.getBean(LoginLogStatsClient.class))
+                .isInstanceOf(LocalLoginLogStatsClient.class);
+        assertThat(beanFactory.getBean(AuditStatsClient.class))
+                .isInstanceOf(LocalAuditStatsClient.class);
     }
 
     @Test
@@ -176,7 +188,7 @@ class MonolithContextSmokeTest {
                         .as("Feign 工厂 bean 应被降级为非 primary（本地适配器胜出）：%s", name).isFalse();
             }
         }
-        assertThat(feignDefinitions).as("三服务共 7 个显式 clients 声明").isEqualTo(7);
+        assertThat(feignDefinitions).as("三服务共 10 个显式 clients 声明").isEqualTo(10);
     }
 
     // ---------- AC-2：三 Flyway 实例各自迁移落位 ----------

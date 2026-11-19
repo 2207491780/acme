@@ -20,6 +20,14 @@ public class SysRoleRepositoryImpl extends FlexRepositorySupport<SysRole> implem
     }
 
     @Override
+    @com.acme.framework.tenant.support.IgnoreTenant("dashboard-summary-role-count")
+    public long countAllPlatformWide() {
+        // 全平台计数（REQ-20261119-011524 首页概览）：跨租户平台口径（12.4.2 显式旁路声明 + 审计）；
+        // 独立无排序 QueryWrapper（防 ORDER BY 泄入 count），deleted=false 随默认查询面注入
+        return mapper().selectCountByQuery(QueryWrapper.create());
+    }
+
+    @Override
     public boolean existsByRoleCode(String roleCode) {
         return exists(QueryWrapper.create().where(SysRole::getRoleCode).eq(roleCode));
     }

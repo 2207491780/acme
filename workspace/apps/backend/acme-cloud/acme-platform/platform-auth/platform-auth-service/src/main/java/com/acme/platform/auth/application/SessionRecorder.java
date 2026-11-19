@@ -142,6 +142,15 @@ public class SessionRecorder {
     }
 
     /**
+     * 活跃且未过期会话计数（REQ-20261119-011524 确认记录②，GET /internal/v1/online-count 数据源）：
+     * 与 activeNotExpired 同口径的 SQL 计数（免权限点内部统计口径，不过滤租户 Q-D04）。
+     */
+    @Transactional(readOnly = true)
+    public long countActive() {
+        return sessionRepository.countActiveNotExpiredBefore(Instant.now());
+    }
+
+    /**
      * 按 tokenId 定位可踢会话（REQ-20261114-120105 踢下线）：
      * 缺失 / 已终态 / 已过期均返回 empty（调用方统一映射 SESSION_NOT_FOUND）。
      */

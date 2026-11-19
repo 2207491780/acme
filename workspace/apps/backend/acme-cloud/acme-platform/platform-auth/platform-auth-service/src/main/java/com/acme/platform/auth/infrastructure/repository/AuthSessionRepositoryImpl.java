@@ -42,9 +42,19 @@ public class AuthSessionRepositoryImpl extends FlexRepositorySupport<AuthSession
 
     @Override
     public List<AuthSession> findActiveNotExpiredBefore(Instant now) {
-        return mapper().selectListByQuery(QueryWrapper.create()
+        return mapper().selectListByQuery(activeNotExpiredQuery(now));
+    }
+
+    @Override
+    public long countActiveNotExpiredBefore(Instant now) {
+        return mapper().selectCountByQuery(activeNotExpiredQuery(now));
+    }
+
+    /** 活跃且未过期查询（列表/计数共用；独立无排序 wrapper，防 ORDER BY 泄入 count）。 */
+    private static QueryWrapper activeNotExpiredQuery(Instant now) {
+        return QueryWrapper.create()
                 .where(AuthSession::getStatus).eq(SessionStatus.ACTIVE)
-                .and(AuthSession::getExpiresAt).gt(now));
+                .and(AuthSession::getExpiresAt).gt(now);
     }
 
     @Override

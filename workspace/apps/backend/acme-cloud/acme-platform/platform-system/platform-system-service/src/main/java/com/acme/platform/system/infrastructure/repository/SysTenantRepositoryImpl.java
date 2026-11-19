@@ -18,6 +18,12 @@ public class SysTenantRepositoryImpl extends FlexRepositorySupport<SysTenant> im
     }
 
     @Override
+    public long countAll() {
+        // 平台目录表直查（REQ-20261119-011524 首页概览）：无租户列不过滤；独立无排序 QueryWrapper
+        return mapper().selectCountByQuery(QueryWrapper.create());
+    }
+
+    @Override
     public boolean existsByTenantCode(String tenantCode) {
         return exists(QueryWrapper.create().where(SysTenant::getTenantCode).eq(tenantCode));
     }

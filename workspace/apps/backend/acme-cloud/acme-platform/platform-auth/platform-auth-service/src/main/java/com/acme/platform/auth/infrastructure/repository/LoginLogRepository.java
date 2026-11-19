@@ -2,9 +2,11 @@ package com.acme.platform.auth.infrastructure.repository;
 
 import com.acme.common.contract.PageResult;
 import com.acme.framework.flex.repository.FlexRepository;
+import com.acme.platform.auth.api.LoginLogStatsPoint;
 import com.acme.platform.auth.domain.SysLoginLog;
 
 import java.time.Instant;
+import java.util.List;
 
 /** 登录日志仓库（仅插入 + 管理端分页筛选查询；写入收敛异步记录器）。 */
 public interface LoginLogRepository extends FlexRepository<SysLoginLog> {
@@ -32,4 +34,13 @@ public interface LoginLogRepository extends FlexRepository<SysLoginLog> {
      * @return 本次物理清理条数
      */
     int forceDeleteSoftDeletedExpiredBefore(Instant cutoff);
+
+    /**
+     * 近 N 日登录日志按日统计（REQ-20261119-011524 确认记录②，GET /internal/v1/login-log-stats
+     * 数据源；channel 不分，无日志日不出行）。
+     *
+     * @param from 统计窗口下界（含，自当前日往前 days 天的 0 点由调用方折算）
+     * @return 按日升序统计点（date=YYYY-MM-DD）
+     */
+    List<LoginLogStatsPoint> dailyStats(Instant from);
 }
