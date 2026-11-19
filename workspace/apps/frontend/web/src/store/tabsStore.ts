@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 
 /**
- * 页签 store（REQ-20261119-063129 契约②）：多页签打开/激活/关闭/固定语义 +
+ * 页签 store（REQ-20261119-063129 契约②＋迭代轮次 1 契约⑩）：多页签打开/激活/关闭/固定语义 +
  * 手写持久化 `acme.tabs.v1`（会话级页签还原；损坏回退缺省，范本=tableSettings）。
  *
- * 形状：{ tabs: { path, label?, labelKey?, pinned? }[], activePath }。
+ * 形状：{ tabs: { path, label?, labelKey?, pinned?, permanent? }[], activePath }。
  * - openTab：存在即激活（label 元数据随动态菜单刷新），不存在追加并激活；
- * - closeTab：pinned 不可关；关激活页切相邻（优先右侧，无右侧取左侧）；
- * - closeOthers/closeRight/closeAll：pinned 一律保留；
- * - togglePin：固定前置（pinned 排 tabs 队首）且不可关；
+ * - closeTab：pinned/permanent 不可关；关激活页切相邻（优先右侧，无右侧取左侧）；
+ * - closeOthers/closeRight/closeAll：pinned/permanent 一律保留；
+ * - togglePin：固定前置（pinned 排 permanent 页签之后）且不可关；permanent 不可 unpin（无意义）；
+ * - seedDashboardPermanent：首页常驻（契约⑩）——dashboard 页签 permanent 常驻首位；
+ *   仅改内存态不写存储（登出 clear 移除存储键后重建种子不入盘，AC-7 存储清理语义不变）；
  * - refreshKeys：会话态重挂计数（右键刷新 → key++），不持久化；
  * - hydrate/clear：App 登录态切换时还原/清空（clear 同时移除存储键，AC-7）。
  * label 渲染优先级：打开时动态菜单 menuName 快照（label）> labelKey 映射 > path（TabBar 解析）。
@@ -16,13 +18,19 @@ import { create } from 'zustand';
 
 const STORAGE_KEY = 'acme.tabs.v1';
 
+/** 首页常驻页签的 path（契约⑩：dashboard permanent，不可关闭/不可 unpin）。 */
+const DASHBOARD_PATH = '/';
+
 export interface TabItem {
   path: string;
   /** 打开时上下文动态菜单 menuName 快照（优先级最高）。 */
   label?: string;
   /** i18n 键回退（PAGE_ROUTES labelKey）。 */
   labelKey?: string;
+  /** 用户手动固定的非首页签（前置且不可关；可切回可关闭）。 */
   pinned?: boolean;
+  /** 首页常驻签（dashboard）：不可关闭/不可 unpin，UI 无关闭钮（契约⑩）。 */
+  permanent?: boolean;
 }
 
 interface TabsPersistShape {
@@ -40,6 +48,8 @@ export interface TabsState extends TabsPersistShape {
   closeRight: (path: string) => string | null;
   closeAll: () => string | null;
   togglePin: (path: string) => void;
+  /** 首页常驻（契约⑩）：dashboard 页签 permanent 常驻首位（初始/登出重建/还原归一化时调用）。 */
+  seedDashboardPermanent: () => void;
   setActive: (path: string) => void;
   /** 右键刷新：refreshKey++ → TabKeepAlive 容器 key 变化强制重挂该页（契约④）。 */
   refresh: (path: string) => void;
@@ -57,6 +67,7 @@ function isTabItem(value: unknown): value is TabItem {
   if (candidate.label !== undefined && typeof candidate.label !== 'string') return false;
   if (candidate.labelKey !== undefined && typeof candidate.labelKey !== 'string') return false;
   if (candidate.pinned !== undefined && typeof candidate.pinned !== 'boolean') return false;
+  if (candidate.permanent !== undefined && typeof candidate.permanent !== 'boolean') return false;
   return true;
 }
 
@@ -124,7 +135,7 @@ export const useTabsStore = create<TabsState>()((set, get) => ({
     const { tabs, activePath } = get();
     const index = tabs.findIndex((tab) => tab.path === path);
     if (index < 0) return activePath;
-    if (tabs[index]?.pinned) return activePath; // pinned 不可关
+    if (tabs[index]?.pinned || tabs[index]?.permanent) return activePath; // pinned/permanent 不可关
     const nextTabs = tabs.filter((tab) => tab.path !== path);
     const nextActive = activePath === path ? neighborOf(nextTabs, index) : activePath;
     set({ tabs: nextTabs, activePath: nextActive });
@@ -136,7 +147,7 @@ export const useTabsStore = create<TabsState>()((set, get) => ({
     const { tabs } = get();
     const target = tabs.find((tab) => tab.path === path);
     if (!target) return get().activePath;
-    const nextTabs = tabs.filter((tab) => tab.path === path || tab.pinned);
+    const nextTabs = tabs.filter((tab) => tab.path === path || tab.pinned || tab.permanent);
     set({ tabs: nextTabs, activePath: path });
     persist(nextTabs, path);
     return path;
@@ -146,7 +157,7 @@ export const useTabsStore = create<TabsState>()((set, get) => ({
     const { tabs, activePath } = get();
     const index = tabs.findIndex((tab) => tab.path === path);
     if (index < 0) return activePath;
-    const right = tabs.slice(index + 1).filter((tab) => !tab.pinned);
+    const right = tabs.slice(index + 1).filter((tab) => !tab.pinned && !tab.permanent);
     if (right.length === 0) return activePath;
     const nextTabs = tabs.filter((tab) => tab.path === path || !right.includes(tab));
     const nextActive = activePath && right.some((tab) => tab.path === activePath) ? path : activePath;
@@ -156,7 +167,7 @@ export const useTabsStore = create<TabsState>()((set, get) => ({
   },
 
   closeAll: () => {
-    const nextTabs = get().tabs.filter((tab) => tab.pinned);
+    const nextTabs = get().tabs.filter((tab) => tab.pinned || tab.permanent);
     const nextActive = nextTabs[0]?.path ?? null;
     set({ tabs: nextTabs, activePath: nextActive });
     persist(nextTabs, nextActive);
@@ -164,14 +175,30 @@ export const useTabsStore = create<TabsState>()((set, get) => ({
   },
 
   togglePin: (path) => {
-    const toggled = get().tabs.map((tab) => (tab.path === path ? { ...tab, pinned: !tab.pinned } : tab));
+    const { tabs } = get();
+    if (tabs.find((tab) => tab.path === path)?.permanent) return; // permanent 不可 unpin（契约⑩，无意义）
+    const toggled = tabs.map((tab) => (tab.path === path ? { ...tab, pinned: !tab.pinned } : tab));
     const target = toggled.find((tab) => tab.path === path);
-    // 固定语义=pinned 前置（契约③）；取消固定保持原位
+    // 固定语义=pinned 前置（契约③）；首页常驻签（permanent）首位不动，pinned 紧随其后
     const nextTabs = target?.pinned
-      ? [target, ...toggled.filter((tab) => tab.path !== path)]
+      ? [
+          ...toggled.filter((tab) => tab.permanent),
+          target,
+          ...toggled.filter((tab) => !tab.permanent && tab.path !== path),
+        ]
       : toggled;
     set({ tabs: nextTabs });
     persist(nextTabs, get().activePath);
+  },
+
+  seedDashboardPermanent: () => {
+    const { tabs, activePath } = get();
+    const dashboard = tabs.find((tab) => tab.path === DASHBOARD_PATH);
+    const normalized: TabItem = dashboard
+      ? { ...dashboard, permanent: true, pinned: undefined } // 旧存储可能残留首页 pinned：常驻语义下无意义
+      : { path: DASHBOARD_PATH, permanent: true };
+    const nextTabs = [normalized, ...tabs.filter((tab) => tab.path !== DASHBOARD_PATH)];
+    set({ tabs: nextTabs, activePath });
   },
 
   setActive: (path) => {

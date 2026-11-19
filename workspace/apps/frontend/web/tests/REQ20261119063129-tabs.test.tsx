@@ -7,12 +7,17 @@
  * - AC-3 页签持久化还原（含 pinned；损坏回退）；
  * - AC-5 命令面板三节/键盘导航/动作执行（页面=开页签；锁屏动作）；
  * - AC-6 逐 tab PermissionGate（无权限页签内容 403；BUTTON 节点不入页签）；
- * - AC-7 登出清空页签并移除 acme.tabs.v1。
+ * - AC-7 登出清空页签并移除 acme.tabs.v1；
+ * - 迭代轮次 1（契约⑨⑩）：首页常驻 dashboard permanent（关闭/固定拒绝、closeOthers/closeAll 保留、
+ *   登出清存储后重建）、pinned 语义保留（非首页签）、TabBar 紧凑化视觉锚（36px/底边活动线/16px 关闭钮）。
  *
  * 装配照既有范本 web/tests/REQ20261114120101-nav.test.tsx：seedSession + useMeStore 播种 +
  * HashRouter 上下文 + <AntApp> 包裹 + matchMedia/ResizeObserver stub + testTimeout ≥15000ms。
  * 页签 label 断言一律 within(tabbar) 收敛（页签 label 与侧边导航/页面标题同源，全树查询会多命中）。
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App as AntApp } from 'antd';
@@ -154,7 +159,7 @@ const logoutViaUserMenu = async () => {
   await clickMenuItem('退出登录');
 };
 
-const persistedTabs = (): { tabs: { path: string; pinned?: boolean }[]; activePath: string | null } | null => {
+const persistedTabs = (): { tabs: { path: string; pinned?: boolean; permanent?: boolean }[]; activePath: string | null } | null => {
   const raw = window.localStorage.getItem('acme.tabs.v1');
   return raw ? JSON.parse(raw) : null;
 };
@@ -187,11 +192,13 @@ describe('REQ20261119063129 AC-1 多页签打开与切换', () => {
   it('should_open_tab_and_activate_when_navigating_between_pages', async () => {
     await renderAppAt('#/');
 
-    // 初始 tabs 仅含当前 path（契约⑦语义）：单签且激活
+    // 初始 tabs 仅含当前 path（契约⑦语义）：单签且激活；首页签 permanent（契约⑩，无关闭/固定钮）
     await wait(() => {
       expect(tabEls()).toHaveLength(1);
       expect(tabEls()[0]?.dataset.tabPath).toBe('/');
       expect(tabEls()[0]?.getAttribute('aria-selected')).toBe('true');
+      expect(tabEls()[0]?.querySelector('[aria-label="关闭"]')).toBeNull();
+      expect(tabEls()[0]?.querySelector('[aria-label="取消固定"]')).toBeNull();
     });
 
     window.location.hash = '#/apps';
@@ -291,16 +298,17 @@ describe('REQ20261119063129 AC-2 页签右键菜单', () => {
   it('should_pin_tab_prevent_close_and_unpin_when_pin_used', async () => {
     await renderThreeTabs();
 
-    // 固定：pinned 前置、关闭钮替换为取消固定钮
-    await openTabContextMenu('/apps');
+    // 固定非首页签（pinned 语义保留，契约⑩）：pinned 紧随首页常驻签（permanent 首位不动）、
+    // 关闭钮替换为取消固定钮
+    await openTabContextMenu('/users');
     await clickMenuItem('固定');
     await wait(() => {
-      expect(tabEl('/apps')?.querySelector('[aria-label="取消固定"]')).toBeTruthy();
+      expect(tabEl('/users')?.querySelector('[aria-label="取消固定"]')).toBeTruthy();
     });
-    expect(tabEls()[0]?.dataset.tabPath).toBe('/apps'); // pinned 前置
+    expect(tabEls().map((el) => el.dataset.tabPath)).toEqual(['/', '/users', '/apps']); // permanent 首位 + pinned 前置
 
     // pinned 不可关：上下文菜单「关闭」禁用，点击不生效
-    await openTabContextMenu('/apps');
+    await openTabContextMenu('/users');
     await wait(() => {
       const closeItem = findVisibleMenuItem('关闭');
       expect(closeItem).toBeTruthy();
@@ -308,34 +316,35 @@ describe('REQ20261119063129 AC-2 页签右键菜单', () => {
     });
     fireEvent.click(findVisibleMenuItem('关闭')!);
     await wait(() => {
-      expect(tabEl('/apps')).toBeTruthy();
+      expect(tabEl('/users')).toBeTruthy();
       expect(tabEls()).toHaveLength(3); // pinned 未被关闭
     });
 
     // 取消固定：恢复关闭钮
-    fireEvent.click(tabEl('/apps')!.querySelector('[aria-label="取消固定"]')!);
+    fireEvent.click(tabEl('/users')!.querySelector('[aria-label="取消固定"]')!);
     await wait(() => {
-      expect(tabEl('/apps')?.querySelector('[aria-label="关闭"]')).toBeTruthy();
+      expect(tabEl('/users')?.querySelector('[aria-label="关闭"]')).toBeTruthy();
     });
   });
 
   it('should_close_others_right_and_all_when_menu_used', async () => {
     await renderThreeTabs();
 
-    // 关闭其他：仅保留点击签（无 pinned）
+    // 关闭其他：保留点击签＋首页常驻签（契约⑩ permanent 保留，原 pinned 语义不变）
     await openTabContextMenu('/apps');
     await clickMenuItem('关闭其他');
     await wait(() => {
-      expect(tabEls()).toHaveLength(1);
+      expect(tabEls()).toHaveLength(2);
       expect(tabEl('/apps')?.getAttribute('aria-selected')).toBe('true');
+      expect(tabEl('/')).toBeTruthy();
     });
 
-    // 重建三签后关闭右侧：保留点击签及其左侧
+    // 重建三签后关闭右侧：保留点击签及其左侧（含首页常驻签）
     window.location.hash = '#/';
-    await wait(() => expect(tabEl('/')).toBeTruthy());
+    await wait(() => expect(tabEl('/')?.getAttribute('aria-selected')).toBe('true'));
     window.location.hash = '#/users';
     await wait(() => expect(tabEl('/users')).toBeTruthy());
-    await openTabContextMenu('/');
+    await openTabContextMenu('/apps');
     await clickMenuItem('关闭右侧');
     await wait(() => {
       expect(tabEls()).toHaveLength(2);
@@ -344,7 +353,7 @@ describe('REQ20261119063129 AC-2 页签右键菜单', () => {
       expect(tabEl('/users')).toBeNull();
     });
 
-    // 关闭全部（无 pinned）：当前路由兜底重开，内容区不留白
+    // 关闭全部：仅首页常驻签保留（契约⑩），激活态落回首页，内容区不留白
     await openTabContextMenu('/apps');
     await clickMenuItem('关闭全部');
     await wait(() => {
@@ -363,12 +372,13 @@ describe('REQ20261119063129 AC-3 页签持久化', () => {
     window.location.hash = '#/apps';
     await wait(() => expect(tabEl('/apps')).toBeTruthy());
 
-    // 固定 /apps（store 动作语义与右键菜单一致）
+    // 固定 /apps（store 动作语义与右键菜单一致；首页常驻签 permanent 首位不动）
     useTabsStore.getState().togglePin('/apps');
     await wait(() => {
       const persisted = persistedTabs();
-      expect(persisted?.tabs.map((tab) => tab.path)).toEqual(['/apps', '/']);
-      expect(persisted?.tabs[0]?.pinned).toBe(true);
+      expect(persisted?.tabs.map((tab) => tab.path)).toEqual(['/', '/apps']);
+      expect(persisted?.tabs[0]?.permanent).toBe(true); // 首页常驻签随页签持久化
+      expect(persisted?.tabs[1]?.pinned).toBe(true);
     });
 
     // 模拟刷新：卸载后按持久化还原；激活页对齐当前 hash
@@ -376,20 +386,22 @@ describe('REQ20261119063129 AC-3 页签持久化', () => {
     window.location.hash = '#/';
     render(<AntApp><HashRouter><App /></HashRouter></AntApp>);
     await wait(() => {
-      expect(tabEls().map((el) => el.dataset.tabPath)).toEqual(['/apps', '/']);
+      expect(tabEls().map((el) => el.dataset.tabPath)).toEqual(['/', '/apps']);
     });
     expect(tabEl('/')?.getAttribute('aria-selected')).toBe('true'); // 激活页对齐当前 hash（AC-3）
     expect(tabEl('/apps')?.querySelector('[aria-label="取消固定"]')).toBeTruthy(); // pinned 还原
+    expect(tabEl('/')?.querySelector('[aria-label="关闭"]')).toBeNull(); // permanent 还原（无关闭钮）
   });
 
-  it('should_fallback_to_current_path_only_when_storage_corrupted', async () => {
+  it('should_fallback_to_seed_and_current_path_when_storage_corrupted', async () => {
     window.localStorage.setItem('acme.tabs.v1', '{{not-json');
     await renderAppAt('#/apps', { permissions: [] });
 
-    // 损坏回退：仅当前 path 打开为页签（契约②损坏回退）
+    // 损坏回退（契约②）＋首页常驻（契约⑩）：dashboard permanent 种子＋当前 path 打开为页签
     await wait(() => {
-      expect(tabEls()).toHaveLength(1);
-      expect(tabEls()[0]?.dataset.tabPath).toBe('/apps');
+      expect(tabEls().map((el) => el.dataset.tabPath)).toEqual(['/', '/apps']);
+      expect(tabEl('/apps')?.getAttribute('aria-selected')).toBe('true');
+      expect(tabEl('/')?.querySelector('[aria-label="关闭"]')).toBeNull();
     });
   });
 });
@@ -517,13 +529,112 @@ describe('REQ20261119063129 AC-7 登出页签清理', () => {
       expect(window.location.hash).toBe('#/login');
     });
     await wait(() => {
-      expect(useTabsStore.getState().tabs).toHaveLength(0);
-      expect(window.localStorage.getItem('acme.tabs.v1')).toBeNull(); // acme.tabs.v1 清理
+      // 契约⑩：登出清空页签后重建首页常驻签（种子不入盘）；acme.tabs.v1 存储键仍被清理（AC-7）
+      const tabs = useTabsStore.getState().tabs;
+      expect(tabs).toHaveLength(1);
+      expect(tabs[0]?.path).toBe('/');
+      expect(tabs[0]?.permanent).toBe(true);
+      expect(window.localStorage.getItem('acme.tabs.v1')).toBeNull();
     });
     // 登出请求幂等成功（信封桩）：DELETE /admin/v1/auth/tokens/current
     const logoutCalls = (fetchMock.mock.calls as unknown as [RequestInfo | URL, RequestInit | undefined][])
       .filter(([input, init]) => new URL(String(input), 'http://localhost').pathname.endsWith('/tokens/current')
         && (init?.method ?? 'GET').toUpperCase() === 'DELETE');
     expect(logoutCalls.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ————— 迭代轮次 1（契约⑩）：首页常驻 dashboard permanent —————
+describe('REQ20261119063129 迭代1 首页常驻 dashboard permanent', () => {
+  it('should_reject_close_and_pin_on_permanent_dashboard_tab', async () => {
+    await renderAppAt('#/', { permissions: [] });
+    await wait(() => expect(tabEl('/')).toBeTruthy());
+
+    // store 层：closeTab/togglePin 对 permanent 拒绝（无副作用，契约⑩）
+    expect(useTabsStore.getState().closeTab('/')).toBe('/');
+    expect(useTabsStore.getState().tabs.map((tab) => tab.path)).toEqual(['/']);
+    expect(useTabsStore.getState().tabs[0]?.permanent).toBe(true);
+    useTabsStore.getState().togglePin('/');
+    expect(useTabsStore.getState().tabs[0]?.pinned).toBeUndefined();
+    expect(useTabsStore.getState().tabs[0]?.permanent).toBe(true);
+
+    // UI 层：首页签无关闭钮/取消固定钮；右键菜单「关闭」「固定」禁用
+    expect(tabEl('/')?.querySelector('[aria-label="关闭"]')).toBeNull();
+    expect(tabEl('/')?.querySelector('[aria-label="取消固定"]')).toBeNull();
+    await openTabContextMenu('/');
+    await wait(() => {
+      expect(findVisibleMenuItem('关闭')?.classList.contains('ant-dropdown-menu-item-disabled')).toBe(true);
+      expect(findVisibleMenuItem('固定')?.classList.contains('ant-dropdown-menu-item-disabled')).toBe(true);
+    });
+  });
+
+  it('should_seed_dashboard_permanent_first_when_session_restored', async () => {
+    // 登入 hydrate（还原旧存储）→ seed 归一化：dashboard permanent 挪至首位、pinned 残留清除（契约⑩）
+    window.localStorage.setItem('acme.tabs.v1', JSON.stringify({
+      tabs: [{ path: '/users' }, { path: '/', pinned: true }],
+      activePath: '/users',
+    }));
+    await renderAppAt('#/users', { permissions: ['system:user:list'] });
+    await wait(() => {
+      const tabs = useTabsStore.getState().tabs;
+      expect(tabs.map((tab) => tab.path)).toEqual(['/', '/users']);
+      expect(tabs[0]?.permanent).toBe(true);
+      expect(tabs[0]?.pinned).toBeUndefined();
+      expect(tabEl('/')?.querySelector('[aria-label="关闭"]')).toBeNull();
+    });
+  });
+});
+
+// ————— 迭代轮次 1（契约⑨）：TabBar 紧凑化视觉锚（global.css 源级锁定，范本=global-css.test.ts） —————
+describe('REQ20261119063129 迭代1 TabBar 紧凑化视觉锚', () => {
+  // jsdom 环境的 URL 构造器产出的实例不被 node:fs 接受 → 经 fileURLToPath 转本地路径再读
+  const css = readFileSync(resolve(fileURLToPath(import.meta.url), '../../src/styles/global.css'), 'utf8');
+
+  /** 单行规则提取：global.css 页签条段为「selector { body }」单行格式，按选择器精确取规则体。 */
+  const cssRule = (selector: string): string => {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+    expect(match, `global.css 缺少规则: ${selector}`).toBeTruthy();
+    return match![1];
+  };
+
+  it('should_lock_compact_tabbar_anchors_when_css_loaded', () => {
+    // 条高 36px＋横向溢出滚动且滚动条隐藏
+    const bar = cssRule('.tabbar');
+    expect(bar).toContain('height: 36px');
+    expect(bar).toContain('overflow-x: auto');
+    expect(bar).toContain('scrollbar-width: none');
+    expect(cssRule('.tabbar::-webkit-scrollbar')).toContain('display: none');
+
+    // tab 内边距收紧（水平 10px）＋label 13px
+    const tab = cssRule('.tabbar-tab');
+    expect(tab).toContain('padding: 0 10px');
+    expect(tab).toContain('font-size: 13px');
+
+    // 活动指示=底边 2px accent 线（替代宽 pill 填充）
+    const activeLine = cssRule('.tabbar-tab-active::after');
+    expect(activeLine).toContain('height: 2px');
+    expect(activeLine).toContain('background: var(--accent)');
+
+    // 关闭钮 16px；非活动签 hover 才显（活动签/键盘聚焦常显）；::after 扩展命中区保留
+    const close = cssRule('.tabbar-close, .tabbar-pin');
+    expect(close).toContain('width: 16px');
+    expect(close).toContain('height: 16px');
+    const hitArea = cssRule('.tabbar-close::after, .tabbar-pin::after');
+    expect(hitArea).toContain("content: ''");
+    expect(hitArea).toContain('position: absolute');
+    expect(cssRule('.tabbar-close')).toContain('opacity: 0');
+    expect(cssRule('.tabbar-tab:hover .tabbar-close, .tabbar-tab:focus-within .tabbar-close, .tabbar-tab-active .tabbar-close'))
+      .toContain('opacity: 1');
+  });
+
+  it('should_use_token_layer_only_when_tabbar_colors_defined', () => {
+    // 色值一律走令牌变量层（红线）：页签条段不得出现硬编码色值，hover 提亮走 surface-2（elevated）
+    const block = css.slice(css.indexOf('/* 页签条'), css.indexOf('/* 命令面板'));
+    expect(block.length).toBeGreaterThan(0);
+    expect(block).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(block).toContain('var(--accent)');
+    expect(block).toContain('var(--surface-2)');
+    expect(block).toContain('var(--border)');
   });
 });

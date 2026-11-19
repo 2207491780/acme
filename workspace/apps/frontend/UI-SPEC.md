@@ -232,7 +232,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 |---|---|---|
 | 断点 | AntD `Grid.useBreakpoint()`；`<lg` 视为移动布局 | 原生小屏 |
 | 顶栏 | sticky，高 64，半透明表面 + 轻微模糊（blur 8）+ 底边框 | 品牌条 + 运行时 pill |
-| 页签条 | Header 下方自绘 pill 条（REQ-20261119-063129，不用 antd Tabs）：`surface` 底 + 发丝描边，活动签 accent 低饱和染色（约 12% 混面）+ accent 描边；tab 与关闭/固定钮可点目标 ≥44px（关闭钮 `::after` 扩展命中区）；样式令牌走 `global.css` 变量层镜像 core | 无对应结构（底部 tabbar 是固定导航，语义不同不复用） |
+| 页签条 | Header 下方自绘紧凑条（REQ-20261119-063129 迭代①契约⑨⑩，不用 antd Tabs；VS Code/Chrome 惯例）：条高 36px（页签行整体可点 ≥32px），`surface` 底 + 发丝描边；活动指示=底边 2px accent 线（替代宽 pill 填充），hover 背景 elevated（CSS `--surface-2`）轻提亮；横向溢出滚动且滚动条隐藏；关闭钮 16px，非活动签 hover 才显/活动签常显（`::after` 扩展命中区 ≥16px）；首页签 permanent 常驻首位（不可关闭/不可固定，无关闭钮）；样式令牌走 `global.css` 变量层镜像 core | 无对应结构（底部 tabbar 是固定导航，语义不同不复用） |
 | 内容 padding | 桌面 `24px 30px 60px`；移动 `16px 14px 60px` | Screen `padding 16, paddingBottom 32, gap 14` |
 | 安全区 | 无固定底部条（导航走左抽屉） | `SafeAreaView` + Android `StatusBar.currentHeight` |
 | 背景 | 纯色 `bg`（平整，与 Mobile 一致），无光斑/漂移/颗粒 | 纯色 `palette.bg` |

@@ -7,10 +7,12 @@ import { findPageRoute } from '../routes';
 import { useTabsStore, type TabItem } from '../store/tabsStore';
 
 /**
- * 自绘页签条（REQ-20261119-063129 契约③）：Header 下方独立 pill 条（样式对齐 UI-SPEC：
- * 令牌取 CSS 变量层镜像，活动项 accent）；不使用 antd Tabs（惰性挂载与保活相反、无右键事件）。
- * 每 tab=图标(可选)＋label＋关闭钮（pinned 显固定图标且不可关）；右键 Dropdown 菜单：
- * 刷新/关闭/固定·取消固定/关闭其他/关闭右侧/关闭全部；可点目标 ≥44px（关闭钮经 ::after 扩展命中区）。
+ * 自绘页签条（REQ-20261119-063129 契约③＋迭代轮次 1 契约⑨⑩）：Header 下方独立紧凑条
+ * （高 36px，VS Code/Chrome 惯例：活动指示=底边 2px accent 线、hover elevated 轻提亮；
+ * 样式对齐 UI-SPEC，令牌取 CSS 变量层镜像）；不使用 antd Tabs（惰性挂载与保活相反、无右键事件）。
+ * 每 tab=图标(可选)＋label＋关闭钮（16px；非活动签 hover 才显、活动签常显，::after 扩展命中区；
+ * pinned 显固定图标且不可关；首页常驻签 permanent 无关闭/固定钮，右键关闭/固定禁用）；
+ * 右键 Dropdown 菜单：刷新/关闭/固定·取消固定/关闭其他/关闭右侧/关闭全部。
  */
 
 /** 页签 label 解析（契约②优先级）：动态菜单 menuName 快照 > labelKey 映射 > path。 */
@@ -41,8 +43,14 @@ export function TabBar({ iconOf, onSelect, onClose, onRefresh, onTogglePin, onCl
   const contextMenu = (tab: TabItem): MenuProps => ({
     items: [
       { key: 'refresh', icon: <ReloadOutlined />, label: t('nav.tabs.refresh') },
-      { key: 'close', icon: <CloseOutlined />, label: t('nav.tabs.close'), disabled: tab.pinned },
-      { key: 'pin', icon: tab.pinned ? <PushpinFilled /> : <PushpinOutlined />, label: tab.pinned ? t('nav.tabs.unpin') : t('nav.tabs.pin') },
+      // permanent（首页常驻）与 pinned 均不可关（契约③⑩）；permanent 固定/取消固定无意义
+      { key: 'close', icon: <CloseOutlined />, label: t('nav.tabs.close'), disabled: tab.pinned || tab.permanent },
+      {
+        key: 'pin',
+        icon: tab.pinned ? <PushpinFilled /> : <PushpinOutlined />,
+        label: tab.pinned ? t('nav.tabs.unpin') : t('nav.tabs.pin'),
+        disabled: tab.permanent,
+      },
       { key: 'closeOthers', label: t('nav.tabs.closeOthers') },
       { key: 'closeRight', label: t('nav.tabs.closeRight') },
       { type: 'divider' },
@@ -78,7 +86,7 @@ export function TabBar({ iconOf, onSelect, onClose, onRefresh, onTogglePin, onCl
             >
               {iconOf(tab.path)}
               <span className="tabbar-label">{label}</span>
-              {tab.pinned ? (
+              {tab.permanent ? null : tab.pinned ? (
                 <button
                   type="button"
                   className="tabbar-pin"

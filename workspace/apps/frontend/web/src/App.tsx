@@ -140,14 +140,17 @@ export function App() {
   // 依赖收敛为 isAuthed：滑动续约会整体替换 session 对象，以 session 为依赖会导致每次续约重复拉取 me。
   // 租户系统配置（REQ-20261116-230354）随会话就绪加载（水印显隐 + 闲置锁屏时长 + 页脚版权强制生效）；
   // 登出/会话失效复位为缺省（水印开/验证码关/闲置关/页脚不显示）并解除闲置计时。
-  // 页签（REQ-20261119-063129 AC-7）：登入 hydrate（新会话=空/刷新=还原持久化），登出/被踢清空。
+  // 页签（REQ-20261119-063129 AC-7＋迭代轮次 1 契约⑩）：登入 hydrate（新会话=空/刷新=还原持久化）
+  // 后种子首页常驻签；登出/被踢 clear（移除存储键）后重建 dashboard permanent（不入盘，AC-7 不变）。
   useEffect(() => {
     if (isAuthed) {
       useTabsStore.getState().hydrate();
+      useTabsStore.getState().seedDashboardPermanent();
       void useMeStore.getState().load();
       void useSystemConfigStore.getState().load();
     } else {
       useTabsStore.getState().clear();
+      useTabsStore.getState().seedDashboardPermanent();
       useMeStore.getState().clear();
       useSystemConfigStore.setState({
         watermarkEnabled: true, captchaEnabled: false, lockIdleTimeoutMs: 0,
