@@ -24,6 +24,13 @@ public interface SysUserRepository extends FlexRepository<SysUser> {
      */
     Optional<SysUser> findByIdGlobal(Long userId);
 
+    /**
+     * 本人资料直更（REQ-20261119-082531 确认记录①，12.4.2 显式旁路声明 accessPoint
+     * profile-self-update）：切换会话下本人行归属源租户，租户条件对 PK+乐观锁更新冗余且会阻断；
+     * 实体须先经 findByIdGlobal 汇聚（与 /me 视图同款链路，无越权面）。乐观锁冲突 → STALE_WRITE。
+     */
+    SysUser updateSelfProfile(SysUser user);
+
     /** 部门内用户（数据范围可见集解析 / 岗位引用判定按 id 维度另行判定）。 */
     List<SysUser> findByDeptIdIn(Collection<Long> deptIds);
 

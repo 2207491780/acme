@@ -71,6 +71,14 @@ public final class AuthErrorCodes {
     /** 扫码票据状态不允许当前操作（如已确认后再次确认）。 */
     public static final String QR_TICKET_INVALID = "platform-auth-06-0004";
 
+    // ---- 07 段：自助账号安全域（REQ-20261119-082531 确认记录③，全部免权限点仅本人）----
+
+    /** 旧密码不正确（自助改密 BCrypt 校验失败，密码未变）。 */
+    public static final String OLD_PASSWORD_INVALID = "platform-auth-07-0001";
+
+    /** 新密码与旧密码相同（自助改密二次确认语义）。 */
+    public static final String SAME_PASSWORD = "platform-auth-07-0002";
+
     private AuthErrorCodes() {
     }
 }

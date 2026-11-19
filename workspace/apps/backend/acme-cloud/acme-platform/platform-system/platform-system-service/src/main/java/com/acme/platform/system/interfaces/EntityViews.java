@@ -47,7 +47,7 @@ public final class EntityViews {
         return new AdminUserView(user.getId(), user.getUsername(), user.getNickname(), user.getEmail(),
                 user.getPhone(), user.getDeptId(), user.getPositionId(),
                 user.getStatus(), user.getBuiltIn(), roleIds,
-                user.getCreatedAt(), user.getUpdatedAt(), user.getVersion());
+                user.getCreatedAt(), user.getUpdatedAt(), user.getVersion(), user.getAvatarUrl());
     }
 
     /** 部门平铺视图（无 children，创建 / 修改 / 详情响应用；REQ-20261114-120104）。 */

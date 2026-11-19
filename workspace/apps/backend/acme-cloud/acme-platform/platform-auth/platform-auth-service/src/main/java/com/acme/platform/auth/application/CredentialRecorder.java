@@ -35,4 +35,24 @@ public class CredentialRecorder {
         }
         return sessionRecorder.kickActiveSessions(userId);
     }
+
+    /**
+     * upsert 凭据 + 保留当前会话、其余活跃会话置 KICKED（REQ-20261119-082531 自助改密，
+     * 确认记录③：当前会话底账保持 ACTIVE，撤销集不含当前令牌——改密后当前登录态保持）。
+     *
+     * @param keepTokenId 保留的当前会话 tokenId（=当前访问令牌 jti）
+     * @return 被踢会话待撤销清单（不含保留会话）
+     */
+    @Transactional
+    public List<SessionRecorder.RevocableToken> resetCredential(Long userId, String passwordHash,
+                                                                 String tenantForNew, String keepTokenId) {
+        AuthCredential credential = credentialRepository.findByUserId(userId);
+        if (credential == null) {
+            credentialRepository.save(new AuthCredential(userId, tenantForNew, passwordHash));
+        } else {
+            credential.reset(passwordHash);
+            credentialRepository.save(credential);
+        }
+        return sessionRecorder.kickActiveSessionsExcept(userId, keepTokenId);
+    }
 }

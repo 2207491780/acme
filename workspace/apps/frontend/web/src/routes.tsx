@@ -43,8 +43,9 @@ const FilesPage = lazy(() => import('./pages/FilesPage').then((m) => ({ default:
 const ExceptionsPage = lazy(() => import('./pages/ExceptionsPage').then((m) => ({ default: m.ExceptionsPage as PageComponent })));
 const JobsPage = lazy(() => import('./pages/JobsPage').then((m) => ({ default: m.JobsPage as PageComponent })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings as PageComponent })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage as PageComponent })));
 
-/** 20 页清单（21 条 Route − login − `*`；/files 为 REQ-20261119-063129 契约⑥补齐）。 */
+/** 21 页清单（22 条 Route − login − `*`；/files 为 REQ-20261119-063129 契约⑥补齐）。 */
 export const PAGE_ROUTES: PageRoute[] = [
   { path: '/', labelKey: 'nav.items.dashboard', element: <Dashboard /> },
   { path: '/releases', labelKey: 'nav.items.releases', element: <Releases /> },
@@ -70,6 +71,8 @@ export const PAGE_ROUTES: PageRoute[] = [
   // 保存能力在页面内按 system:config:update fail-closed（AC-6）
   { path: '/system/config', labelKey: 'nav.items.systemConfig', element: <SystemConfigPage /> },
   { path: '/settings', labelKey: 'nav.items.settings', element: <Settings /> },
+  // 个人中心（REQ-20261119-082531 契约⑦）：认证即可（无权限点），入口自用户菜单/NAV
+  { path: '/profile', labelKey: 'nav.items.profile', element: <ProfilePage /> },
 ];
 
 /** path → PageRoute 线性查找（页签数 ≤ 20，无需 Map）。 */

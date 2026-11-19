@@ -1,4 +1,7 @@
 -- 仓储切片测试隔离环境（16.1 等效隔离环境）：H2 内存库；列定义对齐 V1__init_schema.sql（user/role/user_role）
+-- 与 V21__profile_preference_push.sql 增量对齐（REQ-20261119-082531）：sys_user.avatar_url 可空列
+-- 及 sys_user_preference / sys_push_token 两表（prefs jsonb 在 H2 侧退化 VARCHAR——JsonbTypeHandler
+-- 非 PG 方言 setString，切片无 jsonb 语义依赖）。
 CREATE TABLE sys_user (
     id          BIGINT PRIMARY KEY,
     tenant_id   VARCHAR(64)  NOT NULL,
@@ -10,6 +13,7 @@ CREATE TABLE sys_user (
     built_in    BOOLEAN      NOT NULL,
     dept_id     BIGINT,
     position_id BIGINT,
+    avatar_url  VARCHAR(512),
     created_at  TIMESTAMP    NOT NULL,
     created_by  VARCHAR(64)  NOT NULL,
     updated_at  TIMESTAMP    NOT NULL,
@@ -17,6 +21,33 @@ CREATE TABLE sys_user (
     version     BIGINT       NOT NULL,
     deleted     BOOLEAN      NOT NULL,
     CONSTRAINT uk_sys_user_username UNIQUE (username)
+);
+
+CREATE TABLE sys_user_preference (
+    id         BIGINT PRIMARY KEY,
+    user_id    BIGINT       NOT NULL,
+    prefs      VARCHAR(1024) NOT NULL,
+    created_at TIMESTAMP    NOT NULL,
+    created_by VARCHAR(64)  NOT NULL,
+    updated_at TIMESTAMP    NOT NULL,
+    updated_by VARCHAR(64)  NOT NULL,
+    version    BIGINT       NOT NULL,
+    deleted    BOOLEAN      NOT NULL,
+    CONSTRAINT uk_sys_user_preference_user UNIQUE (user_id)
+);
+
+CREATE TABLE sys_push_token (
+    id         BIGINT PRIMARY KEY,
+    user_id    BIGINT       NOT NULL,
+    token      VARCHAR(512) NOT NULL,
+    platform   VARCHAR(8)   NOT NULL,
+    created_at TIMESTAMP    NOT NULL,
+    created_by VARCHAR(64)  NOT NULL,
+    updated_at TIMESTAMP    NOT NULL,
+    updated_by VARCHAR(64)  NOT NULL,
+    version    BIGINT       NOT NULL,
+    deleted    BOOLEAN      NOT NULL,
+    CONSTRAINT uk_sys_push_token_token UNIQUE (token)
 );
 
 CREATE TABLE sys_role (

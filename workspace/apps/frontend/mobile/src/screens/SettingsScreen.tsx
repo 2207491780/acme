@@ -1,11 +1,15 @@
-import { useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { View, Text, Pressable, TextInput, Image, StyleSheet } from 'react-native';
 import type { ReactNode } from 'react';
 import { useLocaleStore, type Accent, type NeutralPalette, type Theme } from '@acme/core';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/authStore';
 import { useMeStore } from '../store/meStore';
+import { useBSessionStore } from '../store/bSessionStore';
+import { ApiError } from '../api/client';
 import { authApi } from '../api/auth';
+import { profileApi } from '../api/profile';
+import { registerPushTokenAfterLogin } from '../utils/push';
 import { useAccent } from '../hooks';
 import { useAppTheme } from '../theme';
 import { useTranslation } from '../i18n';
@@ -137,6 +141,267 @@ function LocaleSegmented({ styles }: { styles: SetStyles }) {
   );
 }
 
+// ————— 员工账号区（REQ-20261119-082531 契约⑧）：资料精简版 / 改密 / 会话下线其他 / 通知开关 —————
+// 全部走 /admin/v1 认证面（profileApi，B 令牌显式头），故整区以 B 会话（员工账密登录）解锁；
+// 未登录员工账号时仅展示引导文案（AC-8 改密卡显隐语义）。
+
+/** 头像展示（精简版，无上传）：有 avatarUrl 渲染圆形图片，否则昵称首字符 accent 底占位（契约⑦同语义）。 */
+function MiniAvatar({ uri, name, size = 44 }: { uri: string | null; name: string; size?: number }) {
+  const accent = useAccent();
+  const { palette } = useAppTheme();
+  if (uri) {
+    return (
+      <Image
+        source={{ uri }}
+        accessibilityLabel={name || 'avatar'}
+        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: palette.elevated }}
+      />
+    );
+  }
+  const initial = (name ?? '').trim().charAt(0).toUpperCase();
+  return (
+    <View
+      accessibilityLabel={name || 'avatar'}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: accent,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text style={{ color: onAccent, fontWeight: '700', fontSize: Math.round(size * 0.45), lineHeight: size * 0.5 }}>
+        {initial || '?'}
+      </Text>
+    </View>
+  );
+}
+
+/** 资料卡（精简版）：头像展示 + 昵称编辑（GET /me 回显；PUT /me 提交 nickname）。 */
+function EmployeeProfileCard({ styles }: { styles: SetStyles }) {
+  const { t } = useTranslation();
+  const bSession = useBSessionStore((s) => s.session);
+  const [nickname, setNickname] = useState(bSession?.nickname ?? '');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // 画像回显（B 令牌 GET /me）：失败降级 B 会话昵称展示，不阻塞设置页
+  useEffect(() => {
+    let alive = true;
+    profileApi.me()
+      .then((view) => {
+        if (!alive) return;
+        if (typeof view?.user?.nickname === 'string' && view.user.nickname) {
+          setNickname(view.user.nickname);
+        }
+        setAvatarUrl(view?.user?.avatarUrl ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const saveNickname = () => {
+    const next = nickname.trim();
+    if (!next || next.length > 32) {
+      toast(t('profile.errors.profileInvalid'), 'danger');
+      return;
+    }
+    setSaving(true);
+    profileApi.meUpdate({ nickname: next })
+      .then(() => toast(t('profile.mobile.nicknameSaved'), 'success'))
+      .catch((ex: unknown) => toast(ex instanceof Error ? ex.message : t('common.errors.operationFailed'), 'danger'))
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <Card>
+      <Text style={styles.cardTitle}>{t('profile.cards.profile')}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <MiniAvatar uri={avatarUrl} name={nickname || bSession?.username || ''} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.settingLabel}>{t('profile.fields.nickname')}</Text>
+          <Muted style={{ fontSize: 12 }}>{t('profile.mobile.profileDesc')}</Muted>
+        </View>
+      </View>
+      <TextInput
+        value={nickname}
+        onChangeText={setNickname}
+        placeholder={t('profile.fields.nickname')}
+        accessibilityLabel={t('profile.fields.nickname')}
+        maxLength={32}
+        style={styles.profileInput}
+      />
+      <Button small label={t('profile.mobile.saveNickname')} onPress={saveNickname} disabled={saving} testID="profile-nickname-save" />
+    </Card>
+  );
+}
+
+/** 安全卡（改密表单）：PUT /admin/v1/auth/me/password；成功后其他设备会话由服务端全部下线。 */
+function EmployeePasswordCard({ styles }: { styles: SetStyles }) {
+  const { t } = useTranslation();
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changing, setChanging] = useState(false);
+
+  const submit = () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast(t('profile.toasts.passwordMismatch'), 'danger');
+      return;
+    }
+    setChanging(true);
+    profileApi.selfPassword({ oldPassword, newPassword })
+      .then(() => {
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        toast(t('profile.mobile.passwordChanged'), 'success');
+      })
+      .catch((ex: unknown) => {
+        if (ex instanceof ApiError && ex.code === 'OLD_PASSWORD_INVALID') {
+          toast(t('profile.errors.oldPasswordInvalid'), 'danger');
+          return;
+        }
+        if (ex instanceof ApiError && ex.code === 'SAME_PASSWORD') {
+          toast(t('profile.errors.samePassword'), 'danger');
+          return;
+        }
+        toast(ex instanceof Error ? ex.message : t('common.errors.operationFailed'), 'danger');
+      })
+      .finally(() => setChanging(false));
+  };
+
+  return (
+    <Card>
+      <Text style={styles.cardTitle}>{t('profile.cards.security')}</Text>
+      <Muted style={{ fontSize: 12 }}>{t('profile.mobile.securityDesc')}</Muted>
+      <TextInput
+        value={oldPassword}
+        onChangeText={setOldPassword}
+        placeholder={t('profile.fields.oldPassword')}
+        accessibilityLabel={t('profile.fields.oldPassword')}
+        secureTextEntry
+        autoCapitalize="none"
+        style={styles.profileInput}
+      />
+      <TextInput
+        value={newPassword}
+        onChangeText={setNewPassword}
+        placeholder={t('profile.fields.newPassword')}
+        accessibilityLabel={t('profile.fields.newPassword')}
+        secureTextEntry
+        autoCapitalize="none"
+        style={styles.profileInput}
+      />
+      <TextInput
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        placeholder={t('profile.fields.confirmPassword')}
+        accessibilityLabel={t('profile.fields.confirmPassword')}
+        secureTextEntry
+        autoCapitalize="none"
+        style={styles.profileInput}
+      />
+      <Button small label={t('profile.actions.changePassword')} onPress={submit} disabled={changing} testID="profile-password-submit" />
+    </Card>
+  );
+}
+
+/** 会话卡（登出其他设备）：DELETE /admin/v1/auth/me/sessions/others（保留当前设备）。 */
+function EmployeeSessionsCard({ styles }: { styles: SetStyles }) {
+  const { t } = useTranslation();
+  const [kicking, setKicking] = useState(false);
+
+  const kickOthers = () => {
+    setKicking(true);
+    profileApi.selfKickOthers()
+      .then(() => toast(t('profile.toasts.othersKicked'), 'success'))
+      .catch((ex: unknown) => toast(ex instanceof Error ? ex.message : t('common.errors.operationFailed'), 'danger'))
+      .finally(() => setKicking(false));
+  };
+
+  return (
+    <Card>
+      <Text style={styles.cardTitle}>{t('profile.session.listTitle')}</Text>
+      <SettingRow
+        label={t('profile.actions.kickOthers')}
+        desc={t('profile.mobile.sessionOthersDesc')}
+        styles={styles}
+        control={
+          <Button small variant="danger" label={t('profile.actions.kickOthers')} onPress={kickOthers} disabled={kicking} testID="profile-kick-others" />
+        }
+      />
+    </Card>
+  );
+}
+
+/** 通知卡（messagePush 偏好开关，契约⑧通知开关接 prefs API）：开启后尝试注册推送令牌（projectId 降级）。 */
+function NotificationPrefsCard({ styles }: { styles: SetStyles }) {
+  const { t } = useTranslation();
+  const [enabled, setEnabled] = useState<boolean | null>(null); // null=偏好加载中
+
+  useEffect(() => {
+    let alive = true;
+    profileApi.mePreferences()
+      .then((view) => {
+        if (alive) setEnabled(view?.messagePush === true);
+      })
+      .catch(() => {
+        if (alive) setEnabled(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const onToggle = (checked: boolean) => {
+    profileApi.mePreferencesUpdate({ messagePush: checked })
+      .then(() => {
+        setEnabled(checked);
+        toast(t('profile.mobile.pushSaved'), 'success');
+        if (checked) {
+          // 开启即注册推送令牌（契约⑧）：无 EAS projectId 时降级跳过并告知
+          void registerPushTokenAfterLogin().then((outcome) => {
+            if (outcome === 'registered') {
+              toast(t('profile.mobile.pushRegistered'), 'success');
+            } else if (outcome === 'skipped-no-project') {
+              toast(t('profile.mobile.pushSkipNoProject'), 'info');
+            }
+          });
+        }
+      })
+      .catch((ex: unknown) => {
+        setEnabled((cur) => (cur === null ? cur : !checked)); // 失败回滚开关态
+        toast(ex instanceof Error ? ex.message : t('common.errors.operationFailed'), 'danger');
+      });
+  };
+
+  return (
+    <Card>
+      <Text style={styles.cardTitle}>{t('profile.cards.notification')}</Text>
+      <SettingRow
+        label={t('profile.notification.messagePush')}
+        desc={t('profile.mobile.pushDesc')}
+        styles={styles}
+        control={
+          <Toggle
+            label={t('profile.notification.messagePush')}
+            value={enabled === true}
+            styles={styles}
+            onChange={onToggle}
+          />
+        }
+      />
+    </Card>
+  );
+}
+
 export function SettingsScreen() {
   const settings = useStore((s) => s.state.settings);
   const state = useStore((s) => s.state);
@@ -144,6 +409,8 @@ export function SettingsScreen() {
   const resetData = useStore((s) => s.resetData);
   const session = useAuthStore((s) => s.session);
   const clearSession = useAuthStore((s) => s.clear);
+  // 员工账号区解锁依据（REQ-20261119-040838 B 会话）：员工账密登录后展示资料/改密/会话/通知卡
+  const bSession = useBSessionStore((s) => s.session);
   const accent = useAccent();
   const { t } = useTranslation();
   const { palette } = useAppTheme();
@@ -276,6 +543,21 @@ export function SettingsScreen() {
         />
       </Card>
 
+      {/* 员工账号区（REQ-20261119-082531 契约⑧）：B 会话解锁四卡；否则仅引导 */}
+      {bSession ? (
+        <>
+          <EmployeeProfileCard styles={styles} />
+          <EmployeePasswordCard styles={styles} />
+          <EmployeeSessionsCard styles={styles} />
+          <NotificationPrefsCard styles={styles} />
+        </>
+      ) : (
+        <Card>
+          <Text style={styles.cardTitle}>{t('profile.mobile.accountTitle')}</Text>
+          <Muted style={{ fontSize: 12 }}>{t('profile.mobile.accountLockedDesc')}</Muted>
+        </Card>
+      )}
+
       <Card>
         <Text style={styles.cardTitle}>{t('settings.runtime.label')}</Text>
         <View style={styles.runtimeRow}>
@@ -290,6 +572,15 @@ export function SettingsScreen() {
 const makeStyles = (p: NeutralPalette) =>
   StyleSheet.create({
     cardTitle: { color: p.text, fontSize: 16, fontWeight: '700' },
+    profileInput: {
+      borderWidth: 1,
+      borderColor: p.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      minHeight: 44,
+      fontSize: 14,
+      color: p.text,
+    },
     settingRow: {
       flexDirection: 'row',
       alignItems: 'center',

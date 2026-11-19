@@ -90,6 +90,37 @@ public class SessionRecorder {
     }
 
     /**
+     * 该用户活跃会话保留指定会话、其余全部置 KICKED，返回被踢会话待撤销清单
+     * （REQ-20261119-082531 自助改密 / 下线其他设备：当前会话底账保持 ACTIVE，令牌不撤销）。
+     *
+     * @param keepTokenId 保留的当前会话 tokenId（=当前访问令牌 jti；底账缺失时语义退化为全踢）
+     * @return 被踢会话待撤销清单（不含保留会话）
+     */
+    @Transactional
+    public List<RevocableToken> kickActiveSessionsExcept(Long userId, String keepTokenId) {
+        List<AuthSession> actives = sessionRepository.findByUserIdAndStatus(userId, SessionStatus.ACTIVE);
+        List<AuthSession> targets = actives.stream()
+                .filter(session -> !session.getTokenId().equals(keepTokenId))
+                .toList();
+        targets.forEach(AuthSession::markKicked);
+        sessionRepository.saveAll(targets);
+        return targets.stream().map(session -> new RevocableToken(session.getTokenId(),
+                session.getExpiresAt())).toList();
+    }
+
+    /**
+     * 本人活跃且未过期会话集合（REQ-20261119-082531 自助会话列表数据源，确认记录④；
+     * 过期会话不出现——与在线用户列表 activeNotExpired 同口径）。
+     */
+    @Transactional(readOnly = true)
+    public List<AuthSession> activeByUserId(Long userId) {
+        Instant now = Instant.now();
+        return sessionRepository.findByUserIdAndStatus(userId, SessionStatus.ACTIVE).stream()
+                .filter(session -> session.getExpiresAt().isAfter(now))
+                .toList();
+    }
+
+    /**
      * 指定租户全部活跃且未过期会话置 KICKED，返回待撤销清单
      * （REQ-20261117-025200 租户停用批量撤销数据源，确认记录①：枚举撤销，
      * 过期会话不进底账改写——网关 exp 校验兜底失效）；无会话返回空清单（未知租户幂等 0/0）。

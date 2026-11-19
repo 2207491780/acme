@@ -21,6 +21,7 @@ import { jobs } from './jobs';
 import { files } from './files';
 import { systemConfig } from './systemConfig';
 import { settings } from './settings';
+import { profile } from './profile';
 import { components } from './components';
 
 /** zh-CN 资源聚合（按域拆分文件，此处只做聚合，不承载文案）。 */
@@ -48,5 +49,6 @@ export const zhCN = {
   files,
   systemConfig,
   settings,
+  profile,
   components,
 };

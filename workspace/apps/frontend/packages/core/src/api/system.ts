@@ -1,4 +1,5 @@
 import { apiFetch } from '../http/client';
+import type { FileView } from './infra';
 
 /** 分页信封（契约对齐 PageResult；total 为 Long——按数字容错解析）。 */
 export interface PageResult<T> {
@@ -7,13 +8,15 @@ export interface PageResult<T> {
 }
 
 /** 用户视图（契约对齐 AdminUserView；id/version/roleIds 序列化为字符串）。
- *  REQ-20261114-120104 扩展 deptId/positionId（可空：存量数据未分配）。 */
+ *  REQ-20261114-120104 扩展 deptId/positionId（可空：存量数据未分配）。
+ *  REQ-20261119-082531 扩展 avatarUrl（可空：V21 前存量用户无头像）。 */
 export interface AdminUserView {
   id: string;
   username: string;
   nickname: string | null;
   email: string | null;
   phone: string | null;
+  avatarUrl?: string | null;
   status: 'ENABLED' | 'DISABLED';
   builtIn: boolean;
   roleIds: string[];
@@ -50,6 +53,31 @@ export interface AdminMeView {
   menus: AdminMenuView[];
   deptName: string | null;
 }
+
+/** 本人资料更新载荷（REQ-20261119-082531 契约①）：nickname 必填 ≤32；email 可空（email 格式）、
+ *  phone 可空（1\d{10}），null=清空该字段，校验对齐 UserController 既有口径；
+ *  avatarUrl 由头像两步上传流程供给（可空）。 */
+export interface MeUpdatePayload {
+  nickname: string;
+  email?: string | null;
+  phone?: string | null;
+  avatarUrl?: string | null;
+}
+
+/** 用户通知偏好视图（REQ-20261119-082531 契约⑤；sys_user_preference.prefs jsonb，本人单行 upsert）。 */
+export interface UserPreferenceView {
+  messagePush: boolean;
+}
+
+/** 推送令牌平台枚举（REQ-20261119-082531 契约⑤；sys_push_token.platform varchar(8)）。 */
+export type PushTokenPlatform = 'ios' | 'android' | 'web';
+
+/** 本人头像上传端点（REQ-20261119-082531，TL 裁决：落 platform-infra 认证面、免 infra:file:upload
+ *  权限点；内部走 FileUseCase（bizType='avatar'），multipart file → FileView）。 */
+export const ME_AVATAR_ENDPOINT = '/admin/v1/infra/me/avatar' as const;
+
+/** 推送令牌端点（REQ-20261119-082531 契约⑤；POST upsert / DELETE 按 token query 删除）。 */
+export const PUSH_TOKEN_ENDPOINT = '/admin/v1/system/me/push-tokens' as const;
 
 /** 租户系统配置视图（契约对齐 AdminSystemConfigView，REQ-20261116-230354；version 乐观锁字符串）。
  *  REQ-20261117-011514 扩展 captchaEnabled（缺省视图=false）。
@@ -178,6 +206,43 @@ export interface AdminDictItemView {
 export const systemApi = {
   /** 当前登录者视图（认证即可访问；会话恢复校验 + 身份/角色/权限/菜单引导）。 */
   me: (): Promise<AdminMeView> => apiFetch<AdminMeView>('/admin/v1/system/me'),
+
+  // ---- 个人中心（REQ-20261119-082531；全部认证即可，无新权限点） ----
+  /** 更新本人资料（契约①）：成功返回最新 AdminMeView（调用方据此刷新 meStore）。 */
+  meUpdate: (payload: MeUpdatePayload): Promise<AdminMeView> =>
+    apiFetch<AdminMeView>('/admin/v1/system/me', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  /** 上传本人头像（契约②+TL 裁决两步上传第一步）：multipart POST /admin/v1/infra/me/avatar
+   *  → FileView(url)；url 由调用方经 meUpdate.avatarUrl 提交后才落 sys_user.avatar_url。
+   *  旧头像文件不删（后端保留期任务自然清理）。 */
+  meAvatarUpload: (file: File): Promise<FileView> => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch<FileView>(ME_AVATAR_ENDPOINT, { method: 'POST', body: form });
+  },
+  /** 读取本人通知偏好（契约⑤；无偏好行返回缺省 messagePush=false）。 */
+  mePreferences: (): Promise<UserPreferenceView> =>
+    apiFetch<UserPreferenceView>('/admin/v1/system/me/preferences'),
+  /** 更新本人通知偏好（契约⑤；本人行 upsert，字段集 {messagePush}）。 */
+  mePreferencesUpdate: (payload: { messagePush: boolean }): Promise<UserPreferenceView> =>
+    apiFetch<UserPreferenceView>('/admin/v1/system/me/preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  /** 注册推送令牌（契约⑤；本人 token upsert——同 token 幂等；void 端点兼容空体）。 */
+  pushTokenRegister: (payload: { token: string; platform: PushTokenPlatform }): Promise<void> =>
+    apiFetch<void>(PUSH_TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }, { emptyAsSuccess: true }),
+  /** 移除推送令牌（契约⑤；DELETE ?token= 删本人行；幂等成功）。 */
+  pushTokenRemove: (token: string): Promise<void> =>
+    apiFetch<void>(`${PUSH_TOKEN_ENDPOINT}?token=${encodeURIComponent(token)}`, { method: 'DELETE' }, { emptyAsSuccess: true }),
 
   // ---- 租户系统配置（REQ-20261116-230354；GET 认证即可，PUT 需 system:config:update） ----
   /** 读取当前租户配置（无配置行返回缺省 true/false/0/"0"，REQ-20261117-011514 captchaEnabled=false）。 */

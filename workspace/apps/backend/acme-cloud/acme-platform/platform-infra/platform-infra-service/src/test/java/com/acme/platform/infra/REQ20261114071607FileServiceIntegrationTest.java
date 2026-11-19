@@ -203,6 +203,39 @@ class REQ20261114071607FileServiceIntegrationTest {
         assertThat(Files.readAllBytes(objectPath)).isEqualTo(content);
     }
 
+    // ---------- REQ-20261119-082531 AC-2：本人头像上传（/infra/me/avatar，认证即可） ----------
+
+    @Test
+    void should_uploadAvatarWithBizTypeAvatar_when_authenticatedUserPostsToMeAvatar() throws Exception {
+        // S4 图片语义校验要求可解码 PNG——ImageIO 运行时生成 1x1（硬编码残缺头会被 IMAGE_INVALID 拒绝）
+        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(1, 1, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", bos);
+        byte[] content = bos.toByteArray();
+        JsonNode body = avatarUpload("avatar.png", "image/png", content);
+
+        assertThat(body.path("success").asBoolean()).isTrue();
+        assertThat(textOf(body.path("data"), "bizType", "biz_type")).isEqualTo("avatar");
+        assertThat(textOf(body.path("data"), "bizId", "biz_id")).isEqualTo("42"); // 测试装配身份 sub=42（token() helper）
+        assertThat(body.path("data").path("url").asText()).isNotEmpty();
+    }
+
+    @Test
+    void should_rejectNonImage_when_avatarIsOutsideWhitelist() throws Exception {
+        // zip 不在 allowedContentTypes（xlsx,pdf,png,jpg,jpeg,txt,csv）→ FILE_TYPE_REJECTED
+        JsonNode body = avatarUpload("avatar.zip", "application/zip", "not an image".getBytes(StandardCharsets.UTF_8));
+
+        assertThat(body.path("success").asBoolean()).isFalse();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_file", Long.class)).isZero();
+    }
+
+    private JsonNode avatarUpload(String originalName, String contentType, byte[] content) throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", originalName, contentType, content);
+        AbstractMockHttpServletRequestBuilder<?> request = multipart("/admin/v1/infra/me/avatar").file(file);
+        return bodyOf(mvc.perform(request
+                .header("X-Acme-Channel", "B")
+                .header("X-Acme-Token", token())).andReturn());
+    }
+
     // ---------- AC-2：超限/类型白名单拒绝，无对象无记录 ----------
 
     @Test

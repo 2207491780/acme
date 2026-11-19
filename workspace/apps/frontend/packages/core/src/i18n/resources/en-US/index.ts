@@ -21,6 +21,7 @@ import { jobs } from './jobs';
 import { files } from './files';
 import { systemConfig } from './systemConfig';
 import { settings } from './settings';
+import { profile } from './profile';
 import { components } from './components';
 
 /** en-US resource aggregation (per-domain split files; aggregation only, no copy here). */
@@ -48,5 +49,6 @@ export const enUS = {
   files,
   systemConfig,
   settings,
+  profile,
   components,
 };
