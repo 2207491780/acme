@@ -81,9 +81,10 @@ class SystemIntegrationTest {
     void flywaySeedPresent() {
         // 种子数据（V2 基线 + V3/V4 infra 增补 + V5 内容域增补 + V7 文件/任务/Excel 权限增补
         // + V8 通知公告/站内信权限增补 + V9 组织架构/数据范围权限增补 + V10 登录安全权限增补
-        // + V15 系统配置权限/菜单增补 + V19 日志中心权限/菜单增补 + V20 按钮 BUTTON 菜单节点增补）：
-        // 默认租户 / 超管 / super_admin / 68 权限点（62+3+2+1，V19 续编 68；V20 无新权限点）/
-        // 39 菜单（12 + V20 BUTTON 节点 27；me.menus 语义不动，BUTTON 仅授权树投影）
+        // + V15 系统配置权限/菜单增补 + V19 日志中心权限/菜单增补 + V20 按钮 BUTTON 菜单节点增补
+        // + V22 六页 MENU 叶子增补，REQ-20261119-151640）：
+        // 默认租户 / 超管 / super_admin / 68 权限点（62+3+2+1，V19 续编 68；V20/V22 无新权限点）/
+        // 45 菜单（12 + V20 BUTTON 节点 27 + V22 MENU 叶子 6；me.menus 语义不动，BUTTON 仅授权树投影）
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_tenant where tenant_code='default'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
@@ -93,7 +94,7 @@ class SystemIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_permission", Long.class)).isEqualTo(68L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_menu", Long.class)).isEqualTo(39L);
+                "select count(*) from sys_menu", Long.class)).isEqualTo(45L);
         // REQ-20261119-051119 AC-1：BUTTON 节点入 sys_menu（permission_code=既有 API 码）且超管全绑
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_menu where menu_type='BUTTON'", Long.class)).isEqualTo(27L);
@@ -159,11 +160,12 @@ class SystemIntegrationTest {
         // V9 幂等：绑定行与权限点不因重放翻倍（>=54 含 V9 9 条 + V10 3 条 + V15 2 条）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 54",
                 Long.class)).isEqualTo(15L);
-        // V20 幂等（REQ-20261119-051119 确认⑥）：BUTTON 节点与超管绑定行不因重放翻倍（13 起各 27 行）
+        // V20 幂等（REQ-20261119-051119 确认⑥）：BUTTON 节点与超管绑定行不因重放翻倍（BUTTON 仍 27）；
+        // role_menu id>=13 共 33 行＝BUTTON 绑定 27＋V22 叶子绑定 6（REQ-20261119-151640，id 40~45）
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_menu where menu_type='BUTTON'", Long.class)).isEqualTo(27L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_menu where id >= 13",
-                Long.class)).isEqualTo(27L);
+                Long.class)).isEqualTo(33L);
     }
 
     @Test

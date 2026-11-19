@@ -24,8 +24,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>与 {@link SystemIntegrationTest} 计数断言的口径一致性（确认⑥联动说明）：</p>
  * <ul>
  *   <li>{@code SystemIntegrationTest.flywaySeedPresent} 的 {@code sys_menu == 12} 由 backend
- *       按「12→实际数」联动更新；本类不重复钉 sys_menu 总数，只断「总数 = 12 + BUTTON 数」
- *       （契约变更清单：V20 仅新增 BUTTON 菜单行），两套口径互不冲突。</li>
+ *       按「12→实际数」联动更新；本类不重复钉 sys_menu 总数，只断「总数 = 非 BUTTON 基数 + BUTTON 数」
+ *       （基数 12→18：REQ-20261119-151640 V22 新增六 MENU 叶子；V20 仅新增 BUTTON 菜单行），
+ *       两套口径互不冲突。</li>
  *   <li>V20 不新增 sys_permission / sys_role_permission 行 → {@code seedScriptReplayIsIdempotent}
  *       的 permission=68、role_permission(>=46)=23、(>=54)=15 断言不受影响（replay 列表加 V20
  *       由 backend 在其自有文件内联动）；本类独立重放 V20（每测试类独立 PG 容器，互不影响）。</li>
@@ -45,8 +46,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 class REQ20261119051119ButtonMenuMigrationTest {
 
-    /** V20 种子既有菜单基数（V19 用至 12，SystemIntegrationTest flywaySeedPresent 现行断言值）。 */
-    private static final long SEED_MENU_BASE_COUNT = 12L;
+    /** 非 BUTTON 菜单基数＝V19 用至 12＋REQ-20261119-151640 V22 六 MENU 叶子（id 40~45）＝18。 */
+    private static final long SEED_MENU_BASE_COUNT = 18L;
 
     /** 超管角色（V2 种子：role_id=1 / tenant 'default'，V19 绑定行续编先例）。 */
     private static final long SUPER_ADMIN_ROLE_ID = 1L;
@@ -110,9 +111,10 @@ class REQ20261119051119ButtonMenuMigrationTest {
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
                 .as("BUTTON 不新建权限点，sys_permission 总数不变").isEqualTo(68L);
 
-        // V20 仅新增 BUTTON 菜单行：总数 = 既有 12 + BUTTON（与 SystemIntegrationTest 的 12→N 联动口径一致）
+        // 总数 = 非 BUTTON 基数 18（原 12＋V22 六叶子）+ BUTTON（与 SystemIntegrationTest 的基数→N 联动口径一致）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
-                .as("sys_menu 总数 = 种子基数 12 + BUTTON 数").isEqualTo(SEED_MENU_BASE_COUNT + buttonCount);
+                .as("sys_menu 总数 = 种子基数 18（含 REQ-20261119-151640 V22 六叶子）+ BUTTON 数")
+                .isEqualTo(SEED_MENU_BASE_COUNT + buttonCount);
 
         // menu_type 值域：既有两值 + 新增 BUTTON
         assertThat(jdbcTemplate.queryForList("select distinct menu_type from sys_menu", String.class))
