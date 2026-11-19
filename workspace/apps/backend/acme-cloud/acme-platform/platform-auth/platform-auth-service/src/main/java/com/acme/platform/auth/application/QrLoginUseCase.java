@@ -233,17 +233,6 @@ public class QrLoginUseCase {
     /** 互踢：旧活跃会话置 KICKED（事务）→ 撤销集写入（事务外，失败降级 WARN 不阻断确认）。 */
     private void kickPreviousSessions(Long userId) {
         List<SessionRecorder.RevocableToken> previous = sessionRecorder.kickActiveSessions(userId);
-        for (SessionRecorder.RevocableToken revocable : previous) {
-            long remaining = Duration.between(Instant.now(), revocable.expiresAt()).toSeconds();
-            if (remaining <= 0) {
-                continue;
-            }
-            try {
-                sessionRedis.revoke(revocable.tokenId(), remaining);
-            } catch (RuntimeException ex) {
-                log.warn("扫码确认互踢撤销集写入失败（旧令牌至多存活至过期）：userId={} tokenId={}", userId,
-                        revocable.tokenId(), ex);
-            }
-        }
+        SessionRevocations.bestEffort(sessionRedis, previous, userId, "扫码确认互踢");
     }
 }

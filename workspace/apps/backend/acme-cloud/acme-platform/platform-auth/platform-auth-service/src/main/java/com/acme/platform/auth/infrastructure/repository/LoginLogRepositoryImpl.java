@@ -2,6 +2,7 @@ package com.acme.platform.auth.infrastructure.repository;
 
 import com.acme.common.contract.PageResult;
 import com.acme.framework.flex.internal.FlexDeletes;
+import com.acme.framework.flex.repository.AggregateRows;
 import com.acme.framework.flex.repository.FlexRepositorySupport;
 import com.acme.platform.auth.api.LoginLogStatsPoint;
 import com.acme.platform.auth.domain.SysLoginLog;
@@ -65,30 +66,8 @@ public class LoginLogRepositoryImpl extends FlexRepositorySupport<SysLoginLog>
 
     /** 聚合行 → 统计点（列别名 stat_date / stat_count；PG 未加引号别名折叠为小写，忽略大小写取键）。 */
     private static LoginLogStatsPoint toStatsPoint(Map<String, Object> row) {
-        String date = stringValue(row, "stat_date");
-        long count = numberValue(row, "stat_count");
+        String date = AggregateRows.stringValue(row, "stat_date");
+        long count = AggregateRows.numberValue(row, "stat_count");
         return new LoginLogStatsPoint(date, count);
-    }
-
-    /** 忽略大小写取字符串列（别名折叠防分歧）。 */
-    private static String stringValue(Map<String, Object> row, String key) {
-        for (Map.Entry<String, Object> entry : row.entrySet()) {
-            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)
-                    && entry.getValue() != null) {
-                return String.valueOf(entry.getValue());
-            }
-        }
-        return null;
-    }
-
-    /** 忽略大小写取数值列（PG bigint → Long）。 */
-    private static long numberValue(Map<String, Object> row, String key) {
-        for (Map.Entry<String, Object> entry : row.entrySet()) {
-            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)
-                    && entry.getValue() instanceof Number number) {
-                return number.longValue();
-            }
-        }
-        return 0L;
     }
 }

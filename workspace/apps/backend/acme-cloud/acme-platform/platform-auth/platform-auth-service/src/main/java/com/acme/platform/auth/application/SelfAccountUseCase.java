@@ -1,7 +1,6 @@
 package com.acme.platform.auth.application;
 
 import com.acme.common.core.BizException;
-import com.acme.common.core.CommonError;
 import com.acme.platform.auth.AuthError;
 import com.acme.platform.auth.api.SelfSessionView;
 import com.acme.platform.auth.domain.AuthCredential;
@@ -12,7 +11,6 @@ import com.acme.platform.auth.internal.token.UserTokenIssuer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -147,17 +145,7 @@ public class SelfAccountUseCase {
      * 任一写失败 → 显式失败响应（底账已终态而撤销失败，不得「成功但令牌仍可用」）。
      */
     private void revokeAll(List<SessionRecorder.RevocableToken> revocables) {
-        for (SessionRecorder.RevocableToken revocable : revocables) {
-            long remaining = Duration.between(Instant.now(), revocable.expiresAt()).toSeconds();
-            if (remaining <= 0) {
-                continue;
-            }
-            try {
-                sessionRedis.revoke(revocable.tokenId(), remaining);
-            } catch (RuntimeException ex) {
-                throw new BizException(CommonError.INTERNAL_ERROR);
-            }
-        }
+        SessionRevocations.allOrFail(sessionRedis, revocables);
     }
 
     /**

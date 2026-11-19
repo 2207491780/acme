@@ -2,7 +2,6 @@ package com.acme.platform.auth.application;
 
 import com.acme.common.context.TenantContext;
 import com.acme.common.core.BizException;
-import com.acme.common.core.CommonError;
 import com.acme.platform.auth.AuthError;
 import com.acme.platform.auth.api.AdminPasswordSetRequest;
 import com.acme.platform.auth.infrastructure.client.AuthorizationGateway;
@@ -10,8 +9,6 @@ import com.acme.platform.auth.infrastructure.redis.SessionRedis;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 
 /**
@@ -56,18 +53,8 @@ public class ResetPasswordUseCase {
         // 事务内仅本服务库写（M-05）；会话撤销清单随事务返回、Redis 写在事务外
         List<SessionRecorder.RevocableToken> revocables =
                 credentialRecorder.resetCredential(userId, hash, currentTenantOrFallback());
-        for (SessionRecorder.RevocableToken revocable : revocables) {
-            long remaining = Duration.between(Instant.now(), revocable.expiresAt()).toSeconds();
-            if (remaining <= 0) {
-                continue;
-            }
-            try {
-                sessionRedis.revoke(revocable.tokenId(), remaining);
-            } catch (RuntimeException ex) {
-                // 会话已置 KICKED 而撤销失败：显式失败响应，不出现「成功但可用」（FR-004 异常分支）
-                throw new BizException(CommonError.INTERNAL_ERROR);
-            }
-        }
+        // 会话已置 KICKED 而撤销失败：显式失败响应，不出现「成功但可用」（FR-004 异常分支）
+        SessionRevocations.allOrFail(sessionRedis, revocables);
     }
 
     private static String currentTenantOrFallback() {

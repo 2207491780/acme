@@ -1,13 +1,12 @@
 package com.acme.platform.auth.infrastructure.client;
 
-import com.acme.common.context.UserContext;
+import com.acme.framework.core.support.ServiceIdentityScope;
 import com.acme.platform.system.api.TenantClient;
 import com.acme.platform.system.api.TenantInternalView;
 import com.acme.platform.system.api.TenantSummary;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * 租户目录网关（login-tenant-select / REQ-20261117-025200）：登录页租户下拉数据源
@@ -25,14 +24,9 @@ public class TenantDirectoryGateway {
 
     /** 启用租户清单（按租户代码排序；空租户域由下游返回空列表）。 */
     public List<TenantSummary> listEnabled() {
-        UserContext previous = UserContext.get();
-        UserContext.bind(new UserContext(AuthProfileGateway.SERVICE_IDENTITY, Set.of()));
-        try {
-            List<TenantSummary> tenants = tenantClient.listEnabled().payload();
-            return tenants == null ? List.of() : tenants;
-        } finally {
-            UserContext.bind(previous);
-        }
+        List<TenantSummary> tenants = ServiceIdentityScope
+                .runAs(AuthProfileGateway.SERVICE_IDENTITY, () -> tenantClient.listEnabled().payload());
+        return tenants == null ? List.of() : tenants;
     }
 
     /**
@@ -41,12 +35,7 @@ public class TenantDirectoryGateway {
      * 抛 BizException 透传调用方（登录链统一映射 LOGIN_FAILED / 切换链统一映射 TENANT_SWITCH_FAILED）。
      */
     public TenantInternalView findByCode(String tenantCode) {
-        UserContext previous = UserContext.get();
-        UserContext.bind(new UserContext(AuthProfileGateway.SERVICE_IDENTITY, Set.of()));
-        try {
-            return tenantClient.findByCode(tenantCode).payload();
-        } finally {
-            UserContext.bind(previous);
-        }
+        return ServiceIdentityScope.runAs(AuthProfileGateway.SERVICE_IDENTITY,
+                () -> tenantClient.findByCode(tenantCode).payload());
     }
 }

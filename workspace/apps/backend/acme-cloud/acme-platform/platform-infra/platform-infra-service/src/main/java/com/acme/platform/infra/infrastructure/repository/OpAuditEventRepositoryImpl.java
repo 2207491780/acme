@@ -1,6 +1,7 @@
 package com.acme.platform.infra.infrastructure.repository;
 
 import com.acme.framework.flex.internal.FlexDeletes;
+import com.acme.framework.flex.repository.AggregateRows;
 import com.acme.framework.flex.repository.FlexRepositorySupport;
 import com.acme.platform.infra.api.ActionCount;
 import com.acme.platform.infra.domain.OpAuditEvent;
@@ -55,30 +56,8 @@ public class OpAuditEventRepositoryImpl extends FlexRepositorySupport<OpAuditEve
 
     /** 聚合行 → 统计项（列别名 stat_action / stat_count；PG 未加引号别名折叠为小写，忽略大小写取键）。 */
     private static ActionCount toActionCount(Map<String, Object> row) {
-        String action = stringValue(row, "stat_action");
-        long count = numberValue(row, "stat_count");
+        String action = AggregateRows.stringValue(row, "stat_action");
+        long count = AggregateRows.numberValue(row, "stat_count");
         return new ActionCount(action, count);
-    }
-
-    /** 忽略大小写取字符串列（别名折叠防分歧）。 */
-    private static String stringValue(Map<String, Object> row, String key) {
-        for (Map.Entry<String, Object> entry : row.entrySet()) {
-            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)
-                    && entry.getValue() != null) {
-                return String.valueOf(entry.getValue());
-            }
-        }
-        return null;
-    }
-
-    /** 忽略大小写取数值列（PG bigint → Long）。 */
-    private static long numberValue(Map<String, Object> row, String key) {
-        for (Map.Entry<String, Object> entry : row.entrySet()) {
-            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(key)
-                    && entry.getValue() instanceof Number number) {
-                return number.longValue();
-            }
-        }
-        return 0L;
     }
 }

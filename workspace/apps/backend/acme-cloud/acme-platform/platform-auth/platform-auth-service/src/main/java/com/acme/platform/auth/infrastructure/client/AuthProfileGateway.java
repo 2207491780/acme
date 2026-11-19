@@ -1,7 +1,7 @@
 package com.acme.platform.auth.infrastructure.client;
 
-import com.acme.common.context.UserContext;
 import com.acme.common.core.BizException;
+import com.acme.framework.core.support.ServiceIdentityScope;
 import com.acme.platform.auth.AuthError;
 import com.acme.platform.system.api.AuthProfileClient;
 import com.acme.platform.system.api.AuthProfileView;
@@ -13,7 +13,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 登录认证画像网关（架构设计 3.3，Q-D08）：登录场景无用户主体，
@@ -34,19 +33,17 @@ public class AuthProfileGateway {
 
     /** 按用户名查画像；404 → 统一 LOGIN_FAILED。 */
     public AuthProfileView findByUsername(String username) {
-        UserContext previous = UserContext.get();
-        UserContext.bind(new UserContext(SERVICE_IDENTITY, Set.of()));
-        try {
-            ContractResult<AuthProfileView> result = authProfileClient.findByUsername(username);
-            return result.payload();
-        } catch (BizException ex) {
-            if (SystemErrorCodes.USER_NOT_FOUND.equals(ex.errorCode().code())) {
-                throw new BizException(AuthError.LOGIN_FAILED);
+        return ServiceIdentityScope.runAs(SERVICE_IDENTITY, () -> {
+            try {
+                ContractResult<AuthProfileView> result = authProfileClient.findByUsername(username);
+                return result.payload();
+            } catch (BizException ex) {
+                if (SystemErrorCodes.USER_NOT_FOUND.equals(ex.errorCode().code())) {
+                    throw new BizException(AuthError.LOGIN_FAILED);
+                }
+                throw ex;
             }
-            throw ex;
-        } finally {
-            UserContext.bind(previous);
-        }
+        });
     }
 
     /**
@@ -57,9 +54,7 @@ public class AuthProfileGateway {
         if (userIds == null || userIds.isEmpty()) {
             return Map.of();
         }
-        UserContext previous = UserContext.get();
-        UserContext.bind(new UserContext(SERVICE_IDENTITY, Set.of()));
-        try {
+        return ServiceIdentityScope.runAs(SERVICE_IDENTITY, () -> {
             ContractResult<List<AuthProfileView>> result = authProfileClient.findByUserIds(List.copyOf(userIds));
             List<AuthProfileView> profiles = result.payload();
             Map<Long, AuthProfileView> mapped = new HashMap<>();
@@ -71,8 +66,6 @@ public class AuthProfileGateway {
                 }
             }
             return mapped;
-        } finally {
-            UserContext.bind(previous);
-        }
+        });
     }
 }

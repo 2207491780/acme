@@ -148,17 +148,6 @@ public class TenantSwitchUseCase {
     /** 互踢：旧活跃会话置 KICKED（事务）→ 撤销集写入（事务外，失败降级 WARN 不阻断切换）。 */
     private void kickPreviousSessions(Long userId) {
         List<SessionRecorder.RevocableToken> previous = sessionRecorder.kickActiveSessions(userId);
-        for (SessionRecorder.RevocableToken revocable : previous) {
-            long remaining = Duration.between(Instant.now(), revocable.expiresAt()).toSeconds();
-            if (remaining <= 0) {
-                continue;
-            }
-            try {
-                sessionRedis.revoke(revocable.tokenId(), remaining);
-            } catch (RuntimeException ex) {
-                log.warn("切换互踢撤销集写入失败（旧令牌至多存活至过期）：userId={} tokenId={}", userId,
-                        revocable.tokenId(), ex);
-            }
-        }
+        SessionRevocations.bestEffort(sessionRedis, previous, userId, "切换互踢");
     }
 }

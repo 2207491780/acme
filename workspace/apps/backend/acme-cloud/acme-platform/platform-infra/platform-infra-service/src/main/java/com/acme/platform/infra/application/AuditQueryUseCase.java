@@ -23,9 +23,6 @@ import java.util.List;
 @Service
 public class AuditQueryUseCase {
 
-    /** 导出上限（确认④：10000 行）。 */
-    static final long EXPORT_MAX_ROWS = 10_000L;
-
     private final OpAuditEventRepository repository;
     private final ExcelProperties excelProperties;
 
@@ -69,14 +66,12 @@ public class AuditQueryUseCase {
     private ExportResult<OpAuditEvent> doExport(String operatorId,
                                                 java.util.Collection<String> visibleOperatorIds,
                                                 String action, String traceId, Instant from, Instant to) {
-        long cap = Math.min(EXPORT_MAX_ROWS, Math.max(excelProperties.getMaxRows(), 1L));
+        long cap = ExportResult.cap(excelProperties);
         List<OpAuditEvent> fetched = repository
                 .findAll(filterWrapper(operatorId, visibleOperatorIds, action, traceId, from, to)
                         .orderBy(OpAuditEvent::getOccurredAt, false)
                         .orderBy(OpAuditEvent::getId, false), 1, (int) (cap + 1)).records();
-        boolean truncated = fetched.size() > cap;
-        List<OpAuditEvent> records = truncated ? fetched.subList(0, (int) cap) : fetched;
-        return new ExportResult<>(records, truncated);
+        return ExportResult.of(fetched, cap);
     }
 
     private PageResult<OpAuditEvent> doPage(PageQuery query, String operatorId,

@@ -79,13 +79,7 @@ public class FileUseCase {
         if (file == null || file.isEmpty()) {
             throw new BizException(InfraError.FILE_TYPE_REJECTED, "上传文件不能为空");
         }
-        if (file.getSize() > storageProperties.getUpload().getMaxSize().toBytes()) {
-            throw new BizException(InfraError.FILE_SIZE_EXCEEDED);
-        }
-        if (!typeAllowed(file.getOriginalFilename(), file.getContentType())) {
-            throw new BizException(InfraError.FILE_TYPE_REJECTED);
-        }
-        checkQuota(file.getSize());
+        validateUploadBasics(file.getOriginalFilename(), file.getContentType(), file.getSize());
         // 图片语义需复用字节流（确认④）：先读内存再校验再写（max-size 10MB 上限内可接受）
         byte[] payload = readAll(file);
         validateImageIfNeed(file.getContentType(), payload);
@@ -111,13 +105,7 @@ public class FileUseCase {
         if (fileName == null || fileName.isBlank() || size <= 0) {
             throw new BizException(InfraError.FILE_TYPE_REJECTED, "上传文件不能为空");
         }
-        if (size > storageProperties.getUpload().getMaxSize().toBytes()) {
-            throw new BizException(InfraError.FILE_SIZE_EXCEEDED);
-        }
-        if (!typeAllowed(fileName, contentType)) {
-            throw new BizException(InfraError.FILE_TYPE_REJECTED);
-        }
-        checkQuota(size);
+        validateUploadBasics(fileName, contentType, size);
         ObjectKey key = newObjectKey(fileName);
         Map<String, String> headers = blankToNull(contentType) == null
                 ? Map.of() : Map.of("Content-Type", contentType);
@@ -246,6 +234,17 @@ public class FileUseCase {
     }
 
     // ---------- 校验链 ----------
+
+    /** 共用校验链（multipart 与直传 preparation 同检，确认③口径）：大小上限 → 类型白名单 → 租户配额。 */
+    private void validateUploadBasics(String fileName, String contentType, long size) {
+        if (size > storageProperties.getUpload().getMaxSize().toBytes()) {
+            throw new BizException(InfraError.FILE_SIZE_EXCEEDED);
+        }
+        if (!typeAllowed(fileName, contentType)) {
+            throw new BizException(InfraError.FILE_TYPE_REJECTED);
+        }
+        checkQuota(size);
+    }
 
     /** 租户配额（确认③）：未删行 size 总和 + 本次 ≤ quota.defaultBytes（0=不限）；并发上传下为近似护栏。 */
     private void checkQuota(long incomingSize) {

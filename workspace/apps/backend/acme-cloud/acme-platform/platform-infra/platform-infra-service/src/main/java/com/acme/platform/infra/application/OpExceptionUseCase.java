@@ -35,9 +35,6 @@ import java.util.List;
 @Service
 public class OpExceptionUseCase {
 
-    /** 导出上限（确认④：10000 行）。 */
-    static final long EXPORT_MAX_ROWS = 10_000L;
-
     /** 系统级事件（无租户语境）的租户归一保留值（AuditIngestUseCase 同口径）。 */
     public static final String SYSTEM_TENANT = "system";
 
@@ -104,12 +101,12 @@ public class OpExceptionUseCase {
     /** 导出（同筛选参数；上限 10000 行并受 acme.excel.max-rows 收窄，超限截断标记承载）。 */
     public ExportResult<OpException> export(String service, String traceId,
                                             String exceptionType, Instant from, Instant to) {
-        long cap = exportCap();
+        long cap = ExportResult.cap(excelProperties);
         List<OpException> fetched = repository
                 .findAll(filterWrapper(service, traceId, exceptionType, from, to)
                         .orderBy(OpException::getOccurredAt, false)
                         .orderBy(OpException::getId, false), 1, (int) (cap + 1)).records();
-        return truncate(fetched, cap);
+        return ExportResult.of(fetched, cap);
     }
 
     private QueryWrapper filterWrapper(String service, String traceId,
@@ -152,17 +149,6 @@ public class OpExceptionUseCase {
             }
         }
         return wrapper;
-    }
-
-    /** 导出上限（确认④ 10000；并受 acme.excel.max-rows 收窄，防与写面 ROW_LIMIT 冲突）。 */
-    private long exportCap() {
-        return Math.min(EXPORT_MAX_ROWS, Math.max(excelProperties.getMaxRows(), 1L));
-    }
-
-    private static <T> ExportResult<T> truncate(List<T> fetched, long cap) {
-        boolean truncated = fetched.size() > cap;
-        List<T> records = truncated ? fetched.subList(0, (int) cap) : fetched;
-        return new ExportResult<>(records, truncated);
     }
 
     /** 事件 → 实体（列宽截断；堆栈摘要收集侧 512 收口）。 */
