@@ -57,8 +57,15 @@ function createWindow() {
     }
   });
 
-  if (devServerUrl) mainWindow.loadURL(devServerUrl);
-  else mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
+  if (devServerUrl) {
+    mainWindow.loadURL(devServerUrl);
+  } else {
+    // Windows 竞态加固：构建刚完成时首载偶发 acme:// ERR_FILE_NOT_FOUND（文件系统索引延迟），
+    // 失败后短暂等待重试一次（REQ-20261119-063129 后 S13 冒烟实证两连发）。
+    mainWindow.loadURL(`${APP_ORIGIN}/index.html`).catch(() => {
+      setTimeout(() => mainWindow.loadURL(`${APP_ORIGIN}/index.html`).catch(() => {}), 300);
+    });
+  }
 
   // AC-3：配置开启（ACME_DESKTOP_CLOSE_TO_TRAY=1）时关窗最小化到托盘；托盘「退出」/before-quit 正常退出。
   mainWindow.on('close', (event) => {
