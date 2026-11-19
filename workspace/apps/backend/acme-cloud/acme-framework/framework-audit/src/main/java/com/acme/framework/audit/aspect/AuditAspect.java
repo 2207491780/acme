@@ -166,8 +166,17 @@ public class AuditAspect {
 
     /** beforeQuery 求值上下文（变量同既有 p0/参数名/a0；beanResolver 可选）。 */
     private StandardEvaluationContext beforeEvaluationContext(ProceedingJoinPoint joinPoint) {
+        return evaluationContext(joinPoint, true);
+    }
+
+    /**
+     * SpEL 求值上下文（S14 收敛 beforeQuery 与 targetType/targetId/白名单两处同款变量装配）：
+     * 变量 p0/a0/参数名；{@code withBeanResolver} 仅 beforeQuery 启用（{@code @beanName} 引用
+     * 确认③口径，其余表达式维持原「无 resolver」语义不变）。
+     */
+    private StandardEvaluationContext evaluationContext(ProceedingJoinPoint joinPoint, boolean withBeanResolver) {
         StandardEvaluationContext context = new StandardEvaluationContext();
-        if (beanResolver != null) {
+        if (withBeanResolver && beanResolver != null) {
             context.setBeanResolver(beanResolver);
         }
         Object[] args = joinPoint.getArgs();
@@ -211,17 +220,7 @@ public class AuditAspect {
             return null;
         }
         try {
-            StandardEvaluationContext context = new StandardEvaluationContext();
-            Object[] args = joinPoint.getArgs();
-            String[] paramNames = names.getParameterNames(((MethodSignature) joinPoint.getSignature()).getMethod());
-            for (int i = 0; i < args.length; i++) {
-                context.setVariable("p" + i, args[i]);
-                context.setVariable("a" + i, args[i]);
-                if (paramNames != null && i < paramNames.length) {
-                    context.setVariable(paramNames[i], args[i]);
-                }
-            }
-            Object value = parser.parseExpression(expression).getValue(context);
+            Object value = parser.parseExpression(expression).getValue(evaluationContext(joinPoint, false));
             return value == null ? null : String.valueOf(value);
         } catch (RuntimeException ex) {
             return null;

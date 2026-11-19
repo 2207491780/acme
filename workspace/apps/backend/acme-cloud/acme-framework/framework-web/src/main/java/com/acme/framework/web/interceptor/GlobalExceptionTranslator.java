@@ -136,12 +136,7 @@ public class GlobalExceptionTranslator {
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
             MissingServletRequestParameterException.class})
     public ResponseEntity<Result<Object>> handleBadRequest(Exception ex) {
-        try {
-            return ResponseEntity.status(WebError.BAD_REQUEST.httpStatus())
-                    .body(Result.fail(WebError.BAD_REQUEST));
-        } catch (RuntimeException mapEx) {
-            return fallback(mapEx);
-        }
+        return respond(WebError.BAD_REQUEST);
     }
 
     /**
@@ -154,77 +149,43 @@ public class GlobalExceptionTranslator {
     @ExceptionHandler(org.springframework.web.method.annotation.HandlerMethodValidationException.class)
     public ResponseEntity<Result<Object>> handleMethodValidation(
             org.springframework.web.method.annotation.HandlerMethodValidationException ex) {
-        try {
-            return ResponseEntity.status(WebError.BAD_REQUEST.httpStatus())
-                    .body(Result.fail(WebError.BAD_REQUEST));
-        } catch (RuntimeException mapEx) {
-            return fallback(mapEx);
-        }
+        return respond(WebError.BAD_REQUEST);
     }
 
     /** 协议基元参数越界（review 修复）：分页等 contract 类型入参不合法 → 400，不再落 500。 */
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<Result<Object>> handleInvalidRequest(InvalidRequestException ex) {
-        try {
-            return ResponseEntity.status(WebError.BAD_REQUEST.httpStatus())
-                    .body(Result.fail(WebError.BAD_REQUEST));
-        } catch (RuntimeException mapEx) {
-            return fallback(mapEx);
-        }
+        return respond(WebError.BAD_REQUEST);
     }
 
     /** 请求方法不支持（10.5.3）：405。 */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Result<Object>> handleMethodNotAllowed(Exception ex) {
-        try {
-            return ResponseEntity.status(WebError.METHOD_NOT_ALLOWED.httpStatus())
-                    .body(Result.fail(WebError.METHOD_NOT_ALLOWED));
-        } catch (RuntimeException mapEx) {
-            return fallback(mapEx);
-        }
+        return respond(WebError.METHOD_NOT_ALLOWED);
     }
 
     /** 请求内容类型不支持（10.5.3）：415。 */
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<Result<Object>> handleMediaTypeNotSupported(Exception ex) {
-        try {
-            return ResponseEntity.status(WebError.MEDIA_TYPE_NOT_SUPPORTED.httpStatus())
-                    .body(Result.fail(WebError.MEDIA_TYPE_NOT_SUPPORTED));
-        } catch (RuntimeException mapEx) {
-            return fallback(mapEx);
-        }
+        return respond(WebError.MEDIA_TYPE_NOT_SUPPORTED);
     }
 
     /** 响应内容类型不可接受（10.5.3）：406。 */
     @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
     public ResponseEntity<Result<Object>> handleMediaTypeNotAcceptable(Exception ex) {
-        try {
-            return ResponseEntity.status(WebError.MEDIA_TYPE_NOT_ACCEPTABLE.httpStatus())
-                    .body(Result.fail(WebError.MEDIA_TYPE_NOT_ACCEPTABLE));
-        } catch (RuntimeException mapEx) {
-            return fallback(mapEx);
-        }
+        return respond(WebError.MEDIA_TYPE_NOT_ACCEPTABLE);
     }
 
     /** 目标不存在（10.5.3）：复用 CommonError.NOT_FOUND，404。 */
     @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
     public ResponseEntity<Result<Object>> handleNotFound(Exception ex) {
-        try {
-            return ResponseEntity.status(404).body(Result.fail(CommonError.NOT_FOUND));
-        } catch (RuntimeException mapEx) {
-            return fallback(mapEx);
-        }
+        return respond(CommonError.NOT_FOUND);
     }
 
     /** 乐观锁冲突（FR-010、5.2）：409 可判定。 */
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<Result<Object>> handleOptimistic(OptimisticLockingFailureException ex) {
-        try {
-            return ResponseEntity.status(WebError.CONCURRENCY_CONFLICT.httpStatus())
-                    .body(Result.fail(WebError.CONCURRENCY_CONFLICT));
-        } catch (RuntimeException mapEx) {
-            return fallback(mapEx);
-        }
+        return respond(WebError.CONCURRENCY_CONFLICT);
     }
 
     /**
@@ -250,6 +211,15 @@ public class GlobalExceptionTranslator {
             ErrorLoggers.logUnexpected(ex);
             publishOpException(ex);
             return ResponseEntity.status(500).body(Result.fail(CommonError.INTERNAL_ERROR));
+        } catch (RuntimeException mapEx) {
+            return fallback(mapEx);
+        }
+    }
+
+    /** 固定错误码失败响应（S14 收敛各专属映射共用出口）：状态码随错误码登记语义，含映射兜底。 */
+    private static ResponseEntity<Result<Object>> respond(ErrorCode errorCode) {
+        try {
+            return ResponseEntity.status(statusOf(errorCode)).body(Result.fail(errorCode));
         } catch (RuntimeException mapEx) {
             return fallback(mapEx);
         }
