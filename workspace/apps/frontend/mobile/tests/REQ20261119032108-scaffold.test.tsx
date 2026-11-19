@@ -313,7 +313,7 @@ describe('REQ20261119032108 Toast（AC-7）', () => {
   it('should_show_toast_then_auto_dismiss_after_2500ms', async () => {
     // durationMs 注入短时长（真实定时器；fake timers 会饿死 React act 调度器致全文件污染）
     await act(async () => {
-      root!.render(createElement(ToastProvider, { durationMs: 40, children: createElement(ToastProbe) }));
+      root!.render(createElement(ToastProvider, { durationMs: 250, children: createElement(ToastProbe) }));
     });
     // Provider 挂载完成（emitToast 已注册）后顶层调用 toast(msg, tone)
     await act(async () => {
@@ -323,7 +323,7 @@ describe('REQ20261119032108 Toast（AC-7）', () => {
 
     await act(async () => {
       await flush();
-      await new Promise((r) => setTimeout(r, 80));
+      await new Promise((r) => setTimeout(r, 500));
     });
     expect(container.textContent).not.toContain('已保存为草稿');
     await await_unmount();

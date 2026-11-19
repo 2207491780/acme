@@ -15,6 +15,9 @@ export default defineConfig({
     // 组件测试（*.test.tsx）需要真实 DOM → jsdom；store/工具测试维持 node + 最小桩
     environmentMatchGlobs: [['**/*.test.tsx', 'jsdom']],
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+    // 全量并行 jsdom worker 在负载/CI 下把交互式 CRUD 用例拖至 5s 超时（S14 基线对照实验
+    // 证实为既有环境性偶发，与改动无关）——全局放宽至 20s（单测实际耗时 0.1-8s）。
+    testTimeout: 20000,
     setupFiles: ['./tests/setup.ts'],
   },
 });
