@@ -501,7 +501,10 @@ export function App() {
         openKeys={navOpenKeys}
         onOpenChange={(keys) => setNavOpenKeys(keys as string[])}
         onClick={({ key }) => go(leafPaths.has(key) ? key : '/')}
-        style={{ border: 'none', padding: '0 8px' }}
+        // 侧栏菜单可滚（flex 列内滚动区）：flex:1 占满 brand 与底栏之间余量，minHeight:0 解除
+        // flex 子项最小高度约束，菜单高于视口时自身纵向滚动，不再溢出 Sider 被 Layout
+        // overflow:hidden 直接裁掉
+        style={{ border: 'none', padding: '0 8px', flex: 1, minHeight: 0, overflowX: 'hidden', overflowY: 'auto' }}
       />
       {expanded && (
         <div className="sidebar-foot">

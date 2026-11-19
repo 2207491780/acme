@@ -232,7 +232,8 @@ describe('REQ20261119051119 导航剔除 BUTTON 节点', () => {
 });
 
 // ————— App shell 布局：整页视口定高、内容区内部滚动（复用整棵 App 渲染 harness） —————
-describe('App shell 布局：内容区视口内自滚', () => {  it('should_scroll_content_inside_viewport_when_desktop_layout', async () => {
+describe('App shell 布局：内容区视口内自滚', () => {
+  it('should_scroll_content_inside_viewport_when_desktop_layout', async () => {
     await renderApp(HELD_PERMS, MENUS);
     await waitFor(() => {
       expect(menuItemCount()).toBeGreaterThanOrEqual(2);
@@ -250,6 +251,23 @@ describe('App shell 布局：内容区视口内自滚', () => {  it('should_scro
     expect(shell.style.overflow).toBe('hidden');
     const header = column.querySelector('header.ant-layout-header') as HTMLElement;
     expect(header.style.flexShrink).toBe('0');
+  });
+
+  // 侧栏菜单可滚（菜单溢出修复）：目录展开后菜单高度超视口时，菜单自身纵向滚动（flex 列内
+  // 滚动区），而不是溢出 Sider 被 Layout overflow:hidden 直接裁掉（jsdom 无布局，按外壳
+  // 布局用例同口径断言滚动区必备的行内样式契约）
+  it('should_scroll_sider_menu_inside_viewport_when_menu_taller_than_sider', async () => {
+    await renderApp(HELD_PERMS, MENUS);
+    await waitFor(() => {
+      expect(menuItemCount()).toBeGreaterThanOrEqual(2);
+    });
+
+    const menu = document.querySelector('.ant-layout-sider [role="menu"]') as HTMLElement | null;
+    expect(menu).toBeTruthy();
+    expect(menu!.style.overflowY).toBe('auto');
+    expect(menu!.style.overflowX).toBe('hidden');
+    expect(menu!.style.minHeight).toBe('0'); // 解除 flex 最小高度约束 → 菜单可矮于自身内容
+    expect(menu!.style.flexGrow).toBe('1'); // 占满 brand 与底栏之间余量，剩余空间才是滚动视口
   });
 });
 
