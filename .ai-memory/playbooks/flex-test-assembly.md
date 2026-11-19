@@ -38,3 +38,9 @@
 - Maven 不在 PATH：`"C:\Program Files\Maven\apache-maven-my\bin\mvn.cmd"`；JDK 25（JAVA_HOME 已设）。
 - 全量测试：`workspace/apps/backend/acme-cloud/` 下 `mvn test`（容器镜像 postgres:17-alpine / redis:7.4-alpine 需本地可拉取或已缓存）。
 - 单模块快速验证：`mvn -pl <模块相对路径> test`（依赖已安装时免 `-am`）。
+- 定向用例：Surefire 3.5.4 须 `-Dsurefire.failIfNoSpecifiedTests=false`（`-DfailIfNoTests=false` 无效，多模块 `-am` 会在无匹配模块直接 BUILD FAILURE）。
+- Windows Testcontainers 找 Docker 两层坑（2026-11-19 REQ-20261119-151640 实证）：
+  ①`~/.testcontainers.properties` 若含 `docker.client.strategy=...NpipeSocketClientProviderStrategy` 会强制只认默认 `docker_engine` 管道且忽略 DOCKER_HOST——Docker Desktop 实际管道是 `dockerDesktopLinuxEngine`，修法：删强制策略行，改 `docker.host=npipe\:////./pipe/dockerDesktopLinuxEngine`（冒号转义）；
+  ②Docker Desktop 进程可能中途退出（管道消失），跑 IT 前先 `docker version` 确认 daemon 活着。
+  判定口径：日志须见 `Tests run: N, Skipped: 0` 才算验证；`Could not find a valid Docker environment` 即全跳过。
+- 后端全量 `mvn test` 实测 30~55 分钟（大量 PG/Redis/Kafka 容器 IT）；宜后台＋绝对路径日志；MinioObjectStorageTest 1 例条件跳过属基线非回归。前端重 jsdom 文件并行会崩 Tinypool worker/超时 flake，判别用 `vitest run --no-file-parallelism` 串行复跑，且先跑完后端再跑前端避免 CPU 争抢。
