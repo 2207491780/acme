@@ -60,6 +60,13 @@ if (cmd === 'remove') {
   const branchLine = block.split('\n').find((l) => l.startsWith('branch refs/heads/'));
   const branch = branchLine ? branchLine.slice('branch refs/heads/'.length) : '';
   git(['worktree', 'remove', dir]);
+  // 防御校验（REQ-20261119-063129/S12 与 S13 期间两次实证）：remove 后分支 ref 必须仍存在，
+  // 丢失（如目录硬删竞态）会导致分支指向的提交悬空、后续合并丢失全部工作。
+  const branchStillThere = git(['branch', '--list', branch]).includes(branch);
+  if (branch && !branchStillThere) {
+    console.error(`❌ 防御校验失败：分支 ${branch} 在移除工作树后丢失，请立即检查 .git/refs/heads`);
+    process.exit(1);
+  }
   console.log(`✅ 工作树已移除：${dir}`);
   if (branch) console.log(`   分支 ${branch} 未自动删除（授权分级：删已推送分支须指令）；确认后 git branch -d ${branch}`);
   process.exit(0);
