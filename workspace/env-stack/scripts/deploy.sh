@@ -24,6 +24,26 @@ ENV_DIR=${ACME_ENV_DIR:-"/opt/acme/$ENV"}
 APP_ENV_FILE="$ENV_DIR/app.env"
 REG_ENV_FILE="$ENV_DIR/registry.env"
 
+# 部署互斥锁（2026-11-20）：防两会话/双机同时发版交错滚动。mkdir 原子取锁；持锁窗口 30 分钟
+# （进程崩溃靠过期抢占自愈）；结束/失败经 trap 清理。确认无并发部署时可手动删锁目录重试。
+LOCK_DIR="/opt/acme/$ENV/.deploy-lock"
+if mkdir "$LOCK_DIR" 2>/dev/null; then
+  date +%s > "$LOCK_DIR/acquired-at"
+  trap 'rm -rf "$LOCK_DIR"' EXIT
+else
+  ACQ=$(cat "$LOCK_DIR/acquired-at" 2>/dev/null || echo 0)
+  AGE=$(( $(date +%s) - ACQ ))
+  if [ "$AGE" -lt 1800 ]; then
+    echo "❌ 检测到进行中的部署（$LOCK_DIR，${AGE}s 前取得锁）；确认无并发后手动删除该目录重试" >&2
+    exit 1
+  fi
+  echo "⚠️ 锁已过期（${AGE}s > 1800s，上次部署可能崩溃），抢占续用"
+  rm -rf "$LOCK_DIR"
+  mkdir "$LOCK_DIR"
+  date +%s > "$LOCK_DIR/acquired-at"
+  trap 'rm -rf "$LOCK_DIR"' EXIT
+fi
+
 [ -f "$APP_ENV_FILE" ] || { echo "❌ 缺 $APP_ENV_FILE（模板: env-stack/config/app.example.env）" >&2; exit 1; }
 [ -f "$REG_ENV_FILE" ] || { echo "❌ 缺 $REG_ENV_FILE（模板: env-stack/config/registry.example.env）" >&2; exit 1; }
 
