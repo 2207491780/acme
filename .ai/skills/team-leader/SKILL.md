@@ -32,6 +32,8 @@ description: ACME 契约驱动的多代理开发流程（Team Leader 执行卡�
 
 失败不亲自排查 → 委派 diagnostic（只读）归因 → 写 delta 打回单（失败用例+错误信息+文件路径+修复指令）→ round≥3 升级（拆小/换思路/提请用户裁决）；禁止第 4 轮原样重委派。
 
+**打回轮纪律**：优先 SendMessage 续原 worker 会话（免冷启动重读）；门禁复跑仅定向（受影响模块/文件），全量只留终验与合并后；前端并行 flake 先串行复跑判别，不算 FAIL。细则见手册门禁表与打回循环。
+
 ## 路径速查
 
 - 契约模板：`.ai/skills/team-leader/templates/contract-template.md`；委派单模板：`templates/task-brief-template.md`
