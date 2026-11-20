@@ -21,11 +21,13 @@ rm -rf "$ART"
 mkdir -p "$ART/backend" "$ART/frontend/web" "$ART/images"
 
 echo "▶ [backend] Maven：先 install acme-parent（flatten+revision 需父 POM 入库，同自包含 Dockerfile 口径）"
+# clean 必带：package 不清理 target，src 资源改名/删除后会残留并打进 jar
+# （2026-11-20 事故：V21 迁移重编号 V23 后旧文件残留，Flyway 双解析仍校验失败）
 (cd "$REPO_ROOT/workspace/apps/backend/acme-cloud" \
  && "${MVN_CMD:-mvn}" -B -q -f ../acme-parent/pom.xml install \
  && "${MVN_CMD:-mvn}" -B -q -DskipTests \
       -pl acme-gateway,acme-platform/platform-auth/platform-auth-service,acme-platform/platform-infra/platform-infra-service,acme-platform/platform-system/platform-system-service \
-      -am package)
+      -am clean package)
 B="$REPO_ROOT/workspace/apps/backend/acme-cloud"
 # jar 取用口径同自包含 Dockerfile：三服务取 *-exec.jar；gateway 主构件即可执行 jar（剔 .original）
 cp "$(ls "$B/acme-gateway"/target/*.jar | grep -v '\.original$' | head -1)" "$ART/backend/gateway.jar"
