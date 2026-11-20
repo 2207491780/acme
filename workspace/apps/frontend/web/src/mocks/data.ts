@@ -144,6 +144,15 @@ export const menus: AdminMenuView[] = [
         id: 12, parentId: 1, menuName: '系统配置', menuType: 'MENU', path: '/system/config', component: 'system/config/index', icon: 'control',
         sortOrder: 2, visible: true, permissionCode: 'system:config:list', status: 'ENABLED', version: '0', children: [],
       },
+      // REQ-20261120-213603：补停用/隐藏样例（菜单筛选演示命中；nav 渲染剔除 DISABLED/隐藏节点，不影响导航）
+      {
+        id: 13, parentId: 1, menuName: '任务调度', menuType: 'MENU', path: '/jobs', component: 'jobs/index', icon: 'clock-circle',
+        sortOrder: 3, visible: true, permissionCode: 'system:job:list', status: 'DISABLED', version: '0', children: [],
+      },
+      {
+        id: 14, parentId: 1, menuName: '文件管理', menuType: 'MENU', path: '/files', component: 'files/index', icon: 'folder',
+        sortOrder: 4, visible: false, permissionCode: null, status: 'ENABLED', version: '0', children: [],
+      },
     ],
   },
 ];

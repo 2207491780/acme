@@ -1,13 +1,22 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { App, Button, Form, Input, InputNumber, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { ApiError, Auth, systemApi, useCrud, useMeStore, type AdminMenuView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
+import { FilterField, FilterPanel } from '../components/FilterPanel';
 import { MenuIconPicker } from '../components/MenuIconPicker';
 
 const { Text } = Typography;
+
+/** 筛选集合（REQ-20261120-213603）：值域对齐 CrudFilters（string|undefined），
+ *  visible 以 'true'/'false' 字符串承载，请求适配方转 boolean（空值不进查询串）。 */
+type MenuFilters = {
+  menuType?: 'DIRECTORY' | 'MENU' | 'BUTTON';
+  status?: 'ENABLED' | 'DISABLED';
+  visible?: 'true' | 'false';
+};
 
 interface MenuFormValues {
   parentId?: string;
@@ -21,34 +30,58 @@ interface MenuFormValues {
   permissionCode?: string;
 }
 
-/** 菜单管理（p3-admin）：树形表格全量展示 + 新建/编辑/删除；parent 下拉来自当前树。
- *  迁移 CRUD 范本（REQ-20261114-120101）：useCrud + CrudTable（树表 paged=false、无搜索）+ CrudFormModal。
+/** 菜单管理（p3-admin）：树形表格全量展示 + 筛选 + 新建/编辑/删除；parent 下拉来自当前树。
+ *  迁移 CRUD 范本（REQ-20261114-120101）：useCrud + CrudTable（树表 paged=false）+ CrudFormModal。
  *  REQ-20261119-051119：menuTypes 增 BUTTON（按钮级权限投影）——BUTTON 节点必须挂 permissionCode、
- *  path 无路由语义（可留空提示）。 */
+ *  path 无路由语义（可留空提示）。
+ *  REQ-20261120-213603：启用关键字搜索＋类型/状态/可见性筛选（命中节点∪祖先链由后端组装）
+ *  ＋重置入口（一键清空恢复全量树）。 */
 export function MenusPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const permissions = useMeStore((s) => s.me?.permissions) ?? [];
+  const filterId = useId();
 
-  const menuTypes = [
+  const menuTypes: { value: NonNullable<MenuFilters['menuType']>; label: string }[] = [
     { value: 'DIRECTORY', label: t('menus.type.directoryOption') },
     { value: 'MENU', label: t('menus.type.menuOption') },
     { value: 'BUTTON', label: t('menus.type.buttonOption') },
   ];
 
-  const crud = useCrud<AdminMenuView>({
+  const crud = useCrud<AdminMenuView, MenuFilters>({
     // 全量树：page/size 仅随请求携带（统一列表分页口径），后端按全量返回；
+    // REQ-20261120-213603：keyword＋类型/状态/可见性随请求携带（空值不进查询串，不传=全量树）；
     // 响应兼容运行时校验：数组（既有口径）或 { records } 分页信封（外部输入不信任）
-    fetchPage: async ({ page, size, signal }) => {
-      const tree = await systemApi.menuTree(page, size, signal);
+    fetchPage: async ({ page, size, keyword, filters, signal }) => {
+      const tree = await systemApi.menuTree(page, size, signal, {
+        keyword: keyword || undefined,
+        menuType: filters?.menuType,
+        status: filters?.status,
+        visible: filters?.visible === 'true' ? true : filters?.visible === 'false' ? false : undefined,
+      });
       const rows = Array.isArray(tree)
         ? tree
         : ((tree as unknown as { records?: AdminMenuView[] }).records ?? []);
       return { records: rows, total: rows.length };
     },
+    filters: { menuType: undefined, status: undefined, visible: undefined },
     permissions,
     errorMessage: t('menus.errors.loadFailed'),
   });
+
+  // 关键字搜索框受控（重置需可见清空；提交语义与 UsersPage 一致：Enter/搜索钮/清除 × 均触发）
+  const [searchText, setSearchText] = useState('');
+  const submitSearch = (value: string) => {
+    setSearchText(value);
+    crud.search(value.trim());
+  };
+
+  // 重置（AC-12）：清空关键字＋全部下拉并重取（恢复全量树）；同一事件批内合并为一次拉取
+  const resetAll = () => {
+    setSearchText('');
+    crud.search('');
+    crud.resetFilters();
+  };
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminMenuView | null>(null);
@@ -163,17 +196,73 @@ export function MenusPage() {
 
   return (
     <>
-      <CrudTable<AdminMenuView>
+      <CrudTable<AdminMenuView, MenuFilters>
         crud={crud}
         tableKey="menus"
         title={t('menus.title')}
         columns={columns}
-        searchable={false}
         paged={false}
         reloadAriaLabel={t('menus.reload')}
         createPermission="system:menu:create"
         createLabel={t('menus.create')}
         onCreate={() => openCreate()}
+        filterPanel={
+          <FilterPanel
+            actions={
+              <Button onClick={resetAll}>{t('menus.filters.reset')}</Button>
+            }
+          >
+            <FilterField label={t('common.filters.keyword')} htmlFor={`${filterId}-keyword`}>
+              <Input.Search
+                id={`${filterId}-keyword`}
+                placeholder={t('menus.search.placeholder')}
+                allowClear
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                onSearch={(value) => submitSearch(value.trim())}
+              />
+            </FilterField>
+            <FilterField label={t('menus.filters.menuType')} htmlFor={`${filterId}-menuType`}>
+              <Select<MenuFilters['menuType']>
+                id={`${filterId}-menuType`}
+                allowClear
+                aria-label={t('menus.filters.menuType')}
+                placeholder={t('menus.filters.menuType')}
+                options={menuTypes}
+                value={crud.filters.menuType}
+                onChange={(value) => crud.setFilter('menuType', value)}
+              />
+            </FilterField>
+            <FilterField label={t('menus.filters.status')} htmlFor={`${filterId}-status`}>
+              <Select<MenuFilters['status']>
+                id={`${filterId}-status`}
+                allowClear
+                aria-label={t('menus.filters.status')}
+                placeholder={t('menus.filters.status')}
+                options={[
+                  { value: 'ENABLED', label: t('common.status.enabled') },
+                  { value: 'DISABLED', label: t('common.status.disabled') },
+                ]}
+                value={crud.filters.status}
+                onChange={(value) => crud.setFilter('status', value)}
+              />
+            </FilterField>
+            <FilterField label={t('menus.filters.visible')} htmlFor={`${filterId}-visible`}>
+              <Select<MenuFilters['visible']>
+                id={`${filterId}-visible`}
+                allowClear
+                aria-label={t('menus.filters.visible')}
+                placeholder={t('menus.filters.visible')}
+                options={[
+                  { value: 'true', label: t('common.status.visible') },
+                  { value: 'false', label: t('common.status.hidden') },
+                ]}
+                value={crud.filters.visible}
+                onChange={(value) => crud.setFilter('visible', value)}
+              />
+            </FilterField>
+          </FilterPanel>
+        }
       />
 
       <CrudFormModal<MenuFormValues>

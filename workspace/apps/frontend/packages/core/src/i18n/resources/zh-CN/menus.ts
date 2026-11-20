@@ -3,6 +3,15 @@ export const menus = {
   title: '菜单管理',
   reload: '刷新菜单树',
   create: '新建根菜单',
+  search: {
+    placeholder: '搜索菜单名称/路径/权限码',
+  },
+  filters: {
+    menuType: '菜单类型',
+    status: '状态',
+    visible: '可见性',
+    reset: '重置',
+  },
   columns: {
     menuName: '菜单名称',
     menuType: '类型',

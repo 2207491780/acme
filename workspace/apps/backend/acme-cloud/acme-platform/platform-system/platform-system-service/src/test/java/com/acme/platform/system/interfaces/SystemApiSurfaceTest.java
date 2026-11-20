@@ -373,7 +373,7 @@ class SystemApiSurfaceTest {
         when(useCase.listAll()).thenReturn(List.of(menu));
         MenuController controller = new MenuController(useCase);
 
-        assertThat(controller.tree()).hasSize(1);
+        assertThat(controller.tree(null, null, null, null)).hasSize(1);
         assertThat(controller.create(new AdminMenuCreate(0L, "系统管理", MenuType.DIRECTORY,
                 "/system", null, null, 0, true, null)).menuName()).isEqualTo("系统管理");
         assertThat(controller.get(1L).menuName()).isEqualTo("系统管理");

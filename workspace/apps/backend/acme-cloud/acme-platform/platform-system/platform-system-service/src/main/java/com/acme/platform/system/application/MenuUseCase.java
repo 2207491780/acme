@@ -3,6 +3,8 @@ package com.acme.platform.system.application;
 import com.acme.common.core.BizException;
 import com.acme.framework.web.support.WebError;
 import com.acme.platform.system.SystemError;
+import com.acme.platform.system.api.EnableStatus;
+import com.acme.platform.system.api.MenuType;
 import com.acme.platform.system.api.dto.AdminMenuCreate;
 import com.acme.platform.system.api.dto.AdminMenuUpdate;
 import com.acme.platform.system.domain.SysMenu;
@@ -11,8 +13,11 @@ import com.acme.platform.system.infrastructure.repository.SysRoleMenuRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -77,6 +82,58 @@ public class MenuUseCase {
     /** 全量菜单（平台目录，按 sortOrder 排序）。 */
     public List<SysMenu> listAll() {
         return menuRepository.findAllByOrderBySortOrderAscIdAsc();
+    }
+
+    /**
+     * 筛选菜单（REQ-20261120-213603）：四条件 AND（keyword 对 menuName/path/permissionCode 不区分大小写
+     * 包含、任一字段命中即算；menuType/status/visible 精确匹配），返回命中节点∪其全部祖先的平铺集
+     * （sortOrder asc/id asc；命中节点的子孙不自动带出）。keyword 空白视为未提供；祖先链父节点不在
+     * 全量目录时止步。菜单表数据量小，全量取行内存过滤，无新 SQL。
+     */
+    public List<SysMenu> listFiltered(String keyword, MenuType menuType, EnableStatus status, Boolean visible) {
+        List<SysMenu> all = menuRepository.findAllByOrderBySortOrderAscIdAsc();
+        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        Map<Long, SysMenu> byId = new HashMap<>();
+        all.forEach(menu -> byId.put(menu.getId(), menu));
+        Set<Long> includeIds = new LinkedHashSet<>();
+        for (SysMenu menu : all) {
+            if (!matches(menu, normalizedKeyword, menuType, status, visible)) {
+                continue;
+            }
+            includeIds.add(menu.getId());
+            Long parentId = menu.getParentId();
+            while (parentId != null && parentId != SysMenu.ROOT_PARENT_ID && !includeIds.contains(parentId)
+                    && byId.containsKey(parentId)) {
+                includeIds.add(parentId);
+                parentId = byId.get(parentId).getParentId();
+            }
+        }
+        return all.stream().filter(menu -> includeIds.contains(menu.getId())).toList();
+    }
+
+    /** 命中判定：全部已提供条件 AND（确认①④）；keyword 三字段不区分大小写包含，任一字段命中即算。 */
+    private static boolean matches(SysMenu menu, String keyword, MenuType menuType, EnableStatus status,
+                                   Boolean visible) {
+        if (menuType != null && menu.getMenuType() != menuType) {
+            return false;
+        }
+        if (status != null && menu.getStatus() != status) {
+            return false;
+        }
+        if (visible != null && !visible.equals(menu.getVisible())) {
+            return false;
+        }
+        if (keyword == null) {
+            return true;
+        }
+        String needle = keyword.toLowerCase(Locale.ROOT);
+        return containsIgnoreCase(menu.getMenuName(), needle)
+                || containsIgnoreCase(menu.getPath(), needle)
+                || containsIgnoreCase(menu.getPermissionCode(), needle);
+    }
+
+    private static boolean containsIgnoreCase(String value, String lowerKeyword) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(lowerKeyword);
     }
 
     /** 角色集可见菜单并集（含父链补全，/me 视图用）。 */

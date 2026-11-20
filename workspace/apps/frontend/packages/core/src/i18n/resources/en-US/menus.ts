@@ -3,6 +3,15 @@ export const menus = {
   title: 'Menus',
   reload: 'Refresh menu tree',
   create: 'New root menu',
+  search: {
+    placeholder: 'Search name, path, or permission code',
+  },
+  filters: {
+    menuType: 'Menu type',
+    status: 'Status',
+    visible: 'Visibility',
+    reset: 'Reset',
+  },
   columns: {
     menuName: 'Menu name',
     menuType: 'Type',

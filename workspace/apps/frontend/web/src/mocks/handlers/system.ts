@@ -20,6 +20,33 @@ function matchKeyword<T>(rows: T[], keyword: string | null, fields: (row: T) => 
 
 const keywordOf = (request: Request): string | null => urlOf(request).searchParams.get('keyword');
 
+// ————— 菜单树筛选（REQ-20261120-213603） —————
+
+/** 菜单类型/启用状态合法枚举（对齐后端 MenuType/EnableStatus；非法值→BAD_REQUEST）。 */
+const MENU_TYPE_ENUM = ['DIRECTORY', 'MENU', 'BUTTON'];
+const MENU_STATUS_ENUM = ['ENABLED', 'DISABLED'];
+
+/** 菜单树筛选：返回「命中节点∪其全部祖先」构成的树（保持父子层级；命中节点的子孙不自动带出）。 */
+function filterMenuTree(nodes: AdminMenuView[], predicate: (node: AdminMenuView) => boolean): AdminMenuView[] {
+  const selected = new Set<number>();
+  const collect = (list: AdminMenuView[], ancestorIds: number[]) => {
+    for (const node of list) {
+      if (predicate(node)) {
+        selected.add(node.id);
+        for (const ancestorId of ancestorIds) selected.add(ancestorId);
+      }
+      collect(node.children, [...ancestorIds, node.id]);
+    }
+  };
+  collect(nodes, []);
+  // 重建树：未选中节点的子树必无命中（祖先链已全部入选），整枝剪除
+  const rebuild = (list: AdminMenuView[]): AdminMenuView[] =>
+    list
+      .filter((node) => selected.has(node.id))
+      .map((node) => ({ ...node, children: rebuild(node.children) }));
+  return rebuild(nodes);
+}
+
 // ————— 部门树内存工具（REQ-20261114-120104） —————
 
 /** 深拷贝种子树（嵌套 children 与 db 常量隔离，避免 dev 内存态写入种子）。 */
@@ -605,7 +632,48 @@ export const systemHandlers = [
   }),
 
   // ---- 菜单 ----
-  http.get('/admin/v1/system/menus', () => ok(store.menus)),
+  // GET /menus（REQ-20261120-213603）：keyword/menuType/status/visible 可选筛选（多条件 AND，
+  // keyword 对 menuName/path/permissionCode 不区分大小写包含、任一命中即算）；命中=命中节点∪其全部祖先
+  // （保持树形层级，命中节点子孙不自动带出）；无筛选参数=全量树（现状不变）。
+  http.get('/admin/v1/system/menus', ({ request }) => {
+    const params = urlOf(request).searchParams;
+    const keyword = params.get('keyword');
+    const menuType = params.get('menuType');
+    const status = params.get('status');
+    const visibleParam = params.get('visible');
+    if (keyword === null && menuType === null && status === null && visibleParam === null) {
+      return ok(store.menus);
+    }
+    // 非法枚举对齐后端口径：HTTP 400＋Result 信封 BAD_REQUEST（框架 GlobalExceptionTranslator 既有翻译）
+    if (
+      (menuType !== null && !MENU_TYPE_ENUM.includes(menuType)) ||
+      (status !== null && !MENU_STATUS_ENUM.includes(status)) ||
+      (visibleParam !== null && visibleParam !== 'true' && visibleParam !== 'false')
+    ) {
+      return fail('BAD_REQUEST', '非法筛选参数', 400);
+    }
+    const tree = filterMenuTree(store.menus, (node) => {
+      if (keyword) {
+        const needle = keyword.toLowerCase();
+        const hit = [node.menuName, node.path, node.permissionCode]
+          .some((value) => value?.toLowerCase().includes(needle));
+        if (!hit) {
+          return false;
+        }
+      }
+      if (menuType !== null && node.menuType !== menuType) {
+        return false;
+      }
+      if (status !== null && node.status !== status) {
+        return false;
+      }
+      if (visibleParam !== null && node.visible !== (visibleParam === 'true')) {
+        return false;
+      }
+      return true;
+    });
+    return ok(tree);
+  }),
   http.post('/admin/v1/system/menus', async ({ request }) => {
     const body = await bodyOf(request);
     const created = {

@@ -44,6 +44,19 @@ export interface AdminMenuView {
   version: string;
 }
 
+/** 菜单树筛选参数（REQ-20261120-213603）：全部可选，提供多个时 AND 语义；空值/undefined 不进查询串。
+ *  命中语义（与后端一致）：满足全部已提供条件的节点=命中节点，返回树=命中节点∪其全部祖先。 */
+export interface MenuTreeFilters {
+  /** 关键字：对 menuName/path/permissionCode 不区分大小写包含匹配，任一字段命中即算命中。 */
+  keyword?: string;
+  /** 菜单类型精确匹配（DIRECTORY|MENU|BUTTON）。 */
+  menuType?: 'DIRECTORY' | 'MENU' | 'BUTTON';
+  /** 启用状态精确匹配（ENABLED|DISABLED）。 */
+  status?: 'ENABLED' | 'DISABLED';
+  /** 可见性精确匹配（false=隐藏）。 */
+  visible?: boolean;
+}
+
 /** 当前登录者视图（契约对齐 AdminMeView；FR-008 权限声明与菜单可见性依据）。
  *  REQ-20261117-180000 扩展 deptName（本人部门名，水印 {deptName} 供给；未分配/缺失=null）。 */
 export interface AdminMeView {
@@ -397,9 +410,24 @@ export const systemApi = {
 
   // ---- 菜单管理（MENU_* 权限码，P3） ----
   /** 菜单树（全量；前端渲染树形表格）。page/size 为可选分页参数：全量树不截断，
-   *  仅用于统一列表请求携带分页口径（后端按全量返回）；signal 为可选取消信号，透传 apiFetch。 */
-  menuTree: (page?: number, size?: number, signal?: AbortSignal): Promise<AdminMenuView[]> => {
-    const suffix = page !== undefined || size !== undefined ? `?${buildQuery({ page, size })}` : '';
+   *  仅用于统一列表请求携带分页口径（后端按全量返回）；signal 为可选取消信号，透传 apiFetch。
+   *  REQ-20261120-213603：filters 为可选筛选（关键字＋类型/状态/可见性，多条件 AND，命中节点∪祖先链），
+   *  追加为第 4 参保持既有 menuTree()/menuTree(page, size, signal) 调用兼容；空值不进查询串，不传=全量树。 */
+  menuTree: (
+    page?: number,
+    size?: number,
+    signal?: AbortSignal,
+    filters?: MenuTreeFilters,
+  ): Promise<AdminMenuView[]> => {
+    const query = buildQuery({
+      page,
+      size,
+      keyword: filters?.keyword,
+      menuType: filters?.menuType,
+      status: filters?.status,
+      visible: filters?.visible,
+    });
+    const suffix = query ? `?${query}` : '';
     return apiFetch<AdminMenuView[]>(`/admin/v1/system/menus${suffix}`, { signal });
   },
   /** 新建菜单（parentId 空=根；menuType DIRECTORY|MENU）。 */
