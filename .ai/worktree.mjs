@@ -4,6 +4,8 @@
 // gc（2026-11-20）：已 push 的干净工作树自动清理——候选=检出分支 tip 已是 origin/acme-foundation
 // 祖先（内容已随主线推上远端）且工作树无未提交修改；镜像常驻检出（ai-coding-support）与主工作树
 // 永不触碰；分支一律保留（删除按「AI 操作授权分级」）。add 时自动 GC（静默尽力，失败不阻塞）。
+// gc --branches：追加回收本地分支——tip 已随主线 push 且未检出于任何工作树的非保护分支
+// （acme-foundation/main/ai-coding-support 永不触碰；未推送分支删除属授权自主级）。
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 
@@ -24,7 +26,7 @@ const branchExists = (branch) => {
 };
 const unquoted = (p) => (p.startsWith('"') && p.endsWith('"') ? p.slice(1, -1) : p);
 const usage = () => {
-  console.error('用法：node .ai/worktree.mjs add <分支名> [基点] | remove <分支名> | list | gc [--dry-run]');
+  console.error('用法：node .ai/worktree.mjs add <分支名> [基点] | remove <分支名> | list | gc [--dry-run] [--branches]');
   process.exit(2);
 };
 
@@ -114,6 +116,45 @@ const reportGc = ({ cleaned, skipped }, { verbose }) => {
   }
 };
 
+const KEEP_BRANCHES = new Set([MAIN_BRANCH, 'main', MIRROR_BRANCH]);
+
+/**
+ * 分支 GC（--branches 显式开启）：删除「tip 已随主线 push 到远端（origin/acme-foundation 含它）」
+ * 且未检出于任何工作树的非保护分支——未推送分支删除属授权自主级，安全；保护分支
+ * （acme-foundation / main / ai-coding-support）与检出中分支永不触碰。
+ */
+const gcBranches = ({ dryRun }) => {
+  const checkedOut = new Set(listBranchWorktrees().map(({ branch }) => branch));
+  const deleted = [];
+  const kept = [];
+  for (const raw of git(['branch', '--format=%(refname:short)']).split('\n').filter(Boolean)) {
+    const branch = raw.trim();
+    if (KEEP_BRANCHES.has(branch)) {
+      kept.push(`${branch}（保护分支，跳过）`);
+      continue;
+    }
+    if (checkedOut.has(branch)) {
+      kept.push(`${branch}（检出于工作树，跳过）`);
+      continue;
+    }
+    if (!isPushed(branch)) {
+      kept.push(`${branch}（内容未随主线 push 到远端，跳过）`);
+      continue;
+    }
+    if (dryRun) {
+      deleted.push(`${branch} [dry-run 未实际删除]`);
+      continue;
+    }
+    try {
+      git(['branch', '-D', branch]);
+      deleted.push(branch);
+    } catch (error) {
+      kept.push(`${branch}（删除失败：${error.message}）`);
+    }
+  }
+  return { deleted, kept };
+};
+
 const [cmd, ...rest] = process.argv.slice(2);
 if (cmd === 'list') {
   console.log(git(['worktree', 'list']));
@@ -122,7 +163,14 @@ if (cmd === 'list') {
 
 if (cmd === 'gc') {
   const dryRun = rest.includes('--dry-run');
+  const withBranches = rest.includes('--branches');
   reportGc(gcWorktrees({ dryRun }), { verbose: true });
+  if (withBranches) {
+    const { deleted, kept } = gcBranches({ dryRun });
+    for (const line of deleted) console.log(`🪦 已删分支：${line}`);
+    for (const line of kept) console.log(`⏭️ 保留分支：${line}`);
+    console.log(`✅ 分支 GC 完成：删除 ${deleted.length} 个，保留 ${kept.length} 个`);
+  }
   process.exit(0);
 }
 

@@ -40,6 +40,8 @@
    ```sh
    bash /opt/acme/src/workspace/env-stack/scripts/status.sh prod   # 数据面机执行
    ```
+   **部署互斥锁（2026-11-20）**：deploy.sh 在数据面机以 `mkdir /opt/acme/<env>/.deploy-lock` 原子取锁，
+   持锁窗口 30 分钟（崩溃靠过期抢占自愈）、结束/失败自动清理——两会话同时发版时后到者直接拒绝。
    铁证三件套：Pod `creationTimestamp` ≈ 本次部署时刻、镜像 tag = `prod-<本次 sha7>`、
    healthcheck 探活 200（探活在服务器本机 Host 头直探节点 80，不受备案拦截影响）。
 3. **汇报**：产物 tag + 服务器证据（tag/时间戳/探活码），红绿如实。

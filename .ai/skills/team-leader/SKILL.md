@@ -17,7 +17,7 @@ description: ACME 契约驱动的多代理开发流程（Team Leader 执行卡�
 
 | 阶段 | 关键动作 | 完成判据 |
 |---|---|---|
-| **I-REQ** | 追问澄清（不假设）→ 按模板写契约（只存结论条目）→ 用户**逐项确认** → `node .ai/worktree.mjs add feat/req-{YYYYMMDD}-{HHMMSS}-{slug}`（=取号锁，失败换号重试）→ TL 预分配 Flyway 迁移号写入 frontmatter → 契约落盘 `contracts/`（**只写不提交**） | status: confirmed；分支创建成功；phase=I-DONE |
+| **I-REQ** | 追问澄清（不假设）→ 按模板写契约（只存结论条目）→ 用户**逐项确认** → `node .ai/worktree.mjs add feat/req-{YYYYMMDD}-{HHMMSS}-{slug}`（=取号锁，失败换号重试）→ TL 预分配 Flyway 迁移号写入 frontmatter → 契约落盘 `contracts/`（**入库**：draft 即提交，confirmed 后状态更新再提交——跨会话/跨机可见，需求号/迁移号占用记录随 git 防撞） | status: confirmed；分支创建成功；phase=I-DONE |
 | **II-DEV** | 每路写委派单 → **同一轮**并行委派 tester / backend / frontend（角色源 `.ai/agents/`，ZCode 用 `.zcode/agents/` 原生类型或把角色定义注入 prompt）→ 收交付并回填 AC→用例映射 | 三单齐、三路同发、每条 AC 有落实 |
 | **III-GATE→TEST** | 门禁清单全跑（见下）→ FAIL 打回循环 → 全过出人工复核清单 | 每项 PASS/SKIP(原因)/FAIL；phase=III-REVIEW |
 | **III-REVIEW→DONE** | 复核清单交用户 → 用户确认后**按授权分级取得合并指令** → 主树合并（优先快进）→ 合并后验证 → 可选 cloud-dev 冒烟（Redis 租约窗口 + conversational-cd）→ 报告 → `worktree.mjs remove` | 合并验证通过；phase=DONE |
@@ -35,5 +35,5 @@ description: ACME 契约驱动的多代理开发流程（Team Leader 执行卡�
 ## 路径速查
 
 - 契约模板：`.ai/skills/team-leader/templates/contract-template.md`；委派单模板：`templates/task-brief-template.md`
-- 契约实例：主工作树 `contracts/{REQ-ID}.md`（git 忽略；工作树内经 `../../contracts/` 跨树读取）
+- 契约实例：主工作树 `contracts/{REQ-ID}.md`（已入库；worktree 检出基点之后落盘的新契约经 `../../contracts/` 跨树读最新）
 - 四阶段细则 / 决策表 / 并发规则 / 例外条款：`.ai-memory/playbooks/multi-agent.md`
