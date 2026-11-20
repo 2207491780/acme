@@ -7,6 +7,10 @@
  *
  * 文件仅动态 import store（无静态引用），resetModules 后重新加载得到全新实例——
  * 其水合路径即应用重启后的恢复路径。
+ *
+ * REQ-20261121-043502（AC-10 回归口径适配）：偏好模型 v3 —— CUSTOM_PREFS 补 v3 字段
+ * （radius/grayMode/weakMode/contentWidth/semanticColors），legacy 迁移产物 schemaVersion=3。
+ * v3 新字段的专项用例见 REQ20261121043502-appearanceDrawer.test.tsx。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
@@ -24,6 +28,11 @@ const CUSTOM_PREFS: ThemePreferences = {
   customAccent: '#b08968',
   density: 'compact',
   motionEnabled: false,
+  radius: 'full',
+  grayMode: true,
+  weakMode: true,
+  contentWidth: 'compact',
+  semanticColors: { success: '#22c55e', warning: null, danger: '#c2410c' },
 };
 
 /** blob 内 settings 段（容忍 zustand persist 信封包裹，其余严格）。 */
@@ -60,6 +69,8 @@ describe('REQ20261121010725 持久化键（契约钉死）', () => {
     expect(STORAGE_KEY).toBe('acme.frontend.ops.v1');
     expect(DEFAULT_PREFERENCES).toEqual({
       mode: 'light', accent: 'cyan', customAccent: null, density: 'comfortable', motionEnabled: true,
+      radius: 'medium', grayMode: false, weakMode: false, contentWidth: 'fluid',
+      semanticColors: { success: null, warning: null, danger: null },
     });
   });
 });
@@ -73,7 +84,7 @@ describe('REQ20261121010725 偏好重载恢复（AC-6 刷新保持 / AC-8 重载
     });
     expect(ok).toBe(true);
 
-    // 即时持久化：blob 内 settings.preferences 已是自定义偏好
+    // 即时持久化：blob 内 settings.preferences 已是自定义偏好（含 v3 字段，043502）
     await waitFor(() => expect(readBlobSettings()).toBeTruthy());
     const persisted = JSON.stringify(readBlobSettings());
     expect(persisted).toContain('"mode":"dark"');
@@ -81,6 +92,11 @@ describe('REQ20261121010725 偏好重载恢复（AC-6 刷新保持 / AC-8 重载
     expect(persisted).toContain('"customAccent":"#b08968"');
     expect(persisted).toContain('"density":"compact"');
     expect(persisted).toContain('"motionEnabled":false');
+    expect(persisted).toContain('"radius":"full"');
+    expect(persisted).toContain('"grayMode":true');
+    expect(persisted).toContain('"weakMode":true');
+    expect(persisted).toContain('"contentWidth":"compact"');
+    expect(persisted).toContain('"semanticColors"');
 
     // 重载：resetModules 后重新 import，偏好从 blob 恢复（刷新后保持）
     vi.resetModules();
@@ -100,14 +116,16 @@ describe('REQ20261121010725 偏好重载恢复（AC-6 刷新保持 / AC-8 重载
     holder['settings'] = { dark: true, accent: 'violet', density: 'compact', motion: false };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(blob));
 
-    // 重载：无版本 legacy settings 应被迁移接线无损映射为新 shape
+    // 重载：无版本 legacy settings 应被迁移接线无损映射为新 shape（043502：直迁 v3，新字段补默认）
     vi.resetModules();
     const reloaded = (await import('../src/store/useStore')) as StoreMod;
     await waitFor(() => {
       expect(readReloadedSettings(reloaded)?.preferences).toEqual({
         mode: 'dark', accent: 'violet', customAccent: null, density: 'compact', motionEnabled: false,
+        radius: 'medium', grayMode: false, weakMode: false, contentWidth: 'fluid',
+        semanticColors: { success: null, warning: null, danger: null },
       });
     });
-    expect(readReloadedSettings(reloaded)?.schemaVersion).toBe(2);
+    expect(readReloadedSettings(reloaded)?.schemaVersion).toBe(3);
   });
 });

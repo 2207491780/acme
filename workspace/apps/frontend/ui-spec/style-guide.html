@@ -231,6 +231,12 @@
       </div>
     </div>
     <div class="ctl">
+      <label>圆角档位 Radius Scale</label>
+      <div class="seg" id="radiusSeg">
+        <button data-v="small">较小</button><button data-v="medium">适中</button><button data-v="large">较大</button><button data-v="full">胶囊</button>
+      </div>
+    </div>
+    <div class="ctl">
       <label>视图 View</label>
       <div class="seg" id="viewSeg">
         <button data-v="both">双端</button><button data-v="web">Web</button><button data-v="mobile">Mobile</button>
@@ -281,6 +287,8 @@
     <div class="pal-grid" id="accentPal"></div>
     <div class="subhead">语义色 · Web 由 AntD 算法渲染预设名，Mobile 直接渲染规范 hex（语义一致，hex 平台 idiomatic）</div>
     <div class="card" style="padding:0;overflow-x:auto"><table id="toneTable"></table></div>
+    <div class="subhead">语义色覆盖预设档 · 每语义 2 档 = TONES 基线 + 邻近近似（REQ-20261121-043502 偏好抽屉同源）</div>
+    <div class="card"><div class="row-chips" id="semanticPresets"></div></div>
     <div class="subhead">中性色 · 当前主题</div>
     <div class="neu-grid" id="neuGrid"></div>
     <div class="subhead">分类色 · Platform / Env / Health</div>
@@ -311,6 +319,8 @@
       <div class="space-grid" id="spaceGrid"></div>
       <div class="subhead">圆角 RADII</div>
       <div class="radii-grid" id="radiiGrid"></div>
+      <div class="subhead">圆角档位 Radius Scale · Web AntD token 值（borderRadius / SM / LG，resolveRadiusTokens 派生）</div>
+      <div class="radii-grid" id="radiusTierGrid"></div>
     </div>
   </section>
 
@@ -348,7 +358,7 @@
 
 <script>
 const T = {
-  "generatedAt": "2026-11-20T18:16:56.314Z",
+  "generatedAt": "2026-11-20T21:21:42.126Z",
   "accents": {
     "cyan": "#5aa7a0",
     "blue": "#6f92c4",
@@ -543,6 +553,59 @@ const T = {
     "xl": 20,
     "pill": 999
   },
+  "radiusScales": {
+    "small": 10,
+    "medium": 12,
+    "large": 17,
+    "full": 999
+  },
+  "radiusTokenSets": {
+    "small": {
+      "borderRadius": 10,
+      "borderRadiusSM": 7,
+      "borderRadiusLG": 13
+    },
+    "medium": {
+      "borderRadius": 12,
+      "borderRadiusSM": 8,
+      "borderRadiusLG": 16
+    },
+    "large": {
+      "borderRadius": 17,
+      "borderRadiusSM": 11,
+      "borderRadiusLG": 23
+    },
+    "full": {
+      "borderRadius": 999,
+      "borderRadiusSM": 999,
+      "borderRadiusLG": 999
+    }
+  },
+  "radiusOrder": [
+    "small",
+    "medium",
+    "large",
+    "full"
+  ],
+  "semanticPresets": {
+    "success": [
+      "#6fa287",
+      "#5f8b74"
+    ],
+    "warning": [
+      "#cfa14f",
+      "#b28a44"
+    ],
+    "danger": [
+      "#c47b7b",
+      "#a96a6a"
+    ]
+  },
+  "semanticOrder": [
+    "success",
+    "warning",
+    "danger"
+  ],
   "fontFamily": {
     "sans": "\"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", system-ui, sans-serif",
     "mono": "\"Cascadia Code\", \"JetBrains Mono\", Consolas, monospace"
@@ -806,7 +869,7 @@ const T = {
 };
 
 const TONE_LABEL = { muted:'次要', info:'信息', violet:'测试', warning:'警告', success:'成功', danger:'危险' };
-const DEFAULTS = { accent:'cyan', theme:'dark', density:'comfortable', view:'both', rScale:1, sScale:1, motion:true };
+const DEFAULTS = { accent:'cyan', theme:'dark', density:'comfortable', radiusScale:'medium', view:'both', rScale:1, sScale:1, motion:true };
 const state = { ...DEFAULTS };
 
 const $ = (id) => document.getElementById(id);
@@ -823,7 +886,8 @@ function applyVars(){
   set('--text',n.text); set('--text2',n.text2); set('--muted',n.muted);
   set('--border',n.border); set('--border-2',n.borderSecondary); set('--glass-sider',n.glassSider); set('--glass-header',n.glassHeader); set('--scrim',n.scrim);
   set('--t-muted',T.tones.muted); set('--t-info',T.tones.info); set('--t-violet',T.tones.violet); set('--t-warning',T.tones.warning); set('--t-success',T.tones.success); set('--t-danger',T.tones.danger);
-  set('--radius',(d.radius*state.rScale).toFixed(1)+'px'); set('--gap',(d.gap*state.sScale).toFixed(1)+'px'); set('--card-pad',(d.cardPadding*state.sScale).toFixed(1)+'px');
+  // 圆角档位（REQ-20261121-043502）：Web 主圆角取 resolveRadiusTokens 档位值（RN 圆角不动，仅随滑杆缩放）
+  set('--radius',(T.radiusScales[state.radiusScale]*state.rScale).toFixed(1)+'px'); set('--gap',(d.gap*state.sScale).toFixed(1)+'px'); set('--card-pad',(d.cardPadding*state.sScale).toFixed(1)+'px');
   set('--m-card-r',(16*state.rScale).toFixed(1)+'px'); set('--m-btn-r',(12*state.rScale).toFixed(1)+'px'); set('--m-card-pad',(16*state.sScale).toFixed(1)+'px'); set('--m-gap',(10*state.sScale).toFixed(1)+'px');
   set('--font-sans',T.fontFamily.sans); set('--font-mono',T.fontFamily.mono);
   set('--fast',T.motion.fast+'ms'); set('--base',T.motion.base+'ms'); set('--slow',T.motion.slow+'ms'); set('--easing',T.motion.easing);
@@ -833,14 +897,14 @@ function applyVars(){
 
 function applyControls(){
   document.querySelectorAll('#accentSw .sw').forEach(b=>b.classList.toggle('active', b.dataset.accent===state.accent));
-  ['theme','density','view'].forEach(k=>{
+  ['theme','density','view','radiusScale'].forEach(k=>{
     document.querySelectorAll('#'+k+'Seg button').forEach(b=>b.classList.toggle('active', b.dataset.v===state[k]));
   });
   $('rScale').value=state.rScale; $('rOut').textContent=state.rScale.toFixed(2)+'×';
   $('sScale').value=state.sScale; $('sOut').textContent=state.sScale.toFixed(2)+'×';
   $('motionTgl').classList.toggle('on', state.motion); $('motionLbl').textContent=state.motion?'开':'关';
   $('metaAccent').textContent=state.accent; $('metaHex').textContent=T.accents[state.accent];
-  $('metaTheme').textContent=(state.theme==='dark'?'暗色':'亮色')+' · '+(state.density==='comfortable'?'舒适':'紧凑');
+  $('metaTheme').textContent=(state.theme==='dark'?'暗色':'亮色')+' · '+(state.density==='comfortable'?'舒适':'紧凑')+' · 圆角'+({small:'较小',medium:'适中',large:'较大',full:'胶囊'})[state.radiusScale];
 }
 
 function renderAccentControls(){
@@ -865,6 +929,12 @@ function renderPalette(){
   Object.entries(T.envColors).forEach(([k,v])=>cc.push(`<span class="mini"><span class="sq" style="background:${v}"></span>${T.envLabel[k]} <span class="mono muted">${v}</span></span>`));
   Object.entries(T.healthColors).forEach(([k,v])=>cc.push(`<span class="mini"><span class="sq" style="background:${v}"></span>${T.healthLabels[k]} <span class="mono muted">${v}</span></span>`));
   $('classChips').innerHTML=cc.join('');
+  // 语义色预设档（REQ-20261121-043502）：TONES 基线 + 邻近近似档（SEMANTIC_PRESETS，core 同源）
+  $('semanticPresets').innerHTML = T.semanticOrder.map(k=>{
+    const base=T.semanticPresets[k][0], adj=T.semanticPresets[k][1];
+    return `<span class="mini"><span class="sq" style="background:${base}"></span>${TONE_LABEL[k]} 基线 <span class="mono muted">${base}</span></span>`+
+           `<span class="mini"><span class="sq" style="background:${adj}"></span>${TONE_LABEL[k]} 邻近 <span class="mono muted">${adj}</span></span>`;
+  }).join('');
 }
 
 function wTag(t){ const c=T.tones[t]; return `<span class="w-tag" style="color:${c};background:${rgba(c,.12)};border-color:${rgba(c,.35)}">${TONE_LABEL[t]}</span>`; }
@@ -915,6 +985,11 @@ function renderType(){
 function renderSpace(){
   $('spaceGrid').innerHTML=Object.entries(T.spacing).map(([k,v])=>`<div class="space-item"><div class="box" style="width:${v}px;height:${v}px"></div><div class="cap">${k} ${v}</div></div>`).join('');
   $('radiiGrid').innerHTML=Object.entries(T.radii).map(([k,v])=>`<div class="radii-item" style="border-radius:${v}px">${k}<br>${v}</div>`).join('');
+  // 圆角档位（REQ-20261121-043502）：small≈0.8× / medium=RADII 现值 / large≈1.4× / full=胶囊999
+  $('radiusTierGrid').innerHTML=T.radiusOrder.map(k=>{
+    const t=T.radiusTokenSets[k];
+    return `<div class="radii-item" style="border-radius:${t.borderRadius}px">${k}<br>${t.borderRadius} / ${t.borderRadiusSM} / ${t.borderRadiusLG}</div>`;
+  }).join('');
 }
 
 function renderGradients(){
@@ -945,7 +1020,7 @@ function currentCss(){
 function bind(){
   $('accentSw').addEventListener('click',e=>{ const b=e.target.closest('.sw'); if(b){ state.accent=b.dataset.accent; renderAll(); }});
   $('accentPal').addEventListener('click',e=>{ const c=e.target.closest('.chip'); if(c){ state.accent=c.dataset.accent; renderAll(); }});
-  ['theme','density','view'].forEach(k=>{
+  ['theme','density','view','radiusScale'].forEach(k=>{
     $(k+'Seg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ state[k]=b.dataset.v; renderAll(); }});
   });
   $('rScale').addEventListener('input',e=>{ state.rScale=parseFloat(e.target.value); applyVars(); applyControls(); renderComponents(); });

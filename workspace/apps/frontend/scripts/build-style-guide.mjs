@@ -41,6 +41,8 @@ const code = bundled.outputFiles[0].text;
 const core = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 
 const STATUS_ORDER = ['draft', 'building', 'testing', 'approved', 'published', 'failed', 'cancelled'];
+const RADIUS_ORDER = ['small', 'medium', 'large', 'full'];
+const SEMANTIC_ORDER = ['success', 'warning', 'danger'];
 
 const gradients = {};
 for (const a of core.ACCENT_ORDER) {
@@ -70,6 +72,12 @@ const TOKENS = {
   light: core.LIGHT_NEUTRALS,
   spacing: core.SPACING,
   radii: core.RADII,
+  // REQ-20261121-043502（THEME-2）：圆角档位 token 值与语义色预设档（基线+邻近近似），校验页核对用
+  radiusScales: Object.fromEntries(RADIUS_ORDER.map((r) => [r, core.resolveRadiusTokens(r)])),
+  radiusTokenSets: Object.fromEntries(RADIUS_ORDER.map((r) => [r, core.resolveRadiusTokenSet(r)])),
+  radiusOrder: RADIUS_ORDER,
+  semanticPresets: Object.fromEntries(SEMANTIC_ORDER.map((k) => [k, core.SEMANTIC_PRESETS[k]])),
+  semanticOrder: SEMANTIC_ORDER,
   fontFamily: core.FONT_FAMILY,
   fontSize: core.FONT_SIZE,
   fontWeight: core.FONT_WEIGHT,

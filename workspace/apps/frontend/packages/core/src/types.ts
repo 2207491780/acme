@@ -15,6 +15,10 @@ export type SortKey = 'manual' | 'updated' | 'priority' | 'version' | 'title';
 export type Tone = 'muted' | 'info' | 'violet' | 'warning' | 'success' | 'danger';
 export type Theme = 'dark' | 'light';
 export type Density = 'comfortable' | 'compact';
+/** 圆角档位（REQ-20261121-043502 THEME-2 v3）：medium=现状 RADII 基线；small/large 按档位系数缩放；full=胶囊。 */
+export type RadiusScale = 'small' | 'medium' | 'large' | 'full';
+/** 内容宽度档位（REQ-20261121-043502 THEME-2 v3）：fluid=现状不限宽；compact=内容区定宽居中。 */
+export type ContentWidth = 'fluid' | 'compact';
 export type Accent =
   | 'cyan'
   | 'blue'

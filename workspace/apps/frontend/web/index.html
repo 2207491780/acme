@@ -61,6 +61,24 @@
   </style>
 </head>
 <body>
+  <!-- 色弱滤镜矩阵（REQ-20261121-043502 确认④）运行时载体：0 尺寸内联 SVG（display:none 会令
+       部分引擎忽略滤镜定义）。矩阵与 global.css [data-surface] 规则中的 data-uri 定义逐值一致；
+       Chromium 对 data-uri filter 引用整条失效（Electron 37 实测），故运行时经同文档
+       url(#acme-weak-mode) 引用本节点，global.css 的 data-uri 定义作为支持该引用方式的
+       引擎层定义（双写覆盖，见 global.css 注释）。 -->
+  <svg aria-hidden="true" focusable="false" style="position: absolute; width: 0; height: 0;">
+    <defs>
+      <filter id="acme-weak-mode" color-interpolation-filters="sRGB">
+        <feColorMatrix
+          type="matrix"
+          values="0.8 0.2 0 0 0
+                  0.258 0.742 0 0 0
+                  0 0.142 0.858 0 0
+                  0 0 0 1 0"
+        />
+      </filter>
+    </defs>
+  </svg>
   <div id="app-boot" role="status">
     <div id="app-boot-mark">
       <!-- 品牌标（public/icon.svg 内联副本：加载期不发外部请求） -->

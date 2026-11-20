@@ -19,6 +19,11 @@ export interface ChartThemeSnapshot {
     border: string;
     background: string;
     surface: string;
+    /** 语义色生效值（REQ-20261121-043502 THEME-2：overrides→TONES 回退，图表联动）；
+     *  旧装配快照可缺省（工厂当前按 accent/中性色派生，语义色供状态系列扩展消费）。 */
+    success?: string;
+    warning?: string;
+    danger?: string;
   };
   fontSize: number;
 }

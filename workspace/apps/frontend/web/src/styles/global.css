@@ -180,6 +180,28 @@ tr.dragging { opacity: 0.45; }
 :root[data-motion="false"] *, :root[data-motion="false"] *::before, :root[data-motion="false"] *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; } }
 
+/* 外观能力包（REQ-20261121-043502 确认④）：灰度/色弱滤镜挂应用根容器（html data-surface，
+   App.tsx dataset 接线；boot 首绘不做——避免 FOUC 复杂化的契约取舍）。
+   色弱滤镜矩阵（feColorMatrix 红绿通道再平衡近似，sRGB 插值）按契约集中定义在下方 data-uri，
+   并与 index.html 内联 SVG #acme-weak-mode 逐值一致：Chromium/Electron 对 data-uri filter
+   引用整条失效（Electron 37 实测），故每条规则以同文档 url(#acme-weak-mode) 声明覆盖兜底；
+   支持按引用解析 data-uri 的引擎走 data-uri 定义，其余走同文档节点——两定义矩阵一致，视觉等效。
+   双开叠加规则置首：单条 filter 链（先灰度后色弱）为灰/弱共开时的完整声明式，顺序与确认④一致。 */
+[data-surface="gray weak"] {
+  filter: grayscale(1) url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter%20id='acme-weak-mode'%20color-interpolation-filters='sRGB'%3E%3CfeColorMatrix%20type='matrix'%20values='0.8%200.2%200%200%200%200.258%200.742%200%200%200%200%200.142%200.858%200%200%200%200%200%201%200'/%3E%3C/filter%3E%3C/svg%3E#acme-weak-mode");
+  filter: grayscale(1) url(#acme-weak-mode);
+}
+[data-surface="gray"] { filter: grayscale(1); }
+[data-surface="weak"] {
+  filter: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter%20id='acme-weak-mode'%20color-interpolation-filters='sRGB'%3E%3CfeColorMatrix%20type='matrix'%20values='0.8%200.2%200%200%200%200.258%200.742%200%200%200%200%200.142%200.858%200%200%200%200%200%201%200'/%3E%3C/filter%3E%3C/svg%3E#acme-weak-mode");
+  filter: url(#acme-weak-mode);
+}
+
+/* 内容宽度（REQ-20261121-043502 确认⑥）：fluid=现状不限宽；compact=内容区定宽居中
+   （1080px 阅读优化档，挂 Layout 内容包裹层 .content-body，App.tsx 接线） */
+.content-body { min-width: 0; }
+.content-body[data-width="compact"] { max-width: 1080px; margin-inline: auto; }
+
 @media (max-width: 1180px) {
   .hero-grid { grid-template-columns: 1fr; }
 }

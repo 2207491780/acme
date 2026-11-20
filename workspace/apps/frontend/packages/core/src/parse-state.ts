@@ -1,8 +1,11 @@
 import { ENVS, PLATFORMS, SORTS, STATUSES } from './constants';
 import {
   isAccentKey,
+  isContentWidth,
   isDensityValue,
   isHexColor,
+  isRadiusScale,
+  isSemanticColorOverrides,
   isThemeModeValue,
   settingsFromPreferences,
   type ThemePreferences,
@@ -136,8 +139,8 @@ function isLegacyTheme(value: unknown): value is 'dark' | 'light' {
 }
 
 /**
- * settings 归一化（REQ-20261121-010725）：blob 内嵌 preferences 新形状与 legacy 扁平形状（迁移）
- * 双口径统一收敛为 `settingsFromPreferences` 产物（schemaVersion + preferences）。
+ * settings 归一化（REQ-20261121-010725；THEME-2 v3 字段同口径）：blob 内嵌 preferences 新形状
+ * 与 legacy 扁平形状（迁移）双口径统一收敛为 `settingsFromPreferences` 产物（schemaVersion + preferences）。
  * 口径 = fail-closed（与 IMPORT/存储冲突校验同标准）：任何「显式存在但非法」的字段返回 null
  * （整个 blob 拒绝，不静默降级）；「未提供」的字段沿用种子偏好，保持旧数据的部分合并语义。
  * 逐字段降级语义在偏好引擎层（validateThemePreferences/migrateSettings），两者各司其职。
@@ -162,11 +165,23 @@ function normalizeStoredSettings(raw: unknown, base: Settings): Settings | null 
     if ('customAccent' in p && p.customAccent !== null && !isHexColor(p.customAccent)) return null;
     if ('density' in p && !isDensityValue(p.density)) return null;
     if ('motionEnabled' in p && typeof p.motionEnabled !== 'boolean') return null;
+    // v3 字段（REQ-20261121-043502 确认②）：显式存在但非法 → fail-closed；合法 → 逐项拷贝。
+    // v2 blob 缺省 v3 字段时沿用种子默认（迁移口径），不被静默丢弃。
+    if ('radius' in p && !isRadiusScale(p.radius)) return null;
+    if ('grayMode' in p && typeof p.grayMode !== 'boolean') return null;
+    if ('weakMode' in p && typeof p.weakMode !== 'boolean') return null;
+    if ('contentWidth' in p && !isContentWidth(p.contentWidth)) return null;
+    if ('semanticColors' in p && !isSemanticColorOverrides(p.semanticColors)) return null;
     if (isThemeModeValue(p.mode)) prefs.mode = p.mode;
     if (isAccentKey(p.accent)) prefs.accent = p.accent;
     if (p.customAccent === null || isHexColor(p.customAccent)) prefs.customAccent = p.customAccent;
     if (isDensityValue(p.density)) prefs.density = p.density;
     if (typeof p.motionEnabled === 'boolean') prefs.motionEnabled = p.motionEnabled;
+    if (isRadiusScale(p.radius)) prefs.radius = p.radius;
+    if (typeof p.grayMode === 'boolean') prefs.grayMode = p.grayMode;
+    if (typeof p.weakMode === 'boolean') prefs.weakMode = p.weakMode;
+    if (isContentWidth(p.contentWidth)) prefs.contentWidth = p.contentWidth;
+    if (isSemanticColorOverrides(p.semanticColors)) prefs.semanticColors = p.semanticColors;
   } else {
     // legacy 扁平形状（schemaVersion 前的 blob）：theme('dark'|'light')→mode（dark:boolean 同口径
     // 兜底，theme 优先），accent/density/motion 同名映射（确认记录③④ 旧语义）

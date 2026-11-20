@@ -13,6 +13,10 @@
  *
  * 主题面断言走契约钉死管线 buildTheme(settings) token（jsdom cssinjs 计算样式不可靠，不做样式断言）。
  * 「重载保留」的 store 级验证见 REQ20261121010725-preferencesPersist.test.tsx（resetModules 重导入口径）。
+ *
+ * REQ-20261121-043502（AC-10 回归口径适配）：偏好模型 v3 —— 非默认偏好 fixture 以
+ * DEFAULT_PREFERENCES 派生（v3 字段随默认形状补齐）；v3 新控件专项用例见
+ * REQ20261121043502-appearanceDrawer.test.tsx。
  */
 import { act } from 'react';
 import type { ReactNode } from 'react';
@@ -491,16 +495,20 @@ describe('REQ20261121010725 偏好抽屉（AC-5/AC-6/AC-7/AC-8/AC-9）', () => {
   });
 
   it('should_reset_all_preferences_when_reset_confirmed', async () => {
-    // 预置非默认偏好
+    // 预置非默认偏好（043502 v3 适配：以 DEFAULT_PREFERENCES 派生，v3 字段随默认形状走）
     useStore.getState().dispatch({
       type: 'UPDATE_SETTINGS',
       patch: {
-        preferences: { mode: 'dark', accent: 'emerald', customAccent: '#b08968', density: 'compact', motionEnabled: false },
+        preferences: {
+          ...DEFAULT_PREFERENCES,
+          mode: 'dark', accent: 'emerald', customAccent: '#b08968', density: 'compact', motionEnabled: false,
+        },
       },
     });
     await renderApp();
     const drawer = await openPreferencesDrawer();
     expect(currentPrefs()).toEqual({
+      ...DEFAULT_PREFERENCES,
       mode: 'dark', accent: 'emerald', customAccent: '#b08968', density: 'compact', motionEnabled: false,
     });
 

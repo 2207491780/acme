@@ -39,7 +39,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, resolveAccentColor, resolveThemeMode, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
+import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, resolveAccentColor, resolveSemanticColors, resolveThemeMode, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
 import dayjs from 'dayjs';
 import { PAGE_ROUTES, findPageRoute } from './routes';
 import { Avatar } from './components/Avatar';
@@ -199,6 +199,29 @@ export function App() {
       root.style.setProperty('--accent', preferences.customAccent);
     } else {
       root.style.removeProperty('--accent');
+    }
+    // 语义色覆盖（REQ-20261121-043502 确认⑤）：global.css 已有 TONES 镜像变量（--teal=success、
+    // --red=danger）随覆盖 inline 联动，清除回基线；warning 无专属镜像变量、info/muted 不覆盖。
+    const semantic = resolveSemanticColors(preferences.semanticColors);
+    if (preferences.semanticColors?.success) {
+      root.style.setProperty('--teal', semantic.success);
+    } else {
+      root.style.removeProperty('--teal');
+    }
+    if (preferences.semanticColors?.danger) {
+      root.style.setProperty('--red', semantic.danger);
+    } else {
+      root.style.removeProperty('--red');
+    }
+    // 灰度/色弱（REQ-20261121-043502 确认④）：data-surface 挂根（值序 gray→weak 与 global.css
+    // 叠加规则一致）；全关移除属性避免常驻 filter 上下文。boot 首绘不接线（确认④取舍）。
+    const surface: string[] = [];
+    if (preferences.grayMode) surface.push('gray');
+    if (preferences.weakMode) surface.push('weak');
+    if (surface.length > 0) {
+      root.dataset.surface = surface.join(' ');
+    } else {
+      delete root.dataset.surface;
     }
   }, [resolvedMode, preferences]);
 
@@ -745,45 +768,49 @@ export function App() {
               onCloseAll={handleTabCloseAll}
             />
           )}
-          {/* 内容区视口内自滚：minHeight 0 解除 flex 子项最小尺寸约束，整页高度不随内容撑大 */}
+          {/* 内容区视口内自滚：minHeight 0 解除 flex 子项最小尺寸约束，整页高度不随内容撑大。
+              内容包裹层 .content-body 承载内容宽度档位（REQ-20261121-043502 确认⑥）：
+              fluid=不限宽现状；compact=定宽居中（global.css .content-body[data-width]）。 */}
           <Content ref={contentRef} style={{ padding: isMobile ? '16px 14px 60px' : '24px 30px 60px', flex: 1, minHeight: 0, overflow: 'auto' }}>
-            {(storageError || storageConflict) && (
-              <Alert
-                type="warning"
-                showIcon
-                role="alert"
-                style={{ marginBottom: 16 }}
-                message={storageError ? t('nav.storage.unsaved') : t('nav.storage.conflict')}
-                description={storageError ? t('nav.storage.unsavedDesc') : t('nav.storage.conflictDesc')}
-                action={<Button onClick={() => download('acme-unsaved-backup.json', JSON.stringify(useStore.getState().state, null, 2))}>{t('nav.storage.export')}</Button>}
-              />
-            )}
-            {/* 渲染与 router 脱钩（REQ-20261119-063129 契约①）：常规=TabKeepAlive 按 tabsStore
-                已开页签渲染（keepalive）；逃生口（契约⑦ window.__ACME_TABS_DISABLED__）=单页路由
-                渲染（PAGE_ROUTES 逐页 PageBoundary+PermissionGate），仅供个别测试装配隔离。 */}
-            {tabsDisabled ? (
-              <Routes>
-                {PAGE_ROUTES.map((route) => (
-                  <Route
-                    key={route.path}
-                    path={route.path}
-                    element={(
-                      <PageBoundary>
-                        {route.permission
-                          ? <PermissionGate permission={route.permission}><DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh></PermissionGate>
-                          : <DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh>}
-                      </PageBoundary>
-                    )}
-                  />
-                ))}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            ) : (
-              <TabKeepAlive />
-            )}
-            {/* 应用内页脚版权（REQ-20261117-025200，AC-10）：租户配置 footerVisible 且文案非空才渲染
-                （文案空串/null 一律不渲染空标签）；普通文档流不遮挡内容，水印覆盖属预期 */}
-            {footerVisible && footerCopyright ? <footer className="app-foot">{footerCopyright}</footer> : null}
+            <div className="content-body" data-width={preferences.contentWidth}>
+              {(storageError || storageConflict) && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  role="alert"
+                  style={{ marginBottom: 16 }}
+                  message={storageError ? t('nav.storage.unsaved') : t('nav.storage.conflict')}
+                  description={storageError ? t('nav.storage.unsavedDesc') : t('nav.storage.conflictDesc')}
+                  action={<Button onClick={() => download('acme-unsaved-backup.json', JSON.stringify(useStore.getState().state, null, 2))}>{t('nav.storage.export')}</Button>}
+                />
+              )}
+              {/* 渲染与 router 脱钩（REQ-20261119-063129 契约①）：常规=TabKeepAlive 按 tabsStore
+                  已开页签渲染（keepalive）；逃生口（契约⑦ window.__ACME_TABS_DISABLED__）=单页路由
+                  渲染（PAGE_ROUTES 逐页 PageBoundary+PermissionGate），仅供个别测试装配隔离。 */}
+              {tabsDisabled ? (
+                <Routes>
+                  {PAGE_ROUTES.map((route) => (
+                    <Route
+                      key={route.path}
+                      path={route.path}
+                      element={(
+                        <PageBoundary>
+                          {route.permission
+                            ? <PermissionGate permission={route.permission}><DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh></PermissionGate>
+                            : <DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh>}
+                        </PageBoundary>
+                      )}
+                    />
+                  ))}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              ) : (
+                <TabKeepAlive />
+              )}
+              {/* 应用内页脚版权（REQ-20261117-025200，AC-10）：租户配置 footerVisible 且文案非空才渲染
+                  （文案空串/null 一律不渲染空标签）；普通文档流不遮挡内容，水印覆盖属预期 */}
+              {footerVisible && footerCopyright ? <footer className="app-foot">{footerCopyright}</footer> : null}
+            </div>
           </Content>
         </Layout>
       </Layout>

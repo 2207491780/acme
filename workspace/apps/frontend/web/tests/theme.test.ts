@@ -1,23 +1,30 @@
 import { describe, it, expect } from 'vitest';
 import { theme as antdTheme } from 'antd';
-import type { Settings, ThemePreferences } from '@acme/core';
+import { PREFERENCES_VERSION, type Settings, type ThemePreferences } from '@acme/core';
 import { buildTheme, ACCENTS, ACCENT_ORDER } from '../src/theme';
 
 // REQ-20261121-010725 终稿口径（TL 裁决）：Settings = { schemaVersion, preferences } + 4 个
 // @deprecated 派生投影字段（theme/accent/density/motion，settingsFromPreferences 统一派生，
 // preferences 唯一事实源）。fixture 以 preferences 派生投影，保证两段永不漂移。
+// REQ-20261121-043502（AC-10 回归口径适配）：偏好模型 v3 —— fixture 补 v3 字段默认
+// （radius=medium/gray=false/weak=false/width=fluid/语义色全 null），schemaVersion=PREFERENCES_VERSION。
 const preferences = (over: Partial<ThemePreferences> = {}): ThemePreferences => ({
   mode: 'dark',
   accent: 'cyan',
   customAccent: null,
   density: 'comfortable',
   motionEnabled: true,
+  radius: 'medium',
+  grayMode: false,
+  weakMode: false,
+  contentWidth: 'fluid',
+  semanticColors: { success: null, warning: null, danger: null },
   ...over,
 });
 const settingsOf = (over: Partial<ThemePreferences> = {}): Settings => {
   const prefs = preferences(over);
   return {
-    schemaVersion: 2,
+    schemaVersion: PREFERENCES_VERSION,
     preferences: prefs,
     // 投影 theme 为旧两态（legacy 无 system 语义）；本文件用例仅用 light/dark
     theme: prefs.mode as 'light' | 'dark',

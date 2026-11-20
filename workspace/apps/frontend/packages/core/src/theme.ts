@@ -1,4 +1,4 @@
-import type { Accent, Density, Env, Health, Platform, Status, Theme, Tone } from './types';
+import type { Accent, Density, Env, Health, Platform, RadiusScale, Status, Theme, Tone } from './types';
 import { clamp, statusTone } from './utils';
 
 // 设计令牌唯一事实源。Web(Ant Design) 与 Mobile(React Native) 主题均从此派生，
@@ -242,6 +242,91 @@ export const DENSITY: Record<Density, { radius: number; cardPadding: number; cel
   comfortable: { radius: RADII.md, cardPadding: 20, cellBlock: 13, cellInline: 14, gap: SPACING.lg },
   compact: { radius: RADII.sm, cardPadding: 16, cellBlock: 8, cellInline: 10, gap: SPACING.md },
 };
+
+// —— 外观能力包（REQ-20261121-043502 THEME-2）——
+
+/** 语义色覆盖键（THEME-2 确认⑤）：仅 success/warning/danger 可覆盖，info/muted/violet 保持体系稳定。 */
+export type SemanticColorKey = 'success' | 'warning' | 'danger';
+
+/** 语义色覆盖（preferences v3 内嵌形状）：null = 用 TONES 基线；hex = #RRGGBB 自定义覆盖值。 */
+export interface SemanticColorOverrides {
+  success: string | null;
+  warning: string | null;
+  danger: string | null;
+}
+
+/** 圆角档位 → AntD token 三件套（THEME-2 确认③）：borderRadius 主值 + SM/LG 按 RADII 现值比例联动。 */
+export interface RadiusTokenSet {
+  borderRadius: number;
+  borderRadiusSM: number;
+  borderRadiusLG: number;
+}
+
+// 圆角档位→RADII 缩放系数（确认③：small≈0.8×、medium=基线不动、large≈1.4×）。
+const RADIUS_SCALE_FACTOR: Record<RadiusScale, number> = {
+  small: 0.8,
+  medium: 1,
+  large: 1.4,
+  full: 1,
+};
+
+/**
+ * 圆角档位映射（THEME-2 确认③）→ AntD token.borderRadius 数值，按 RADII 现值推导取整：
+ * - small = RADII.md×0.8 = 9.6→10；medium = RADII.md = 12（现状基线不动，= DENSITY.comfortable.radius）；
+ * - large = RADII.md×1.4 = 16.8→17；full = RADII.pill = 999（胶囊统一大圆角，档位上界）。
+ */
+export function resolveRadiusTokens(radius: RadiusScale): number {
+  if (radius === 'full') return RADII.pill;
+  return Math.round(RADII.md * RADIUS_SCALE_FACTOR[radius]);
+}
+
+/**
+ * 圆角档位 → AntD borderRadius/SM/LG 三件套（THEME-2 确认③「components 相关联」）：
+ * SM/LG 按 RADII 现值比例联动（sm/md=2/3、lg/md=4/3 取整；small→7/13、large→11/23）；
+ * full 三值同步 999——AntD genRadius 会把 LG 封顶在 16，胶囊容器圆角须显式注入突破。
+ */
+export function resolveRadiusTokenSet(radius: RadiusScale): RadiusTokenSet {
+  const value = resolveRadiusTokens(radius);
+  if (value >= RADII.pill) {
+    return { borderRadius: RADII.pill, borderRadiusSM: RADII.pill, borderRadiusLG: RADII.pill };
+  }
+  return {
+    borderRadius: value,
+    borderRadiusSM: Math.round(value * (RADII.sm / RADII.md)),
+    borderRadiusLG: Math.round(value * (RADII.lg / RADII.md)),
+  };
+}
+
+/**
+ * 语义色预设档（THEME-2 确认⑤）：每语义 2 预设 = TONES 基线 + 邻近近似档。
+ * 邻近档从基线 hex 同族派生（向黑混 14%，保持去饱和基调、仅轻微明度变化：
+ * success→#5f8b74 / warning→#b28a44 / danger→#a96a6a），不引入新的色系。
+ */
+export const SEMANTIC_PRESETS: Record<SemanticColorKey, [string, string]> = {
+  success: [TONES.success, mixHex(TONES.success, '#000000', 0.86)],
+  warning: [TONES.warning, mixHex(TONES.warning, '#000000', 0.86)],
+  danger: [TONES.danger, mixHex(TONES.danger, '#000000', 0.86)],
+};
+
+// 与 preferences.isHexColor / chart-option HEX_RE 同口径：3/6 位 hex 才视为合法覆盖值。
+const SEMANTIC_HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/**
+ * 语义色解析（THEME-2 确认⑤）：null/非法值→TONES 基线回退；合法 hex（3/6 位归一化为
+ * 小写 6 位）→覆盖。经 validateThemePreferences 归一化后 overrides 已合法，此处再校验是
+ * 兜底旧装配/未过校验的直接调用（resolveAccentColor 同款防御口径）。
+ */
+export function resolveSemanticColors(
+  overrides: SemanticColorOverrides | null | undefined,
+): Record<SemanticColorKey, string> {
+  const resolve = (key: SemanticColorKey): string => {
+    const value = overrides?.[key];
+    if (typeof value !== 'string' || !SEMANTIC_HEX_RE.test(value)) return TONES[key];
+    const h = value.replace('#', '').toLowerCase();
+    return `#${h.length === 3 ? h.split('').map((c) => c + c).join('') : h}`;
+  };
+  return { success: resolve('success'), warning: resolve('warning'), danger: resolve('danger') };
+}
 
 function parseHex(hex: string): [number, number, number] {
   const h = hex.replace('#', '');
