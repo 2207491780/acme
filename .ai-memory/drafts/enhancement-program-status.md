@@ -10,7 +10,7 @@
 | 0 | 开工检查+收尾提交+镜像推送 | DONE | 23a74f0/e504207/7ba80ee 已推 |
 | 1 | BPM-0 预研定稿 | DONE | docs/bpm-engine-design-2026-11-21.md + ADR-03 |
 | 1 | JOB-0 预研定稿 | DONE | docs/scheduler-center-design-2026-11-21.md + ADR-04 |
-| 1 | THEME-1 偏好引擎+抽屉一期 | I-DONE | REQ-20261121-010725（worktree 待建，委派待发） |
+| 1 | THEME-1 偏好引擎+抽屉一期 | III-GATE（round 1 已收口：Option B 投影裁决落地、三包 typecheck 绿、定向 201 全绿；全量门禁后台跑 exec_7e386777；ui:guide 已重生成） | REQ-20261121-010725 |
 | 1 | TENANT-1 租户套餐模型 | 待启动 | |
 | 2 | THEME-2 外观能力包 | 待启动 | |
 | 2 | TENANT-2 功能分配-服务能力开关 | 待启动 | |
