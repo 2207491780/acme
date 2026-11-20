@@ -5,6 +5,7 @@ import {
   parseState,
   seedState,
   STORAGE_KEY,
+  PREFERENCES_VERSION,
   reduce,
   filterReleases,
   sortReleases,
@@ -61,6 +62,31 @@ export function createAppStore(storage: StorageLike) {
     storageError = true;
   }
   const initialState = loadState({ getItem: () => persisted, setItem: () => {} });
+  // 迁移接线（REQ-20261121-010725）：水合后按需落盘——冷启动（无 blob）写入种子态；
+  // blob 内 settings 缺当前版本标记（legacy 扁平形状）时立即写回迁移结果（schemaVersion/
+  // preferences 新形状首帧前就位）。已是当前版本的 blob 不重写（保持既有「多窗口字节级
+  // 冲突检测」口径，boot 不制造假冲突）；损坏 blob 不写（core loadState 已回落种子，不覆盖原数据）。
+  let shouldPersistOnHydrate = false;
+  if (!storageError) {
+    if (persisted === null) {
+      shouldPersistOnHydrate = true;
+    } else {
+      try {
+        const parsed = JSON.parse(persisted) as { settings?: { schemaVersion?: unknown } } | null;
+        const settings = parsed !== null && typeof parsed === 'object' ? parsed.settings : undefined;
+        shouldPersistOnHydrate = !(
+          typeof settings === 'object'
+          && settings !== null
+          && settings.schemaVersion === PREFERENCES_VERSION
+        );
+      } catch {
+        shouldPersistOnHydrate = false;
+      }
+    }
+  }
+  if (shouldPersistOnHydrate && saveState(storage, initialState)) {
+    persisted = JSON.stringify(initialState);
+  }
   return create<AppStore>()((set, get) => ({
     state: initialState,
     storageError,

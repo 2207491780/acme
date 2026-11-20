@@ -2,6 +2,7 @@ export type * from './types';
 export * from './constants';
 export * from './utils';
 export * from './theme';
+export * from './preferences';
 export * from './chart-option';
 export * from './seed';
 export * from './parse-state';

@@ -1,3 +1,5 @@
+import type { ThemePreferences } from './preferences';
+
 export type Platform = 'web' | 'desktop' | 'mobile';
 export type Env = 'dev' | 'test' | 'prod';
 export type Status =
@@ -13,7 +15,19 @@ export type SortKey = 'manual' | 'updated' | 'priority' | 'version' | 'title';
 export type Tone = 'muted' | 'info' | 'violet' | 'warning' | 'success' | 'danger';
 export type Theme = 'dark' | 'light';
 export type Density = 'comfortable' | 'compact';
-export type Accent = 'cyan' | 'blue' | 'violet' | 'magenta' | 'amber' | 'acid';
+export type Accent =
+  | 'cyan'
+  | 'blue'
+  | 'violet'
+  | 'magenta'
+  | 'amber'
+  | 'acid'
+  | 'emerald'
+  | 'sky'
+  | 'coral'
+  | 'ruby'
+  | 'bronze'
+  | 'slate';
 
 export interface App {
   id: string;
@@ -70,9 +84,18 @@ export interface SavedView {
 }
 
 export interface Settings {
+  /** 偏好子结构版本标记（PREFERENCES_VERSION）：迁移与校验唯一入口见 preferences.ts。 */
+  schemaVersion: number;
+  /** 主题偏好唯一事实源（REQ-20261121-010725）：web 全部读取路径必须走此字段。 */
+  preferences: ThemePreferences;
+  /** @deprecated 派生投影：由 preferences 单向派生（settingsFromPreferences 统一构造），
+   *  勿直接读写，唯一事实=settings.preferences；仅为 mobile 过渡兼容保留（THEME-3 删除）。 */
   theme: Theme;
-  density: Density;
+  /** @deprecated 同 theme，勿直接读写。 */
   accent: Accent;
+  /** @deprecated 同 theme，勿直接读写。 */
+  density: Density;
+  /** @deprecated 同 theme，勿直接读写。 */
   motion: boolean;
 }
 

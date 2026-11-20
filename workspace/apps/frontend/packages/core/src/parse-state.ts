@@ -1,4 +1,12 @@
 import { ENVS, PLATFORMS, SORTS, STATUSES } from './constants';
+import {
+  isAccentKey,
+  isDensityValue,
+  isHexColor,
+  isThemeModeValue,
+  settingsFromPreferences,
+  type ThemePreferences,
+} from './preferences';
 import { seedState } from './seed';
 import type {
   Activity,
@@ -123,12 +131,56 @@ function isSavedView(value: unknown): value is SavedView {
   return isRecord(value) && isId(value.id) && isString(value.name) && isQuery(value.query);
 }
 
-function isSettings(value: unknown): value is Partial<Settings> {
-  return isRecord(value)
-    && (!('theme' in value) || isOneOf(value.theme, ['dark', 'light']))
-    && (!('density' in value) || isOneOf(value.density, ['comfortable', 'compact']))
-    && (!('accent' in value) || isOneOf(value.accent, ['cyan', 'blue', 'violet', 'magenta', 'amber', 'acid']))
-    && (!('motion' in value) || typeof value.motion === 'boolean');
+function isLegacyTheme(value: unknown): value is 'dark' | 'light' {
+  return value === 'dark' || value === 'light';
+}
+
+/**
+ * settings 归一化（REQ-20261121-010725）：blob 内嵌 preferences 新形状与 legacy 扁平形状（迁移）
+ * 双口径统一收敛为 `settingsFromPreferences` 产物（schemaVersion + preferences）。
+ * 口径 = fail-closed（与 IMPORT/存储冲突校验同标准）：任何「显式存在但非法」的字段返回 null
+ * （整个 blob 拒绝，不静默降级）；「未提供」的字段沿用种子偏好，保持旧数据的部分合并语义。
+ * 逐字段降级语义在偏好引擎层（validateThemePreferences/migrateSettings），两者各司其职。
+ */
+function normalizeStoredSettings(raw: unknown, base: Settings): Settings | null {
+  if (!isRecord(raw)) return null;
+  const prefs: ThemePreferences = { ...base.preferences };
+  const p = isRecord(raw.preferences) ? raw.preferences : null;
+  if (p) {
+    // 新形状：根键 = schemaVersion + preferences + 4 个 deprecated 投影键（settingsFromPreferences
+    // 产物原样往返）；其余未知键（含 legacy dark/customAccent）视为非法数据，fail-closed。
+    const allowed = ['schemaVersion', 'preferences', 'theme', 'accent', 'density', 'motion'];
+    if (Object.keys(raw).some((key) => !allowed.includes(key))) return null;
+    // 投影键显式存在时必须合法（与 IMPORT/存储冲突校验同标准），值一律忽略——
+    // 由 preferences 单向重建，防止 blob 内投影与事实源漂移
+    if ('theme' in raw && !isLegacyTheme(raw.theme)) return null;
+    if ('accent' in raw && !isAccentKey(raw.accent)) return null;
+    if ('density' in raw && !isDensityValue(raw.density)) return null;
+    if ('motion' in raw && typeof raw.motion !== 'boolean') return null;
+    if ('mode' in p && !isThemeModeValue(p.mode)) return null;
+    if ('accent' in p && !isAccentKey(p.accent)) return null;
+    if ('customAccent' in p && p.customAccent !== null && !isHexColor(p.customAccent)) return null;
+    if ('density' in p && !isDensityValue(p.density)) return null;
+    if ('motionEnabled' in p && typeof p.motionEnabled !== 'boolean') return null;
+    if (isThemeModeValue(p.mode)) prefs.mode = p.mode;
+    if (isAccentKey(p.accent)) prefs.accent = p.accent;
+    if (p.customAccent === null || isHexColor(p.customAccent)) prefs.customAccent = p.customAccent;
+    if (isDensityValue(p.density)) prefs.density = p.density;
+    if (typeof p.motionEnabled === 'boolean') prefs.motionEnabled = p.motionEnabled;
+  } else {
+    // legacy 扁平形状（schemaVersion 前的 blob）：theme('dark'|'light')→mode（dark:boolean 同口径
+    // 兜底，theme 优先），accent/density/motion 同名映射（确认记录③④ 旧语义）
+    if ('theme' in raw && !isLegacyTheme(raw.theme)) return null;
+    if ('accent' in raw && !isAccentKey(raw.accent)) return null;
+    if ('density' in raw && !isDensityValue(raw.density)) return null;
+    if ('motion' in raw && typeof raw.motion !== 'boolean') return null;
+    if (isLegacyTheme(raw.theme)) prefs.mode = raw.theme;
+    else if (typeof raw.dark === 'boolean') prefs.mode = raw.dark ? 'dark' : 'light';
+    if (isAccentKey(raw.accent)) prefs.accent = raw.accent;
+    if (isDensityValue(raw.density)) prefs.density = raw.density;
+    if (typeof raw.motion === 'boolean') prefs.motionEnabled = raw.motion;
+  }
+  return settingsFromPreferences(prefs);
 }
 
 function isActivity(value: unknown): value is Activity {
@@ -151,12 +203,12 @@ export function parseState(data: unknown, now: number = Date.now()): AppState | 
   }
 
   const base = seedState(now);
-  const settings = 'settings' in data ? data.settings : {};
   const order = 'order' in data ? data.order : [];
   const savedViews = 'savedViews' in data ? data.savedViews : base.savedViews;
   const activity = 'activity' in data ? data.activity : base.activity;
   const version = 'version' in data ? data.version : base.version;
-  if (!isSettings(settings) || !isFiniteNumber(version) || !isArrayOf(order, isString)) return null;
+  const settings = normalizeStoredSettings('settings' in data ? data.settings : {}, base.settings);
+  if (!settings || !isFiniteNumber(version) || !isArrayOf(order, isString)) return null;
   const releaseIds = new Set(data.releases.map((release) => release.id));
   if (new Set(order).size !== order.length || order.some((id) => !releaseIds.has(id))) return null;
   if (!isArrayOf(savedViews, isSavedView) || !hasUniqueIds(savedViews)) return null;
@@ -166,7 +218,7 @@ export function parseState(data: unknown, now: number = Date.now()): AppState | 
     version,
     apps: data.apps,
     releases: data.releases,
-    settings: { ...base.settings, ...settings },
+    settings,
     order: order.length ? [...order] : data.releases.map((release) => release.id),
     savedViews,
     activity: [...activity],

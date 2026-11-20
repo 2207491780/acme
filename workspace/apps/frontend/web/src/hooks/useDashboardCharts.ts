@@ -9,6 +9,7 @@ import {
   type TrendChartData,
 } from '@acme/core';
 import { useStore } from '../store/useStore';
+import { useSystemPrefersDark } from './useSystemPrefersDark';
 import { themeSnapshot } from '../theme';
 
 /**
@@ -55,7 +56,9 @@ export function useDashboardCharts(stats?: DashboardChartStats | null): {
   const state = useStore((s) => s.state);
   const settings = state.settings;
   const timezone = useTimezoneStore((s) => s.timezone);
-  const theme = useMemo(() => themeSnapshot(settings), [settings]);
+  // mode=system 时图表快照同样按系统深浅色解析（themeSnapshot 内 resolveThemeMode）
+  const systemPrefersDark = useSystemPrefersDark();
+  const theme = useMemo(() => themeSnapshot(settings, systemPrefersDark), [settings, systemPrefersDark]);
   const derived = useMemo(() => deriveStats(state), [state, timezone]);
   const source = stats === undefined ? derived : stats;
 

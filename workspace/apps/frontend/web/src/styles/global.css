@@ -36,6 +36,14 @@
 :root[data-accent="magenta"] { --accent: #bd7ba0; --accent-2: #cfa14f; --accent-3: #6f92c4; }
 :root[data-accent="amber"] { --accent: #cfa14f; --accent-2: #9db56a; --accent-3: #5aa7a0; }
 :root[data-accent="acid"] { --accent: #9db56a; --accent-2: #6fa287; --accent-3: #6f92c4; }
+/* REQ-20261121-010725：新增 6 预设强调色（core ACCENTS/ACCENT_COMPANIONS 镜像；
+   自定义取色不经预设键，由 App 运行时 inline 覆盖 --accent） */
+:root[data-accent="emerald"] { --accent: #58aa82; --accent-2: #9db56a; --accent-3: #5aa7a0; }
+:root[data-accent="sky"] { --accent: #6aa8cf; --accent-2: #6f92c4; --accent-3: #5aa7a0; }
+:root[data-accent="coral"] { --accent: #cd7a63; --accent-2: #c56d6d; --accent-3: #cfa14f; }
+:root[data-accent="ruby"] { --accent: #c56d6d; --accent-2: #cd7a63; --accent-3: #bd7ba0; }
+:root[data-accent="bronze"] { --accent: #b08968; --accent-2: #cfa14f; --accent-3: #cd7a63; }
+:root[data-accent="slate"] { --accent: #8a9bb0; --accent-2: #6f92c4; --accent-3: #6aa8cf; }
 
 :root[data-theme="light"] {
   --bg-0: #f7f8f9;

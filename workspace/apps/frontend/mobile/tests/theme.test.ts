@@ -112,7 +112,15 @@ describe('mobile theme derivation（历史 API 兼容）', () => {
 
   it('should_keep_historical_semantic_maps', () => {
     expect(ACCENTS.cyan).toBe('#5aa7a0');
-    expect(ACCENT_ORDER).toHaveLength(6);
+    // REQ-20261121-010725：core ACCENTS 6 → 12（确认记录⑤/变更清单），mobile 复用 core 单源同步扩容
+    // （与 core/web theme.test 适配同口径：新增键值 = TL 钉死事实）
+    expect(ACCENT_ORDER).toHaveLength(12);
+    expect(ACCENTS.emerald).toBe('#58aa82');
+    expect(ACCENTS.sky).toBe('#6aa8cf');
+    expect(ACCENTS.coral).toBe('#cd7a63');
+    expect(ACCENTS.ruby).toBe('#c56d6d');
+    expect(ACCENTS.bronze).toBe('#b08968');
+    expect(ACCENTS.slate).toBe('#8a9bb0');
     expect(TONE_COLOR).toBe(TONES);
     expect(PLATFORM_COLOR).toBe(PLATFORM_COLORS);
     expect(ENV_COLOR).toBe(ENV_COLORS);

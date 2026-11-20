@@ -7,6 +7,7 @@ import {
   AppstoreOutlined,
   BookOutlined,
   BugOutlined,
+  BgColorsOutlined,
   ControlOutlined,
   DashboardOutlined,
   DownOutlined,
@@ -37,7 +38,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
+import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, resolveAccentColor, resolveThemeMode, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
 import dayjs from 'dayjs';
 import { PAGE_ROUTES, findPageRoute } from './routes';
 import { Avatar } from './components/Avatar';
@@ -52,6 +53,8 @@ import { TabBar } from './components/TabBar';
 import { TabKeepAlive } from './components/TabKeepAlive';
 import { DateTimePrefsRefresh } from './components/DateTimePrefsRefresh';
 import { CommandPalette } from './components/CommandPalette';
+import { PreferencesDrawer } from './components/PreferencesDrawer';
+import { useSystemPrefersDark } from './hooks/useSystemPrefersDark';
 import { buildDynamicNav, type NavEntry } from './nav';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
@@ -119,6 +122,8 @@ export function App() {
   const [mobileNav, setMobileNav] = useState(false);
   // 命令面板（REQ-20261119-063129 契约⑤）：Ctrl+K 开关（动作经 props 注入，见 CommandPalette）
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // 偏好抽屉（REQ-20261121-010725）：顶栏入口开关（抽屉本体见 PreferencesDrawer）
+  const [prefsOpen, setPrefsOpen] = useState(false);
   // 超管跨租户切换（REQ-20261117-025200）：目标租户目录（用户菜单展开时拉取）+ 切换中防重复点击
   const [switchTargets, setSwitchTargets] = useState<TenantSummary[]>([]);
   const [switchTargetsLoading, setSwitchTargetsLoading] = useState(false);
@@ -174,13 +179,25 @@ export function App() {
 
   // 主题/时钟/快捷键副作用必须无条件注册：hooks 不得位于下方条件 return（if (!session)）之后，
   // 否则登录/登出切换时 hook 数量变化将触发 React "Rendered more/fewer hooks" 崩溃（review 修复 P0）。
+  // 生效模式 = preferences.mode 经 resolveThemeMode 解析（system → matchMedia 注入值，AC-4）
+  const systemPrefersDark = useSystemPrefersDark();
+  const preferences = settings.preferences;
+  const resolvedMode = resolveThemeMode(preferences.mode, systemPrefersDark);
+  const accentHex = resolveAccentColor(preferences);
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.theme = settings.theme;
-    root.dataset.accent = settings.accent;
-    root.dataset.density = settings.density;
-    root.dataset.motion = String(settings.motion);
-  }, [settings]);
+    root.dataset.theme = resolvedMode;
+    root.dataset.accent = preferences.accent;
+    root.dataset.density = preferences.density;
+    root.dataset.motion = String(preferences.motionEnabled);
+    // 自定义取色（REQ-20261121-010725 AC-7）：inline 变量覆盖 global.css 的 [data-accent] 镜像；
+    // 清除后回落预设选择。预设键仍写入 data-accent（splash/校验页按预设口径渲染）。
+    if (preferences.customAccent) {
+      root.style.setProperty('--accent', preferences.customAccent);
+    } else {
+      root.style.removeProperty('--accent');
+    }
+  }, [resolvedMode, preferences]);
 
   useEffect(() => {
     const timer = setInterval(() => dispatch({ type: 'TICK' }), 1200);
@@ -386,6 +403,15 @@ export function App() {
   const go = (path: string) => {
     navigate(path);
     setMobileNav(false);
+  };
+
+  // 顶栏主题切换（REQ-20261121-010725）：按当前生效模式取反写回 mode——
+  // 手动选择 light/dark 即脱离 system（契约交互规格）
+  const toggleThemeMode = () => {
+    dispatch({
+      type: 'UPDATE_SETTINGS',
+      patch: { preferences: { ...preferences, mode: resolvedMode === 'dark' ? 'light' : 'dark' } },
+    });
   };
 
   // 页签条动作（REQ-20261119-063129 契约③）：store 变更后对齐 hash（关激活页切相邻）/
@@ -633,10 +659,32 @@ export function App() {
                 </Space>
               </Button>
             </Dropdown>
+            {/* 偏好抽屉入口（REQ-20261121-010725 AC-5）：带已选强调色圆点提示 */}
             <Button
               type="text"
-              icon={settings.theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
-              onClick={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: settings.theme === 'dark' ? 'light' : 'dark' } })}
+              onClick={() => setPrefsOpen(true)}
+              aria-label={t('settings.preferences.open')}
+              style={{ position: 'relative', paddingInline: 8 }}
+            >
+              <BgColorsOutlined />
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  top: 5,
+                  right: 4,
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: accentHex,
+                  border: '1px solid var(--surface)',
+                }}
+              />
+            </Button>
+            <Button
+              type="text"
+              icon={resolvedMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+              onClick={toggleThemeMode}
               aria-label={t('nav.header.toggleTheme')}
             />
             <Button
@@ -753,6 +801,8 @@ export function App() {
       <SaveViewModal />
       <AppFormModal />
       <LockScreenOverlay />
+      {/* 偏好抽屉（REQ-20261121-010725）：顶栏入口打开，修改即时生效并持久化 */}
+      <PreferencesDrawer open={prefsOpen} onClose={() => setPrefsOpen(false)} />
       {/* 命令面板（REQ-20261119-063129 契约⑤）：Ctrl+K 开启；动作复用 App 既有 handlers */}
       <CommandPalette
         open={paletteOpen}
@@ -766,7 +816,7 @@ export function App() {
           useLockStore.getState().lock();
         }}
         onToggleTheme={() => {
-          dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: settings.theme === 'dark' ? 'light' : 'dark' } });
+          toggleThemeMode();
         }}
         onToggleLanguage={() => {
           setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN');

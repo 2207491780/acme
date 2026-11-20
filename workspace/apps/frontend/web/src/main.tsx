@@ -10,6 +10,7 @@ import { buildTheme } from './theme';
 import { App } from './App';
 import { removeAppBoot } from './boot';
 import { AppErrorBoundary } from './components/ErrorBoundary';
+import { useSystemPrefersDark } from './hooks/useSystemPrefersDark';
 import './styles/global.css';
 
 /**
@@ -29,8 +30,10 @@ function Root() {
   const settings = useStore((s) => s.state.settings);
   // AntD 组件文案（分页/日期选择/确认按钮等）随展示 locale 联动（AC-1 全量文案）
   const locale = useLocaleStore((s) => s.locale);
+  // mode=system 时按 prefers-color-scheme 解析生效主题（AC-4）；hook 内部即监听系统切换
+  const systemPrefersDark = useSystemPrefersDark();
   return (
-    <ConfigProvider locale={locale === 'en-US' ? enUS : zhCN} theme={buildTheme(settings)}>
+    <ConfigProvider locale={locale === 'en-US' ? enUS : zhCN} theme={buildTheme(settings, systemPrefersDark)}>
       <AntApp>
         <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <AppErrorBoundary>

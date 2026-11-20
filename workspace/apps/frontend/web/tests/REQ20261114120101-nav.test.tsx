@@ -322,7 +322,8 @@ describe('顶栏语言切换与设置入口', () => {
     await waitFor(() => {
       expect(window.location.hash).toBe('#/settings');
     }, { timeout: 5000 });
-    expect(await screen.findByText('外观', {}, { timeout: 5000 })).toBeTruthy(); // 设置页外观卡片挂载
+    // REQ-20261121-010725：外观卡迁移至顶栏偏好抽屉 → 设置页锚点改用仍保留的安全卡（AC-10 口径）
+    expect(await screen.findByText(/安\s*全/, {}, { timeout: 5000 })).toBeTruthy(); // 设置页安全卡片挂载
   });
 
   it('should_not_offer_locale_submenu_in_user_menu_when_language_in_header', async () => {

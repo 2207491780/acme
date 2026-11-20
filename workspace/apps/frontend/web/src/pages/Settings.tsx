@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { App, Button, Card, Col, Input, Row, Select, Space, Switch, Typography } from 'antd';
+import { App, Button, Card, Col, Input, Row, Select, Space, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
   CalendarOutlined,
@@ -12,10 +12,9 @@ import {
   ReloadOutlined,
   SafetyCertificateOutlined,
   SyncOutlined,
-  ThunderboltOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import type { Accent, AppLocale, DateFormatTemplate, TimezonePref } from '@acme/core';
+import type { AppLocale, DateFormatTemplate, TimezonePref } from '@acme/core';
 import {
   DATE_FORMAT_TEMPLATES,
   formatDate,
@@ -29,7 +28,6 @@ import {
 import dayjs from 'dayjs';
 import { useStore } from '../store/useStore';
 import { PageHead } from '../components/PageHead';
-import { ACCENTS, ACCENT_ORDER } from '../theme';
 import { detectPlatform, download } from '../utils/dom';
 
 const { Text } = Typography;
@@ -119,7 +117,6 @@ function UpdaterCard() {
 export function Settings() {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const settings = useStore((s) => s.state.settings);
   const state = useStore((s) => s.state);
   const dispatch = useStore((s) => s.dispatch);
   const resetData = useStore((s) => s.resetData);
@@ -150,71 +147,8 @@ export function Settings() {
   return (
     <>
       <PageHead eyebrow={t('settings.head.eyebrow')} title={t('settings.head.title')} sub={t('settings.head.sub')} />
+      {/* 外观卡已移除（REQ-20261121-010725 AC-10）：外观偏好经顶栏偏好抽屉（PreferencesDrawer）管理 */}
       <Row gutter={[18, 18]}>
-        <Col xs={24} lg={12}>
-          <Card title={<Space><ThunderboltOutlined style={{ color: 'var(--accent)' }} /> {t('settings.appearance.title')}</Space>} style={{ height: '100%' }}>
-            <SettingRow
-              label={t('settings.appearance.theme')}
-              desc={t('settings.appearance.themeDesc')}
-              control={
-                <Switch
-                  checked={settings.theme === 'dark'}
-                  onChange={(checked) => dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: checked ? 'dark' : 'light' } })}
-                />
-              }
-            />
-            <SettingRow
-              label={t('settings.appearance.density')}
-              desc={t('settings.appearance.densityDesc')}
-              control={
-                <Select
-                  style={{ width: 120 }}
-                  value={settings.density}
-                  onChange={(v) => dispatch({ type: 'UPDATE_SETTINGS', patch: { density: v } })}
-                  options={[
-                    { value: 'comfortable', label: t('settings.appearance.densityComfortable') },
-                    { value: 'compact', label: t('settings.appearance.densityCompact') },
-                  ]}
-                />
-              }
-            />
-            <SettingRow
-              label={t('settings.appearance.accent')}
-              desc={t('settings.appearance.accentDesc')}
-              control={
-                <Space>
-                  {ACCENT_ORDER.map((name: Accent) => (
-                    <button
-                      key={name}
-                      aria-label={name}
-                      title={name}
-                      onClick={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { accent: name } })}
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: '50%',
-                        cursor: 'pointer',
-                        background: ACCENTS[name],
-                        border: settings.accent === name ? '2px solid var(--text)' : '2px solid transparent',
-                        boxShadow: settings.accent === name ? `0 0 0 3px ${ACCENTS[name]}59` : 'none',
-                      }}
-                    />
-                  ))}
-                </Space>
-              }
-            />
-            <SettingRow
-              label={t('settings.appearance.motion')}
-              desc={t('settings.appearance.motionDesc')}
-              control={
-                <Switch
-                  checked={settings.motion}
-                  onChange={(checked) => dispatch({ type: 'UPDATE_SETTINGS', patch: { motion: checked } })}
-                />
-              }
-            />
-          </Card>
-        </Col>
         <Col xs={24} lg={12}>
           <SecurityCard />
         </Col>

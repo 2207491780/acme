@@ -13,9 +13,29 @@ export const ACCENTS: Record<Accent, string> = {
   magenta: '#bd7ba0',
   amber: '#cfa14f',
   acid: '#9db56a',
+  // REQ-20261121-010725：预设由 6 扩至 12（低饱和近代感色系，命名/色值 TL 定稿）
+  emerald: '#58aa82',
+  sky: '#6aa8cf',
+  coral: '#cd7a63',
+  ruby: '#c56d6d',
+  bronze: '#b08968',
+  slate: '#8a9bb0',
 };
 
-export const ACCENT_ORDER: Accent[] = ['cyan', 'blue', 'violet', 'magenta', 'amber', 'acid'];
+export const ACCENT_ORDER: Accent[] = [
+  'cyan',
+  'blue',
+  'violet',
+  'magenta',
+  'amber',
+  'acid',
+  'emerald',
+  'sky',
+  'coral',
+  'ruby',
+  'bronze',
+  'slate',
+];
 
 // 实心强调色之上的前景（文字/图标）。强调色均为中间明度，统一用纯黑前景，
 // 保证暗色算法把主色压暗后仍 ≥4.5:1（最暗的 blue 在 Web 暗色下约 5.1:1）。
@@ -26,9 +46,16 @@ export const ON_ACCENT: Record<Accent, string> = {
   magenta: '#000000',
   amber: '#000000',
   acid: '#000000',
+  emerald: '#000000',
+  sky: '#000000',
+  coral: '#000000',
+  ruby: '#000000',
+  bronze: '#000000',
+  slate: '#000000',
 };
 
 // 渐变伴随色（accent-2 / accent-3）：同族去饱和色，仅用于极轻微的层次，不做强对比撞色。
+// 新增 6 色沿用既有惯例：从现有 accent hex 交叉取色（同族去饱和）。
 export const ACCENT_COMPANIONS: Record<Accent, { secondary: string; tertiary: string }> = {
   cyan: { secondary: '#6f92c4', tertiary: '#9188c9' },
   blue: { secondary: '#5aa7a0', tertiary: '#9188c9' },
@@ -36,6 +63,12 @@ export const ACCENT_COMPANIONS: Record<Accent, { secondary: string; tertiary: st
   magenta: { secondary: '#cfa14f', tertiary: '#6f92c4' },
   amber: { secondary: '#9db56a', tertiary: '#5aa7a0' },
   acid: { secondary: '#6fa287', tertiary: '#6f92c4' },
+  emerald: { secondary: '#9db56a', tertiary: '#5aa7a0' },
+  sky: { secondary: '#6f92c4', tertiary: '#5aa7a0' },
+  coral: { secondary: '#c56d6d', tertiary: '#cfa14f' },
+  ruby: { secondary: '#cd7a63', tertiary: '#bd7ba0' },
+  bronze: { secondary: '#cfa14f', tertiary: '#cd7a63' },
+  slate: { secondary: '#6f92c4', tertiary: '#6aa8cf' },
 };
 
 // 非可选的扩展品牌色，仅用于 Web 图标/状态点缀（去饱和）。

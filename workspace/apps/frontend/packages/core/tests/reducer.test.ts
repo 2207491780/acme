@@ -11,7 +11,7 @@ import {
   validateReleaseInput,
   STORAGE_KEY,
 } from '../src';
-import type { AppState, ReleaseInput, StorageLike } from '../src';
+import type { AppState, ReleaseInput, StorageLike, ThemePreferences } from '../src';
 
 const now = Date.parse('2026-11-11T10:00:00Z');
 
@@ -404,10 +404,25 @@ describe('state boundary', () => {
     const data = {
       apps: base.apps,
       releases: [base.releases[0]],
+      // REQ-20261121-010725：settings patch 支持 legacy 扁平字段（theme/dark→mode、
+      // accent/density/motion 同名映射），合并后经 validateThemePreferences 归一，
+      // 产物 = settingsFromPreferences 构造（含 @deprecated 投影，preferences 唯一事实源）。
       settings: { density: 'compact', motion: false },
     };
+    // 部分状态缺失的外观字段以种子默认补全（seed preferences.mode=dark/accent=cyan/
+    // customAccent=null/motionEnabled=true），扁平覆盖 density/motion 归一进 preferences，
+    // 投影字段由 preferences 派生（与 preferences 永不漂移）。
+    const seedPrefs = (base.settings as { preferences: { mode: 'light' | 'dark' | 'system'; accent: string; customAccent: string | null; density: 'comfortable' | 'compact'; motionEnabled: boolean } }).preferences;
+    const expectedSettings = {
+      schemaVersion: 2,
+      preferences: { ...seedPrefs, density: 'compact', motionEnabled: false },
+      theme: seedPrefs.mode,
+      accent: seedPrefs.accent,
+      density: 'compact',
+      motion: false,
+    };
     const expected = {
-      ...base, ...data, order: [base.releases[0].id], settings: { ...base.settings, ...data.settings },
+      ...base, ...data, order: [base.releases[0].id], settings: expectedSettings,
     };
     expect(parseState(data, now)).toEqual(expected);
     const storage = memoryStorage();
@@ -417,6 +432,67 @@ describe('state boundary', () => {
     expect(imported).toEqual({ ...expected, activity: imported.activity });
     expect(imported.activity[0]).toMatchObject({ text: '导入数据成功', tone: 'success' });
     expect(imported.activity.slice(1)).toEqual(expected.activity);
+  });
+
+  it('should_apply_settings_patch_via_preferences_or_legacy_fields_when_update_settings_dispatched', () => {
+    // REQ-20261121-010725（TL 钉死 reducer 语义）：UPDATE_SETTINGS 的 patch 支持
+    // preferences 内嵌对象或 legacy 扁平字段（theme/dark→mode、accent/density/motion 同名映射，
+    // 显式选预设 accent 清 customAccent）；合并后经 validateThemePreferences 归一；
+    // 产物 = settingsFromPreferences 构造（含投影）；schemaVersion 不接受补丁改写。
+    const base = seedState(now);
+    const settingsOf = (state: ReturnType<typeof seedState>) =>
+      state.settings as unknown as {
+        schemaVersion: number;
+        preferences: ThemePreferences;
+        theme: string; accent: string; density: string; motion: boolean;
+      };
+
+    // ① preferences 内嵌 patch：逐字段生效 + 投影派生一致
+    const withPrefs = reduce(base, {
+      type: 'UPDATE_SETTINGS',
+      patch: { preferences: { mode: 'dark', accent: 'emerald', customAccent: null, density: 'compact', motionEnabled: false } },
+    }, now);
+    const prefs = settingsOf(withPrefs);
+    expect(withPrefs).not.toBe(base);
+    expect(prefs.schemaVersion).toBe(2);
+    expect(prefs.preferences).toEqual({
+      mode: 'dark', accent: 'emerald', customAccent: null, density: 'compact', motionEnabled: false,
+    });
+    expect(prefs.theme).toBe('dark');
+    expect(prefs.accent).toBe('emerald');
+    expect(prefs.density).toBe('compact');
+    expect(prefs.motion).toBe(false);
+
+    // ② legacy 扁平 patch：theme→mode 同名映射（light 起步 → theme:'dark' 映射为 mode dark）
+    const lightState = reduce(withPrefs, {
+      type: 'UPDATE_SETTINGS',
+      patch: { preferences: { ...settingsOf(withPrefs).preferences, mode: 'light' } },
+    }, now);
+    expect(settingsOf(lightState).preferences.mode).toBe('light');
+    expect(settingsOf(lightState).theme).toBe('light');
+    const withLegacy = reduce(lightState, { type: 'UPDATE_SETTINGS', patch: { theme: 'dark' } }, now);
+    expect(settingsOf(withLegacy).preferences.mode).toBe('dark');
+    expect(settingsOf(withLegacy).theme).toBe('dark');
+
+    // ③ 显式选预设 accent 清 customAccent（customAccent 经 preferences 内嵌 patch 设置；
+    //    legacy 扁平字段清单不含 customAccent），再以预设 accent patch 清除
+    const withCustom = reduce(base, {
+      type: 'UPDATE_SETTINGS',
+      patch: { preferences: { mode: 'dark', accent: 'cyan', customAccent: '#b08968', density: 'comfortable', motionEnabled: true } },
+    }, now);
+    expect(settingsOf(withCustom).preferences.customAccent).toBe('#b08968');
+    const withPreset = reduce(withCustom, {
+      type: 'UPDATE_SETTINGS', patch: { accent: 'emerald' },
+    }, now);
+    expect(settingsOf(withPreset).preferences.accent).toBe('emerald');
+    expect(settingsOf(withPreset).preferences.customAccent).toBeNull();
+    expect(settingsOf(withPreset).accent).toBe('emerald');
+
+    // ④ schemaVersion 不接受补丁改写
+    const withVersionHack = reduce(base, {
+      type: 'UPDATE_SETTINGS', patch: { schemaVersion: 99 },
+    }, now);
+    expect(settingsOf(withVersionHack).schemaVersion).toBe(2);
   });
 
   it('should_preserve_explicit_empty_arrays_without_seed_references_when_parsing', () => {

@@ -22,11 +22,25 @@ import {
 } from '../src';
 
 describe('theme tokens', () => {
-  it('should_expose_six_accents_in_order', () => {
-    expect(ACCENT_ORDER).toHaveLength(6);
+  it('should_expose_twelve_accents_in_order', () => {
+    // REQ-20261121-010725：强调色 6 → 12（确认记录⑤/变更清单），新增键值 = TL 钉死事实
+    expect(ACCENT_ORDER).toHaveLength(12);
     expect(Object.keys(ACCENTS)).toEqual(ACCENT_ORDER);
     expect(ACCENTS.cyan).toBe('#5aa7a0');
+    expect(ACCENTS.emerald).toBe('#58aa82');
+    expect(ACCENTS.sky).toBe('#6aa8cf');
+    expect(ACCENTS.coral).toBe('#cd7a63');
+    expect(ACCENTS.ruby).toBe('#c56d6d');
+    expect(ACCENTS.bronze).toBe('#b08968');
+    expect(ACCENTS.slate).toBe('#8a9bb0');
     expect(ON_ACCENT.cyan).toBe('#000000');
+    // 派生映射同步扩容：新键均有 ON_ACCENT（统一纯黑）与渐变伴随色（变更清单：COMPANIONS 同步）
+    expect(Object.keys(ON_ACCENT)).toEqual(
+      expect.arrayContaining(['emerald', 'sky', 'coral', 'ruby', 'bronze', 'slate']),
+    );
+    expect(Object.keys(ACCENT_COMPANIONS)).toEqual(
+      expect.arrayContaining(['emerald', 'sky', 'coral', 'ruby', 'bronze', 'slate']),
+    );
     expect(ACCENT_COMPANIONS.cyan.secondary).toBe('#6f92c4');
   });
 
