@@ -89,6 +89,8 @@ sh workspace/env-stack/scripts/local-build.sh
 # 产物：.ai-tmp/build/prod-<sha7>/（backend 四 jar + frontend web dist + 五镜像 tar + meta.env）
 # 前置：Docker；Maven（不在 PATH 时 export MVN_CMD=完整路径）；Node≥22.13 + pnpm11.8
 # build 阶段零凭证；本地打包 skipTests，测试门禁由 ci.yml 承担
+# 增量构建：ACME_BUILD_SERVICES="web"（空格分隔子集，可一个或多个；缺省=全量五服务）——
+#   只构建选中服务（web-only 时跳过 Maven 与后端镜像）；非法名 fail-fast
 ```
 
 ## 7. 部署与验证（本机一条命令）
@@ -99,6 +101,10 @@ sh workspace/env-stack/scripts/local-build.sh
 sh workspace/env-stack/scripts/local-deploy.sh
 # 链路：五镜像 push TCR → scp env-stack → SSH 数据面 deploy.sh prod（部署+种子 Nacos+等待 rollout+
 #       生成中间件端点文件）→ healthcheck.sh prod → 同步端点+dev.env 到应用面机（dev-tunnel 消费）
+# 增量部署：ACME_DEPLOY_SERVICES="web"（透传服务器侧 ACME_SERVICES）——只推送/部署选中服务；
+#   未选中服务在 kustomize images 段钉住集群当前 tag（清单不变→存量 Deployment 不滚动）；
+#   只改前端代码时只发 web，后端四镜像保持原 tag 零滚动。核验：选中服务 Pod 名应变化，
+#   未选中服务 Pod 名应逐字节不变。首次部署/全量发布缺省不传即全量，行为不变
 ```
 
 服务器人工复核：`k3s kubectl -n acme-prod get pods`（postgres/redis/nacos 应落在数据面节点，
