@@ -1,13 +1,15 @@
 import { http } from 'msw';
 import { findUnknownWatermarkPlaceholders } from '@acme/core';
-import type { AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
+import type { AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantPackageView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
-/** 系统域 handler（platform-system）：me / 租户 / 用户 / 角色 / 部门 / 岗位 / 权限点 / 菜单 / 字典。
+/** 系统域 handler（platform-system）：me / 租户 / 套餐 / 用户 / 角色 / 部门 / 岗位 / 权限点 / 菜单 / 字典。
  *  resolver 内联（msw 2.x Params 泛型按路径逐 handler 推断，不抽公共别名）。
  *  REQ-20261114-120104 扩展：部门树 CRUD / 岗位 CRUD / 角色数据范围（PUT data-scope）/
- *  用户部门筛选（deptId 子树递归）与用户部门/岗位字段。 */
+ *  用户部门筛选（deptId 子树递归）与用户部门/岗位字段。
+ *  REQ-20261121-022910 扩展：套餐五端点 CRUD / 租户 packageId 扩展（POST/PUT，向后兼容）/
+ *  me 菜单树按套餐过滤（确认②：∩ 套餐菜单集 + 祖先链自动补全 + BUTTON 级联）。 */
 
 /** 通用 keyword 过滤（命中任一字段子串，大小写不敏感）。 */
 function matchKeyword<T>(rows: T[], keyword: string | null, fields: (row: T) => (string | null | undefined)[]): T[] {
@@ -95,9 +97,62 @@ function collectDeptIds(root: AdminDeptView, into: Set<string>): void {
 
 const DATA_SCOPE_ENUM: RoleDataScope[] = ['ALL', 'DEPT', 'DEPT_AND_CHILD', 'SELF', 'CUSTOM'];
 
+/** 全菜单树节点 id 全集（REQ-20261121-022910：套餐 menuIds 合法性校验 TENANT_PACKAGE_MENU_INVALID 口径）。 */
+function collectAllMenuIds(nodes: AdminMenuView[]): Set<number> {
+  const ids = new Set<number>();
+  const walk = (list: AdminMenuView[]): void => {
+    for (const node of list) {
+      ids.add(node.id);
+      walk(node.children);
+    }
+  };
+  walk(nodes);
+  return ids;
+}
+
+/**
+ * 菜单树套餐过滤（REQ-20261121-022910 确认②）：下发集 = 套餐菜单集 ∪ 命中节点 BUTTON 级联，
+ * 再自动补全祖先链（叶在包内而目录不在时补祖先，保证树完整渲染）；读时实时过滤（无物化拷贝）。
+ */
+function filterMenusByPackage(nodes: AdminMenuView[], packageMenuIds: Set<number>): AdminMenuView[] {
+  const selected = new Set<number>();
+  // 第一遍：命中套餐集的节点入选，其直接子节点（BUTTON）级联入选
+  const walk = (list: AdminMenuView[]): void => {
+    for (const node of list) {
+      if (packageMenuIds.has(node.id)) {
+        selected.add(node.id);
+        for (const child of node.children) {
+          selected.add(child.id);
+        }
+      }
+      walk(node.children);
+    }
+  };
+  walk(nodes);
+  // 第二遍：祖先链自动补全（选中节点的全部祖先入选）
+  const collectAncestors = (list: AdminMenuView[], ancestorIds: number[]): void => {
+    for (const node of list) {
+      if (selected.has(node.id)) {
+        for (const ancestorId of ancestorIds) selected.add(ancestorId);
+      }
+      collectAncestors(node.children, [...ancestorIds, node.id]);
+    }
+  };
+  collectAncestors(nodes, []);
+  // 重建树：未入选节点整枝剪除（其子树必无选中节点）
+  const rebuild = (list: AdminMenuView[]): AdminMenuView[] =>
+    list
+      .filter((node) => selected.has(node.id))
+      .map((node) => ({ ...node, children: rebuild(node.children) }));
+  return rebuild(nodes);
+}
+
 /** 审计可写集合：dev mock 的内存态允许增删改（仅内存，不落盘）。 */
 const store = {
   tenants: [...db.tenants],
+  /** 租户套餐主行（REQ-20261121-022910）+ 套餐-菜单绑定（套餐 id → 菜单 id 全集）。 */
+  tenantPackages: [...db.tenantPackages] as AdminTenantPackageView[],
+  packageMenuIds: { ...db.tenantPackageMenus } as Record<string, number[]>,
   users: [...db.users],
   /** 本人画像（REQ-20261119-082531）：PUT /me 与头像上传改写此行，GET /me 回显。 */
   meUser: { ...db.me.user } as AdminUserView,
@@ -123,9 +178,80 @@ const genId = (): string => String(nextId++);
 
 const nowIso = (): string => new Date().toISOString();
 
+// ————— 租户套餐装配（REQ-20261121-022910） —————
+
+/** 套餐视图实时装配：menuCount=绑定表行数、tenantCount=绑定租户数（套餐/绑定变更即时反映）。 */
+function packageViewOf(pkg: AdminTenantPackageView): AdminTenantPackageView {
+  return {
+    ...pkg,
+    menuCount: (store.packageMenuIds[pkg.id] ?? []).length,
+    tenantCount: store.tenants.filter((tenant) => tenant.packageId === pkg.id).length,
+  };
+}
+
+/** 租户视图装配：packageName 依当前套餐主行实时冗余（套餐改名即时反映；未绑定=null）。 */
+function tenantViewOf(tenant: AdminTenantView): AdminTenantView {
+  const packageName = tenant.packageId
+    ? store.tenantPackages.find((pkg) => pkg.id === tenant.packageId)?.packageName ?? null
+    : null;
+  return { ...tenant, packageName };
+}
+
+/** 套餐 body 载荷归一：packageName 必填 ≤128（trim）、remark ≤255（空串归一 null）、menuIds[] 合法性校验。
+ *  失败返回 fail 响应；成功返回归一后的载荷。 */
+function parsePackageBody(
+  body: Record<string, unknown>,
+): { ok: true; packageName: string; remark: string | null; menuIds: number[] } | { ok: false; response: ReturnType<typeof fail> } {
+  const packageName = typeof body.packageName === 'string' ? body.packageName.trim() : '';
+  if (!packageName || packageName.length > 128) {
+    return { ok: false, response: fail('PARAM_INVALID', '套餐名称必填且不超过 128 字符', 400) };
+  }
+  if (body.remark !== undefined && body.remark !== null && typeof body.remark !== 'string') {
+    return { ok: false, response: fail('PARAM_INVALID', '备注类型非法', 400) };
+  }
+  const remark = typeof body.remark === 'string' && body.remark.trim() ? body.remark.trim() : null;
+  if (remark && remark.length > 255) {
+    return { ok: false, response: fail('PARAM_INVALID', '备注长度不超过 255 字符', 400) };
+  }
+  const menuIds = Array.isArray(body.menuIds) ? (body.menuIds as unknown[]).map(Number) : [];
+  const knownMenus = collectAllMenuIds(store.menus);
+  if (menuIds.some((menuId) => !Number.isFinite(menuId) || !knownMenus.has(menuId))) {
+    return { ok: false, response: fail('TENANT_PACKAGE_MENU_INVALID', 'menuIds 含不存在或已删除的菜单', 400) };
+  }
+  return { ok: true, packageName, remark, menuIds };
+}
+
+/** 租户 body.packageId 归一（REQ-20261121-022910：undefined=不改动既有绑定；null=解除绑定；
+ *  非法（不存在）→ TENANT_PACKAGE_NOT_FOUND；数字/字符串 wire 双口径兼容）。 */
+function parseTenantPackageId(body: Record<string, unknown>, fallback: string | null):
+  { ok: true; packageId: string | null } | { ok: false; response: ReturnType<typeof fail> } {
+  if (body.packageId === undefined) {
+    return { ok: true, packageId: fallback };
+  }
+  if (body.packageId === null || body.packageId === '') {
+    return { ok: true, packageId: null };
+  }
+  const packageId = String(body.packageId);
+  if (!store.tenantPackages.some((pkg) => pkg.id === packageId)) {
+    return { ok: false, response: fail('TENANT_PACKAGE_NOT_FOUND', '套餐不存在或已被删除', 404) };
+  }
+  return { ok: true, packageId };
+}
+
+/** 本人菜单树（确认② mock 过滤接线）：本人租户绑定套餐 → 实时过滤（∩ 套餐菜单集+祖先补全+BUTTON 级联）；
+ *  未绑定（packageId null）= 全量下发（回归基线，行为与改造前一致）。 */
+function meMenus(): AdminMenuView[] {
+  const tenant = store.tenants.find((row) => row.id === db.ME_TENANT_ID);
+  const packageId = tenant?.packageId ?? null;
+  if (!packageId) {
+    return store.menus;
+  }
+  return filterMenusByPackage(store.menus, new Set(store.packageMenuIds[packageId] ?? []));
+}
+
 export const systemHandlers = [
   // ---- me ----
-  http.get('/admin/v1/system/me', () => ok({ ...db.me, user: store.meUser, menus: store.menus })),
+  http.get('/admin/v1/system/me', () => ok({ ...db.me, user: store.meUser, menus: meMenus() })),
 
   // ---- 个人中心：本人资料/头像/偏好/推送令牌（REQ-20261119-082531） ----
   // PUT /me（契约①）：nickname 必填 ≤32；email 可空 email 格式；phone 可空 1\d{10}
@@ -154,7 +280,7 @@ export const systemHandlers = [
       updatedAt: nowIso(),
       version: String(Number(store.meUser.version) + 1),
     };
-    return ok({ ...db.me, user: store.meUser, menus: store.menus });
+    return ok({ ...db.me, user: store.meUser, menus: meMenus() });
   }),
   // POST /admin/v1/infra/me/avatar（TL 裁决：头像上传落 infra 认证面，免 infra:file:upload；
   // multipart file → FileView；非图片/超大拒绝镜像 FileUseCase 图片校验口径）
@@ -246,14 +372,21 @@ export const systemHandlers = [
   }),
 
   // ---- 租户 ----
+  // REQ-20261121-022910：行视图经 tenantViewOf 装配（packageName 实时冗余；packageId 存行）
   http.get('/admin/v1/system/tenants', ({ request }) => {
-    const rows = matchKeyword(store.tenants, keywordOf(request), (tenant: AdminTenantView) => [tenant.tenantCode, tenant.tenantName]);
+    const rows = matchKeyword(store.tenants, keywordOf(request), (tenant: AdminTenantView) => [tenant.tenantCode, tenant.tenantName])
+      .map(tenantViewOf);
     return page(slicePage(rows, pagingOf(request)), rows.length);
   }),
   http.post('/admin/v1/system/tenants', async ({ request }) => {
     const body = await bodyOf(request);
     if (typeof body.tenantCode !== 'string' || typeof body.tenantName !== 'string') {
       return fail('TENANT_CODE_INVALID', '租户代码/名称缺失', 400);
+    }
+    // REQ-20261121-022910：可选 packageId（可空=不受限；非法 → TENANT_PACKAGE_NOT_FOUND）
+    const packaged = parseTenantPackageId(body, null);
+    if (!packaged.ok) {
+      return packaged.response;
     }
     const created = {
       id: genId(), tenantCode: body.tenantCode, tenantName: body.tenantName,
@@ -262,10 +395,11 @@ export const systemHandlers = [
       contactName: (body.contactName as string | null | undefined) ?? null,
       contactPhone: (body.contactPhone as string | null | undefined) ?? null,
       expiresAt: (body.expiresAt as string | null | undefined) ?? null,
+      packageId: packaged.packageId,
       createdAt: nowIso(), version: '0',
     };
     store.tenants = [created, ...store.tenants];
-    return ok(created);
+    return ok(tenantViewOf(created));
   }),
   http.put('/admin/v1/system/tenants/:tenantId', async ({ request, params }) => {
     const body = await bodyOf(request);
@@ -273,6 +407,12 @@ export const systemHandlers = [
     const target = store.tenants.find((tenant) => tenant.id === id);
     if (!target) {
       return fail('TENANT_NOT_FOUND', '租户不存在或已被删除', 404);
+    }
+    // REQ-20261121-022910：可选 packageId（undefined=不改动既有绑定向后兼容；null=解除绑定；
+    // 非法 → TENANT_PACKAGE_NOT_FOUND）
+    const packaged = parseTenantPackageId(body, target.packageId ?? null);
+    if (!packaged.ok) {
+      return packaged.response;
     }
     const updated = {
       ...target,
@@ -282,15 +422,113 @@ export const systemHandlers = [
       contactName: (body.contactName as string | null | undefined) ?? null,
       contactPhone: (body.contactPhone as string | null | undefined) ?? null,
       expiresAt: (body.expiresAt as string | null | undefined) ?? null,
+      packageId: packaged.packageId,
       version: String(Number(target.version) + 1),
     };
     store.tenants = store.tenants.map((tenant) => (tenant.id === id ? updated : tenant));
-    return ok(updated);
+    return ok(tenantViewOf(updated));
   }),
   http.put('/admin/v1/system/tenants/:tenantId/status', async ({ request, params }) => {
     const body = await bodyOf(request);
     const id = String(params.tenantId);
     store.tenants = store.tenants.map((tenant) => (tenant.id === id ? { ...tenant, status: body.status === 'DISABLED' ? 'DISABLED' : 'ENABLED' } : tenant));
+    return empty();
+  }),
+
+  // ---- 租户套餐（REQ-20261121-022910 五端点；权限点 system:tenant-package:*，mock 不校验权限头） ----
+  // GET 分页：keyword 对 packageName 模糊；排序 id asc；menuCount/tenantCount 实时装配
+  http.get('/admin/v1/system/tenant-packages', ({ request }) => {
+    const rows = matchKeyword(store.tenantPackages, keywordOf(request), (pkg: AdminTenantPackageView) => [pkg.packageName])
+      .slice()
+      .sort((a, b) => Number(a.id) - Number(b.id))
+      .map(packageViewOf);
+    return page(slicePage(rows, pagingOf(request)), rows.length);
+  }),
+  // POST 创建：重名 → TENANT_PACKAGE_DUPLICATE；menuIds 含不存在菜单 → TENANT_PACKAGE_MENU_INVALID；
+  // menuIds 可空=空套餐（绑定表零行）
+  http.post('/admin/v1/system/tenant-packages', async ({ request }) => {
+    const body = await bodyOf(request);
+    const parsed = parsePackageBody(body);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+    if (store.tenantPackages.some((pkg) => pkg.packageName === parsed.packageName)) {
+      return fail('TENANT_PACKAGE_DUPLICATE', '套餐名称已存在', 400);
+    }
+    const created: AdminTenantPackageView = {
+      id: genId(),
+      packageName: parsed.packageName,
+      remark: parsed.remark,
+      menuCount: parsed.menuIds.length,
+      tenantCount: 0,
+      version: '0',
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    store.tenantPackages = [...store.tenantPackages, created];
+    store.packageMenuIds[created.id] = parsed.menuIds;
+    return ok(packageViewOf(created));
+  }),
+  // GET 详情：视图 + menuIds 全集；不存在 → TENANT_PACKAGE_NOT_FOUND
+  http.get('/admin/v1/system/tenant-packages/:packageId', ({ params }) => {
+    const id = String(params.packageId);
+    const target = store.tenantPackages.find((pkg) => pkg.id === id);
+    if (!target) {
+      return fail('TENANT_PACKAGE_NOT_FOUND', '套餐不存在或已被删除', 404);
+    }
+    return ok({ ...packageViewOf(target), menuIds: store.packageMenuIds[id] ?? [] });
+  }),
+  // PUT 更新（REQ-20261121-022910 round 2 追认后端 AdminTenantPackageUpdate @NotNull version，
+  // 框架乐观锁惯例）：version 门禁先行（绑定阶段语义——缺失/非法→PARAM_INVALID 400 信封；
+  // 陈旧版本→VERSION_CONFLICT）；校验同创建（重名排除自身）；menuIds 全量替换（差异同步绑定表）；
+  // 成功后 version 递增。round 2 补：FR-024 LongToStringModule 全局——version wire 字符串口径，
+  // 反序列化双收字符串/数值（比较/自增用 Number() 归一，出参 String() 化）
+  http.put('/admin/v1/system/tenant-packages/:packageId', async ({ request, params }) => {
+    const id = String(params.packageId);
+    const target = store.tenantPackages.find((pkg) => pkg.id === id);
+    if (!target) {
+      return fail('TENANT_PACKAGE_NOT_FOUND', '套餐不存在或已被删除', 404);
+    }
+    const body = await bodyOf(request);
+    const hasVersion = (typeof body.version === 'string' && body.version.trim() !== '')
+      || (typeof body.version === 'number' && Number.isFinite(body.version));
+    if (!hasVersion) {
+      return fail('PARAM_INVALID', 'version 乐观锁版本缺失', 400);
+    }
+    if (Number(body.version) !== Number(target.version)) {
+      return fail('VERSION_CONFLICT', '套餐已被其他用户修改，请刷新后重试', 200);
+    }
+    const parsed = parsePackageBody(body);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+    if (store.tenantPackages.some((pkg) => pkg.id !== id && pkg.packageName === parsed.packageName)) {
+      return fail('TENANT_PACKAGE_DUPLICATE', '套餐名称已存在', 400);
+    }
+    const updated: AdminTenantPackageView = {
+      ...target,
+      packageName: parsed.packageName,
+      remark: parsed.remark,
+      menuCount: parsed.menuIds.length,
+      version: String(Number(target.version) + 1),
+      updatedAt: nowIso(),
+    };
+    store.tenantPackages = store.tenantPackages.map((pkg) => (pkg.id === id ? updated : pkg));
+    store.packageMenuIds[id] = parsed.menuIds;
+    return ok(packageViewOf(updated));
+  }),
+  // DELETE 删除：被任一租户绑定 → TENANT_PACKAGE_IN_USE（不删除）；否则删主行+绑定行
+  http.delete('/admin/v1/system/tenant-packages/:packageId', ({ params }) => {
+    const id = String(params.packageId);
+    const target = store.tenantPackages.find((pkg) => pkg.id === id);
+    if (!target) {
+      return fail('TENANT_PACKAGE_NOT_FOUND', '套餐不存在或已被删除', 404);
+    }
+    if (store.tenants.some((tenant) => tenant.packageId === id)) {
+      return fail('TENANT_PACKAGE_IN_USE', '套餐已被租户绑定，无法删除', 400);
+    }
+    store.tenantPackages = store.tenantPackages.filter((pkg) => pkg.id !== id);
+    delete store.packageMenuIds[id];
     return empty();
   }),
 

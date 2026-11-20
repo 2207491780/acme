@@ -125,7 +125,24 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     // ---- 13 段：个人中心自助资料域（REQ-20261119-082531 确认记录①）----
 
     /** 个人资料非法（avatar_url 非 http(s)/相对地址等自助资料值域违规，MeUseCase 校验承载）。 */
-    PROFILE_INVALID(SystemErrorCodes.PROFILE_INVALID, "个人资料非法", 400);
+    PROFILE_INVALID(SystemErrorCodes.PROFILE_INVALID, "个人资料非法", 400),
+
+    // ---- 14 段：租户套餐域（REQ-20261121-022910）----
+
+    /** 套餐名称已存在（创建 / 更新撞既有名）。 */
+    TENANT_PACKAGE_DUPLICATE(SystemErrorCodes.TENANT_PACKAGE_DUPLICATE, "套餐名称已存在", 409),
+
+    /** 套餐不存在（详情 / 更新 / 删除对不存在 id 不可静默成功；租户绑定非法套餐同码）。 */
+    TENANT_PACKAGE_NOT_FOUND(SystemErrorCodes.TENANT_PACKAGE_NOT_FOUND, "套餐不存在", 404),
+
+    /** 套餐被租户绑定，删除被拒绝（确认④：占用不删除）。 */
+    TENANT_PACKAGE_IN_USE(SystemErrorCodes.TENANT_PACKAGE_IN_USE, "该套餐已被租户绑定，不允许删除", 409),
+
+    /** 套餐菜单集非法（menuIds 含不存在或已删菜单，确认④；对齐 DATA_SCOPE_INVALID 引用集先例）。 */
+    TENANT_PACKAGE_MENU_INVALID(SystemErrorCodes.TENANT_PACKAGE_MENU_INVALID, "套餐菜单集包含不存在的菜单", 409),
+
+    /** 绑定套餐租户分配套餐范围外菜单被拒绝（确认⑤，写入整体拒绝，403 对齐 MESSAGE_FORBIDDEN 先例）。 */
+    TENANT_PACKAGE_MENU_FORBIDDEN(SystemErrorCodes.TENANT_PACKAGE_MENU_FORBIDDEN, "不能分配套餐范围外的菜单", 403);
 
     private final String code;
     private final String defaultMessage;

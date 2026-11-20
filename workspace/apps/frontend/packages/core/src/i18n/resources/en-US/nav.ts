@@ -5,6 +5,7 @@ export const nav = {
     releases: 'Releases',
     apps: 'App Structure',
     tenants: 'Tenants',
+    tenantPackages: 'Tenant Packages',
     users: 'Users',
     roles: 'Roles',
     depts: 'Departments',

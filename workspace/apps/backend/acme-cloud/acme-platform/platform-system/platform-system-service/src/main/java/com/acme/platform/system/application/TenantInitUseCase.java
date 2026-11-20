@@ -44,7 +44,8 @@ import java.util.stream.Collectors;
  * 12.4.2）；作用域结束恢复操作者上下文。平台目录表（租户/权限点/菜单）不受租户过滤影响。</p>
  *
  * <p>默认授权边界：租户管理员获得除平台保留域外的全部权限点与菜单——保留
- * {@code system:tenant:*}（租户目录管理）与 {@code infra:audit:*}（平台审计）。</p>
+ * {@code system:tenant:*}（租户目录管理）、{@code infra:audit:*}（平台审计）与
+ * {@code system:tenant-package:*}（套餐管理，平台运营域，REQ-20261121-022910 TL 裁决收紧）。</p>
  */
 @Service
 public class TenantInitUseCase {
@@ -52,8 +53,13 @@ public class TenantInitUseCase {
     /** 租户管理员默认角色编码（开通即建，非内置可调整）。 */
     public static final String TENANT_ADMIN_ROLE = "tenant_admin";
 
-    /** 平台保留权限前缀（不授予租户管理员）。 */
-    static final Set<String> RESERVED_PERMISSION_PREFIXES = Set.of("system:tenant:", "infra:audit:");
+    /**
+     * 平台保留权限前缀（不授予租户管理员）。REQ-20261121-022910 TL 裁决（偏离⑥收紧）：
+     * {@code system:tenant-package:} 入保留域——套餐管理为平台运营域，开通默认授权
+     * （grantablePermissions/grantableMenus）与非内置角色授权面守卫（RoleUseCase 保留域引用）联动排除。
+     */
+    static final Set<String> RESERVED_PERMISSION_PREFIXES = Set.of("system:tenant:", "infra:audit:",
+            "system:tenant-package:");
 
     private static final Logger log = LoggerFactory.getLogger(TenantInitUseCase.class);
 

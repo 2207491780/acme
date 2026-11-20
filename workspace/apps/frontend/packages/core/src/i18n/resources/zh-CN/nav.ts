@@ -5,6 +5,7 @@ export const nav = {
     releases: '发布单',
     apps: '应用结构',
     tenants: '租户管理',
+    tenantPackages: '套餐管理',
     users: '用户管理',
     roles: '角色管理',
     depts: '部门管理',

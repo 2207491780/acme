@@ -16,6 +16,9 @@ import com.acme.platform.system.infrastructure.repository.SysRoleDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysRolePermissionRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
+import com.acme.platform.system.infrastructure.repository.SysTenantPackageMenuRepository;
+import com.acme.platform.system.infrastructure.repository.SysTenantPackageRepository;
+import com.acme.platform.system.infrastructure.repository.SysTenantRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRoleRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -60,9 +63,14 @@ class RoleUseCaseBindMenusButtonSyncTest {
     private final SysPermissionRepository permissionRepository = mock(SysPermissionRepository.class);
     private final SysMenuRepository menuRepository = mock(SysMenuRepository.class);
 
+    // REQ-20261121-022910 编译兼容（签名扩展）：套餐域透传桩（真实用例 + 空仓储桩，本文件不绑
+    // TenantContext → assignableMenuScope 返回 null 不受限，既有断言语义不变）
     private final RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
             rolePermissionRepository, roleMenuRepository, permissionRepository, menuRepository,
-            mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class));
+            mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class),
+            new TenantPackageUseCase(mock(SysTenantPackageRepository.class),
+                    mock(SysTenantPackageMenuRepository.class), mock(SysTenantRepository.class),
+                    mock(SysMenuRepository.class)));
 
     private void stubRole() {
         stubRole(false);

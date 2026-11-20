@@ -10,6 +10,7 @@ import java.time.Instant;
 /**
  * 租户（7.2.1：平台级表，不标租户列、不参与过滤——租户目录自身；无软删，停用代替删除 FR-007）。
  * REQ-20261117-025200 增补联系人 / 有效期三列（均可空；expiresAt 过期租户登录拒绝与下拉排除，确认记录③）。
+ * REQ-20261121-022910 增补 package_id（可空=NULL 不受限；非空=菜单下发 ∩ 套餐菜单集，确认②读时过滤）。
  */
 @Table("sys_tenant")
 public class SysTenant extends AuditBase {
@@ -37,6 +38,10 @@ public class SysTenant extends AuditBase {
     /** 租户有效期（可空=长期；过期即不可登录 / 不可切换目标，REQ-20261117-025200）。 */
     @Column("expires_at")
     private Instant expiresAt;
+
+    /** 绑定套餐 ID（可空=null 不受套餐限制；REQ-20261121-022910，逻辑校验无 FK，确认③）。 */
+    @Column("package_id")
+    private Long packageId;
 
     protected SysTenant() {
     }
@@ -98,5 +103,13 @@ public class SysTenant extends AuditBase {
 
     public void setExpiresAt(Instant expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public Long getPackageId() {
+        return packageId;
+    }
+
+    public void setPackageId(Long packageId) {
+        this.packageId = packageId;
     }
 }

@@ -18,8 +18,9 @@ import java.time.Instant;
  * @param expiresAt    租户有效期（可空=长期；过期租户登录拒绝与下拉排除，确认记录③；ISO-8601 字符串）
  * @param createdAt    创建时间
  * @param version      乐观锁版本（wire 字符串化）
+ * @param packageId    绑定套餐 ID（可空=null 不受套餐限制；REQ-20261121-022910 确认⑦租户管理页套餐列）
  */
 public record AdminTenantView(Long id, String tenantCode, String tenantName, EnableStatus status,
                               String remark, String contactName, String contactPhone, Instant expiresAt,
-                              Instant createdAt, Long version) {
+                              Instant createdAt, Long version, Long packageId) {
 }

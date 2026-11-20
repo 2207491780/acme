@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { App, Button, DatePicker, Form, Input, Popconfirm, Space, Tag, Typography } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { App, Button, DatePicker, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { ApiError, Auth, formatDate, systemApi, useCrud, useMeStore, type AdminTenantView } from '@acme/core';
+import { ApiError, Auth, formatDate, systemApi, tenantPackageApi, useCrud, useMeStore, type AdminTenantPackageView, type AdminTenantView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 
@@ -19,6 +19,8 @@ interface TenantFormValues {
   contactName?: string;
   contactPhone?: string;
   expiresAt?: Dayjs | null;
+  /** 绑定套餐（REQ-20261121-022910；表单态为套餐 id 字符串，清空=不受限，提交转 number|null）。 */
+  packageId?: string;
 }
 
 /** 租户管理（p2-admin）：分页/搜索/新建/改名/启停；无删除能力——停用代替（FR-007）。
@@ -36,6 +38,19 @@ export function TenantsPage() {
     pageSize: 10,
     errorMessage: t('tenants.errors.loadFailed'),
   });
+
+  // 套餐目录（REQ-20261121-022910）：下拉选项源 + packageId→名称映射（列表列直显兜底）；
+  // 拉取失败静默降级（列回退视图自带 packageName / 不受限）
+  const [packages, setPackages] = useState<AdminTenantPackageView[]>([]);
+  useEffect(() => {
+    tenantPackageApi.page({ page: 1, size: 100 })
+      .then((result) => setPackages(result.records))
+      .catch(() => setPackages([]));
+  }, []);
+  const packageNameById = useMemo(
+    () => new Map(packages.map((pkg) => [pkg.id, pkg.packageName])),
+    [packages],
+  );
 
   const [editing, setEditing] = useState<AdminTenantView | null>(null);
   const [creating, setCreating] = useState(false);
@@ -57,6 +72,7 @@ export function TenantsPage() {
       contactName: record.contactName ?? undefined,
       contactPhone: record.contactPhone ?? undefined,
       expiresAt: record.expiresAt ? dayjs(record.expiresAt) : undefined,
+      packageId: record.packageId ?? undefined,
     });
     setCreating(false);
   };
@@ -70,12 +86,15 @@ export function TenantsPage() {
       expiresAt: values.expiresAt ? values.expiresAt.toISOString() : null,
     };
     setSubmitting(true);
+    // 套餐归一（REQ-20261121-022910）：清空=不受限（null=解除绑定）；提交转 number 口径
+    const packageId = values.packageId ? Number(values.packageId) : null;
     try {
       if (editing) {
         await systemApi.tenantUpdate(editing.id, {
           tenantName: values.tenantName,
           remark: values.remark,
           ...profile,
+          packageId,
           version: editing.version,
         });
         message.success(t('tenants.form.updated'));
@@ -85,6 +104,7 @@ export function TenantsPage() {
           tenantName: values.tenantName,
           remark: values.remark,
           ...profile,
+          packageId,
         });
         message.success(t('tenants.form.created'));
       }
@@ -112,6 +132,16 @@ export function TenantsPage() {
   const columns: ColumnsType<AdminTenantView> = [
     { title: t('tenants.columns.tenantCode'), dataIndex: 'tenantCode', key: 'tenantCode', minWidth: 160, fixed: 'left' },
     { title: t('tenants.columns.tenantName'), dataIndex: 'tenantName', key: 'tenantName', minWidth: 160 },
+    {
+      // 套餐列（REQ-20261121-022910）：视图 packageName 直显 → 本地套餐目录映射兜底 → 未绑定=不受限
+      title: t('tenants.columns.package'), dataIndex: 'packageName', key: 'package', minWidth: 140, ellipsis: true,
+      render: (_, record) => {
+        if (record.packageId) {
+          return record.packageName ?? packageNameById.get(String(record.packageId)) ?? '—';
+        }
+        return t('tenants.columns.unlimited');
+      },
+    },
     {
       title: t('tenants.columns.status'), dataIndex: 'status', key: 'status', minWidth: 100,
       render: (status: AdminTenantView['status']) => (
@@ -191,6 +221,16 @@ export function TenantsPage() {
         </Form.Item>
         <Form.Item name="remark" label={t('tenants.form.remark')} rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}>
           <Input.TextArea placeholder={t('common.validation.optional')} rows={2} />
+        </Form.Item>
+        {/* 绑定套餐（REQ-20261121-022910）：可清空=不受限；提交 packageId（null=解除绑定） */}
+        <Form.Item name="packageId" label={t('tenants.form.package')} extra={t('tenants.form.packageExtra')}>
+          <Select
+            allowClear
+            placeholder={t('tenants.form.packagePlaceholder')}
+            optionFilterProp="label"
+            showSearch
+            options={packages.map((pkg) => ({ value: pkg.id, label: pkg.packageName }))}
+          />
         </Form.Item>
         {/* 租户档案三新字段（REQ-20261117-025200）：联系人/联系电话/有效期（清空=长期） */}
         <Form.Item

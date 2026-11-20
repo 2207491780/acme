@@ -122,6 +122,12 @@ public final class SystemPermissions {
     public static final String CONFIG_LIST = "system:config:list";
     public static final String CONFIG_UPDATE = "system:config:update";
 
+    /** 租户套餐（REQ-20261121-022910；详情 GET /{id} 归 list 读语义，通知公告/部门先例）。 */
+    public static final String TENANT_PACKAGE_LIST = "system:tenant-package:list";
+    public static final String TENANT_PACKAGE_CREATE = "system:tenant-package:create";
+    public static final String TENANT_PACKAGE_UPDATE = "system:tenant-package:update";
+    public static final String TENANT_PACKAGE_DELETE = "system:tenant-package:delete";
+
     private SystemPermissions() {
     }
 }

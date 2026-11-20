@@ -25,6 +25,8 @@ import com.acme.platform.system.infrastructure.repository.SysRoleMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysRolePermissionRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
 import com.acme.platform.system.infrastructure.client.TenantSessionRevocationGateway;
+import com.acme.platform.system.infrastructure.repository.SysTenantPackageMenuRepository;
+import com.acme.platform.system.infrastructure.repository.SysTenantPackageRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRoleRepository;
 import com.mybatisflex.core.query.QueryWrapper;
@@ -60,7 +62,7 @@ class RoleAndTenantUseCaseTest {
         RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 mock(SysRolePermissionRepository.class), roleMenuRepository,
                 mock(SysPermissionRepository.class), menuRepository,
-                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class));
+                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class), packageScope());
 
         SysRole role = new SysRole("ops", "运维", null, false);
         setId(role, 1L);
@@ -133,7 +135,7 @@ class RoleAndTenantUseCaseTest {
         RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 rolePermissionRepository, mock(SysRoleMenuRepository.class),
                 permissionRepository, mock(SysMenuRepository.class),
-                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class));
+                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class), packageScope());
         when(roleRepository.findById(2L)).thenReturn(Optional.of(role(2L, 0L, "ops", false)));
         when(permissionRepository.findAllById(java.util.Set.of(32L)))
                 .thenReturn(List.of(permission(32L, "system:tenant:create")));
@@ -153,7 +155,7 @@ class RoleAndTenantUseCaseTest {
         RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 rolePermissionRepository, mock(SysRoleMenuRepository.class),
                 permissionRepository, mock(SysMenuRepository.class),
-                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class));
+                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class), packageScope());
         when(roleRepository.findById(1L)).thenReturn(Optional.of(role(1L, 0L, "super_admin", true)));
         when(permissionRepository.findAllById(java.util.Set.of(32L)))
                 .thenReturn(List.of(permission(32L, "system:tenant:create")));
@@ -245,7 +247,7 @@ class RoleAndTenantUseCaseTest {
         RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 mock(SysRolePermissionRepository.class), mock(SysRoleMenuRepository.class),
                 mock(SysPermissionRepository.class), mock(SysMenuRepository.class),
-                deptRepository, roleDeptRepository);
+                deptRepository, roleDeptRepository, packageScope());
         when(roleRepository.findById(2L)).thenReturn(Optional.of(role(2L, 0L, "ops", false)));
         // CUSTOM 未传部门集 → DATA_SCOPE_INVALID
         assertThatThrownBy(() -> useCase.updateDataScope(2L, new AdminRoleDataScope("CUSTOM", List.of())))
@@ -268,7 +270,7 @@ class RoleAndTenantUseCaseTest {
         RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 mock(SysRolePermissionRepository.class), mock(SysRoleMenuRepository.class),
                 mock(SysPermissionRepository.class), mock(SysMenuRepository.class),
-                deptRepository, roleDeptRepository);
+                deptRepository, roleDeptRepository, packageScope());
         SysRole role = role(2L, 0L, "ops", false);
         when(roleRepository.findById(2L)).thenReturn(Optional.of(role));
         when(roleRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -295,7 +297,7 @@ class RoleAndTenantUseCaseTest {
         RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 mock(SysRolePermissionRepository.class), mock(SysRoleMenuRepository.class),
                 mock(SysPermissionRepository.class), mock(SysMenuRepository.class),
-                deptRepository, roleDeptRepository);
+                deptRepository, roleDeptRepository, packageScope());
         SysRole role = role(2L, 0L, "ops", false);
         when(roleRepository.findById(2L)).thenReturn(Optional.of(role));
         when(roleRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -311,7 +313,8 @@ class RoleAndTenantUseCaseTest {
     @Test
     void defaultTenantDisableRejected() {
         SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway(),
+                mock(SysTenantPackageRepository.class));
         SysTenant defaultTenant = new SysTenant("default", "默认租户", null);
         setId(defaultTenant, 1L);
         when(tenantRepository.findById(1L)).thenReturn(Optional.of(defaultTenant));
@@ -325,9 +328,10 @@ class RoleAndTenantUseCaseTest {
     void tenantCodeDuplicatedRejected() {
         SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
         when(tenantRepository.existsByTenantCode("default")).thenReturn(true);
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway(),
+                mock(SysTenantPackageRepository.class));
         assertThatThrownBy(() -> useCase.create(new AdminTenantCreate("default", "重复租户", null,
-                null, null, null)))
+                null, null, null, null)))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(SystemError.TENANT_CODE_DUPLICATED.code()));
@@ -341,17 +345,18 @@ class RoleAndTenantUseCaseTest {
         SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
         when(tenantRepository.existsByTenantCode(any())).thenReturn(false);
         when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway(),
+                mock(SysTenantPackageRepository.class));
 
         Instant expiresAt = Instant.parse("2027-01-01T00:00:00Z");
         SysTenant created = useCase.create(new AdminTenantCreate("acme", "Acme 租户", "备注",
-                "张三", "13800000000", expiresAt));
+                "张三", "13800000000", expiresAt, null));
 
         assertThat(created.getContactName()).isEqualTo("张三");
         assertThat(created.getContactPhone()).isEqualTo("13800000000");
         assertThat(created.getExpiresAt()).isEqualTo(expiresAt);
         // 可空语义：缺省字段为 null（长期有效）
-        SysTenant longTerm = useCase.create(new AdminTenantCreate("lt", "长期租户", null, null, null, null));
+        SysTenant longTerm = useCase.create(new AdminTenantCreate("lt", "长期租户", null, null, null, null, null));
         assertThat(longTerm.getContactName()).isNull();
         assertThat(longTerm.getContactPhone()).isNull();
         assertThat(longTerm.getExpiresAt()).isNull();
@@ -365,11 +370,12 @@ class RoleAndTenantUseCaseTest {
         setAuditField(tenant, "version", 0L);
         when(tenantRepository.findById(2L)).thenReturn(Optional.of(tenant));
         when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway(),
+                mock(SysTenantPackageRepository.class));
 
         Instant expiresAt = Instant.parse("2027-06-01T00:00:00Z");
         SysTenant updated = useCase.update(2L, new AdminTenantUpdate("Acme 租户二", null,
-                "李四", "13900000000", expiresAt, 0L));
+                "李四", "13900000000", expiresAt, 0L, null));
 
         assertThat(updated.getContactName()).isEqualTo("李四");
         assertThat(updated.getContactPhone()).isEqualTo("13900000000");
@@ -383,7 +389,8 @@ class RoleAndTenantUseCaseTest {
         SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
         SysTenant tenant = new SysTenant("acme", "Acme 租户", null);
         when(tenantRepository.findByTenantCode("acme")).thenReturn(Optional.of(tenant));
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway(),
+                mock(SysTenantPackageRepository.class));
 
         assertThat(useCase.findByCode("acme")).isSameAs(tenant);
     }
@@ -392,7 +399,8 @@ class RoleAndTenantUseCaseTest {
     void should_throwTenantNotFound_when_findByCodeMissing() {
         SysTenantRepository tenantRepository = mock(SysTenantRepository.class);
         when(tenantRepository.findByTenantCode("none")).thenReturn(Optional.empty());
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway(),
+                mock(SysTenantPackageRepository.class));
 
         assertThatThrownBy(() -> useCase.findByCode("none"))
                 .isInstanceOf(BizException.class)
@@ -413,7 +421,8 @@ class RoleAndTenantUseCaseTest {
         expired.setExpiresAt(Instant.now().minusSeconds(3600));
         when(tenantRepository.findAll(any(QueryWrapper.class))).thenReturn(new ArrayList<>(List.of(
                 active, future, expired)));
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway());
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, tenantRevocationGateway(),
+                mock(SysTenantPackageRepository.class));
 
         assertThat(useCase.listEnabled()).extracting(SysTenant::getTenantCode)
                 .containsExactly("active", "future");
@@ -432,7 +441,8 @@ class RoleAndTenantUseCaseTest {
         when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(gateway.revokeByTenant("acme")).thenReturn(
                 new TenantSessionRevocationGateway.RevocationOutcome(2, 0));
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, gateway);
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, gateway,
+                mock(SysTenantPackageRepository.class));
 
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -460,7 +470,8 @@ class RoleAndTenantUseCaseTest {
         setId(tenant, 2L);
         when(tenantRepository.findById(2L)).thenReturn(Optional.of(tenant));
         when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, gateway);
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, gateway,
+                mock(SysTenantPackageRepository.class));
 
         useCase.updateStatus(2L, EnableStatus.ENABLED);
 
@@ -477,7 +488,8 @@ class RoleAndTenantUseCaseTest {
         when(tenantRepository.findById(2L)).thenReturn(Optional.of(tenant));
         when(tenantRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(gateway.revokeByTenant("acme")).thenThrow(new IllegalStateException("auth unreachable"));
-        TenantUseCase useCase = new TenantUseCase(tenantRepository, gateway);
+        TenantUseCase useCase = new TenantUseCase(tenantRepository, gateway,
+                mock(SysTenantPackageRepository.class));
 
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -495,11 +507,19 @@ class RoleAndTenantUseCaseTest {
         return mock(TenantSessionRevocationGateway.class);
     }
 
+    /** REQ-20261121-022910 编译兼容（签名扩展）：套餐域透传桩（真实用例 + 空仓储桩；本文件不绑
+     *  TenantContext → 套餐范围守卫/下发过滤原样透传，既有断言语义不变）。 */
+    private static TenantPackageUseCase packageScope() {
+        return new TenantPackageUseCase(mock(SysTenantPackageRepository.class),
+                mock(SysTenantPackageMenuRepository.class), mock(SysTenantRepository.class),
+                mock(SysMenuRepository.class));
+    }
+
     private static RoleUseCase roleUseCase(SysRoleRepository roleRepository) {
         return new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
                 mock(SysRolePermissionRepository.class), mock(SysRoleMenuRepository.class),
                 mock(SysPermissionRepository.class), mock(SysMenuRepository.class),
-                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class));
+                mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class), packageScope());
     }
 
     private static SysRole role(Long id, Long parentId, String code, boolean builtIn) {

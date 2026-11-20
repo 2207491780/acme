@@ -13,6 +13,7 @@ import type {
   AdminPositionView,
   AdminRoleView,
   AdminSystemConfigView,
+  AdminTenantPackageView,
   AdminTenantView,
   AdminUserView,
   FileView,
@@ -27,6 +28,10 @@ import type {
 
 /** 1x1 透明 PNG（captcha 图形占位，data-URI 直渲染）。 */
 export const CAPTCHA_IMAGE_DATA = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+/** mock 本人所属租户 id（REQ-20261121-022910 菜单下发过滤判定用：acme=租户 1，未绑套餐=不受限）。
+ *  演示租户 beta（租户 2）绑定「基础版」套餐——本人租户不绑套餐即保持既有全量下发（回归基线不受扰）。 */
+export const ME_TENANT_ID = '1';
 
 export const me = {
   user: {
@@ -48,6 +53,8 @@ export const me = {
   roles: ['super_admin'],
   permissions: [
     'system:tenant:list', 'system:tenant:create', 'system:tenant:update',
+    // REQ-20261121-022910（契约确认⑥）：套餐权限点 69~72（V24 随 role_menu 46~49 下发超管）
+    'system:tenant-package:list', 'system:tenant-package:create', 'system:tenant-package:update', 'system:tenant-package:delete',
     'system:user:list', 'system:user:create', 'system:user:update', 'system:user:delete', 'system:user:assign-role',
     'system:role:list', 'system:role:create', 'system:role:update', 'system:role:delete', 'system:role:grant', 'system:role:scope',
     'system:dept:list', 'system:dept:create', 'system:dept:update', 'system:dept:delete',
@@ -79,11 +86,15 @@ export const tenants: AdminTenantView[] = [
   {
     id: '1', tenantCode: 'acme', tenantName: 'ACME 总部', status: 'ENABLED', remark: null,
     contactName: '平台管理员', contactPhone: '13800000000', expiresAt: null,
+    // REQ-20261121-022910：未绑定套餐（packageId null=不受限，行为与现状一致）
+    packageId: null,
     createdAt: '2026-01-01T00:00:00Z', version: '0',
   },
   {
     id: '2', tenantCode: 'beta', tenantName: 'Beta 试点', status: 'ENABLED', remark: null,
     contactName: null, contactPhone: null, expiresAt: null,
+    // REQ-20261121-022910：绑定「基础版」套餐（演示租户套餐过滤样例；packageName 由 handler 实时装配）
+    packageId: '1',
     createdAt: '2026-01-02T00:00:00Z', version: '0',
   },
 ];
@@ -156,6 +167,26 @@ export const menus: AdminMenuView[] = [
         id: 14, parentId: 1, menuName: '文件管理', menuType: 'MENU', path: '/files', component: 'files/index', icon: 'folder',
         sortOrder: 4, visible: false, permissionCode: null, status: 'ENABLED', version: '0', children: [],
       },
+      // REQ-20261121-022910（契约确认⑥）：套餐管理 MENU 叶（id 46，path /tenant-packages，
+      // permission system:tenant-package:list）+ BUTTON×3（47 新增/48 编辑/49 删除，挂叶 46）
+      {
+        id: 46, parentId: 1, menuName: '套餐管理', menuType: 'MENU', path: '/tenant-packages', component: 'system/tenant-package/index', icon: 'gift',
+        sortOrder: 5, visible: true, permissionCode: 'system:tenant-package:list', status: 'ENABLED', version: '0',
+        children: [
+          {
+            id: 47, parentId: 46, menuName: '套餐新增', menuType: 'BUTTON', path: null, component: null, icon: null,
+            sortOrder: 1, visible: true, permissionCode: 'system:tenant-package:create', status: 'ENABLED', version: '0', children: [],
+          },
+          {
+            id: 48, parentId: 46, menuName: '套餐编辑', menuType: 'BUTTON', path: null, component: null, icon: null,
+            sortOrder: 2, visible: true, permissionCode: 'system:tenant-package:update', status: 'ENABLED', version: '0', children: [],
+          },
+          {
+            id: 49, parentId: 46, menuName: '套餐删除', menuType: 'BUTTON', path: null, component: null, icon: null,
+            sortOrder: 3, visible: true, permissionCode: 'system:tenant-package:delete', status: 'ENABLED', version: '0', children: [],
+          },
+        ],
+      },
     ],
   },
 ];
@@ -163,6 +194,28 @@ export const menus: AdminMenuView[] = [
 export const dictTypes: AdminDictTypeView[] = [
   { id: '8801', dictCode: 'release_env', dictName: '发布环境', status: 'ENABLED', remark: null, version: '0' },
 ];
+
+/** 租户套餐 fixtures（REQ-20261121-022910，AC-14）：≥2 条样例——「基础版」被 beta 租户绑定
+ *  （删除守卫 TENANT_PACKAGE_IN_USE 演示）、「全功能版」未绑定（删除成功链路演示）；
+ *  menuCount/tenantCount 为种子初值，handler 依绑定表/租户集合实时推导视图；
+ *  round 2：视图带乐观锁 version——wire 字符串口径（FR-024 Long→string），成功更新后 handler 递增。 */
+export const tenantPackages: AdminTenantPackageView[] = [
+  {
+    id: '1', packageName: '基础版', remark: '仅系统管理/用户管理基础菜单', menuCount: 2, tenantCount: 1,
+    version: '0', createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z',
+  },
+  {
+    id: '2', packageName: '全功能版', remark: null, menuCount: 7, tenantCount: 0,
+    version: '0', createdAt: '2026-01-04T00:00:00Z', updatedAt: '2026-01-04T00:00:00Z',
+  },
+];
+
+/** 套餐-菜单绑定演示态（sys_tenant_package_menu：套餐 id → 菜单 id 全集，uk(package_id,menu_id)）；
+ *  基础版绑目录+叶（1/11），全功能版含套餐管理叶及其 BUTTON（46~49，按钮随叶子级联下发）。 */
+export const tenantPackageMenus: Record<string, number[]> = {
+  '1': [1, 11],
+  '2': [1, 11, 12, 46, 47, 48, 49],
+};
 
 export const dictItems: AdminDictItemView[] = [
   { id: '88011', dictTypeId: '8801', itemLabel: '开发', itemValue: 'dev', sortOrder: 1, status: 'ENABLED', version: '0' },

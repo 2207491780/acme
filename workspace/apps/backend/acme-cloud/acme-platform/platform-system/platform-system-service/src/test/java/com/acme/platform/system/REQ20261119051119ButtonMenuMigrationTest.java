@@ -18,17 +18,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>覆盖 <b>AC-1</b>（契约回填锚点）：V20 后 BUTTON 节点入 sys_menu 且 permission_code
  * 均为既有 API 权限点（join 校验存在、类型 API、启用未删）、超管 role_menu 全绑、
- * 权限点总数仍 68（BUTTON 不新建权限点）；另含 V20 种子幂等重放（口径同 V19：
- * 固定主键 + ON CONFLICT (id) DO NOTHING）。</p>
+ * 权限点总数 72（V20 前恒 68 不新建；V24 套餐域新增 4 点，REQ-20261121-022910）；另含 V20 种子
+ * 幂等重放（口径同 V19：固定主键 + ON CONFLICT (id) DO NOTHING）。</p>
  *
  * <p>与 {@link SystemIntegrationTest} 计数断言的口径一致性（确认⑥联动说明）：</p>
  * <ul>
  *   <li>{@code SystemIntegrationTest.flywaySeedPresent} 的 {@code sys_menu == 12} 由 backend
  *       按「12→实际数」联动更新；本类不重复钉 sys_menu 总数，只断「总数 = 非 BUTTON 基数 + BUTTON 数」
- *       （基数 12→18：REQ-20261119-151640 V22 新增六 MENU 叶子；V20 仅新增 BUTTON 菜单行），
- *       两套口径互不冲突。</li>
- *   <li>V20 不新增 sys_permission / sys_role_permission 行 → {@code seedScriptReplayIsIdempotent}
- *       的 permission=68、role_permission(>=46)=23、(>=54)=15 断言不受影响（replay 列表加 V20
+ *       （基数 12→18→19：REQ-20261119-151640 V22 新增六 MENU 叶子；V20 仅新增 BUTTON 菜单行；
+ *       REQ-20261121-022910 V24 新增套餐管理 MENU 叶 46），两套口径互不冲突。</li>
+ *   <li>V20 不新增 sys_permission / sys_role_permission 行；V24 新增 permission 69~72 与
+ *       role_permission（permission_id 69~72，均 ≥46/≥54）→ {@code seedScriptReplayIsIdempotent}
+ *       的 permission=72、role_permission(>=46)=27、(>=54)=19 断言（replay 列表加 V20/V24
  *       由 backend 在其自有文件内联动）；本类独立重放 V20（每测试类独立 PG 容器，互不影响）。</li>
  *   <li>BUTTON 精确行数不钉死（契约「约 22 个、以各页面实际 crud.can 调用码为准实地采集」），
  *       仅断 &gt;0 与形状校验；具体码与前端页面接线一致性由前端 AC-5 用例核验。</li>
@@ -46,8 +47,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 })
 class REQ20261119051119ButtonMenuMigrationTest {
 
-    /** 非 BUTTON 菜单基数＝V19 用至 12＋REQ-20261119-151640 V22 六 MENU 叶子（id 40~45）＝18。 */
-    private static final long SEED_MENU_BASE_COUNT = 18L;
+    /** 非 BUTTON 菜单基数＝V19 用至 12＋REQ-20261119-151640 V22 六 MENU 叶子（id 40~45）
+     *  ＋REQ-20261121-022910 V24 套餐管理 MENU 叶（id 46）＝19。 */
+    private static final long SEED_MENU_BASE_COUNT = 19L;
 
     /** 超管角色（V2 种子：role_id=1 / tenant 'default'，V19 绑定行续编先例）。 */
     private static final long SUPER_ADMIN_ROLE_ID = 1L;
@@ -70,7 +72,7 @@ class REQ20261119051119ButtonMenuMigrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    // ---------- AC-1：BUTTON 节点入 sys_menu，permission_code 均为既有 API 权限点，权限点总数仍 68 ----------
+    // ---------- AC-1：BUTTON 节点入 sys_menu，permission_code 均为既有 API 权限点（V24 后总数 72） ----------
 
     @Test
     void should_seedButtonNodesAsApiCodeProjections_when_flywayAppliedToV20() {
@@ -107,9 +109,9 @@ class REQ20261119051119ButtonMenuMigrationTest {
                 "select min(id) from sys_menu where menu_type = 'BUTTON'", Long.class))
                 .as("BUTTON 菜单 id 自 13 起续编").isGreaterThanOrEqualTo(13L);
 
-        // 权限点总数仍 68（BUTTON 复用既有 API 码，V20 不新增权限点）
+        // 权限点总数 72（V20 前恒 68 不新建；V24 套餐域新增 4 点 69~72，BUTTON 47~49 关联之）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
-                .as("BUTTON 不新建权限点，sys_permission 总数不变").isEqualTo(68L);
+                .as("sys_permission 总数 = 68 + V24 套餐域 4 点").isEqualTo(72L);
 
         // 总数 = 非 BUTTON 基数 18（原 12＋V22 六叶子）+ BUTTON（与 SystemIntegrationTest 的基数→N 联动口径一致）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
@@ -175,7 +177,7 @@ class REQ20261119051119ButtonMenuMigrationTest {
                 """.formatted(SUPER_ADMIN_ROLE_ID, DEFAULT_TENANT), Long.class))
                 .as("重放 V20 后超管 BUTTON 绑定行不翻倍").isEqualTo(superAdminButtonBindingBefore);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
-                .as("重放 V20 不新增权限点").isEqualTo(permissionBefore).isEqualTo(68L);
+                .as("重放 V20 不新增权限点（总数=V24 后水位 72）").isEqualTo(permissionBefore).isEqualTo(72L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
                 .as("重放 V20 后 sys_menu 总数不变").isEqualTo(menuTotalBefore);
     }

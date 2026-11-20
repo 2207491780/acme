@@ -121,6 +121,21 @@ public final class SystemErrorCodes {
     /** 个人资料非法（400；REQ-20261119-082531 确认记录①：avatar_url 非 http(s)/相对地址等自助资料值域违规）。 */
     public static final String PROFILE_INVALID = "platform-system-13-0001";
 
+    /** 套餐名称已存在（409；REQ-20261121-022910 租户套餐域）。 */
+    public static final String TENANT_PACKAGE_DUPLICATE = "platform-system-14-0001";
+
+    /** 套餐不存在（404；REQ-20261121-022910）。 */
+    public static final String TENANT_PACKAGE_NOT_FOUND = "platform-system-14-0002";
+
+    /** 套餐被租户绑定，删除被拒绝（409；REQ-20261121-022910）。 */
+    public static final String TENANT_PACKAGE_IN_USE = "platform-system-14-0003";
+
+    /** 套餐菜单集非法（menuIds 含不存在或已删菜单，409；REQ-20261121-022910）。 */
+    public static final String TENANT_PACKAGE_MENU_INVALID = "platform-system-14-0004";
+
+    /** 绑定套餐租户分配套餐范围外菜单被拒绝（403；REQ-20261121-022910）。 */
+    public static final String TENANT_PACKAGE_MENU_FORBIDDEN = "platform-system-14-0005";
+
     private SystemErrorCodes() {
     }
 }

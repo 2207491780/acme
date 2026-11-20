@@ -42,6 +42,9 @@ import java.util.stream.Collectors;
  * 角色支持父子关系树状定义：根哨兵 0（sys_menu 同款）、父角色可调整（内置角色除外）、
  * 写入沿父链防环、存在子角色拒绝删除；树组装在接口层 EntityViews.roleTree。
  * REQ-20261114-120104：数据范围五档设置（sys_role.data_scope + CUSTOM 部门集 sys_role_dept 全量重写）。
+ * REQ-20261121-022910：绑定套餐租户的角色菜单分配范围=套餐菜单集（确认⑤）——授权树读时过滤兜底
+ * （menuIdsOf，历史越界绑定不做修复）与写入守卫（bindMenus 越界整体拒绝 TENANT_PACKAGE_MENU_FORBIDDEN）；
+ * 未绑定套餐两路均透传现状基线。
  */
 @Service
 public class RoleUseCase {
@@ -63,12 +66,14 @@ public class RoleUseCase {
     private final SysMenuRepository menuRepository;
     private final SysDeptRepository deptRepository;
     private final SysRoleDeptRepository roleDeptRepository;
+    private final TenantPackageUseCase tenantPackageUseCase;
 
     public RoleUseCase(SysRoleRepository roleRepository, SysUserRoleRepository userRoleRepository,
                        SysRolePermissionRepository rolePermissionRepository,
                        SysRoleMenuRepository roleMenuRepository,
                        SysPermissionRepository permissionRepository, SysMenuRepository menuRepository,
-                       SysDeptRepository deptRepository, SysRoleDeptRepository roleDeptRepository) {
+                       SysDeptRepository deptRepository, SysRoleDeptRepository roleDeptRepository,
+                       TenantPackageUseCase tenantPackageUseCase) {
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
         this.rolePermissionRepository = rolePermissionRepository;
@@ -77,6 +82,7 @@ public class RoleUseCase {
         this.menuRepository = menuRepository;
         this.deptRepository = deptRepository;
         this.roleDeptRepository = roleDeptRepository;
+        this.tenantPackageUseCase = tenantPackageUseCase;
     }
 
     /** 创建角色（(tenant_id, role_code) 唯一；parentId 缺省为根角色，父角色须存在；保留编码拒绝）。 */
@@ -187,9 +193,16 @@ public class RoleUseCase {
                 .map(SysRolePermission::getPermissionId).toList();
     }
 
-    /** 角色绑定的菜单 ID 集。 */
+    /**
+     * 角色绑定的菜单 ID 集（经套餐下发范围过滤，REQ-20261121-022910 确认⑤）：
+     * 绑定套餐租户=角色授权 ∩ 套餐菜单集（BUTTON 随叶级联）——授权树读时过滤兜底，
+     * 历史越界绑定不做数据修复；未绑定套餐原样返回（现状基线）。
+     */
     public List<Long> menuIdsOf(Long roleId) {
-        return roleMenuRepository.findByRoleId(roleId).stream().map(SysRoleMenu::getMenuId).toList();
+        Set<Long> menuIds = roleMenuRepository.findByRoleId(roleId).stream()
+                .map(SysRoleMenu::getMenuId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return List.copyOf(tenantPackageUseCase.dispatchMenuIds(menuIds));
     }
 
     /**
@@ -254,6 +267,8 @@ public class RoleUseCase {
      * 映射既有 API 权限点 id，差量同步 role_permission 按钮来源子集（见
      * {@link #syncButtonPermissionBindings}）；入参语义不变（menuIds 全量替换 role_menu），
      * 联动与 role_menu 替换同事务完成。保留域守卫在任何写入前执行（整体拒绝）。
+     * REQ-20261121-022910 确认⑤：绑定套餐租户的分配范围=套餐菜单集（含 BUTTON 级联与祖先链），
+     * 越界整体拒绝 TENANT_PACKAGE_MENU_FORBIDDEN，任何写入（role_menu / role_permission）均不发生。
      */
     @Transactional
     public void bindMenus(Long roleId, List<Long> menuIds) {
@@ -262,6 +277,11 @@ public class RoleUseCase {
         List<SysMenu> all = menuRepository.findAllById(requested);
         if (all.size() != requested.size()) {
             throw new BizException(SystemError.MENU_NOT_FOUND);
+        }
+        // 套餐范围守卫（REQ-20261121-022910 确认⑤）：scope=null=租户未绑定套餐不受限
+        Set<Long> scope = tenantPackageUseCase.assignableMenuScope();
+        if (scope != null && !scope.containsAll(requested)) {
+            throw new BizException(SystemError.TENANT_PACKAGE_MENU_FORBIDDEN);
         }
         // BUTTON 联动前置映射 + 保留域守卫（与 bindPermissions 同口径）：非内置角色勾选保留域码
         // BUTTON 整体拒绝，任何写入（role_menu 替换 / role_permission 联动）均不发生

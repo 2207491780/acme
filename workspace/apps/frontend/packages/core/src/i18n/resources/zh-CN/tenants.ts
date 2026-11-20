@@ -8,6 +8,8 @@ export const tenants = {
   columns: {
     tenantCode: '租户代码',
     tenantName: '租户名称',
+    package: '套餐',
+    unlimited: '不受限',
     status: '状态',
     contact: '联系人',
     expiresAt: '有效期',
@@ -27,6 +29,9 @@ export const tenants = {
     nameRequired: '请输入租户名称',
     namePlaceholder: '租户显示名称',
     remark: '备注',
+    package: '套餐',
+    packagePlaceholder: '选择套餐，不选则不受限（可清空）',
+    packageExtra: '绑定后该租户菜单下发限定为套餐内菜单（含祖先链自动补全与按钮级联）',
     contact: '联系人',
     contactPlaceholder: '租户联系人姓名',
     contactPhone: '联系电话',

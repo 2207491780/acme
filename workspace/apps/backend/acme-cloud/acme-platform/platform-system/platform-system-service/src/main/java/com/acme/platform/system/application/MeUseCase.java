@@ -22,11 +22,13 @@ import java.util.Set;
  * user 行 PK 全局直读、角色/菜单解析内置角色跨租户回退（详见 loadMe 注）。
  * REQ-20261119-082531：增自助资料修改（确认记录①）——身份解析复用 loadMe 链路，
  * 行更新经 updateSelfProfile 旁路（切换会话下本人行归属源租户）。
+ * REQ-20261121-022910：租户绑定套餐时菜单下发实时过滤（确认②）——角色授权菜单 ∩ 套餐菜单集，
+ * BUTTON 随叶级联、祖先链视图组装自动补全；未绑定套餐原样透传（行为与现状完全一致，AC-7 基线）。
  */
 @Service
 public class MeUseCase {
 
-    /** 当前登录者快照（user=本租户用户主数据；roles=令牌 claims；menuIds=可见菜单并集；
+    /** 当前登录者快照（user=本租户用户主数据；roles=令牌 claims；menuIds=可见菜单并集（套餐过滤后）；
      *  deptName=本人部门名，REQ-20261117-180000 水印 {deptName} 供给，未分配/缺失=null）。 */
     public record MeSnapshot(SysUser user, Set<String> roles, Set<String> permissions, Set<Long> menuIds,
                              String deptName) {
@@ -36,14 +38,17 @@ public class MeUseCase {
     private final SysDeptRepository deptRepository;
     private final MenuUseCase menuUseCase;
     private final PermissionDecisionService decisionService;
+    private final TenantPackageUseCase tenantPackageUseCase;
 
     public MeUseCase(SysUserRepository userRepository,
                      SysDeptRepository deptRepository, MenuUseCase menuUseCase,
-                     PermissionDecisionService decisionService) {
+                     PermissionDecisionService decisionService,
+                     TenantPackageUseCase tenantPackageUseCase) {
         this.userRepository = userRepository;
         this.deptRepository = deptRepository;
         this.menuUseCase = menuUseCase;
         this.decisionService = decisionService;
+        this.tenantPackageUseCase = tenantPackageUseCase;
     }
 
     /**
@@ -138,6 +143,9 @@ public class MeUseCase {
             List<Long> builtInRoleIds = decisionService.builtInRoleIdsOf(roles);
             menuIds = menuUseCase.visibleMenuIdsOfBuiltIn(builtInRoleIds);
         }
+        // REQ-20261121-022910 确认②：租户绑定套餐时下发实时过滤（未绑定原样透传=现状基线；
+        // sys_tenant/sys_tenant_package_menu 平台目录表无租户列，读取无需旁路）
+        menuIds = tenantPackageUseCase.dispatchMenuIds(menuIds);
         return new MeSnapshot(user, new LinkedHashSet<>(roles), permissions, menuIds, deptNameOf(user));
     }
 }

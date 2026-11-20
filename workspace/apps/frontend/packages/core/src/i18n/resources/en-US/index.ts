@@ -5,6 +5,7 @@ import { dashboard } from './dashboard';
 import { releases } from './releases';
 import { apps } from './apps';
 import { tenants } from './tenants';
+import { tenantPackages } from './tenantPackages';
 import { users } from './users';
 import { roles } from './roles';
 import { depts } from './depts';
@@ -33,6 +34,7 @@ export const enUS = {
   releases,
   apps,
   tenants,
+  tenantPackages,
   users,
   roles,
   depts,

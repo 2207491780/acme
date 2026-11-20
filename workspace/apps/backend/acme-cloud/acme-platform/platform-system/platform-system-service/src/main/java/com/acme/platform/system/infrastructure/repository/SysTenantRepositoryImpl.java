@@ -44,4 +44,18 @@ public class SysTenantRepositoryImpl extends FlexRepositorySupport<SysTenant> im
         return mapper().selectListByQuery(
                 QueryWrapper.create().where(SysTenant::getTenantCode).in(tenantCodes));
     }
+
+    @Override
+    public boolean existsByPackageId(Long packageId) {
+        return exists(QueryWrapper.create().where(SysTenant::getPackageId).eq(packageId));
+    }
+
+    @Override
+    public List<SysTenant> findByPackageIdIn(Collection<Long> packageIds) {
+        if (packageIds == null || packageIds.isEmpty()) {
+            return List.of();
+        }
+        return mapper().selectListByQuery(
+                QueryWrapper.create().where(SysTenant::getPackageId).in(packageIds));
+    }
 }

@@ -32,6 +32,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *       不落入租户管理员绑定。</li>
  * </ul>
  *
+ * <p>REQ-20261121-022910 增补：{@code system:tenant-package:} 入保留域（套餐管理=平台运营域，
+ * TL 裁决收紧 TenantInitUseCase.RESERVED_PERMISSION_PREFIXES）——V24 种子的套餐管理叶 46 与
+ * BUTTON 47~49、权限点 69~72 均不落入 tenant_admin 默认授权（真实种子面钉住）。</p>
+ *
  * <p>与 backend 单测的关系：确认⑥要求 {@code TenantInitUseCaseTest} 补 BUTTON 节点授予断言
  * （mock 面）；本类是真实种子数据 + 真实落库的集成面，两者互补。签名照抄 TenantInitUseCaseTest
  * 既有 fixture（initialize(AdminTenantInitRequest) 五参构造：租户码/租户名/备注/管理员账号/角色名）。</p>
@@ -54,9 +58,11 @@ class REQ20261119051119TenantInitButtonGrantIntegrationTest {
     /** 契约确认①示例锚点：users 创建按钮节点挂既有 API 码 system:user:create（AMB-1）。 */
     private static final String USERS_CREATE_CODE = "system:user:create";
 
-    /** 保留域（TenantInitUseCaseTest 既有 fixtures：system:tenant / infra:audit）——BUTTON 亦按域排除。 */
+    /** 保留域（TenantInitUseCaseTest 既有 fixtures：system:tenant / infra:audit；REQ-20261121-022910
+     *  增 system:tenant-package）——BUTTON 亦按域排除。 */
     private static final String RESERVED_DOMAIN_CLAUSE =
-            "(m.permission_code like 'system:tenant:%' or m.permission_code like 'infra:audit:%')";
+            "(m.permission_code like 'system:tenant:%' or m.permission_code like 'infra:audit:%' "
+                    + "or m.permission_code like 'system:tenant-package:%')";
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -153,6 +159,18 @@ class REQ20261119051119TenantInitButtonGrantIntegrationTest {
                 where rm.tenant_id = ? and rm.role_id = ? and m.menu_type = 'BUTTON'
                   and %s
                 """.formatted(RESERVED_DOMAIN_CLAUSE), Long.class, NEW_TENANT, roleId))
-                .as("保留域（system:tenant / infra:audit）BUTTON 节点不落入租户管理员绑定").isZero();
+                .as("保留域（system:tenant / infra:audit / system:tenant-package）BUTTON 节点不落入租户管理员绑定")
+                .isZero();
+
+        // REQ-20261121-022910：套餐管理域（V24 菜单 46~49 / 权限点 69~72）不落入 tenant_admin 默认授权
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_role_menu where tenant_id = ? and role_id = ? and menu_id between 46 and 49",
+                Long.class, NEW_TENANT, roleId))
+                .as("套餐管理菜单 46~49（MENU 叶+BUTTON）不落入 tenant_admin role_menu").isZero();
+        assertThat(jdbcTemplate.queryForList(
+                "select permission_code from sys_role_permission rp join sys_permission p on p.id = rp.permission_id "
+                        + "where rp.tenant_id = ? and rp.role_id = ? and p.permission_code like 'system:tenant-package:%'",
+                String.class, NEW_TENANT, roleId))
+                .as("system:tenant-package:* 权限点（69~72）不落入 tenant_admin role_permission").isEmpty();
     }
 }

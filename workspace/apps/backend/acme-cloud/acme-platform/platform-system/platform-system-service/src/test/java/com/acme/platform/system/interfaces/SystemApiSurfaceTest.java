@@ -423,10 +423,12 @@ class SystemApiSurfaceTest {
         TenantController controller = new TenantController(useCase, initUseCase);
 
         assertThat(controller.list(1, 20, null).total()).isEqualTo(1L);
-        assertThat(controller.create(new AdminTenantCreate("acme", "Acme 租户", null, null, null, null)).tenantCode())
+        assertThat(controller.create(new AdminTenantCreate("acme", "Acme 租户", null, null, null, null,
+                null)).tenantCode())
                 .isEqualTo("acme");
         assertThat(controller.get(2L).tenantName()).isEqualTo("Acme 租户");
-        assertThat(controller.update(2L, new AdminTenantUpdate("Acme 租户", null, null, null, null, 1L)).tenantCode())
+        assertThat(controller.update(2L, new AdminTenantUpdate("Acme 租户", null, null, null, null, 1L,
+                null)).tenantCode())
                 .isEqualTo("acme");
         controller.updateStatus(2L, new AdminStatusUpdate(EnableStatus.DISABLED));
         // 开通初始化端点（tenant-management-complete）

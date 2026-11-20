@@ -11,6 +11,7 @@ import com.acme.platform.system.api.dto.AdminTenantCreate;
 import com.acme.platform.system.api.dto.AdminTenantUpdate;
 import com.acme.platform.system.domain.SysTenant;
 import com.acme.platform.system.infrastructure.client.TenantSessionRevocationGateway;
+import com.acme.platform.system.infrastructure.repository.SysTenantPackageRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantRepository;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.slf4j.Logger;
@@ -30,6 +31,8 @@ import java.util.List;
  * 撤销契约调用，失败降级 WARN 不回滚停用（DB 为事实源，残留会话至多存活至 access TTL 30min，
  * 与互踢撤销集失败降级同口径，确认记录①）；启用（ENABLED）不触发撤销；
  * 下拉排除已过期租户（确认记录③）；按代码直查目录（by-code 内部契约数据源）。
+ * REQ-20261121-022910：create/update 支持 packageId（null=不绑定 / 解除绑定=不受限；
+ * 非空须为既有套餐，否则 TENANT_PACKAGE_NOT_FOUND——逻辑校验无 FK，确认③④）。
  */
 @Service
 public class TenantUseCase {
@@ -41,10 +44,13 @@ public class TenantUseCase {
 
     private final SysTenantRepository tenantRepository;
     private final TenantSessionRevocationGateway revocationGateway;
+    private final SysTenantPackageRepository tenantPackageRepository;
 
-    public TenantUseCase(SysTenantRepository tenantRepository, TenantSessionRevocationGateway revocationGateway) {
+    public TenantUseCase(SysTenantRepository tenantRepository, TenantSessionRevocationGateway revocationGateway,
+                         SysTenantPackageRepository tenantPackageRepository) {
         this.tenantRepository = tenantRepository;
         this.revocationGateway = revocationGateway;
+        this.tenantPackageRepository = tenantPackageRepository;
     }
 
     @Transactional
@@ -52,10 +58,12 @@ public class TenantUseCase {
         if (tenantRepository.existsByTenantCode(request.tenantCode())) {
             throw new BizException(SystemError.TENANT_CODE_DUPLICATED);
         }
+        requirePackageExists(request.packageId());
         SysTenant tenant = new SysTenant(request.tenantCode(), request.tenantName(), request.remark());
         tenant.setContactName(request.contactName());
         tenant.setContactPhone(request.contactPhone());
         tenant.setExpiresAt(request.expiresAt());
+        tenant.setPackageId(request.packageId());
         return tenantRepository.save(tenant);
     }
 
@@ -97,12 +105,24 @@ public class TenantUseCase {
         if (request.version() == null || !request.version().equals(tenant.getVersion())) {
             throw new BizException(WebError.CONCURRENCY_CONFLICT);
         }
+        requirePackageExists(request.packageId());
         tenant.setTenantName(request.tenantName());
         tenant.setRemark(request.remark());
         tenant.setContactName(request.contactName());
         tenant.setContactPhone(request.contactPhone());
         tenant.setExpiresAt(request.expiresAt());
+        tenant.setPackageId(request.packageId());
         return tenantRepository.save(tenant);
+    }
+
+    /**
+     * 套餐绑定存在性校验（REQ-20261121-022910 确认④）：null=不绑定 / 解除绑定放行；
+     * 非空须命中既有套餐行（软删行被逻辑删除过滤视同不存在），否则 TENANT_PACKAGE_NOT_FOUND。
+     */
+    private void requirePackageExists(Long packageId) {
+        if (packageId != null && !tenantPackageRepository.existsById(packageId)) {
+            throw new BizException(SystemError.TENANT_PACKAGE_NOT_FOUND);
+        }
     }
 
     /**

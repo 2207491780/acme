@@ -16,6 +16,7 @@ import {
   FileSearchOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
+  GiftOutlined,
   GlobalOutlined,
   HistoryOutlined,
   IdcardOutlined,
@@ -70,6 +71,8 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   { path: '/releases', icon: <UnorderedListOutlined />, labelKey: 'nav.items.releases' },
   { path: '/apps', icon: <AppstoreOutlined />, labelKey: 'nav.items.apps' },
   { path: '/tenants', icon: <ApartmentOutlined />, labelKey: 'nav.items.tenants', permission: 'system:tenant:list' },
+  // 套餐管理（REQ-20261121-022910）：me.menus 空时的静态导航回退条目（动态导航由菜单种子 V24 下发）
+  { path: '/tenant-packages', icon: <GiftOutlined />, labelKey: 'nav.items.tenantPackages', permission: 'system:tenant-package:list' },
   { path: '/users', icon: <UserOutlined />, labelKey: 'nav.items.users', permission: 'system:user:list' },
   { path: '/roles', icon: <TeamOutlined />, labelKey: 'nav.items.roles', permission: 'system:role:list' },
   { path: '/depts', icon: <PartitionOutlined />, labelKey: 'nav.items.depts', permission: 'system:dept:list' },

@@ -27,6 +27,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default:
 const Releases = lazy(() => import('./pages/Releases').then((m) => ({ default: m.Releases as PageComponent })));
 const Apps = lazy(() => import('./pages/Apps').then((m) => ({ default: m.Apps as PageComponent })));
 const TenantsPage = lazy(() => import('./pages/TenantsPage').then((m) => ({ default: m.TenantsPage as PageComponent })));
+const TenantPackagesPage = lazy(() => import('./pages/TenantPackagesPage').then((m) => ({ default: m.TenantPackagesPage as PageComponent })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then((m) => ({ default: m.UsersPage as PageComponent })));
 const RolesPage = lazy(() => import('./pages/RolesPage').then((m) => ({ default: m.RolesPage as PageComponent })));
 const DeptsPage = lazy(() => import('./pages/DeptsPage').then((m) => ({ default: m.DeptsPage as PageComponent })));
@@ -45,12 +46,15 @@ const JobsPage = lazy(() => import('./pages/JobsPage').then((m) => ({ default: m
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings as PageComponent })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage as PageComponent })));
 
-/** 21 页清单（22 条 Route − login − `*`；/files 为 REQ-20261119-063129 契约⑥补齐）。 */
+/** 22 页清单（23 条 Route − login − `*`；/files 为 REQ-20261119-063129 契约⑥补齐）。
+ *  /tenant-packages 为 REQ-20261121-022910：套餐管理（权限 system:tenant-package:list）。 */
 export const PAGE_ROUTES: PageRoute[] = [
   { path: '/', labelKey: 'nav.items.dashboard', element: <Dashboard /> },
   { path: '/releases', labelKey: 'nav.items.releases', element: <Releases /> },
   { path: '/apps', labelKey: 'nav.items.apps', element: <Apps /> },
   { path: '/tenants', labelKey: 'nav.items.tenants', permission: 'system:tenant:list', element: <TenantsPage /> },
+  // 套餐管理（REQ-20261121-022910）：紧随租户管理；动态导航由后端菜单种子（V24 叶 46）下发
+  { path: '/tenant-packages', labelKey: 'nav.items.tenantPackages', permission: 'system:tenant-package:list', element: <TenantPackagesPage /> },
   { path: '/users', labelKey: 'nav.items.users', permission: 'system:user:list', element: <UsersPage /> },
   { path: '/roles', labelKey: 'nav.items.roles', permission: 'system:role:list', element: <RolesPage /> },
   { path: '/depts', labelKey: 'nav.items.depts', permission: 'system:dept:list', element: <DeptsPage /> },

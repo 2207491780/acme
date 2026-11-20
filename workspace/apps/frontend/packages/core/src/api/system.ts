@@ -196,7 +196,8 @@ export interface AdminSystemConfigUpdate {
 }
 
 /** 租户视图（契约对齐 AdminTenantView；id/version 序列化为字符串）。
- *  REQ-20261117-025200 扩展联系人/联系电话/有效期（可空；expiresAt ISO-8601 字符串，null=长期）。 */
+ *  REQ-20261117-025200 扩展联系人/联系电话/有效期（可空；expiresAt ISO-8601 字符串，null=长期）。
+ *  REQ-20261121-022910 扩展绑定套餐（可空=不受限；packageId wire 字符串口径，packageName 冗余下发便于列表直显）。 */
 export interface AdminTenantView {
   id: string;
   tenantCode: string;
@@ -207,9 +208,70 @@ export interface AdminTenantView {
   contactPhone: string | null;
   /** 有效期（ISO-8601 字符串；null=长期；过期租户登录被拒，存量允许过去时间）。 */
   expiresAt: string | null;
+  /** 绑定套餐 id（REQ-20261121-022910；null/缺失=不受限，菜单下发与现状一致）。 */
+  packageId?: string | null;
+  /** 绑定套餐名称（冗余下发；未绑定/套餐已删=null）。 */
+  packageName?: string | null;
   createdAt: string;
   version: string;
 }
+
+/** 租户套餐视图（REQ-20261121-022910 契约对齐 AdminTenantPackageView；id wire 字符串口径；
+ *  menuCount=绑定菜单行数、tenantCount=绑定租户数由后端实时推导；审计列 createdAt/updatedAt。
+ *  round 2 追认：后端框架乐观锁惯例——视图带 version；round 2 补：common-serialization
+ *  LongToStringModule（FR-024）全局生效——Long 序列化输出 JSON 字符串，version wire 字符串口径）。 */
+export interface AdminTenantPackageView {
+  id: string;
+  packageName: string;
+  remark: string | null;
+  /** 套餐绑定菜单数（sys_tenant_package_menu 行数）。 */
+  menuCount: number;
+  /** 绑定该套餐的租户数。 */
+  tenantCount: number;
+  /** 乐观锁版本（wire 字符串，Long→string；后端 AdminTenantPackageUpdate @NotNull version，编辑时随体回传）。 */
+  version: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 套餐详情（=视图 + menuIds 绑定菜单全集；REQ-20261121-022910 §套餐详情）。 */
+export interface AdminTenantPackageDetail extends AdminTenantPackageView {
+  menuIds: number[];
+}
+
+/** 套餐创建/更新载荷（REQ-20261121-022910 §套餐创建/更新：packageName 必填 ≤128、remark ≤255、
+ *  menuIds[] 可空=空套餐；更新时 menuIds 全量替换绑定表。
+ *  round 2 追认：后端 AdminTenantPackageUpdate 带 @NotNull version（框架乐观锁惯例）——
+ *  编辑随体提交（取 detail.version 回显值）；创建不带 version。
+ *  round 2 补：LongToStringDeserializer 双收字符串/数值——页面按字符串口径提交。 */
+export interface TenantPackageSavePayload {
+  packageName: string;
+  remark?: string | null;
+  menuIds: number[];
+  /** 乐观锁版本（仅更新携带，字符串 wire 口径；后端 @NotNull，缺失→400 参数错误）。 */
+  version?: string;
+}
+
+/** 租户套餐接口域（REQ-20261121-022910 五端点；权限点 system:tenant-package:list/create/update/delete，
+ *  detail 归 list 权限；业务错误码 TENANT_PACKAGE_DUPLICATE/NOT_FOUND/IN_USE/MENU_INVALID）。 */
+export const tenantPackageApi = {
+  /** 套餐分页（keyword 对 packageName 模糊匹配；排序 id asc；signal 为可选取消信号，透传 apiFetch）。 */
+  page: (params: { page?: number; size?: number; keyword?: string } = {}, signal?: AbortSignal): Promise<PageResult<AdminTenantPackageView>> =>
+    apiFetch<PageResult<AdminTenantPackageView>>(`/admin/v1/system/tenant-packages?${buildQuery(params)}`, { signal }),
+  /** 新建套餐（重名 → TENANT_PACKAGE_DUPLICATE；menuIds 含不存在菜单 → TENANT_PACKAGE_MENU_INVALID）。 */
+  create: (payload: TenantPackageSavePayload): Promise<AdminTenantPackageView> =>
+    apiJson<AdminTenantPackageView>('/admin/v1/system/tenant-packages', 'POST', payload),
+  /** 套餐详情（含 menuIds；不存在 → TENANT_PACKAGE_NOT_FOUND）。 */
+  detail: (packageId: string): Promise<AdminTenantPackageDetail> =>
+    apiFetch<AdminTenantPackageDetail>(`/admin/v1/system/tenant-packages/${packageId}`),
+  /** 更新套餐（校验同创建；menuIds 全量替换）。 */
+  update: (packageId: string, payload: TenantPackageSavePayload): Promise<AdminTenantPackageView> =>
+    apiJson<AdminTenantPackageView>(`/admin/v1/system/tenant-packages/${packageId}`, 'PUT', payload),
+  /** 删除套餐（被任一租户绑定 → TENANT_PACKAGE_IN_USE 拒绝；否则删主行+绑定行）。
+   *  void 端点：emptyAsSuccess 兼容空体 2xx（mock empty() 惯例）与 Result 信封双口径。 */
+  remove: (packageId: string): Promise<void> =>
+    apiFetch<void>(`/admin/v1/system/tenant-packages/${packageId}`, { method: 'DELETE' }, { emptyAsSuccess: true }),
+};
 
 /** 角色视图（契约对齐 AdminRoleView；id/version/parentId 序列化为字符串或空）。
  *  REQ-20261114-120104 扩展 dataScope 列（角色-数据范围模型，五档枚举）。 */
@@ -341,11 +403,13 @@ export const systemApi = {
   /** 租户分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */
   tenantList: (page: number, size: number, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminTenantView>> =>
     apiFetch<PageResult<AdminTenantView>>(`/admin/v1/system/tenants?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
-  /** 新建租户（tenantCode 全局唯一且不可改；REQ-20261117-025200 增联系人/联系电话/有效期，可空=长期）。 */
-  tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null }): Promise<AdminTenantView> =>
+  /** 新建租户（tenantCode 全局唯一且不可改；REQ-20261117-025200 增联系人/联系电话/有效期，可空=长期；
+   *  REQ-20261121-022910 增可选 packageId（可空=不受限）。 */
+  tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; packageId?: number | null }): Promise<AdminTenantView> =>
     apiJson<AdminTenantView>('/admin/v1/system/tenants', 'POST', payload),
-  /** 租户改名/备注/联系人/有效期（version 乐观锁）。 */
-  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; version: string }): Promise<AdminTenantView> =>
+  /** 租户改名/备注/联系人/有效期（version 乐观锁）；REQ-20261121-022910 增可选 packageId
+   *  （number|null，null=解除绑定；向后兼容——不传即不改动既有绑定）。 */
+  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; packageId?: number | null; version: string }): Promise<AdminTenantView> =>
     apiJson<AdminTenantView>(`/admin/v1/system/tenants/${tenantId}`, 'PUT', payload),
   /** 停用/启用租户（停用即"删除"，FR-007）。 */
   tenantStatus: (tenantId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>

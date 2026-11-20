@@ -1,0 +1,42 @@
+/** zh-CN 租户套餐资源包（REQ-20261121-022910：套餐管理页 + 租户页套餐选择）。 */
+export const tenantPackages = {
+  title: '套餐管理',
+  search: { placeholder: '搜索套餐名称' },
+  reload: '刷新套餐清单',
+  create: '新建套餐',
+  total: '共 {{total}} 个套餐',
+  columns: {
+    packageName: '套餐名称',
+    remark: '备注',
+    menuCount: '菜单数',
+    tenantCount: '租户数',
+    createdAt: '创建时间',
+    updatedAt: '更新时间',
+    actions: '操作',
+  },
+  actions: {
+    edit: '编辑',
+    delete: '删除',
+    deleteConfirm: '确认删除套餐 {{name}}？删除后绑定关系一并清除。',
+  },
+  form: {
+    createTitle: '新建套餐',
+    editTitle: '编辑套餐：{{name}}',
+    name: '套餐名称',
+    nameRequired: '请输入套餐名称',
+    namePlaceholder: '套餐显示名称',
+    remark: '备注',
+    menus: '绑定菜单',
+    menusLoading: '菜单树加载中…',
+    menusEmpty: '暂无可绑定菜单',
+    menusExtra: '勾选即绑定；租户菜单下发时自动补全祖先链并级联按钮权限',
+    created: '套餐已创建',
+    updated: '套餐已更新',
+  },
+  errors: {
+    loadFailed: '套餐清单加载失败',
+    detailFailed: '套餐详情加载失败',
+    deleteFailed: '删除套餐失败',
+  },
+  deleted: '套餐 {{name}} 已删除',
+};

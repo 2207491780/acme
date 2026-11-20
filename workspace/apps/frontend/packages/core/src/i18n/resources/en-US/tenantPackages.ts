@@ -1,0 +1,42 @@
+/** en-US tenant-package resource pack (REQ-20261121-022910: packages page + tenant package select). */
+export const tenantPackages = {
+  title: 'Tenant Packages',
+  search: { placeholder: 'Search package name' },
+  reload: 'Refresh tenant packages',
+  create: 'New package',
+  total: '{{total}} packages in total',
+  columns: {
+    packageName: 'Package name',
+    remark: 'Remark',
+    menuCount: 'Menus',
+    tenantCount: 'Tenants',
+    createdAt: 'Created',
+    updatedAt: 'Updated',
+    actions: 'Actions',
+  },
+  actions: {
+    edit: 'Edit',
+    delete: 'Delete',
+    deleteConfirm: 'Delete package {{name}}? Its menu bindings will be removed as well.',
+  },
+  form: {
+    createTitle: 'New tenant package',
+    editTitle: 'Edit tenant package: {{name}}',
+    name: 'Package name',
+    nameRequired: 'Please enter the package name',
+    namePlaceholder: 'Display name of the package',
+    remark: 'Remark',
+    menus: 'Bound menus',
+    menusLoading: 'Loading menu tree…',
+    menusEmpty: 'No menus available for binding',
+    menusExtra: 'Checked menus are bound; ancestor chains are completed and buttons cascade when menus are served to tenants',
+    created: 'Package created',
+    updated: 'Package updated',
+  },
+  errors: {
+    loadFailed: 'Failed to load tenant packages',
+    detailFailed: 'Failed to load package detail',
+    deleteFailed: 'Failed to delete the package',
+  },
+  deleted: 'Package {{name}} deleted',
+};

@@ -8,6 +8,8 @@ export const tenants = {
   columns: {
     tenantCode: 'Tenant code',
     tenantName: 'Tenant name',
+    package: 'Package',
+    unlimited: 'Unrestricted',
     status: 'Status',
     contact: 'Contact',
     expiresAt: 'Expires at',
@@ -27,6 +29,9 @@ export const tenants = {
     nameRequired: 'Please enter the tenant name',
     namePlaceholder: 'Tenant display name',
     remark: 'Remark',
+    package: 'Package',
+    packagePlaceholder: 'Select a package; leave empty for unrestricted',
+    packageExtra: 'Once bound, menus served to the tenant are limited to the package menus (with ancestor completion and button cascade)',
     contact: 'Contact',
     contactPlaceholder: 'Contact person name',
     contactPhone: 'Contact phone',

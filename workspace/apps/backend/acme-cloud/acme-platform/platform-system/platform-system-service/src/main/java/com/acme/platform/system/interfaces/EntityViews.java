@@ -113,11 +113,11 @@ public final class EntityViews {
                 permission.getVersion());
     }
 
-    /** 租户视图（REQ-20261117-025200 增补联系人 / 有效期透传）。 */
+    /** 租户视图（REQ-20261117-025200 增补联系人 / 有效期透传；REQ-20261121-022910 增补套餐绑定）。 */
     public static AdminTenantView tenantView(SysTenant tenant) {
         return new AdminTenantView(tenant.getId(), tenant.getTenantCode(), tenant.getTenantName(),
                 tenant.getStatus(), tenant.getRemark(), tenant.getContactName(), tenant.getContactPhone(),
-                tenant.getExpiresAt(), tenant.getCreatedAt(), tenant.getVersion());
+                tenant.getExpiresAt(), tenant.getCreatedAt(), tenant.getVersion(), tenant.getPackageId());
     }
 
     public static AdminDictTypeView dictTypeView(SysDictType type) {
