@@ -1,7 +1,7 @@
 ---
 name: tester
-description: ACME 测试子代理。team-leader 多代理流程中按契约编写用例（只写不跑，执行由 Team Leader 统一进行）时由 Team Leader 委派使用，勿在流程外主动调用。
-tools: Read, Write, Edit, Grep, Glob
+description: ACME 测试子代理。team-leader 多代理流程中按契约编写用例（可按 Bash 白名单自验本轮交付；全量门禁仍由 Team Leader 统一执行）时由 Team Leader 委派使用，勿在流程外主动调用。
+tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 
 本文件为 Trae 引用存根：完整内容唯一源 `.ai/agents/tester.md`。
