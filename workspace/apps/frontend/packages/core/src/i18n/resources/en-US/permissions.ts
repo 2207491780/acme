@@ -1,15 +1,22 @@
 /** en-US permissions resource pack (p3-admin). */
 export const permissions = {
   title: 'Permissions',
+  search: { placeholder: 'Search permissions' },
+  filters: { status: 'Filter by status', httpMethod: 'Filter by HTTP method' },
   reload: 'Refresh permissions',
   create: 'New permission',
   total: '{{total}} permissions in total',
   columns: {
     permissionCode: 'Permission code',
     permissionName: 'Permission name',
+    status: 'Status',
     permissionType: 'Type',
     http: 'HTTP',
     actions: 'Actions',
+  },
+  status: {
+    enabled: 'Enabled',
+    disabled: 'Disabled',
   },
   actions: {
     edit: 'Edit',

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { App, Button, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { ApiError, Auth, systemApi, useCrud, useMeStore, type AdminPermissionView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
+import { FilterField } from '../components/FilterPanel';
 
 const { Text } = Typography;
 
@@ -12,6 +13,9 @@ const CODE_PATTERN = /^[a-z][a-z0-9:-]*$/;
 
 /** 权限类型选项（value 恒为 API；label 文案经 i18n）。 */
 const PERMISSION_TYPE_API = 'API';
+
+/** HTTP 方法筛选项（与后端动词白名单一致）。 */
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
 interface PermissionFormValues {
   permissionCode: string;
@@ -21,16 +25,31 @@ interface PermissionFormValues {
   httpPath?: string;
 }
 
+/** 进阶筛选集合（keyword 走 crud.search，不进 filters）。 */
+type PermissionFilters = {
+  status?: 'ENABLED' | 'DISABLED';
+  httpMethod?: string;
+};
+
 /** 权限点管理（p3-admin）：平台级目录分页 + 新建/编辑/删除。
  *  code 创建后不可改；编辑仅名称与方法/路径（version 乐观锁）。
- *  迁移 CRUD 范本（REQ-20261114-120101）：useCrud + CrudTable/CrudFormModal；本页无关键字搜索（searchable=false）。 */
+ *  迁移 CRUD 范本（REQ-20261114-120101）：useCrud + CrudTable/CrudFormModal。
+ *  筛选（REQ-20261120-214653）：关键字搜索 + 状态/HTTP 方法下拉（交互形态参照 UsersPage：
+ *  搜索框在基础行、下拉在进阶筛选区）+ 重置入口；空值不进查询串。 */
 export function PermissionsPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const permissions = useMeStore((s) => s.me?.permissions) ?? [];
+  const filterId = useId();
 
-  const crud = useCrud<AdminPermissionView>({
-    fetchPage: ({ page, size, signal }) => systemApi.permissionList(page, size, signal),
+  const crud = useCrud<AdminPermissionView, PermissionFilters>({
+    fetchPage: ({ page, size, keyword, filters, signal }) =>
+      systemApi.permissionList(page, size, signal, {
+        keyword: keyword || undefined,
+        status: filters?.status,
+        httpMethod: filters?.httpMethod,
+      }),
+    filters: { status: undefined, httpMethod: undefined },
     permissions,
     pageSize: 50,
     errorMessage: t('permissions.errors.loadFailed'),
@@ -89,9 +108,23 @@ export function PermissionsPage() {
     }
   };
 
+  /** 重置入口（REQ-20261120-214653 AC-12）：清空关键字与全部筛选并回到第 1 页（同一事件批合并为一次拉取）。 */
+  const resetAll = () => {
+    crud.search('');
+    crud.resetFilters();
+  };
+
   const columns: ColumnsType<AdminPermissionView> = [
     { title: t('permissions.columns.permissionCode'), dataIndex: 'permissionCode', key: 'permissionCode', minWidth: 220, fixed: 'left' },
     { title: t('permissions.columns.permissionName'), dataIndex: 'permissionName', key: 'permissionName', minWidth: 160 },
+    {
+      title: t('permissions.columns.status'), dataIndex: 'status', key: 'status', minWidth: 90,
+      render: (status: AdminPermissionView['status']) => (
+        <Tag color={status === 'ENABLED' ? 'success' : 'default'}>
+          {status === 'ENABLED' ? t('permissions.status.enabled') : t('permissions.status.disabled')}
+        </Tag>
+      ),
+    },
     { title: t('permissions.columns.permissionType'), dataIndex: 'permissionType', key: 'permissionType', minWidth: 110, render: (v: string) => <Tag>{v}</Tag> },
     {
       title: t('permissions.columns.http'), key: 'http', minWidth: 220,
@@ -116,17 +149,49 @@ export function PermissionsPage() {
 
   return (
     <>
-      <CrudTable<AdminPermissionView>
+      <CrudTable<AdminPermissionView, PermissionFilters>
         crud={crud}
         tableKey="permissions"
         title={t('permissions.title')}
         columns={columns}
-        searchable={false}
+        searchPlaceholder={t('permissions.search.placeholder')}
         reloadAriaLabel={t('permissions.reload')}
         createPermission="system:permission:create"
         createLabel={t('permissions.create')}
         onCreate={openCreate}
         totalText={(total) => t('permissions.total', { total })}
+        filters={(
+          <>
+            <FilterField label={t('permissions.columns.status')} htmlFor={`${filterId}-status`}>
+              <Select<'ENABLED' | 'DISABLED'>
+                id={`${filterId}-status`}
+                allowClear
+                aria-label={t('permissions.filters.status')}
+                placeholder={t('permissions.filters.status')}
+                options={[
+                  { value: 'ENABLED', label: t('permissions.status.enabled') },
+                  { value: 'DISABLED', label: t('permissions.status.disabled') },
+                ]}
+                value={crud.filters.status}
+                onChange={(value) => crud.setFilter('status', value)}
+              />
+            </FilterField>
+            <FilterField label={t('permissions.form.httpMethod')} htmlFor={`${filterId}-http-method`}>
+              <Select
+                id={`${filterId}-http-method`}
+                allowClear
+                aria-label={t('permissions.filters.httpMethod')}
+                placeholder={t('permissions.filters.httpMethod')}
+                options={HTTP_METHODS.map((m) => ({ value: m, label: m }))}
+                value={crud.filters.httpMethod}
+                onChange={(value) => crud.setFilter('httpMethod', value)}
+              />
+            </FilterField>
+            <div className="filter-field">
+              <Button onClick={resetAll}>{t('common.actions.reset')}</Button>
+            </div>
+          </>
+        )}
       />
 
       <CrudFormModal<PermissionFormValues>
@@ -170,7 +235,7 @@ export function PermissionsPage() {
             <Select
               allowClear
               placeholder={t('permissions.form.httpMethodPlaceholder')}
-              options={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) => ({ value: m, label: m }))}
+              options={HTTP_METHODS.map((m) => ({ value: m, label: m }))}
             />
           </Form.Item>
           <Form.Item name="httpPath" label={t('permissions.form.httpPath')} style={{ flex: 1 }} rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}>

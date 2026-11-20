@@ -126,9 +126,12 @@ export const positions: AdminPositionView[] = [
   { id: '5003', positionCode: 'qa_eng', positionName: '测试工程师', status: 'ENABLED', createdAt: '2026-01-03T00:00:00Z', version: '0' },
 ];
 
+/** 权限点样例（REQ-20261120-214653）：含 1 条 DISABLED（用户删除）保证状态筛选可演示命中；
+ *  httpMethod 覆盖 GET/POST/DELETE 三动词。 */
 export const permissions: AdminPermissionView[] = [
   { id: '1', permissionCode: 'system:user:list', permissionName: '用户查询', permissionType: 'API', httpMethod: 'GET', httpPath: '/admin/v1/system/users', status: 'ENABLED', version: '0' },
   { id: '2', permissionCode: 'system:user:create', permissionName: '用户新建', permissionType: 'API', httpMethod: 'POST', httpPath: '/admin/v1/system/users', status: 'ENABLED', version: '0' },
+  { id: '3', permissionCode: 'system:user:delete', permissionName: '用户删除', permissionType: 'API', httpMethod: 'DELETE', httpPath: '/admin/v1/system/users/{id}', status: 'DISABLED', version: '0' },
 ];
 
 export const menus: AdminMenuView[] = [

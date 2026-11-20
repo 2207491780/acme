@@ -3,6 +3,7 @@ package com.acme.platform.system.interfaces;
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
 import com.acme.framework.audit.support.AuditLog;
+import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminPermissionCreate;
 import com.acme.platform.system.api.dto.AdminPermissionUpdate;
@@ -11,6 +12,7 @@ import com.acme.platform.system.application.PermissionUseCase;
 import com.acme.platform.system.domain.SysPermission;
 import com.acme.platform.system.security.RequirePermission;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,8 +40,12 @@ public class PermissionController {
     @RequirePermission(SystemPermissions.PERMISSION_LIST)
     public PageResult<AdminPermissionView> list(@RequestParam(defaultValue = "1") Integer page,
                                                 @RequestParam(defaultValue = "20") Integer size,
-                                                @RequestParam(required = false) String keyword) {
-        PageResult<SysPermission> result = permissionUseCase.page(new PageQuery(page, size), keyword);
+                                                @RequestParam(required = false) String keyword,
+                                                @RequestParam(required = false) EnableStatus status,
+                                                @Pattern(regexp = "GET|POST|PUT|PATCH|DELETE")
+                                                @RequestParam(required = false) String httpMethod) {
+        PageResult<SysPermission> result =
+                permissionUseCase.page(new PageQuery(page, size), keyword, status, httpMethod);
         return new PageResult<>(
                 result.records().stream().map(EntityViews::permissionView).toList(), result.total());
     }

@@ -237,6 +237,15 @@ export interface AdminPermissionView {
   version: string;
 }
 
+/** 权限点列表筛选参数（REQ-20261120-214653；全部可选，多条件 AND）。
+ *  keyword 沿用后端既有 permissionCode/permissionName 模糊匹配口径（不扩展 httpPath）；
+ *  status=httpMethod 均精确匹配（httpMethod 为 null 的记录不命中任何动词筛选）。 */
+export interface PermissionListFilters {
+  keyword?: string;
+  status?: 'ENABLED' | 'DISABLED';
+  httpMethod?: string;
+}
+
 /** 部门视图（契约对齐 AdminDeptView；树形 children 嵌套，含禁用态；id/parentId/version 字符串）。 */
 export interface AdminDeptView {
   id: string;
@@ -395,9 +404,11 @@ export const systemApi = {
     apiJson<AdminRoleView>(`/admin/v1/system/roles/${roleId}/data-scope`, 'PUT', { dataScope, deptIds: deptIds.map(Number) }),
 
   // ---- 权限点管理（PERMISSION_* 权限码，P3） ----
-  /** 权限点分页（平台级目录；signal 为可选取消信号，透传 apiFetch）。 */
-  permissionList: (page = 1, size = 50, signal?: AbortSignal): Promise<PageResult<AdminPermissionView>> =>
-    apiFetch<PageResult<AdminPermissionView>>(`/admin/v1/system/permissions?page=${page}&size=${size}`, { signal }),
+  /** 权限点分页（平台级目录；signal 为可选取消信号，透传 apiFetch）。
+   *  filters（REQ-20261120-214653）为可选筛选：空值不进查询串（buildQuery）；不传=现状行为
+   *  （RolesPage 无参调用不变，signal 保持第 3 参位置）。 */
+  permissionList: (page = 1, size = 50, signal?: AbortSignal, filters?: PermissionListFilters): Promise<PageResult<AdminPermissionView>> =>
+    apiFetch<PageResult<AdminPermissionView>>(`/admin/v1/system/permissions?${buildQuery({ page, size, keyword: filters?.keyword, status: filters?.status, httpMethod: filters?.httpMethod })}`, { signal }),
   /** 新建权限点（permissionCode 模式 ^[a-z][a-z0-9:-]*$）。 */
   permissionCreate: (payload: { permissionCode: string; permissionName: string; permissionType: string; httpMethod?: string; httpPath?: string }): Promise<AdminPermissionView> =>
     apiJson<AdminPermissionView>('/admin/v1/system/permissions', 'POST', payload),

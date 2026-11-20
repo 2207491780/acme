@@ -255,9 +255,9 @@ class SystemIntegrationTest {
                 new com.acme.platform.system.api.dto.AdminPermissionUpdate("改名", "PUT", "/it/y",
                         created.getVersion()));
         assertThat(updated.getPermissionName()).isEqualTo("改名");
-        assertThat(permissionUseCase.page(new PageQuery(1, 50), "it:perm:x").total()).isEqualTo(1L);
+        assertThat(permissionUseCase.page(new PageQuery(1, 50), "it:perm:x", null, null).total()).isEqualTo(1L);
         permissionUseCase.delete(created.getId());
-        assertThat(permissionUseCase.page(new PageQuery(1, 50), "it:perm:x").total()).isZero();
+        assertThat(permissionUseCase.page(new PageQuery(1, 50), "it:perm:x", null, null).total()).isZero();
     }
 
     @Test

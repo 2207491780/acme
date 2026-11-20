@@ -5,6 +5,7 @@ import com.acme.common.contract.PageResult;
 import com.acme.common.core.BizException;
 import com.acme.framework.web.support.WebError;
 import com.acme.platform.system.SystemError;
+import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.dto.AdminPermissionCreate;
 import com.acme.platform.system.api.dto.AdminPermissionUpdate;
 import com.acme.platform.system.domain.SysPermission;
@@ -68,13 +69,38 @@ public class PermissionUseCase {
         });
     }
 
-    /** 分页查询（编码 / 名称模糊；平台目录全租户可见）。 */
-    public PageResult<SysPermission> page(PageQuery query, String keyword) {
+    /** 分页查询（编码 / 名称模糊；status / httpMethod 精确过滤，REQ-20261120-214653；平台目录全租户可见）。 */
+    public PageResult<SysPermission> page(PageQuery query, String keyword, EnableStatus status, String httpMethod) {
         QueryWrapper wrapper = QueryWrapper.create();
+        boolean hasCondition = false;
         if (keyword != null && !keyword.isBlank()) {
             String like = "%" + keyword.trim() + "%";
-            wrapper.where(SysPermission::getPermissionCode).like(like)
+            // 关键字 OR 组括号分组（与 status/httpMethod 等外部条件 AND 组合语义正确；参照 UserUseCase.page 惯用式）
+            java.util.function.Consumer<QueryWrapper> keywordGroup = sub -> sub
+                    .where(SysPermission::getPermissionCode).like(like)
                     .or(SysPermission::getPermissionName).like(like);
+            if (hasCondition) {
+                wrapper.and(keywordGroup);
+            } else {
+                wrapper.where(keywordGroup);
+            }
+            hasCondition = true;
+        }
+        if (status != null) {
+            if (hasCondition) {
+                wrapper.and(SysPermission::getStatus).eq(status);
+            } else {
+                wrapper.where(SysPermission::getStatus).eq(status);
+            }
+            hasCondition = true;
+        }
+        if (httpMethod != null) {
+            // http_method 为 NULL 的记录不命中任何动词筛选（SQL 相等比较对 NULL 恒为假）
+            if (hasCondition) {
+                wrapper.and(SysPermission::getHttpMethod).eq(httpMethod);
+            } else {
+                wrapper.where(SysPermission::getHttpMethod).eq(httpMethod);
+            }
         }
         wrapper.orderBy(SysPermission::getPermissionCode, true);
         return permissionRepository.findAll(wrapper, query.page(), query.size());

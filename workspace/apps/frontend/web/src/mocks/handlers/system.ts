@@ -1,6 +1,6 @@
 import { http } from 'msw';
 import { findUnknownWatermarkPlaceholders } from '@acme/core';
-import type { AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
+import type { AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
@@ -589,8 +589,16 @@ export const systemHandlers = [
   http.put('/admin/v1/system/roles/:roleId/menus', () => empty()),
 
   // ---- 权限点 ----
+  // REQ-20261120-214653：keyword（permissionCode/permissionName 模糊，与 users/roles handler 同口径）
+  // + status/httpMethod 精确匹配，多条件 AND；httpMethod 为 null 的记录不命中任何动词筛选；
+  // 不携带参数=现状全量分页（total=过滤后命中总数）。
   http.get('/admin/v1/system/permissions', ({ request }) => {
-    const rows = store.permissions;
+    const params = urlOf(request).searchParams;
+    const status = params.get('status');
+    const httpMethod = params.get('httpMethod');
+    const rows = matchKeyword(store.permissions, keywordOf(request), (p: AdminPermissionView) => [p.permissionCode, p.permissionName])
+      .filter((p) => (status ? p.status === status : true))
+      .filter((p) => (httpMethod ? p.httpMethod === httpMethod : true));
     return page(slicePage(rows, pagingOf(request)), rows.length);
   }),
   http.post('/admin/v1/system/permissions', async ({ request }) => {

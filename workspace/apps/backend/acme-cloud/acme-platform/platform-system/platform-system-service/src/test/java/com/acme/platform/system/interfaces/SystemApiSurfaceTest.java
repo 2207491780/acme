@@ -351,10 +351,10 @@ class SystemApiSurfaceTest {
         when(useCase.create(any())).thenReturn(permission);
         when(useCase.get(any())).thenReturn(permission);
         when(useCase.update(any(), any())).thenReturn(permission);
-        when(useCase.page(any(), any())).thenReturn(new PageResult<>(List.of(permission), 1L));
+        when(useCase.page(any(), any(), any(), any())).thenReturn(new PageResult<>(List.of(permission), 1L));
         PermissionController controller = new PermissionController(useCase);
 
-        assertThat(controller.list(1, 20, null).total()).isEqualTo(1L);
+        assertThat(controller.list(1, 20, null, null, null).total()).isEqualTo(1L);
         assertThat(controller.create(new AdminPermissionCreate("system:user:create", "创建用户",
                 PermissionType.API, "POST", "/y")).permissionCode()).isEqualTo("system:user:create");
         assertThat(controller.get(9L).permissionName()).isEqualTo("创建用户");

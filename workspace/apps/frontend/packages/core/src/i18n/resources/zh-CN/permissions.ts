@@ -1,15 +1,22 @@
 /** zh-CN 权限点管理资源包（p3-admin）。 */
 export const permissions = {
   title: '权限点管理',
+  search: { placeholder: '搜索权限点' },
+  filters: { status: '状态过滤', httpMethod: '按 HTTP 方法筛选' },
   reload: '刷新权限点清单',
   create: '新建权限点',
   total: '共 {{total}} 个权限点',
   columns: {
     permissionCode: '权限代码',
     permissionName: '权限名称',
+    status: '状态',
     permissionType: '类型',
     http: 'HTTP',
     actions: '操作',
+  },
+  status: {
+    enabled: '启用',
+    disabled: '停用',
   },
   actions: {
     edit: '编辑',
