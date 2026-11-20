@@ -252,6 +252,42 @@ tr.dragging { opacity: 0.45; }
 .tabbar-tab:hover .tabbar-close, .tabbar-tab:focus-within .tabbar-close, .tabbar-tab-active .tabbar-close { opacity: 1; }
 .tabbar-close:hover, .tabbar-pin:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 
+/* REQ-20261120-104022 页签条滚动增强＋hover 结构化预览卡：判定逻辑收敛 tabbarScroll.ts 纯函数，
+   溢出/到头判定 rAF 节流、仅布尔翻转写 class（.tabbar-overflowing / tabbar-shadow-visible /
+   :disabled），不进 React state；色值一律走变量层镜像 core，无硬编码 */
+.tabbar-wrap { position: relative; flex: none; }
+/* 相邻页签 1px 分隔符（AC-1）：纯 CSS 相邻兄弟伪元素（::before 归属右侧签，定位在 2px gap 中央），
+   不新增 DOM 节点；hover/激活签的相邻分隔符淡出（AC-2，Chrome 降噪惯例） */
+.tabbar-tab + .tabbar-tab::before { content: ''; position: absolute; left: -1.5px; top: 50%; width: 1px; height: 16px; transform: translateY(-50%); background: var(--border); opacity: 1; transition: opacity 0.2s; }
+.tabbar-tab:hover::before, .tabbar-tab-active::before, .tabbar-tab:hover + .tabbar-tab::before, .tabbar-tab-active + .tabbar-tab::before { opacity: 0; }
+/* 端点渐变阴影（AC-17）：DOM 常驻、默认 opacity 0；溢出端由 tabbar-shadow-visible 翻转显示，
+   ≤300ms opacity 过渡；不拦截指针 */
+.tabbar-shadow { position: absolute; top: 0; bottom: 1px; width: 24px; pointer-events: none; z-index: 1; opacity: 0; transition: opacity 0.2s; }
+.tabbar-shadow-left { left: 0; background: linear-gradient(to right, var(--surface) 35%, transparent); }
+.tabbar-shadow-right { right: 0; background: linear-gradient(to left, var(--surface) 35%, transparent); }
+.tabbar-shadow-visible { opacity: 1; }
+/* 步进箭头（AC-4/6/7）：DOM 常驻、非溢出 display:none（溢出 class 由 rAF 判定翻转）；
+   溢出时两端浮层显示，到头端 disabled 置灰且点击无效 */
+.tabbar-arrow { position: absolute; top: 0; bottom: 1px; z-index: 2; display: none; align-items: center; justify-content: center; width: 20px; padding: 0; border: none; background: var(--surface); color: var(--text-2); font-size: 11px; cursor: pointer; transition: color 0.2s, background 0.2s; }
+.tabbar-arrow-left { left: 0; }
+.tabbar-arrow-right { right: 0; }
+.tabbar-overflowing ~ .tabbar-arrow { display: inline-flex; }
+.tabbar-arrow:hover { color: var(--text); background: var(--surface-2); }
+.tabbar-arrow:disabled { color: var(--muted); opacity: 0.45; cursor: default; }
+.tabbar-arrow:disabled:hover { color: var(--muted); background: var(--surface); }
+/* hover 结构化预览卡（AC-10~15）：Portal 挂 body 的弹层容器（antd 弹层风格：圆角/发丝描边/
+   柔和阴影），fixed 定位＋出现/消失 opacity/transform 过渡（≤300ms） */
+.tab-preview-layer { position: fixed; z-index: 1000; min-width: 200px; max-width: 320px; opacity: 0; transform: translateY(-2px); animation: tab-preview-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.tab-preview-closing { animation: none; opacity: 0; transform: translateY(-2px); transition: opacity 0.2s, transform 0.2s; }
+@keyframes tab-preview-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
+.tab-preview-card { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); box-shadow: var(--shadow-pop); }
+.tab-preview-head { display: flex; align-items: flex-start; gap: 8px; }
+.tab-preview-icon { flex: none; display: inline-flex; align-items: center; color: var(--text-2); font-size: 14px; }
+.tab-preview-label { flex: 1; min-width: 0; color: var(--text); font-size: 13px; line-height: 1.4; word-break: break-word; }
+.tab-preview-actions { display: flex; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.tab-preview-action { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 8px; border: none; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 12px; font-family: inherit; cursor: pointer; transition: background 0.2s, color 0.2s; }
+.tab-preview-action:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+
 /* 命令面板（REQ-20261119-063129 契约⑤）：三节列表（页面/页签/快捷操作），行可点目标 ≥44px */
 .command-palette-section { padding: 10px 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase; color: var(--muted); }
 .command-palette-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 6px 10px; border: none; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }

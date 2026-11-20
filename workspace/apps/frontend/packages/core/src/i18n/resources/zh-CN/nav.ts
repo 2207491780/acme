@@ -32,6 +32,9 @@ export const nav = {
     refresh: '刷新',
     pin: '固定',
     unpin: '取消固定',
+    // REQ-20261120-104022：页签条溢出滚动两端步进箭头的无障碍名称
+    scrollStart: '向左滚动',
+    scrollEnd: '向右滚动',
   },
   commandPalette: {
     open: '命令面板（Ctrl+K）',

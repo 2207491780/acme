@@ -32,6 +32,9 @@ export const nav = {
     refresh: 'Refresh',
     pin: 'Pin',
     unpin: 'Unpin',
+    // REQ-20261120-104022: accessible names for the tabbar overflow step arrows
+    scrollStart: 'Scroll left',
+    scrollEnd: 'Scroll right',
   },
   commandPalette: {
     open: 'Command palette (Ctrl+K)',
