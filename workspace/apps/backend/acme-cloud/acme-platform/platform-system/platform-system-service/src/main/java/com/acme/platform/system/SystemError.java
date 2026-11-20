@@ -142,7 +142,10 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     TENANT_PACKAGE_MENU_INVALID(SystemErrorCodes.TENANT_PACKAGE_MENU_INVALID, "套餐菜单集包含不存在的菜单", 409),
 
     /** 绑定套餐租户分配套餐范围外菜单被拒绝（确认⑤，写入整体拒绝，403 对齐 MESSAGE_FORBIDDEN 先例）。 */
-    TENANT_PACKAGE_MENU_FORBIDDEN(SystemErrorCodes.TENANT_PACKAGE_MENU_FORBIDDEN, "不能分配套餐范围外的菜单", 403);
+    TENANT_PACKAGE_MENU_FORBIDDEN(SystemErrorCodes.TENANT_PACKAGE_MENU_FORBIDDEN, "不能分配套餐范围外的菜单", 403),
+
+    /** 套餐能力集非法（capabilities 含未知能力码，REQ-20261121-054613 确认④；对齐 14-0004 引用集先例）。 */
+    TENANT_CAPABILITY_INVALID(SystemErrorCodes.TENANT_CAPABILITY_INVALID, "套餐能力集包含未知的能力", 409);
 
     private final String code;
     private final String defaultMessage;

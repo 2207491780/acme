@@ -1,5 +1,6 @@
 import type {
   AdminAuditEventView,
+  AdminCapabilityView,
   AdminDeptView,
   AdminDictItemView,
   AdminDictTypeView,
@@ -72,6 +73,9 @@ export const me = {
   menus: [] as AdminMenuView[],
   // REQ-20261117-180000：本人部门名（deptId 4001=总部；水印 {deptName} 供给）
   deptName: '总部',
+  // REQ-20261121-054613：本人租户生效能力码集（acme 未绑套餐=全量启用码种子缺省；
+  // handler 按 meCapabilities() 依绑定态实时装配覆盖）
+  capabilities: ['platform:workflow', 'platform:scheduler'],
 };
 
 /** 租户系统配置种子（REQ-20261116-230354）：缺省=水印开/闲置锁屏关/version "0"；
@@ -215,6 +219,20 @@ export const tenantPackages: AdminTenantPackageView[] = [
 export const tenantPackageMenus: Record<string, number[]> = {
   '1': [1, 11],
   '2': [1, 11, 12, 46, 47, 48, 49],
+};
+
+/** 服务能力目录 fixtures（REQ-20261121-054613 V25 种子同款 2 行：platform:workflow 工作流 /
+ *  platform:scheduler 调度中心，均 ENABLED——即 WS-BPM/WS-JOB 的租户开通位；平台级只读目录）。 */
+export const capabilities: AdminCapabilityView[] = [
+  { id: '1', capabilityCode: 'platform:workflow', capabilityName: '工作流', status: 'ENABLED' },
+  { id: '2', capabilityCode: 'platform:scheduler', capabilityName: '调度中心', status: 'ENABLED' },
+];
+
+/** 套餐-能力绑定演示态（sys_tenant_package_capability：套餐 id → 能力码全集，uk(package_id,capability_id)；
+ *  REQ-20261121-054613 全量替换语义——基础版开通工作流、全功能版全开；租户生效集=绑定套餐能力集）。 */
+export const tenantPackageCapabilities: Record<string, string[]> = {
+  '1': ['platform:workflow'],
+  '2': ['platform:workflow', 'platform:scheduler'],
 };
 
 export const dictItems: AdminDictItemView[] = [

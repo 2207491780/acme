@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { App, Button, Form, Input, Popconfirm, Space, Tag, Tree, Typography } from 'antd';
+import { App, Button, Checkbox, Form, Input, Popconfirm, Space, Tag, Tree, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,6 +10,7 @@ import {
   tenantPackageApi,
   useCrud,
   useMeStore,
+  type AdminCapabilityView,
   type AdminMenuView,
   type AdminTenantPackageView,
 } from '@acme/core';
@@ -22,7 +23,9 @@ interface PackageFormValues {
 }
 
 /** 套餐管理（REQ-20261121-022910）：分页/搜索/新建/编辑/删除；
- *  新建/编辑弹窗 = 名称 + 备注 + 菜单树勾选（Tree checkable，数据源 GET 既有菜单树接口）；
+ *  新建/编辑弹窗 = 名称 + 备注 + 菜单树勾选（Tree checkable，数据源 GET 既有菜单树接口）
+ *  + 能力勾选（REQ-20261121-054613：Checkbox 组，数据源 GET /system/capabilities 能力目录，
+ *  label=能力名+码副文本；提交随 capabilities 全量替换，编辑从 detail 回显）；
  *  删除 Popconfirm，被租户绑定时后端拒绝（TENANT_PACKAGE_IN_USE）→ 展示后端业务错误文案。 */
 export function TenantPackagesPage() {
   const { t } = useTranslation();
@@ -43,6 +46,9 @@ export function TenantPackagesPage() {
   const [form] = Form.useForm<PackageFormValues>();
   // 菜单树勾选（弹窗表单态）：Tree 勾选集（string 口径），提交转 number[] 全量提交
   const [checkedMenuIds, setCheckedMenuIds] = useState<string[]>([]);
+  // 能力勾选（REQ-20261121-054613 弹窗表单态）：勾选集=能力码 string[]（提交原样随 capabilities
+  // 全量替换；创建清空、编辑从 detail.capabilities 回显）
+  const [checkedCapabilities, setCheckedCapabilities] = useState<string[]>([]);
   // 乐观锁版本（REQ-20261121-022910 round 2：后端 AdminTenantPackageUpdate @NotNull version——
   // 编辑随体提交；创建不带 version）。回显优先取 detail.version（新于列表行），列表行兜底；
   // round 2 补：wire 字符串口径（FR-024 Long→string），内部 Number() 归一容错，提交 String 化。
@@ -67,26 +73,72 @@ export function TenantPackagesPage() {
       .finally(() => setMenuTreeLoading(false));
   };
 
+  // 能力目录数据源（REQ-20261121-054613 GET /system/capabilities，仅启用行）：与菜单树同款
+  // 懒加载一次策略（弹窗复用）；目录为套餐管理面组成，读权限挂 system:tenant-package:list（无新权限点）。
+  // 运行时容错：data 缺失/非数组（异常信封/旧口径 wire）→ 空目录降级展示，不设成功缓存（可重开重试）
+  const [capabilities, setCapabilities] = useState<AdminCapabilityView[]>([]);
+  const [capabilitiesLoading, setCapabilitiesLoading] = useState(false);
+  const capabilitiesRef = useRef<AdminCapabilityView[] | null>(null);
+  const loadCapabilities = () => {
+    if (capabilitiesRef.current) {
+      setCapabilities(capabilitiesRef.current);
+      return;
+    }
+    setCapabilitiesLoading(true);
+    systemApi.capabilityList()
+      .then((rows) => {
+        if (!Array.isArray(rows)) {
+          return;
+        }
+        capabilitiesRef.current = rows;
+        setCapabilities(rows);
+      })
+      .catch(() => setCapabilities([]))
+      .finally(() => setCapabilitiesLoading(false));
+  };
+
+  // 能力 checkbox 组选项：label = 能力名 + 码副文本（目录码为契约主键，直出原文不译）
+  const capabilityOptions = useMemo(
+    () => capabilities.map((item) => ({
+      value: item.capabilityCode,
+      label: (
+        <span>
+          {item.capabilityName}
+          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+            {item.capabilityCode}
+          </Typography.Text>
+        </span>
+      ),
+    })),
+    [capabilities],
+  );
+
   const openCreate = () => {
     setEditing(null);
     setCheckedMenuIds([]);
+    setCheckedCapabilities([]);
     setEditVersion(null);
     form.resetFields();
     loadMenuTree();
+    loadCapabilities();
     setCreating(true);
   };
 
   const openEdit = (record: AdminTenantPackageView) => {
     setEditing(record);
     setCheckedMenuIds([]);
+    setCheckedCapabilities([]);
     setEditVersion(record.version != null && Number.isFinite(Number(record.version)) ? Number(record.version) : null);
     form.setFieldsValue({ packageName: record.packageName, remark: record.remark ?? undefined });
     loadMenuTree();
+    loadCapabilities();
     setCreating(false);
-    // 详情回填勾选集与乐观锁版本（AdminTenantPackageDetail.menuIds/version）；失败提示并保留弹窗（可重开重试）
+    // 详情回填勾选集与乐观锁版本（AdminTenantPackageDetail.menuIds/capabilities/version）；失败提示并保留弹窗（可重开重试）
     tenantPackageApi.detail(record.id)
       .then((detail) => {
         setCheckedMenuIds(detail.menuIds.map(String));
+        // wire 容错：capabilities 缺失（旧口径 wire）按空集回显；能力码原样透传不归一
+        setCheckedCapabilities(Array.isArray(detail.capabilities) ? detail.capabilities : []);
         // wire 容错：version 缺失/非法（异常信封或旧口径）不回填，提交时缺 version 由后端 400 明示
         const detailVersion = Number(detail.version);
         if (Number.isFinite(detailVersion)) {
@@ -100,11 +152,13 @@ export function TenantPackagesPage() {
 
   const submit = async () => {
     const values = await form.validateFields();
-    // 公共段：name/remark/menuIds；编辑另随体 version（round 2 乐观锁，创建不带 version）
+    // 公共段：name/remark/menuIds/capabilities（REQ-20261121-054613 创建/更新均显式提交，
+    // 全量替换口径同 menuIds）；编辑另随体 version（round 2 乐观锁，创建不带 version）
     const base = {
       packageName: values.packageName.trim(),
       remark: values.remark?.trim() || null,
       menuIds: checkedMenuIds.map(Number),
+      capabilities: checkedCapabilities,
     };
     setSubmitting(true);
     try {
@@ -123,7 +177,7 @@ export function TenantPackagesPage() {
       setCreating(false);
       crud.reload();
     } catch (ex: unknown) {
-      // 业务失败（TENANT_PACKAGE_DUPLICATE/MENU_INVALID 等）→ 透出后端信封文案
+      // 业务失败（TENANT_PACKAGE_DUPLICATE/MENU_INVALID/TENANT_CAPABILITY_INVALID 等）→ 透出后端信封文案
       message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
     } finally {
       setSubmitting(false);
@@ -211,6 +265,20 @@ export function TenantPackagesPage() {
           ) : (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {menuTreeLoading ? t('tenantPackages.form.menusLoading') : t('tenantPackages.form.menusEmpty')}
+            </Typography.Text>
+          )}
+        </Form.Item>
+        {/* 能力组（REQ-20261121-054613）：Checkbox 组勾选能力码，语义同菜单勾选（全量替换） */}
+        <Form.Item label={t('tenantPackages.form.capabilities')} extra={t('tenantPackages.form.capabilitiesExtra')}>
+          {capabilities.length > 0 ? (
+            <Checkbox.Group
+              value={checkedCapabilities}
+              onChange={(values) => setCheckedCapabilities(values as string[])}
+              options={capabilityOptions}
+            />
+          ) : (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {capabilitiesLoading ? t('tenantPackages.form.capabilitiesLoading') : t('tenantPackages.form.capabilitiesEmpty')}
             </Typography.Text>
           )}
         </Form.Item>

@@ -136,6 +136,9 @@ public final class SystemErrorCodes {
     /** 绑定套餐租户分配套餐范围外菜单被拒绝（403；REQ-20261121-022910）。 */
     public static final String TENANT_PACKAGE_MENU_FORBIDDEN = "platform-system-14-0005";
 
+    /** 套餐能力集非法（capabilities 含未知能力码，409；REQ-20261121-054613，对齐 14-0004 引用集先例）。 */
+    public static final String TENANT_CAPABILITY_INVALID = "platform-system-14-0006";
+
     private SystemErrorCodes() {
     }
 }

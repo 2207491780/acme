@@ -39,6 +39,7 @@ import com.acme.platform.system.application.PermissionUseCase;
 import com.acme.platform.system.application.PositionUseCase;
 import com.acme.platform.system.application.RoleUseCase;
 import com.acme.platform.system.application.SystemConfigUseCase;
+import com.acme.platform.system.application.SystemCapabilityUseCase;
 import com.acme.platform.system.application.TenantInitUseCase;
 import com.acme.platform.system.application.TenantUseCase;
 import com.acme.platform.system.application.UserUseCase;
@@ -447,7 +448,8 @@ class SystemApiSurfaceTest {
         when(menuUseCase.listAll()).thenReturn(List.of(
                 menuWithId(1L, 0L, "系统管理", MenuType.DIRECTORY),
                 menuWithId(2L, 1L, "用户管理", MenuType.MENU)));
-        MeController controller = new MeController(useCase, menuUseCase);
+        // REQ-20261121-054613 编译兼容（签名扩展）：能力解析桩（未绑定上下文缺省空集，不改既有断言语义）
+        MeController controller = new MeController(useCase, menuUseCase, mock(SystemCapabilityUseCase.class));
         AdminMeView me = controller.me();
         assertThat(me.user().username()).isEqualTo("admin");
         assertThat(me.roles()).containsExactly("super_admin");

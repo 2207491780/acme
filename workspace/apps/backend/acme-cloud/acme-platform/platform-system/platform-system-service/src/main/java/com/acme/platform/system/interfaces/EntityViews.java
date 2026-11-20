@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.util.TreeBuilder;
 import com.acme.common.util.TreeNode;
+import com.acme.platform.system.domain.SysCapability;
 import com.acme.platform.system.domain.SysConfig;
 import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysDictItem;
@@ -14,6 +15,7 @@ import com.acme.platform.system.domain.SysPosition;
 import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysTenant;
 import com.acme.platform.system.domain.SysUser;
+import com.acme.platform.system.api.dto.AdminCapabilityView;
 import com.acme.platform.system.api.dto.AdminDeptView;
 import com.acme.platform.system.api.dto.AdminDictItemView;
 import com.acme.platform.system.api.dto.AdminDictTypeView;
@@ -48,6 +50,12 @@ public final class EntityViews {
                 user.getPhone(), user.getDeptId(), user.getPositionId(),
                 user.getStatus(), user.getBuiltIn(), roleIds,
                 user.getCreatedAt(), user.getUpdatedAt(), user.getVersion(), user.getAvatarUrl());
+    }
+
+    /** 服务能力目录视图（REQ-20261121-054613 确认③④；能力是套餐管理面的组成部分）。 */
+    public static AdminCapabilityView capabilityView(SysCapability capability) {
+        return new AdminCapabilityView(capability.getId(), capability.getCapabilityCode(),
+                capability.getCapabilityName(), capability.getStatus());
     }
 
     /** 部门平铺视图（无 children，创建 / 修改 / 详情响应用；REQ-20261114-120104）。 */

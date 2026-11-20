@@ -706,7 +706,7 @@ describe('REQ20261121043502 恢复默认含 v3（AC-8）', () => {
       expect(blobPrefs()?.semanticColors ?? null).toEqual({ success: null, warning: null, danger: null });
     });
     expect(currentThemeConfig().token?.borderRadius).toBe(resolveRadiusTokens('medium'));
-  }, 30000);
+  });
 });
 
 describe('REQ20261121043502 抽屉 v3 文案双语覆盖（AC-9）', () => {

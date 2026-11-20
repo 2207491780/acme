@@ -17,6 +17,7 @@ import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysRoleDept;
 import com.acme.platform.system.domain.SysRoleMenu;
 import com.acme.platform.system.domain.SysTenant;
+import com.acme.platform.system.infrastructure.repository.SysCapabilityRepository;
 import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysPermissionRepository;
@@ -25,6 +26,7 @@ import com.acme.platform.system.infrastructure.repository.SysRoleMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysRolePermissionRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
 import com.acme.platform.system.infrastructure.client.TenantSessionRevocationGateway;
+import com.acme.platform.system.infrastructure.repository.SysTenantPackageCapabilityRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantPackageMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantPackageRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantRepository;
@@ -508,11 +510,13 @@ class RoleAndTenantUseCaseTest {
     }
 
     /** REQ-20261121-022910 编译兼容（签名扩展）：套餐域透传桩（真实用例 + 空仓储桩；本文件不绑
-     *  TenantContext → 套餐范围守卫/下发过滤原样透传，既有断言语义不变）。 */
+     *  TenantContext → 套餐范围守卫/下发过滤原样透传，既有断言语义不变）；
+     *  REQ-20261121-054613 编译兼容（签名扩展）：能力域空仓储桩同款口径。 */
     private static TenantPackageUseCase packageScope() {
         return new TenantPackageUseCase(mock(SysTenantPackageRepository.class),
                 mock(SysTenantPackageMenuRepository.class), mock(SysTenantRepository.class),
-                mock(SysMenuRepository.class));
+                mock(SysMenuRepository.class), mock(SysCapabilityRepository.class),
+                mock(SysTenantPackageCapabilityRepository.class));
     }
 
     private static RoleUseCase roleUseCase(SysRoleRepository roleRepository) {

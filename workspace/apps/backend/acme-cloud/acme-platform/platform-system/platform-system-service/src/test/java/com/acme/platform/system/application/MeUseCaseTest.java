@@ -5,8 +5,10 @@ import com.acme.common.core.BizException;
 import com.acme.platform.system.SystemError;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.domain.SysUser;
+import com.acme.platform.system.infrastructure.repository.SysCapabilityRepository;
 import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysMenuRepository;
+import com.acme.platform.system.infrastructure.repository.SysTenantPackageCapabilityRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantPackageMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantPackageRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantRepository;
@@ -42,11 +44,13 @@ class MeUseCaseTest {
     private final MenuUseCase menuUseCase = mock(MenuUseCase.class);
     private final PermissionDecisionService decisionService = mock(PermissionDecisionService.class);
     // REQ-20261121-022910 编译兼容（签名扩展）：套餐域透传桩——真实用例 + 空仓储桩，
-    // 本文件不绑 TenantContext，dispatchMenuIds 原样透传（未绑定套餐基线口径），不改既有断言语义
+    // 本文件不绑 TenantContext，dispatchMenuIds 原样透传（未绑定套餐基线口径），不改既有断言语义；
+    // REQ-20261121-054613 编译兼容（签名扩展）：能力域空仓储桩同款口径（capabilities 缺省=空集，无绑定交互）
     private final MeUseCase useCase = new MeUseCase(userRepository, deptRepository,
             menuUseCase, decisionService, new TenantPackageUseCase(mock(SysTenantPackageRepository.class),
             mock(SysTenantPackageMenuRepository.class), mock(SysTenantRepository.class),
-            mock(SysMenuRepository.class)));
+            mock(SysMenuRepository.class), mock(SysCapabilityRepository.class),
+            mock(SysTenantPackageCapabilityRepository.class)));
 
     @AfterEach
     void cleanup() {

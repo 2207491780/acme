@@ -9,6 +9,7 @@ import com.acme.platform.system.domain.SysPermission;
 import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.domain.SysRoleMenu;
 import com.acme.platform.system.domain.SysRolePermission;
+import com.acme.platform.system.infrastructure.repository.SysCapabilityRepository;
 import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysPermissionRepository;
@@ -16,6 +17,7 @@ import com.acme.platform.system.infrastructure.repository.SysRoleDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysRolePermissionRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
+import com.acme.platform.system.infrastructure.repository.SysTenantPackageCapabilityRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantPackageMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantPackageRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantRepository;
@@ -64,13 +66,15 @@ class RoleUseCaseBindMenusButtonSyncTest {
     private final SysMenuRepository menuRepository = mock(SysMenuRepository.class);
 
     // REQ-20261121-022910 编译兼容（签名扩展）：套餐域透传桩（真实用例 + 空仓储桩，本文件不绑
-    // TenantContext → assignableMenuScope 返回 null 不受限，既有断言语义不变）
+    // TenantContext → assignableMenuScope 返回 null 不受限，既有断言语义不变）；
+    // REQ-20261121-054613 编译兼容（签名扩展）：能力域空仓储桩同款口径
     private final RoleUseCase useCase = new RoleUseCase(roleRepository, mock(SysUserRoleRepository.class),
             rolePermissionRepository, roleMenuRepository, permissionRepository, menuRepository,
             mock(SysDeptRepository.class), mock(SysRoleDeptRepository.class),
             new TenantPackageUseCase(mock(SysTenantPackageRepository.class),
                     mock(SysTenantPackageMenuRepository.class), mock(SysTenantRepository.class),
-                    mock(SysMenuRepository.class)));
+                    mock(SysMenuRepository.class), mock(SysCapabilityRepository.class),
+                    mock(SysTenantPackageCapabilityRepository.class)));
 
     private void stubRole() {
         stubRole(false);

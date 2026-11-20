@@ -1,4 +1,5 @@
-/** zh-CN 租户套餐资源包（REQ-20261121-022910：套餐管理页 + 租户页套餐选择）。 */
+/** zh-CN 租户套餐资源包（REQ-20261121-022910：套餐管理页 + 租户页套餐选择；
+ *  REQ-20261121-054613 扩展 form.capabilities* 能力开关文案）。 */
 export const tenantPackages = {
   title: '套餐管理',
   search: { placeholder: '搜索套餐名称' },
@@ -30,6 +31,10 @@ export const tenantPackages = {
     menusLoading: '菜单树加载中…',
     menusEmpty: '暂无可绑定菜单',
     menusExtra: '勾选即绑定；租户菜单下发时自动补全祖先链并级联按钮权限',
+    capabilities: '能力',
+    capabilitiesLoading: '能力目录加载中…',
+    capabilitiesEmpty: '暂无可开通能力',
+    capabilitiesExtra: '勾选即开通；保存时全量替换，租户生效能力=绑定套餐的能力集',
     created: '套餐已创建',
     updated: '套餐已更新',
   },

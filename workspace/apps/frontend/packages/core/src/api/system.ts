@@ -58,13 +58,18 @@ export interface MenuTreeFilters {
 }
 
 /** 当前登录者视图（契约对齐 AdminMeView；FR-008 权限声明与菜单可见性依据）。
- *  REQ-20261117-180000 扩展 deptName（本人部门名，水印 {deptName} 供给；未分配/缺失=null）。 */
+ *  REQ-20261117-180000 扩展 deptName（本人部门名，水印 {deptName} 供给；未分配/缺失=null）。
+ *  REQ-20261121-054613 扩展 capabilities（当前租户生效能力码集——绑定套餐=套餐能力集、
+ *  未绑定=全部启用码；web 特性开关数据源，UI 消费点=WS-BPM/WS-JOB 页面（后续轮次）；
+ *  可选=旧口径 wire 兼容，meStore 整体透传不消费）。 */
 export interface AdminMeView {
   user: AdminUserView;
   roles: string[];
   permissions: string[];
   menus: AdminMenuView[];
   deptName: string | null;
+  /** 生效能力码集（REQ-20261121-054613；缺失=旧口径未扩展，消费方按无能力降级）。 */
+  capabilities?: string[];
 }
 
 /** 本人资料更新载荷（REQ-20261119-082531 契约①）：nickname 必填 ≤32；email 可空（email 格式）、
@@ -234,9 +239,23 @@ export interface AdminTenantPackageView {
   updatedAt: string;
 }
 
-/** 套餐详情（=视图 + menuIds 绑定菜单全集；REQ-20261121-022910 §套餐详情）。 */
+/** 服务能力目录视图（REQ-20261121-054613 契约对齐 AdminCapabilityView；id wire 字符串口径 FR-024）。
+ *  平台级目录（无 tenant_id）、无版本列（只读参考数据，不走乐观锁编辑）；
+ *  GET /capabilities 仅返回 status=ENABLED 行（后端过滤），排序 id asc。 */
+export interface AdminCapabilityView {
+  id: string;
+  capabilityCode: string;
+  capabilityName: string;
+  status: 'ENABLED' | 'DISABLED';
+}
+
+/** 套餐详情（=视图 + menuIds 绑定菜单全集；REQ-20261121-022910 §套餐详情）。
+ *  REQ-20261121-054613 扩展 capabilities（绑定能力码全集——编辑表单回显数据源，
+ *  保存时随 capabilities 全量替换）。 */
 export interface AdminTenantPackageDetail extends AdminTenantPackageView {
   menuIds: number[];
+  /** 绑定能力码全集（REQ-20261121-054613；能力码字符串口径，非 id）。 */
+  capabilities: string[];
 }
 
 /** 套餐创建/更新载荷（REQ-20261121-022910 §套餐创建/更新：packageName 必填 ≤128、remark ≤255、
@@ -248,12 +267,17 @@ export interface TenantPackageSavePayload {
   packageName: string;
   remark?: string | null;
   menuIds: number[];
+  /** 服务能力码集（REQ-20261121-054613；全量替换口径同 menuIds——前端创建/更新均显式提交，
+   *  缺省/null=空集；未知能力码 → TENANT_CAPABILITY_INVALID 14-0006）。 */
+  capabilities?: string[];
   /** 乐观锁版本（仅更新携带，字符串 wire 口径；后端 @NotNull，缺失→400 参数错误）。 */
   version?: string;
 }
 
 /** 租户套餐接口域（REQ-20261121-022910 五端点；权限点 system:tenant-package:list/create/update/delete，
- *  detail 归 list 权限；业务错误码 TENANT_PACKAGE_DUPLICATE/NOT_FOUND/IN_USE/MENU_INVALID）。 */
+ *  detail 归 list 权限；业务错误码 TENANT_PACKAGE_DUPLICATE/NOT_FOUND/IN_USE/MENU_INVALID）。
+ *  REQ-20261121-054613 扩展：create/update 随体 capabilities 全量替换（未知码 → TENANT_CAPABILITY_INVALID），
+ *  detail 回传 capabilities 绑定全集。 */
 export const tenantPackageApi = {
   /** 套餐分页（keyword 对 packageName 模糊匹配；排序 id asc；signal 为可选取消信号，透传 apiFetch）。 */
   page: (params: { page?: number; size?: number; keyword?: string } = {}, signal?: AbortSignal): Promise<PageResult<AdminTenantPackageView>> =>
@@ -398,6 +422,13 @@ export const systemApi = {
   /** 更新当前租户配置（upsert；version 乐观锁，成功 version+1）。 */
   configUpdate: (payload: AdminSystemConfigUpdate): Promise<AdminSystemConfigView> =>
     apiJson<AdminSystemConfigView>('/admin/v1/system/config', 'PUT', payload),
+
+  // ---- 服务能力目录（REQ-20261121-054613 TENANT-2；权限挂既有 system:tenant-package:list——
+  //      能力是套餐管理面的组成部分，无新权限点/菜单节点） ----
+  /** 能力目录（全量启用列表：仅 status=ENABLED、排序 id asc；套餐表单「能力」checkbox 组数据源）。
+   *  signal 为可选取消信号，透传 apiFetch。 */
+  capabilityList: (signal?: AbortSignal): Promise<AdminCapabilityView[]> =>
+    apiFetch<AdminCapabilityView[]>('/admin/v1/system/capabilities', { signal }),
 
   // ---- 租户管理（TENANT_* 权限码） ----
   /** 租户分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */

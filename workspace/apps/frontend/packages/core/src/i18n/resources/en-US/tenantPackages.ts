@@ -1,4 +1,5 @@
-/** en-US tenant-package resource pack (REQ-20261121-022910: packages page + tenant package select). */
+/** en-US tenant-package resource pack (REQ-20261121-022910: packages page + tenant package select;
+ * REQ-20261121-054613 adds form.capabilities* capability gate strings). */
 export const tenantPackages = {
   title: 'Tenant Packages',
   search: { placeholder: 'Search package name' },
@@ -30,6 +31,10 @@ export const tenantPackages = {
     menusLoading: 'Loading menu tree…',
     menusEmpty: 'No menus available for binding',
     menusExtra: 'Checked menus are bound; ancestor chains are completed and buttons cascade when menus are served to tenants',
+    capabilities: 'Capabilities',
+    capabilitiesLoading: 'Loading capability catalog…',
+    capabilitiesEmpty: 'No capabilities available',
+    capabilitiesExtra: 'Checked capabilities are granted; saving replaces the full set, and bound tenants get the package capability set',
     created: 'Package created',
     updated: 'Package updated',
   },

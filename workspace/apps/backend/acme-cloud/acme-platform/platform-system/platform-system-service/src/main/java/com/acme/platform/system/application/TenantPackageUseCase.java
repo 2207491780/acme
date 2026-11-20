@@ -11,11 +11,15 @@ import com.acme.platform.system.api.dto.AdminTenantPackageCreate;
 import com.acme.platform.system.api.dto.AdminTenantPackageDetailView;
 import com.acme.platform.system.api.dto.AdminTenantPackageUpdate;
 import com.acme.platform.system.api.dto.AdminTenantPackageView;
+import com.acme.platform.system.domain.SysCapability;
 import com.acme.platform.system.domain.SysMenu;
 import com.acme.platform.system.domain.SysTenant;
 import com.acme.platform.system.domain.SysTenantPackage;
+import com.acme.platform.system.domain.SysTenantPackageCapability;
 import com.acme.platform.system.domain.SysTenantPackageMenu;
+import com.acme.platform.system.infrastructure.repository.SysCapabilityRepository;
 import com.acme.platform.system.infrastructure.repository.SysMenuRepository;
+import com.acme.platform.system.infrastructure.repository.SysTenantPackageCapabilityRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantPackageMenuRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantPackageRepository;
 import com.acme.platform.system.infrastructure.repository.SysTenantRepository;
@@ -32,10 +36,14 @@ import java.util.stream.Collectors;
 
 /**
  * 租户套餐用例（REQ-20261121-022910）：套餐 CRUD + 菜单绑定全量替换 + 下发/分配范围解析。
+ * REQ-20261121-054613：增能力绑定全量替换（capabilities 与 menuIds 同口径——创建/更新缺省=空集、
+ * 未知能力码 → TENANT_CAPABILITY_INVALID、详情回传能力码全集）。
  * 参考模型（RuoYi-Vue-Plus/yudao）：套餐绑定菜单集 → 租户绑定套餐 → 下发时实时过滤
  * （确认②：无物化同步，套餐变更对存量绑定租户即时生效）。
- * 平台级目录表（sys_tenant_package / sys_tenant_package_menu）无租户列、不过滤、无旁路需求；
- * 绑定表全量重绑走物理解绑旁路（uk(package_id,menu_id) 决定，sys_role_menu 同款口径）。
+ * 平台级目录表（sys_tenant_package / sys_tenant_package_menu / sys_capability /
+ * sys_tenant_package_capability）无租户列、不过滤、无旁路需求；
+ * 绑定表全量重绑走物理解绑旁路（uk(package_id,menu_id) / uk(package_id,capability_id) 决定，
+ * sys_role_menu 同款口径）。
  */
 @Service
 public class TenantPackageUseCase {
@@ -44,15 +52,21 @@ public class TenantPackageUseCase {
     private final SysTenantPackageMenuRepository packageMenuRepository;
     private final SysTenantRepository tenantRepository;
     private final SysMenuRepository menuRepository;
+    private final SysCapabilityRepository capabilityRepository;
+    private final SysTenantPackageCapabilityRepository packageCapabilityRepository;
 
     public TenantPackageUseCase(SysTenantPackageRepository packageRepository,
                                 SysTenantPackageMenuRepository packageMenuRepository,
                                 SysTenantRepository tenantRepository,
-                                SysMenuRepository menuRepository) {
+                                SysMenuRepository menuRepository,
+                                SysCapabilityRepository capabilityRepository,
+                                SysTenantPackageCapabilityRepository packageCapabilityRepository) {
         this.packageRepository = packageRepository;
         this.packageMenuRepository = packageMenuRepository;
         this.tenantRepository = tenantRepository;
         this.menuRepository = menuRepository;
+        this.capabilityRepository = capabilityRepository;
+        this.packageCapabilityRepository = packageCapabilityRepository;
     }
 
     // ---- CRUD（五端点承载，确认④）----
@@ -74,28 +88,30 @@ public class TenantPackageUseCase {
                 .toList(), result.total());
     }
 
-    /** 套餐详情（视图 + menuIds 全集；不存在 → TENANT_PACKAGE_NOT_FOUND）。 */
+    /** 套餐详情（视图 + menuIds/capabilities 全集；不存在 → TENANT_PACKAGE_NOT_FOUND）。 */
     public AdminTenantPackageDetailView detail(Long packageId) {
         SysTenantPackage pkg = get(packageId);
         List<Long> menuIds = packageMenuIdsOf(packageId).stream().toList();
         return new AdminTenantPackageDetailView(pkg.getId(), pkg.getPackageName(), pkg.getRemark(),
                 (long) menuIds.size(), tenantCountOf(packageId), pkg.getCreatedAt(), pkg.getVersion(),
-                menuIds);
+                menuIds, packageCapabilityCodesOf(packageId));
     }
 
-    /** 套餐创建（重名拒绝；menuIds 存在性校验；绑定行随主行同事务落库）。 */
+    /** 套餐创建（重名拒绝；menuIds/capabilities 存在性校验；绑定行随主行同事务落库）。 */
     @Transactional
     public AdminTenantPackageView create(AdminTenantPackageCreate request) {
         if (packageRepository.existsByPackageName(request.packageName())) {
             throw new BizException(SystemError.TENANT_PACKAGE_DUPLICATE);
         }
         Set<Long> menuIds = requireExistingMenus(request.menuIds());
+        List<Long> capabilityIds = requireKnownCapabilityIds(request.capabilities());
         SysTenantPackage pkg = packageRepository.save(new SysTenantPackage(request.packageName(), request.remark()));
         replaceBindings(pkg.getId(), menuIds);
+        replaceCapabilityBindings(pkg.getId(), capabilityIds);
         return view(pkg, menuIds.size(), 0L);
     }
 
-    /** 套餐更新（同创建校验；menuIds 全量替换绑定表；未绑定租户计数实时读取）。 */
+    /** 套餐更新（同创建校验；menuIds/capabilities 全量替换绑定表；未绑定租户计数实时读取）。 */
     @Transactional
     public AdminTenantPackageView update(Long packageId, AdminTenantPackageUpdate request) {
         SysTenantPackage pkg = get(packageId);
@@ -106,16 +122,18 @@ public class TenantPackageUseCase {
             throw new BizException(SystemError.TENANT_PACKAGE_DUPLICATE);
         }
         Set<Long> menuIds = requireExistingMenus(request.menuIds());
+        List<Long> capabilityIds = requireKnownCapabilityIds(request.capabilities());
         pkg.setPackageName(request.packageName());
         pkg.setRemark(request.remark());
         packageRepository.save(pkg);
         replaceBindings(packageId, menuIds);
+        replaceCapabilityBindings(packageId, capabilityIds);
         return view(pkg, menuIds.size(), tenantCountOf(packageId));
     }
 
     /**
      * 套餐删除（被任一租户绑定 → TENANT_PACKAGE_IN_USE 不删除；否则删绑定行 + 主行）：
-     * 主行软删除（AuditBase 逻辑删除），绑定行走物理解绑旁路（防软删行占唯一键，7.2.7 口径）。
+     * 主行软删除（AuditBase 逻辑删除），菜单/能力绑定行均走物理解绑旁路（防软删行占唯一键，7.2.7 口径）。
      */
     @Transactional
     public void delete(Long packageId) {
@@ -124,6 +142,7 @@ public class TenantPackageUseCase {
             throw new BizException(SystemError.TENANT_PACKAGE_IN_USE);
         }
         packageMenuRepository.deleteByPackageId(packageId);
+        packageCapabilityRepository.deleteByPackageId(packageId);
         packageRepository.delete(pkg);
     }
 
@@ -218,6 +237,29 @@ public class TenantPackageUseCase {
         return distinct;
     }
 
+    /**
+     * capabilities 校验 → 能力 id 序列（REQ-20261121-054613 确认④）：null/缺省=空集（全量替换口径）；
+     * 空白项或目录启用集（status=ENABLED）之外的码 → TENANT_CAPABILITY_INVALID；重复码去重。
+     */
+    private List<Long> requireKnownCapabilityIds(List<String> capabilityCodes) {
+        if (capabilityCodes == null || capabilityCodes.isEmpty()) {
+            return List.of();
+        }
+        Set<String> distinct = new LinkedHashSet<>();
+        for (String code : capabilityCodes) {
+            if (code == null || code.isBlank()) {
+                throw new BizException(SystemError.TENANT_CAPABILITY_INVALID);
+            }
+            distinct.add(code);
+        }
+        Map<String, Long> idByCode = capabilityRepository.findEnabledByCodeIn(distinct).stream()
+                .collect(Collectors.toMap(SysCapability::getCapabilityCode, SysCapability::getId));
+        if (idByCode.size() != distinct.size()) {
+            throw new BizException(SystemError.TENANT_CAPABILITY_INVALID);
+        }
+        return distinct.stream().map(idByCode::get).toList();
+    }
+
     /** 绑定表全量替换（物理解绑 + 批量落库，同事务；确认④"全量替换"语义）。 */
     private void replaceBindings(Long packageId, Set<Long> menuIds) {
         packageMenuRepository.deleteByPackageId(packageId);
@@ -225,6 +267,28 @@ public class TenantPackageUseCase {
             packageMenuRepository.saveAll(menuIds.stream()
                     .map(menuId -> new SysTenantPackageMenu(packageId, menuId)).toList());
         }
+    }
+
+    /** 能力绑定表全量替换（物理解绑 + 批量落库，同事务；REQ-20261121-054613 确认④，菜单同款口径）。 */
+    private void replaceCapabilityBindings(Long packageId, List<Long> capabilityIds) {
+        packageCapabilityRepository.deleteByPackageId(packageId);
+        if (!capabilityIds.isEmpty()) {
+            packageCapabilityRepository.saveAll(capabilityIds.stream()
+                    .map(capabilityId -> new SysTenantPackageCapability(packageId, capabilityId)).toList());
+        }
+    }
+
+    /** 套餐能力码全集（目录启用集内，findEnabledByIdIn 按 id asc 稳定输出；详情回传用）。 */
+    private List<String> packageCapabilityCodesOf(Long packageId) {
+        List<Long> capabilityIds = packageCapabilityRepository.findByPackageId(packageId).stream()
+                .map(SysTenantPackageCapability::getCapabilityId)
+                .toList();
+        if (capabilityIds.isEmpty()) {
+            return List.of();
+        }
+        return capabilityRepository.findEnabledByIdIn(capabilityIds).stream()
+                .map(SysCapability::getCapabilityCode)
+                .toList();
     }
 
     private Set<Long> packageMenuIdsOf(Long packageId) {
