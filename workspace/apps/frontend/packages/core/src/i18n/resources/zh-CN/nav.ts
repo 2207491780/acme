@@ -38,7 +38,7 @@ export const nav = {
   },
   commandPalette: {
     open: '命令面板（Ctrl+K）',
-    placeholder: '搜索页面 / 页签 / 快捷操作…',
+    placeholder: '搜索导航菜单',
     sections: {
       pages: '页面',
       tabs: '页签',
@@ -46,10 +46,20 @@ export const nav = {
     },
     empty: '无匹配结果',
     createRelease: '新建发布单',
+    // REQ-20261120-120552：搜索历史节（空态/清空钮）与底部键位提示条
+    history: '搜索历史',
+    noHistory: '没有搜索历史',
+    clearHistory: '清空',
+    hints: {
+      select: '选择',
+      navigate: '导航',
+      close: '关闭',
+    },
   },
   header: {
     toggleNav: '切换导航',
-    searchPlaceholder: '搜索发布单 / 版本 / 负责人…',
+    // REQ-20261120-120552：顶栏搜索框语义收敛为「搜索」（快捷搜索入口指向命令面板）
+    searchPlaceholder: '搜索',
     runtimeWeb: 'Web 端',
     runtimeDesktop: 'Electron 桌面端',
     runtimeMobile: '移动端',

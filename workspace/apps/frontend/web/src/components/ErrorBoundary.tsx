@@ -3,6 +3,7 @@ import { Alert, Button, Space, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@acme/core';
+import { removeAppBoot } from '../boot';
 
 /**
  * React 错误边界（REQ-20261114-120103，裁决③）：
@@ -71,6 +72,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   override componentDidCatch(error: Error): void {
     // 边界兜底即上报口径：控制台留档（含堆栈），后续接入上报通道时在此扩展
     console.error('[ErrorBoundary]', error);
+    // 首屏遮罩兜底（REQ-20261120-120552 AC-3）：边界生效即移除 splash，不残留卡死白屏；
+    // 幂等（首帧入口已调度时静默），最短展示/淡出时长由 removeAppBoot 统一裁决
+    removeAppBoot();
   }
 
   private readonly reset = () => {

@@ -489,6 +489,9 @@ export function App() {
   // 导航按权限过滤（p2-admin）：me 未加载时先全部隐藏，加载后按权限码展示（fail-closed）
   const permittedNav = NAV.filter((n) => !n.permission || (me?.permissions.includes(n.permission) ?? false))
     .map((n) => ({ path: n.path, icon: n.icon, label: t(n.labelKey) }));
+  // 命令面板「页面」节权限过滤（REQ-20261120-120552 AC-10）：与上方 permittedNav 同源判定
+  // （me.permissions；me 未加载 fail-closed，无 permission 码的路由恒可见）
+  const hasPermission = (code?: string): boolean => !code || (me?.permissions.includes(code) ?? false);
   // 底栏/点击守卫用的扁平叶子集合（动态取菜单树叶子；回退取静态 NAV）
   const navEntries: NavEntry[] = dynamicNav?.entries ?? permittedNav;
   const leafPaths = new Set(navEntries.map((n) => n.path));
@@ -776,6 +779,7 @@ export function App() {
           setPaletteOpen(false);
           handleLogout();
         }}
+        hasPermission={hasPermission}
       />
     </>
   );

@@ -8,8 +8,101 @@
   <title>ACME · 多端前端交付台</title>
   <link rel="icon" href="/icon.svg">
   <link rel="manifest" href="/manifest.webmanifest">
+  <style>
+    /* 首屏加载遮罩（REQ-20261120-120552 AC-1/AC-4）：index.html 静态内联零外部请求，
+       色值内联镜像 core 令牌（global.css 加载前即生效），随 data-theme/data-accent 切换。
+       淡出由 src/boot.ts 加 .app-boot-fade class（opacity 过渡 400ms）后整节点移除。 */
+    #app-boot {
+      position: fixed;
+      inset: 0;
+      z-index: 2000; /* 高于 antd Modal(1000)/Toast(1010)：加载期遮住一切 */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px; /* SPACING.lg */
+      background: #14161a; /* DARK_NEUTRALS.bg */
+      color: #e8eaed; /* DARK_NEUTRALS.text */
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; /* FONT_FAMILY.sans */
+      opacity: 1;
+      transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1); /* MOTION.easing，≤400ms 契约 */
+      --app-boot-accent: #5aa7a0; /* ACCENTS.cyan（默认） */
+      --app-boot-track: rgba(255, 255, 255, 0.14);
+    }
+    #app-boot.app-boot-fade { opacity: 0; pointer-events: none; }
+    html[data-theme="light"] #app-boot { background: #f7f8f9; color: #1c2128; --app-boot-track: rgba(20, 24, 32, 0.12); }
+    html[data-accent="blue"] #app-boot { --app-boot-accent: #6f92c4; }
+    html[data-accent="violet"] #app-boot { --app-boot-accent: #9188c9; }
+    html[data-accent="magenta"] #app-boot { --app-boot-accent: #bd7ba0; }
+    html[data-accent="amber"] #app-boot { --app-boot-accent: #cfa14f; }
+    html[data-accent="acid"] #app-boot { --app-boot-accent: #9db56a; }
+    html[data-motion="false"] #app-boot { transition: none; }
+    #app-boot-mark { width: 72px; height: 72px; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16); }
+    #app-boot-mark svg { display: block; width: 100%; height: 100%; }
+    #app-boot-spinner {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 3px solid var(--app-boot-track);
+      border-top-color: var(--app-boot-accent);
+      animation: app-boot-spin 1.2s linear infinite; /* MOTION.tick 节奏 */
+    }
+    @keyframes app-boot-spin { to { transform: rotate(360deg); } }
+    #app-boot-title { font-size: 16px; font-weight: 700; letter-spacing: 1.6px; }
+    #app-boot-sub { font-size: 11px; letter-spacing: 2.4px; text-transform: uppercase; color: #8b929e; }
+    @media (prefers-reduced-motion: reduce) { #app-boot { transition: none; } #app-boot-spinner { animation: none; } }
+  </style>
 </head>
 <body>
+  <div id="app-boot" role="status">
+    <div id="app-boot-mark">
+      <!-- 品牌标（public/icon.svg 内联副本：加载期不发外部请求） -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+        <defs>
+          <linearGradient id="app-boot-brand-g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#5aa7a0"/>
+            <stop offset="1" stop-color="#4a8983"/>
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="112" fill="#14161a"/>
+        <rect x="40" y="40" width="432" height="432" rx="92" fill="url(#app-boot-brand-g)"/>
+        <path d="M150 356V156l106 122 106-122v200" fill="none" stroke="#000000" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div id="app-boot-spinner" aria-hidden="true"></div>
+    <div id="app-boot-title">ACME 交付台</div>
+    <div id="app-boot-sub">FRONTEND OPS</div>
+  </div>
+  <script>
+    /* 首屏引导脚本（REQ-20261120-120552 AC-1/AC-4）：
+       ① 记录遮罩出现时间戳（data-boot-at，removeAppBoot 据此裁决最短展示 300ms）；
+       ② 首绘前应用持久化主题（与 useStore 持久化同一设置键：@acme/core STORAGE_KEY
+          'acme.frontend.ops.v1' → state.settings.{theme,accent}），消除暗→亮闪变；
+       两段独立 try/catch 静默失败（隐私模式/存储损坏/JSON 非法 → 沿用 dark+cyan 默认）。 */
+    (function () {
+      try {
+        var boot = document.getElementById('app-boot');
+        if (boot) {
+          boot.setAttribute('data-boot-at', String(Date.now()));
+        }
+      } catch (error) { /* 静默 */ }
+      try {
+        var THEMES = { dark: true, light: true };
+        var ACCENTS = { cyan: true, blue: true, violet: true, magenta: true, amber: true, acid: true };
+        var raw = localStorage.getItem('acme.frontend.ops.v1');
+        if (raw) {
+          var settings = JSON.parse(raw).settings;
+          var root = document.documentElement;
+          if (settings && THEMES[settings.theme]) {
+            root.setAttribute('data-theme', settings.theme);
+          }
+          if (settings && ACCENTS[settings.accent]) {
+            root.setAttribute('data-accent', settings.accent);
+          }
+        }
+      } catch (error) { /* 静默 */ }
+    })();
+  </script>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

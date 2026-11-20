@@ -38,7 +38,7 @@ export const nav = {
   },
   commandPalette: {
     open: 'Command palette (Ctrl+K)',
-    placeholder: 'Search pages / tabs / quick actions…',
+    placeholder: 'Search navigation menu',
     sections: {
       pages: 'Pages',
       tabs: 'Tabs',
@@ -46,10 +46,20 @@ export const nav = {
     },
     empty: 'No results',
     createRelease: 'New release',
+    // REQ-20261120-120552: search history section (empty state / clear button) and bottom key hints bar
+    history: 'Search history',
+    noHistory: 'No search history',
+    clearHistory: 'Clear',
+    hints: {
+      select: 'Select',
+      navigate: 'Navigate',
+      close: 'Close',
+    },
   },
   header: {
     toggleNav: 'Toggle navigation',
-    searchPlaceholder: 'Search releases / versions / owners…',
+    // REQ-20261120-120552: header search box semantics reduced to "Search" (quick entry to the command palette)
+    searchPlaceholder: 'Search',
     runtimeWeb: 'Web',
     runtimeDesktop: 'Electron Desktop',
     runtimeMobile: 'Mobile',

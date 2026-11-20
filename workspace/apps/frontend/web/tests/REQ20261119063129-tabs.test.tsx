@@ -413,7 +413,7 @@ describe('REQ20261119063129 AC-5 命令面板', () => {
 
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
     const dialog = await screen.findByRole('dialog', {}, { timeout: 10000 });
-    expect(within(dialog).getByPlaceholderText('搜索页面 / 页签 / 快捷操作…')).toBeTruthy();
+    expect(within(dialog).getByPlaceholderText('搜索导航菜单')).toBeTruthy();
     expect(within(dialog).getByText('页面')).toBeTruthy();
     expect(within(dialog).getByText('页签')).toBeTruthy();
     expect(within(dialog).getByText('快捷操作')).toBeTruthy();
@@ -425,7 +425,7 @@ describe('REQ20261119063129 AC-5 命令面板', () => {
 
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
     const dialog = await screen.findByRole('dialog', {}, { timeout: 10000 });
-    const input = within(dialog).getByPlaceholderText('搜索页面 / 页签 / 快捷操作…') as HTMLInputElement;
+    const input = within(dialog).getByPlaceholderText('搜索导航菜单') as HTMLInputElement;
 
     // 键盘导航：初始选中第一节首项，ArrowDown 下移
     expect(dialog.querySelector('.command-palette-item[data-active="true"]')?.textContent).toContain('概览');
@@ -452,7 +452,7 @@ describe('REQ20261119063129 AC-5 命令面板', () => {
 
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
     await screen.findByRole('dialog', {}, { timeout: 10000 });
-    const input = screen.getByPlaceholderText('搜索页面 / 页签 / 快捷操作…');
+    const input = screen.getByPlaceholderText('搜索导航菜单');
     // Esc 关闭经 antd Modal keyboard 通道（rc-dialog 按 keyCode===27 判定）
     fireEvent.keyDown(input, { key: 'Escape', keyCode: 27 });
     await wait(() => {
@@ -465,7 +465,7 @@ describe('REQ20261119063129 AC-5 命令面板', () => {
 
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
     const dialog = await screen.findByRole('dialog', {}, { timeout: 10000 });
-    const input = within(dialog).getByPlaceholderText('搜索页面 / 页签 / 快捷操作…') as HTMLInputElement;
+    const input = within(dialog).getByPlaceholderText('搜索导航菜单') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '锁定' } });
     await wait(() => {
       expect(within(dialog).getByText('锁定屏幕')).toBeTruthy();

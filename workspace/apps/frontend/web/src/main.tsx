@@ -8,6 +8,7 @@ import { useLocaleStore } from '@acme/core';
 import { useStore } from './store/useStore';
 import { buildTheme } from './theme';
 import { App } from './App';
+import { removeAppBoot } from './boot';
 import { AppErrorBoundary } from './components/ErrorBoundary';
 import './styles/global.css';
 
@@ -47,4 +48,7 @@ void enableMocking().then(() => {
       <Root />
     </StrictMode>,
   );
+  // 首屏遮罩移除（REQ-20261120-120552 AC-2）：render() 后下一帧调用（首帧即淡出口径）；
+  // 最短展示 300ms/淡出 400ms 由 removeAppBoot 统一裁决，ErrorBoundary 兜底为第二入口（AC-3）
+  requestAnimationFrame(() => removeAppBoot());
 });

@@ -224,6 +224,13 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 - **Mobile**：底部 tabbar（dashboard/releases/apps/settings），当前项 accent pill + 活跃数 badge；顶部品牌条。
 - **共享**：四目的地一致；活跃数 = `ACTIVE_STATUSES` 计数。
 
+### CommandPalette / 命令面板（REQ-20261119-063129 契约⑤＋REQ-20261120-120552 增强）
+- **Web/PC**：Ctrl+K 开 antd Modal（顶部 20% 定位，宽 520）；输入过滤三节——页面/页签/快捷操作；键盘 ↑↓ 选择＋Enter 执行＋Esc 关闭；hover 选中；autofocus 与关面板焦点还原。
+- **权限对齐（AC-10）**：「页面」节经注入 `hasPermission(code?)` 过滤，与侧边导航同源（me.permissions；me 未加载 fail-closed），无 permission 路由恒可见；页签/快捷操作节不过滤。
+- **搜索历史（AC-6/7/8）**：空查询时顶部渲染「搜索历史」节——`acme.commandHistory.v1`（localStorage 持久化，最近 8 条、按 key 去重最近在前、运行时校验损坏回退空）；空态「没有搜索历史」；头部「清空」钮仅非空显示；执行页面/动作条目（含历史回放）记入历史（页签不记）；失效条目（路由移除/权限收回）不渲染。
+- **键位提示条（AC-11）**：面板底部「↵ 选择 / ↑↓ 导航 / ESC 关闭」（kbd 徽标视觉对齐 Header Ctrl K 徽标）；面板 placeholder「搜索导航菜单」；Header 搜索框 placeholder「搜索」。
+- **Mobile**：无对应结构（命令面板为指针/键盘桌面交互，Mobile 不复用）。
+
 ---
 
 ## 5. 布局 / 响应式 / 安全区
@@ -231,6 +238,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 | 项 | Web / PC | Mobile |
 |---|---|---|
 | 断点 | AntD `Grid.useBreakpoint()`；`<lg` 视为移动布局 | 原生小屏 |
+| 首屏加载遮罩（REQ-20261120-120552，AC-1~5） | `index.html` 静态内联 `#app-boot` 全屏遮罩（品牌标 icon.svg 内联副本＋CSS spinner＋产品名，零外部请求；色值内联镜像 core 令牌，随 `data-theme`/`data-accent` 切换）：引导脚本首绘前记录 `data-boot-at` 时间戳并应用持久化主题（读 `acme.frontend.ops.v1` 的 `settings.{theme,accent}`，与 useStore 同键，运行时校验合法值，try/catch 静默）消除主题闪变；移除行为收敛 `web/src/boot.ts removeAppBoot`（最短展示 300ms→淡出 ≤400ms→DOM 移除，幂等），触发点=main.tsx 首帧后下一帧＋ErrorBoundary 捕获兜底；desktop 套壳同一 index.html 自动继承 | 无对应结构（RN/Expo 自有启动屏） |
 | 顶栏 | sticky，高 64，半透明表面 + 轻微模糊（blur 8）+ 底边框 | 品牌条 + 运行时 pill |
 | 页签条 | Header 下方自绘紧凑条（REQ-20261119-063129 迭代①契约⑨⑩，不用 antd Tabs；VS Code/Chrome 惯例）：条高 36px（页签行整体可点 ≥32px），`surface` 底 + 发丝描边；活动指示=底边 2px accent 线（替代宽 pill 填充），hover 背景 elevated（CSS `--surface-2`）轻提亮；横向溢出滚动且滚动条隐藏；关闭钮 16px，非活动签 hover 才显/活动签常显（`::after` 扩展命中区 ≥16px）；首页签 permanent 常驻首位（不可关闭/不可固定，无关闭钮）；样式令牌走 `global.css` 变量层镜像 core。**滚动增强＋预览卡（REQ-20261120-104022，不做页签折叠/缩略，放不下直接滚动，tab 保持 flex:none）**：① 相邻页签 1px 分隔符（纯 CSS `+::before` 定位在 2px gap 中央，hover/激活签相邻淡出）；② 溢出时两端步进箭头（步长≈可视宽 80%，到头端 disabled 置灰且点击无效）＋垂直滚轮横向滚动（wheel 监听 passive:false 仅挂 `.tabbar` 且仅溢出时挂载；deltaMode 行按 16px/行归一；Ctrl/Cmd 放行页面缩放，|deltaX|≥|deltaY| 触控板横滑放行原生滚动）；③ activePath 变化 → 活动签 `scrollIntoView(block/inline=nearest)` 就近滚入；④ hover 非活动签 ≥150ms 浮出结构化预览卡（Portal 挂 body：图标＋完整标题＋刷新/固定·取消固定/关闭；permanent 无关闭/固定钮，pinned 显取消固定且无关闭；指针离开延迟关闭防抖动，点击操作后关卡；页签不设原生 title 避免双 tooltip）；⑤ 两端渐变阴影（溢出端有未显示内容才显示，opacity 过渡 ≤300ms，pointer-events:none）。性能红线：溢出/到头判定收敛 `tabbarScroll.ts` 纯函数，rAF 节流、仅布尔翻转写 class（不进 React state）；hover 候选态组件本地 state 不进 zustand；预览卡出现/消失不触发页签列表重渲染 | 无对应结构（底部 tabbar 是固定导航，语义不同不复用） |
 | 内容 padding | 桌面 `24px 30px 60px`；移动 `16px 14px 60px` | Screen `padding 16, paddingBottom 32, gap 14` |
