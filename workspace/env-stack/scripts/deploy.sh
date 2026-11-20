@@ -36,8 +36,19 @@ TAG=${TAG:-"$ENV-latest"}
 [ -n "$REGISTRY" ] || { echo "❌ registry.env 缺 REGISTRY" >&2; exit 1; }
 
 NS="acme-$ENV"
+# 服务选择（增量发布）：ACME_SERVICES = 空格分隔子集，缺省=全量五服务（local-deploy.sh 透传）；
+# 未选中服务在 images 段钉住集群当前 tag——渲染清单不变 → 不触发滚动（首次部署无存量
+# Deployment 时回退全局 TAG）；非法名 fail-fast（与 ACME_BUILD/DEPLOY_SERVICES 同一套服务名）
+ALL_SERVICES='gateway platform-auth platform-infra platform-system web'
+SERVICES=${ACME_SERVICES:-$ALL_SERVICES}
+for s in $SERVICES; do
+  case " $ALL_SERVICES " in
+    *" $s "*) ;;
+    *) echo "❌ ACME_SERVICES 含非法服务名：$s（合法值：$ALL_SERVICES）" >&2; exit 1 ;;
+  esac
+done
 # REGISTRY 含命名空间（如 ccr.ccs.tencentyun.com/<ns>），镜像路径为 $REGISTRY/<服务名>
-echo "▶ 部署 $NS（镜像仓库 $REGISTRY，tag $TAG）"
+echo "▶ 部署 $NS（镜像仓库 $REGISTRY，tag $TAG，服务：$SERVICES）"
 
 kubectl get namespace "$NS" >/dev/null 2>&1 || kubectl create namespace "$NS"
 
@@ -53,7 +64,8 @@ kubectl -n "$NS" create secret docker-registry acme-registry-auth \
   --docker-password="$(grep -E '^REGISTRY_PASSWORD=' "$REG_ENV_FILE" | head -1 | cut -d= -f2-)" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# 3) 渲染清单：临时目录拼装 base + overlay + images 段（registry 随 env 文件注入）
+# 3) 渲染清单：临时目录拼装 base + overlay + images 段（registry 随 env 文件注入）；
+#    选中服务 → 新 TAG；未选中 → 钉住集群当前 tag（增量发布不滚动存量服务）
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 cp -r "$ENVSTACK/k8s/base" "$TMP/base"
@@ -61,8 +73,17 @@ cp -r "$ENVSTACK/k8s/overlays/$ENV" "$TMP/overlay"
 sed -i 's|\.\./\.\./base|../base|' "$TMP/overlay/kustomization.yaml"
 {
   echo "images:"
-  for svc in gateway platform-auth platform-infra platform-system web; do
-    printf '  - name: acme/%s\n    newName: %s/%s\n    newTag: %s\n' "$svc" "$REGISTRY" "$svc" "$TAG"
+  for svc in $ALL_SERVICES; do
+    case " $SERVICES " in *" $svc "*)
+      printf '  - name: acme/%s\n    newName: %s/%s\n    newTag: %s\n' "$svc" "$REGISTRY" "$svc" "$TAG"
+      ;;
+    *)
+      case "$svc" in gateway|web) dep="acme-$svc" ;; *) dep="$svc" ;; esac
+      cur=$(kubectl -n "$NS" get deployment "$dep" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null | sed 's/.*://')
+      [ -n "$cur" ] || cur=$TAG
+      printf '  - name: acme/%s\n    newName: %s/%s\n    newTag: %s\n' "$svc" "$REGISTRY" "$svc" "$cur"
+      ;;
+    esac
   done
 } >> "$TMP/overlay/kustomization.yaml"
 
@@ -90,7 +111,7 @@ for dep in acme-gateway platform-auth platform-infra platform-system acme-web; d
   kubectl -n "$NS" rollout status "deployment/$dep" --timeout=1800s
 done
 
-echo "✅ $NS 部署完成"
+echo "✅ $NS 部署完成（服务：$SERVICES）"
 
 # 6) 中间件端点文件（数据面留存 → local-deploy.sh 同步应用面机，dev-tunnel v2 以 ClusterIP 建转发；
 #    ClusterIP 随 Service 重建才变化，deploy 每次重写保证新鲜）

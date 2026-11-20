@@ -20,7 +20,19 @@ ART=${ACME_ART_DIR:-"$(ls -dt "$REPO_ROOT"/.ai-tmp/build/prod-* 2>/dev/null | he
 # 产物元数据（TAG/SHA7/ENV/CREATED）
 # shellcheck disable=SC1090
 . "$ART/meta.env"
-echo "▶ 部署产物：$ART（$TAG）"
+
+# 服务选择（增量发布）：ACME_DEPLOY_SERVICES = 空格分隔子集，缺省=全量五服务；
+# 透传服务器侧 deploy.sh 的 ACME_SERVICES——未选中服务在集群侧钉住当前 tag（清单不变不滚动）；
+# 非法名 fail-fast（与 local-build.sh 的 ACME_BUILD_SERVICES 同一套服务名）
+ALL_SERVICES='gateway platform-auth platform-infra platform-system web'
+SERVICES=${ACME_DEPLOY_SERVICES:-$ALL_SERVICES}
+for s in $SERVICES; do
+  case " $ALL_SERVICES " in
+    *" $s "*) ;;
+    *) echo "❌ ACME_DEPLOY_SERVICES 含非法服务名：$s（合法值：$ALL_SERVICES）" >&2; exit 1 ;;
+  esac
+done
+echo "▶ 部署产物：$ART（$TAG，服务：$SERVICES）"
 
 if [ -f "$REPO_ROOT/.ai-tmp/registry.env" ]; then
   # shellcheck disable=SC1091
@@ -33,13 +45,13 @@ fi
 LOGIN_HOST=${REGISTRY_HOST:-${REGISTRY%%/*}}
 
 echo "$REGISTRY_PASSWORD" | docker login "$LOGIN_HOST" -u "$REGISTRY_USERNAME" --password-stdin
-for s in gateway platform-auth platform-infra platform-system web; do
+for s in $SERVICES; do
   # 本机已有镜像直接用；否则从产物 tar 载入（跨机复用同一份产物）
   docker image inspect "acme/$s:$TAG" >/dev/null 2>&1 || docker load -i "$ART/images/$s.tar"
   docker tag "acme/$s:$TAG" "$REGISTRY/$s:$TAG"
   docker push "$REGISTRY/$s:$TAG"
 done
-echo "✅ 五镜像已推送：$REGISTRY/{gateway,platform-auth,platform-infra,platform-system,web}:$TAG"
+echo "✅ 镜像已推送（$SERVICES）：$REGISTRY/<服务>:$TAG"
 
 # ── SSH 密码认证层（口令经 SSH_ASKPASS 注入，禁止公钥；两机坐标取 cloud-servers.yml）──
 SV_FILE="$REPO_ROOT/cloud-servers.yml"
@@ -80,7 +92,7 @@ ssh_run "$DP_HOST" "$DP_PORT" "$DP_USER" "$DP_PW" \
 tar -C "$REPO_ROOT/workspace" -cf - env-stack | \
   ssh_run "$DP_HOST" "$DP_PORT" "$DP_USER" "$DP_PW" "tar -xf - -C /opt/acme/src/workspace"
 ssh_run "$DP_HOST" "$DP_PORT" "$DP_USER" "$DP_PW" \
-  "ACME_IMAGE_TAG=$TAG bash /opt/acme/src/workspace/env-stack/scripts/deploy.sh prod"
+  "ACME_IMAGE_TAG=$TAG ACME_SERVICES='$SERVICES' bash /opt/acme/src/workspace/env-stack/scripts/deploy.sh prod"
 ssh_run "$DP_HOST" "$DP_PORT" "$DP_USER" "$DP_PW" \
   "bash /opt/acme/src/workspace/env-stack/scripts/healthcheck.sh prod"
 echo "✅ prod 部署完成（$TAG），建议 kubectl -n acme-prod get pods 人工复核"

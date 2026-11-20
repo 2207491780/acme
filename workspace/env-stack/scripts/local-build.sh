@@ -16,10 +16,30 @@ SHA7=$(git rev-parse --short=7 HEAD)
 TAG="prod-$SHA7"
 ART="$REPO_ROOT/.ai-tmp/build/$TAG"
 
-echo "▶ 产物目录：$ART"
-rm -rf "$ART"
-mkdir -p "$ART/backend" "$ART/frontend/web" "$ART/images"
+# 服务选择（增量发布）：ACME_BUILD_SERVICES = 空格分隔子集，缺省=全量五服务；
+# 非法名 fail-fast（与 local-deploy.sh/deploy.sh 的 ACME_DEPLOY_SERVICES/ACME_SERVICES 同一套服务名）
+ALL_SERVICES='gateway platform-auth platform-infra platform-system web'
+SERVICES=${ACME_BUILD_SERVICES:-$ALL_SERVICES}
+for s in $SERVICES; do
+  case " $ALL_SERVICES " in
+    *" $s "*) ;;
+    *) echo "❌ ACME_BUILD_SERVICES 含非法服务名：$s（合法值：$ALL_SERVICES）" >&2; exit 1 ;;
+  esac
+done
+NEED_BACKEND=0
+for s in gateway platform-auth platform-infra platform-system; do
+  case " $SERVICES " in *" $s "*) NEED_BACKEND=1 ;; esac
+done
+NEED_WEB=0
+case " $SERVICES " in *" web "*) NEED_WEB=1 ;; esac
 
+echo "▶ 产物目录：$ART（服务：$SERVICES）"
+rm -rf "$ART"
+mkdir -p "$ART/images"
+[ "$NEED_BACKEND" = 1 ] && mkdir -p "$ART/backend"
+[ "$NEED_WEB" = 1 ] && mkdir -p "$ART/frontend/web"
+
+if [ "$NEED_BACKEND" = 1 ]; then
 echo "▶ [backend] Maven：先 install acme-parent（flatten+revision 需父 POM 入库，同自包含 Dockerfile 口径）"
 # clean 必带：package 不清理 target，src 资源改名/删除后会残留并打进 jar
 # （2026-11-20 事故：V21 迁移重编号 V23 后旧文件残留，Flyway 双解析仍校验失败）
@@ -30,12 +50,21 @@ echo "▶ [backend] Maven：先 install acme-parent（flatten+revision 需父 PO
       -am clean package)
 B="$REPO_ROOT/workspace/apps/backend/acme-cloud"
 # jar 取用口径同自包含 Dockerfile：三服务取 *-exec.jar；gateway 主构件即可执行 jar（剔 .original）
-cp "$(ls "$B/acme-gateway"/target/*.jar | grep -v '\.original$' | head -1)" "$ART/backend/gateway.jar"
-cp "$(ls "$B/acme-platform/platform-auth/platform-auth-service"/target/*-exec.jar | head -1)" "$ART/backend/platform-auth.jar"
-cp "$(ls "$B/acme-platform/platform-infra/platform-infra-service"/target/*-exec.jar | head -1)" "$ART/backend/platform-infra.jar"
-cp "$(ls "$B/acme-platform/platform-system/platform-system-service"/target/*-exec.jar | head -1)" "$ART/backend/platform-system.jar"
-echo "✅ [backend] 四 jar 落盘"
+for s in gateway platform-auth platform-infra platform-system; do
+  case " $SERVICES " in
+    *" $s "*) ;;
+    *) continue ;;
+  esac
+  case "$s" in
+    gateway) jar=$(ls "$B/acme-gateway"/target/*.jar | grep -v '\.original$' | head -1) ;;
+    *) jar=$(ls "$B/acme-platform/platform-$s/platform-$s-service"/target/*-exec.jar | head -1) ;;
+  esac
+  cp "$jar" "$ART/backend/$s.jar"
+done
+echo "✅ [backend] jar 落盘（$SERVICES）"
+fi
 
+if [ "$NEED_WEB" = 1 ]; then
 echo "▶ [frontend] pnpm 构建 @acme/web（命令口径同自包含 Dockerfile.web）"
 (cd "$REPO_ROOT/workspace/apps/frontend" \
  && pnpm install --frozen-lockfile --filter @acme/web... \
@@ -43,23 +72,27 @@ echo "▶ [frontend] pnpm 构建 @acme/web（命令口径同自包含 Dockerfile
 cp -r "$REPO_ROOT/workspace/apps/frontend/web/dist" "$ART/frontend/web/dist"
 cp "$REPO_ROOT/workspace/apps/frontend/web/nginx.conf" "$ART/frontend/web/nginx.conf"
 echo "✅ [frontend] dist 落盘"
+fi
 
-echo "▶ [images] 五镜像构建（消费产物，轻量 prebuilt Dockerfile，产物 staging 为独立上下文）"
+echo "▶ [images] 镜像构建（消费产物，轻量 prebuilt Dockerfile，产物 staging 为独立上下文）"
 for s in gateway platform-auth platform-infra platform-system; do
+  case " $SERVICES " in *" $s "*) ;; *) continue ;; esac
   ctx="$ART/.ctx/$s"; mkdir -p "$ctx"
   cp "$REPO_ROOT/workspace/apps/backend/Dockerfile.prebuilt" "$ctx/Dockerfile"
   cp "$ART/backend/$s.jar" "$ctx/app.jar"
   docker build -q -t "acme/$s:$TAG" "$ctx" >/dev/null
 done
-ctx="$ART/.ctx/web"; mkdir -p "$ctx"
-cp "$REPO_ROOT/workspace/apps/frontend/Dockerfile.web.prebuilt" "$ctx/Dockerfile"
-cp -r "$ART/frontend/web/dist" "$ctx/dist"
-cp "$ART/frontend/web/nginx.conf" "$ctx/nginx.conf"
-docker build -q -t "acme/web:$TAG" "$ctx" >/dev/null
-for s in gateway platform-auth platform-infra platform-system web; do
+if [ "$NEED_WEB" = 1 ]; then
+  ctx="$ART/.ctx/web"; mkdir -p "$ctx"
+  cp "$REPO_ROOT/workspace/apps/frontend/Dockerfile.web.prebuilt" "$ctx/Dockerfile"
+  cp -r "$ART/frontend/web/dist" "$ctx/dist"
+  cp "$ART/frontend/web/nginx.conf" "$ctx/nginx.conf"
+  docker build -q -t "acme/web:$TAG" "$ctx" >/dev/null
+fi
+for s in $SERVICES; do
   docker save -o "$ART/images/$s.tar" "acme/$s:$TAG"
 done
-echo "✅ [images] 五镜像 tar 落盘"
+echo "✅ [images] 镜像 tar 落盘（$SERVICES）"
 
 cat > "$ART/meta.env" <<EOF
 TAG=$TAG
