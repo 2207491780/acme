@@ -175,3 +175,44 @@ test('should_keep_mirror_checkout_when_gc', async (t) => {
   assert.ok(existsSync(join(repo, '.worktrees/ai-coding-support')), '镜像常驻检出必须跳过');
   assert.match(r.stdout, /镜像对齐常驻检出/);
 });
+
+// ── gc --branches（2026-11-20 增量）：已随主线 push 的本地分支回收 ──
+
+test('should_delete_merged_pushed_branch_when_gc_branches', async (t) => {
+  const { repo, g, commitInWorktree, mergeAndPush } = await makeRepoWithOrigin(t);
+  run(repo, ['add', 'feat/6-branch']);
+  commitInWorktree('feat/6-branch', 'feat: b');
+  mergeAndPush('feat/6-branch');
+  run(repo, ['remove', 'feat/6-branch']);
+  const r = run(repo, ['gc', '--branches']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!String(g(['branch', '--list', 'feat/6-branch']).stdout).includes('feat/6-branch'), '已随主线 push 的合并分支应被删除');
+  assert.match(r.stdout, /已删分支：feat\/6-branch/);
+  assert.match(r.stdout, /保护分支，跳过/);
+});
+
+test('should_keep_unpushed_branch_when_gc_branches', async (t) => {
+  const { repo, g } = await makeRepoWithOrigin(t);
+  // 造数：分支 tip 必须含未 push 的独有提交（与已 push 主线同 tip 的分支内容已在远端，不算未 push）
+  g(['checkout', '-q', '-b', 'feat/local-only']);
+  g(['commit', '--allow-empty', '-m', 'feat: local only']);
+  g(['checkout', '-q', 'acme-foundation']);
+  const r = run(repo, ['gc', '--branches']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(g(['rev-parse', '--verify', 'refs/heads/feat/local-only']).status, 0, '未 push 分支必须保留');
+  assert.match(r.stdout, /未随主线 push/);
+});
+
+test('should_keep_protected_and_checkedout_branches_when_gc_branches', async (t) => {
+  const { repo, g, commitInWorktree } = await makeRepoWithOrigin(t);
+  // 造数：检出中分支带未 push 提交（否则其工作树会先被工作树 GC 回收，分支随之按已 push 回收）
+  run(repo, ['add', 'feat/7-checkedout']);
+  commitInWorktree('feat/7-checkedout', 'feat: unpushed');
+  const r = run(repo, ['gc', '--branches']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(repo, '.worktrees/feat-7-checkedout')), '未 push 的工作树必须保留');
+  assert.equal(g(['rev-parse', '--verify', 'refs/heads/feat/7-checkedout']).status, 0, '检出中分支必须保留');
+  assert.match(r.stdout, /检出于工作树，跳过/);
+  assert.equal(g(['rev-parse', '--verify', 'refs/heads/acme-foundation']).status, 0, '保护分支必须保留');
+  assert.match(r.stdout, /保护分支，跳过/);
+});

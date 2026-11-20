@@ -20,7 +20,7 @@
 
 ## 不变式
 
-1. 契约是唯一协调点；载体 = `.ai/skills/team-leader/templates/contract-template.md`（frontmatter 机器层 + Markdown 正文），实例落主工作树 `contracts/{REQ-ID}.md`（git 忽略，只写不提交）。
+1. 契约是唯一协调点；载体 = `.ai/skills/team-leader/templates/contract-template.md`（frontmatter 机器层 + Markdown 正文），实例落主工作树 `contracts/{REQ-ID}.md`（**已入库**，2026-11-20 起：draft 即提交、confirmed 后状态更新再提交——跨会话/跨机可见，需求号/迁移号占用记录随 git 防撞；契约禁存凭证，安全红线不变）。
 2. 执行权限收口到调度者：工人只写不交；Flyway 迁移号等共享资源由 TL 预分配写死进契约 frontmatter。
 3. 可脚本化的规则不靠自觉：门禁输出统一 `PASS / SKIP(原因) / FAIL(细节)`，SKIP 必须列入阶段报告，存在 FAIL 禁止前进。
 4. 多分支并行时：全局单例资源（需求号/迁移号）用原子创建或 TL 预分配，禁止「查重后取号」。
@@ -35,7 +35,7 @@
 | 按模板写契约；确认记录只存结论条目（日期+编号），禁存对话原文 | frontmatter 齐、AC 带编号 given-when-then |
 | 用户逐项确认 → 契约 status: confirmed | 每条 AC/接口有对应确认条目 |
 | 分支即锁取号：`node .ai/worktree.mjs add feat/req-{YYYYMMDD}-{HHMMSS}-{slug}`（原子失败=已占用，换号重试）；预分配迁移号写进 frontmatter | 工作树创建成功 |
-| 契约落盘主工作树 `contracts/`（**只写入不提交**）；流程状态 phase=I-DONE | 文件在 contracts/，phase 已写回 |
+| 契约落盘主工作树 `contracts/`（**即写即提交**，跨会话/跨机可见）；流程状态 phase=I-DONE | 文件在 contracts/，phase 已写回 |
 
 ### 阶段二 三路并行委派（phase: II-DEV）
 
