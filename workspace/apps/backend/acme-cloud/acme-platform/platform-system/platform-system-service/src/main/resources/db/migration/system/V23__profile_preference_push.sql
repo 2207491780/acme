@@ -1,4 +1,5 @@
--- 个人中心——资料 / 偏好 / 推送令牌（REQ-20261119-082531 确认记录①⑤；迁移段位 system V21）。
+-- 个人中心——资料 / 偏好 / 推送令牌（REQ-20261119-082531 确认记录①⑤；迁移段位 system V23，
+-- 2026-11-20 重编号：原 V21 未及部署而 V22 已上线，部署时 Flyway 乱序校验拒绝致启动失败）。
 -- 幂等口径：DDL 经 Flyway 版本化单次执行（同 V16/V17 ALTER 口径，不使用 IF NOT EXISTS）；无种子行。
 -- sys_user.avatar_url varchar(512) 可空：头像文件服务 URL 或相对地址（前端经 PUT /me 回填——
 -- 头像上传端点承载于 platform-infra POST /admin/v1/infra/me/avatar，TL 决策①：system 域无存储依赖）。

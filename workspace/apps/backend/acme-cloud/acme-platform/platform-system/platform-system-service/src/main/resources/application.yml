@@ -26,8 +26,9 @@ spring:
     password: ${PG_PASSWORD:acme_local_pg_2026}
   flyway:
     enabled: true
-    # 迁移脚本目录 per-service 化（REQ-20261118-002130 确认①）：system 当前至 V19，版本号跨服务各自协调
+    # 迁移脚本目录 per-service 化（REQ-20261118-002130 确认①）：system 当前至 V23，版本号跨服务各自协调
     # （分配机制见 TL 预分配）；每服务只扫自己的子目录，分布式行为零变化
+    # ⚠️ 部署纪律：并行分支的低段位迁移不得晚于高段位上线（V21/V22 乱序曾致启动失败，重编号见 3209c36 先例）
     locations: classpath:db/migration/system
     default-schema: platform_system
     schemas: platform_system

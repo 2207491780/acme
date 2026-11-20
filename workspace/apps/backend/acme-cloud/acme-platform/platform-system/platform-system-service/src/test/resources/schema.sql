@@ -1,5 +1,5 @@
 -- 仓储切片测试隔离环境（16.1 等效隔离环境）：H2 内存库；列定义对齐 V1__init_schema.sql（user/role/user_role）
--- 与 V21__profile_preference_push.sql 增量对齐（REQ-20261119-082531）：sys_user.avatar_url 可空列
+-- 与 V23__profile_preference_push.sql 增量对齐（REQ-20261119-082531）：sys_user.avatar_url 可空列
 -- 及 sys_user_preference / sys_push_token 两表（prefs jsonb 在 H2 侧退化 VARCHAR——JsonbTypeHandler
 -- 非 PG 方言 setString，切片无 jsonb 语义依赖）。
 CREATE TABLE sys_user (
