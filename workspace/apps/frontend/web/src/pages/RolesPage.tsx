@@ -187,7 +187,8 @@ export function RolesPage() {
       if (kind === 'permissions') {
         const [granted, all] = await Promise.all([
           systemApi.rolePermissions(record.id),
-          systemApi.permissionList(1, 500),
+          // size 上界=后端 PageQuery.MAX_SIZE（200），超界整单 400；此处单页取全量目录
+          systemApi.permissionList(1, 200),
         ]);
         setCatalog(all.records);
         setGrantedIds(granted.map((p) => p.id));
