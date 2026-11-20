@@ -12,6 +12,11 @@
 ## 步骤
 
 1. 开工第一步，在主工作树（通常停在 `acme-foundation`）执行：`node .ai/worktree.mjs add feat/<简述>`
+   （add 内置**自动 GC**：已随主线 push 到远端且无未提交修改的干净工作树被自动回收——2026-11-20
+   上线；分支 tip 未 push 的一律保留（宁可不清，不可误删）；镜像常驻检出 `ai-coding-support`
+   与主工作树永不触碰。手动清理/预检：`node .ai/worktree.mjs gc [--dry-run]`。注意：GC 递归删除
+   带大量依赖产物（node_modules）的工作树在 Windows 上可能耗时数分钟，属正常；孤儿目录（曾被
+   硬删注册的残留）不在 GC 管辖，需人工裁决后删除）
 2. AI 进入 `.worktrees/<分支>/` 工作：根与分层 AGENTS.md 随检出自带生效；钩子经共享配置自动生效；
    `.ai-tmp/` 按工作树隔离；**在任务结束前不要切回主工作树的分支**。
 3. 需要跑前端时在工作树内 `cd workspace/apps/frontend && pnpm install`（pnpm 共享 store，安装快）；
