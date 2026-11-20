@@ -23,6 +23,19 @@
    ```
    AI 的职责边界：准备工作（确认分支/测试/产物齐备、给出命令）可以做；**执行这两条脚本由用户
    完成**（脚本读写仓库凭证与 dev.env 生成，属敏感操作）。
+
+   **增量发布（2026-11-20 实测，ee7a6f3）**：`ACME_BUILD_SERVICES` / `ACME_DEPLOY_SERVICES` /
+   服务器侧 `ACME_SERVICES`（local-deploy 自动透传）＝空格分隔服务子集，可指定一个或多个
+   （缺省=全量五服务，行为不变）；非法名 fail-fast。口径：**只改了某几个服务的代码时只重建/重发
+   这些服务**——deploy.sh 对未选中服务在 kustomize images 段**钉住集群当前 tag**（渲染清单不变 →
+   存量 Deployment 不滚动；首次部署无存量 Deployment 时回退全局 TAG）。纯前端迭代示例：
+   ```sh
+   ACME_BUILD_SERVICES="web"  sh workspace/env-stack/scripts/local-build.sh
+   ACME_DEPLOY_SERVICES="web" sh workspace/env-stack/scripts/local-deploy.sh
+   ```
+   注意：tag 取自 `git HEAD` 的 sha7——纯前端需求合流后若 HEAD 已含 env-stack 脚本 chore 提交，
+   产物 tag 会是脚本提交的 sha（web 内容与需求 commit 一致，属预期）。核验口径增量版：选中服务
+   Pod 名应变化（镜像 tag=新 sha7），未选中服务 **Pod 名应逐字节不变**（未滚动）。
 2. **服务器核验**（AI 可执行只读 SSH，或用户自行）：
    ```sh
    bash /opt/acme/src/workspace/env-stack/scripts/status.sh prod   # 数据面机执行
