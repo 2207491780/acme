@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -86,4 +86,92 @@ test('should_exit_2_when_usage_unknown_command', async (t) => {
   const { repo } = await makeRepo(t);
   const r = run(repo, ['nonsense']);
   assert.equal(r.status, 2);
+});
+
+// ── gc（2026-11-20 增量）：已 push 的干净工作树自动清理 ──
+
+async function makeRepoWithOrigin(t) {
+  const sandbox = await mkdtemp(join(tempRoot, 'worktree-gc-'));
+  t.after(() => rm(sandbox, { recursive: true, force: true }));
+  const repo = join(sandbox, 'repo');
+  const bare = join(sandbox, 'origin.git');
+  await mkdir(bare);
+  await mkdir(repo);
+  spawnSync('git', ['init', '-q', '--bare', bare]);
+  const g = (args) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+  g(['init', '-q']);
+  g(['config', 'user.email', 'worktree-test@example.com']);
+  g(['config', 'user.name', 'worktree-test']);
+  g(['checkout', '-q', '-b', 'acme-foundation']);
+  g(['commit', '--allow-empty', '-m', 'chore: base']);
+  g(['remote', 'add', 'origin', bare]);
+  g(['push', '-q', 'origin', 'acme-foundation']);
+  const gw = (dir, args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+  const commitInWorktree = (branch, message) => {
+    const dir = join(repo, '.worktrees', branch.replaceAll('/', '-'));
+    gw(dir, ['commit', '--allow-empty', '--allow-empty-message', '-m', message]);
+  };
+  const writeFileIn = async (branch, name, content) => {
+    const dir = join(repo, '.worktrees', branch.replaceAll('/', '-'));
+    await writeFile(join(dir, name), content);
+  };
+  const mergeAndPush = (branch) => {
+    g(['merge', '--ff-only', branch]);
+    g(['push', '-q', 'origin', 'acme-foundation']);
+  };
+  return { repo, g, commitInWorktree, mergeAndPush, writeFileIn };
+}
+
+test('should_gc_merged_pushed_clean_worktree_when_gc', async (t) => {
+  const { repo, commitInWorktree, mergeAndPush } = await makeRepoWithOrigin(t);
+  run(repo, ['add', 'feat/1-done']);
+  commitInWorktree('feat/1-done', 'feat: done');
+  mergeAndPush('feat/1-done');
+  const r = run(repo, ['gc']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(repo, '.worktrees/feat-1-done')), '已 push 的干净工作树应被清理');
+  const g = (args) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+  assert.equal(g(['rev-parse', '--verify', 'refs/heads/feat/1-done']).status, 0, '分支应保留（授权分级）');
+  assert.match(r.stdout, /已清理/);
+});
+
+test('should_keep_dirty_worktree_when_gc', async (t) => {
+  const { repo, writeFileIn } = await makeRepoWithOrigin(t);
+  run(repo, ['add', 'feat/2-dirty']);
+  await writeFileIn('feat/2-dirty', 'scratch.txt', 'dirty');
+  const r = run(repo, ['gc']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(repo, '.worktrees/feat-2-dirty')), '有未提交修改的工作树必须保留');
+  assert.match(r.stdout, /未提交修改/);
+});
+
+test('should_keep_merged_but_unpushed_worktree_when_gc', async (t) => {
+  const { repo, g, commitInWorktree } = await makeRepoWithOrigin(t);
+  run(repo, ['add', 'feat/3-ahead']);
+  commitInWorktree('feat/3-ahead', 'feat: ahead');
+  g(['merge', '--ff-only', 'feat/3-ahead']); // 只合并不 push
+  const r = run(repo, ['gc']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(repo, '.worktrees/feat-3-ahead')), '未 push 的工作树必须保留');
+});
+
+test('should_auto_gc_when_add_new_worktree', async (t) => {
+  const { repo, commitInWorktree, mergeAndPush } = await makeRepoWithOrigin(t);
+  run(repo, ['add', 'feat/4-old']);
+  commitInWorktree('feat/4-old', 'feat: old');
+  mergeAndPush('feat/4-old');
+  const r = run(repo, ['add', 'feat/5-new']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /自动清理/);
+  assert.ok(!existsSync(join(repo, '.worktrees/feat-4-old')), 'add 时应自动清理已 push 的干净工作树');
+  assert.ok(existsSync(join(repo, '.worktrees/feat-5-new')), '新工作树应正常创建');
+});
+
+test('should_keep_mirror_checkout_when_gc', async (t) => {
+  const { repo } = await makeRepoWithOrigin(t);
+  run(repo, ['add', 'ai-coding-support']); // tip=已 push 的 acme-foundation HEAD，满足 isPushed
+  const r = run(repo, ['gc']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(repo, '.worktrees/ai-coding-support')), '镜像常驻检出必须跳过');
+  assert.match(r.stdout, /镜像对齐常驻检出/);
 });
