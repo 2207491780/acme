@@ -10,12 +10,12 @@
 | 0 | 开工检查+收尾提交+镜像推送 | DONE | 23a74f0/e504207/7ba80ee 已推 |
 | 1 | BPM-0 预研定稿 | DONE | docs/bpm-engine-design-2026-11-21.md + ADR-03 |
 | 1 | JOB-0 预研定稿 | DONE | docs/scheduler-center-design-2026-11-21.md + ADR-04 |
-| 1 | THEME-1 偏好引擎+抽屉一期 | III-GATE（round 1 已收口：Option B 投影裁决落地、三包 typecheck 绿、定向 201 全绿；全量门禁后台跑 exec_7e386777；ui:guide 已重生成） | REQ-20261121-010725 |
+| 1 | THEME-1 偏好引擎+抽屉一期 | DONE（8e8b0c7 已合并；门禁五项台账见 REQ-010725；随 2026-11-21 22cc9f6 推送双远端） | REQ-20261121-010725 |
 | 1 | TENANT-1 租户套餐模型 | DONE（V24 落地，门禁五项 PASS，2dc7eb2 已合并待推） | REQ-20261121-022910 |
 | 2 | THEME-2 外观能力包 | DONE（v3 落地，门禁 PASS，已合并待推） | REQ-20261121-043502 |
 | 2 | TENANT-2 功能分配-服务能力开关 | DONE（V25 落地，门禁五项 PASS，92c4f88 已合并待推） | REQ-20261121-054613 |
 | 2 | JOB-1 调度中心核心 | DONE（c553b7a 已合并待推；终验全 reactor EXIT=0；水位 77；UTC 锁表纪律+坑 16 入册） | REQ-20261121-071002 |
-| 2 | BPM-1 引擎内核 MVP | round 1 修复中（backend 154 文件交付+真实栈冒烟；tester 48 例 21/48+坑 16 六文件绿；27 红归因 9 簇实现缺陷修复中——协议终稿三节已钉死进契约） | REQ-20261121-142316 |
+| 2 | BPM-1 引擎内核 MVP | round 1 修复中（27→5 红收敛；余 5 簇 delta 打回单已派 backend 续修；裁决⑫已回写契约） | REQ-20261121-142316 |
 | 3+ | THEME-3 → JOB-2 → BPM-2 → JOB-3/BPM-3/TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
