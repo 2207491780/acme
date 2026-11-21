@@ -57,7 +57,7 @@ for s in gateway platform-auth platform-infra platform-system; do
   esac
   case "$s" in
     gateway) jar=$(ls "$B/acme-gateway"/target/*.jar | grep -v '\.original$' | head -1) ;;
-    *) jar=$(ls "$B/acme-platform/platform-$s/platform-$s-service"/target/*-exec.jar | head -1) ;;
+    *) jar=$(ls "$B/acme-platform/$s/$s-service"/target/*-exec.jar | head -1) ;;
   esac
   cp "$jar" "$ART/backend/$s.jar"
 done
