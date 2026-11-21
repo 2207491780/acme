@@ -23,11 +23,13 @@
     <modules>
         <!-- 模块清单由本 POM 自管（5.3.2）；G2.5 拆分评审结论（Backend.md 18.1.1、M-15）：首批仅两服务；
              platform-infra 增补经 platform-infra-audit 拆分评审（4.3.7 架构评审口径）；
-             platform-scheduler 增补经 REQ-20261121-071002 调度中心核心（设计规格 §1 布局终稿） -->
+             platform-scheduler 增补经 REQ-20261121-071002 调度中心核心（设计规格 §1 布局终稿）；
+             platform-workflow 增补经 REQ-20261121-142316 BPM 引擎内核 MVP（设计规格 §1 布局终稿） -->
         <module>platform-auth</module>
         <module>platform-system</module>
         <module>platform-infra</module>
         <module>platform-scheduler</module>
+        <module>platform-workflow</module>
     </modules>
 
     <build>

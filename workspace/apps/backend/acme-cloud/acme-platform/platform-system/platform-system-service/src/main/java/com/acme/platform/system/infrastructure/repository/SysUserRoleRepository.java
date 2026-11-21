@@ -4,6 +4,7 @@ import com.acme.framework.flex.repository.FlexRepository;
 
 import com.acme.platform.system.domain.SysUserRole;
 
+import java.util.Collection;
 import java.util.List;
 
 /** 用户-角色绑定仓库（绑定表物理删除，7.2.7）。 */
@@ -19,4 +20,9 @@ public interface SysUserRoleRepository extends FlexRepository<SysUserRole> {
     int deleteByUserId(Long userId);
 
     List<SysUserRole> findByUserIdIn(List<Long> userIds);
+
+    /**
+     * 角色维度绑定查询（REQ-20261121-142316 workflow 身份目录：候选角色→用户集解析）。
+     */
+    List<SysUserRole> findByRoleIdIn(Collection<Long> roleIds);
 }

@@ -39,14 +39,15 @@ spring:
       # Feign 代理永不实例化、跨域调用全部短路（LocalXxxClient 直调本域用例）
       lazy-attributes-resolution: true
   datasource:
-    # 四 schema 合并单池（确认③ + REQ-20261121-071002 确认⑥增补 platform_scheduler）：
-    # currentSchema=search_path 覆盖四 schema（表名无交集，已核对迁移脚本）；
+    # 五 schema 合并单池（确认③ + REQ-20261121-071002 确认⑥增补 platform_scheduler +
+    # REQ-20261121-142316 增补 platform_workflow）：
+    # currentSchema=search_path 覆盖五 schema（表名无交集，已核对迁移脚本）；
     # env 键与分布式一致（PG_HOST/PG_PORT/PG_DB/PG_USER/PG_PASSWORD）
-    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:acme}?currentSchema=platform_auth,platform_system,platform_infra,platform_scheduler
+    url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:acme}?currentSchema=platform_auth,platform_system,platform_infra,platform_scheduler,platform_workflow
     username: ${PG_USER:acme}
     password: ${PG_PASSWORD:acme_local_pg_2026}
   flyway:
-    # 三个手动 Flyway 实例承担迁移（MonolithFlywayConfig，schema/location 各自独占）；
+    # 五个手动 Flyway 实例承担迁移（MonolithFlywayConfig，schema/location 各自独占）；
     # 本键同时承担 Boot Flyway 自动配置关闭（确认③）
     enabled: false
   data:

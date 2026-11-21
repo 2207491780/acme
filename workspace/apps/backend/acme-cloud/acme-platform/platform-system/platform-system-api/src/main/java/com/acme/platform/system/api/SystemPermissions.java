@@ -138,6 +138,17 @@ public final class SystemPermissions {
     public static final String SCHEDULER_JOB_DELETE = "scheduler:job:delete";
     public static final String SCHEDULER_EXECUTION_LIST = "scheduler:execution:list";
 
+    /**
+     * BPM 工作流引擎（REQ-20261121-142316 确认⑦；platform-system V27 种子，sys_permission 78~82）：
+     * definition:deploy 覆盖 PUT /{id}/xml、POST /{id}/deploy、POST /{id}/disable 三写端点
+     * （服务侧 RequirePermission 三端点统一校验该点）；instance:manage 含 history 查询。
+     */
+    public static final String WORKFLOW_DEFINITION_LIST = "workflow:definition:list";
+    public static final String WORKFLOW_DEFINITION_DEPLOY = "workflow:definition:deploy";
+    public static final String WORKFLOW_INSTANCE_MANAGE = "workflow:instance:manage";
+    public static final String WORKFLOW_TASK_LIST = "workflow:task:list";
+    public static final String WORKFLOW_TASK_OPERATE = "workflow:task:operate";
+
     private SystemPermissions() {
     }
 }

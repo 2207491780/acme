@@ -17,9 +17,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * lb://platform-{service} + SetPath=/v3/api-docs，路由 id=platform-{service}-doc）；
  * acme.doc.enabled 默认 true（绑定 acme-gateway 的 GatewayDocProperties）。
  * 基线三条 {auth|system|infra}（REQ-20261114-120106）+ 调度中心分组第四条 scheduler
- * （REQ-20261121-071002 确认⑥，springdoc 分组 /v3/api-docs/scheduler）。
+ * （REQ-20261121-071002 确认⑥，springdoc 分组 /v3/api-docs/scheduler）+ 工作流分组第五条
+ * workflow（REQ-20261121-142316 确认⑧，springdoc 分组 /v3/api-docs/workflow）。
  * 既有 DocGuardFilterTest 覆盖关闭 404/DOC_DISABLED，既有 GatewayRoutingConfigTest 锁定
- * 10 条路由全量 id 集合（不修改两者），本类补充四条 doc 路由的转发形态与 SetPath 一致性
+ * 12 条路由全量 id 集合（不修改两者），本类补充五条 doc 路由的转发形态与 SetPath 一致性
  * （路由配置层断言，不起下游）。
  */
 @SpringBootTest(classes = AcmeGatewayApplication.class, properties = {
@@ -48,7 +49,8 @@ class REQ20261114120106DocRouteForwardingTest {
         assertThat(routes).isNotNull();
 
         // 基线三条（REQ-20261114-120106）+ 调度中心分组（REQ-20261121-071002 确认⑥）
-        for (String service : List.of("auth", "system", "infra", "scheduler")) {
+        // + 工作流分组（REQ-20261121-142316 确认⑧）
+        for (String service : List.of("auth", "system", "infra", "scheduler", "workflow")) {
             String routeId = "platform-" + service + "-doc";
             RouteDefinition doc = routes.stream()
                     .filter(r -> routeId.equals(r.getId()))
@@ -79,14 +81,15 @@ class REQ20261114120106DocRouteForwardingTest {
     }
 
     @Test
-    void docRouteCountIsExactlyFour() {
+    void docRouteCountIsExactlyFive() {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
         assertThat(routes).isNotNull();
         long docCount = routes.stream()
                 .filter(r -> r.getId() != null && r.getId().endsWith("-doc"))
                 .count();
         // AMB-3：文档转发路由逐服务、无聚合端点路由；基线 3 条（REQ-20261114-120106）
-        // + 调度中心分组 1 条（REQ-20261121-071002 确认⑥）= 4 条
-        assertThat(docCount).isEqualTo(4);
+        // + 调度中心分组 1 条（REQ-20261121-071002 确认⑥）
+        // + 工作流分组 1 条（REQ-20261121-142316 确认⑧）= 5 条
+        assertThat(docCount).isEqualTo(5);
     }
 }

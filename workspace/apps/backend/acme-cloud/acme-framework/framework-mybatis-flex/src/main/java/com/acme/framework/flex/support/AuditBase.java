@@ -108,4 +108,13 @@ public abstract class AuditBase {
     public Boolean getDeleted() {
         return deleted;
     }
+
+    /**
+     * 主键预分配（REQ-20261121-142316）：业务侧需在落库前以主键值承载衍生标识（如
+     * wf_timer_job.scheduler_job_key = wf-timer:{id}）时显式预分配雪花 id；InsertListener 仅在
+     * id 为 null 时填充，预分配值不被覆盖（12.3.1 生成器口径不变——调用方须取容器 IdGenerator）。
+     */
+    public void setId(Long id) {
+        this.id = id;
+    }
 }

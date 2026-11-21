@@ -29,6 +29,12 @@
             <groupId>com.acme</groupId>
             <artifactId>common-contract</artifactId>
         </dependency>
+        <!-- 调用契约声明（REQ-20261121-142316 SchedulerJobClient：9.1.2 仅注解与编解码契约，
+            不含 Web 容器；platform-system-api 同款） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-openfeign-core</artifactId>
+        </dependency>
         <!-- DTO 校验注解（jakarta.validation-api，非 Web 容器） -->
         <dependency>
             <groupId>jakarta.validation</groupId>

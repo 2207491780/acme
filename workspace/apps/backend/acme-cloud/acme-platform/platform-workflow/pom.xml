@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-platform</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>platform-workflow</artifactId>
+    <packaging>pom</packaging>
+    <name>platform-workflow</name>
+    <description>
+        BPM 工作流引擎域平台服务（REQ-20261121-142316；docs/bpm-engine-design-2026-11-21 §1 布局终稿）
+        - 能力域：流程定义部署 / BPMN 编译模型 / 命令内核（责任链）/ 一期节点语义（§2 语义表）/
+          定时边界联动（§6）/ ServiceTask HTTP 委托（§7）
+        - 结构：platform-workflow-api（DTO + 枚举 + 错误码常量）+ platform-workflow-service
+          （实现与启动，5.3.2）
+        - 数据独占 schema：platform_workflow（12.1.1；迁移空间 db/migration/workflow 自 V1 七表）
+        - 服务间依赖：platform-workflow-service 消费 platform-system-api（权限判定 + workflow 身份目录）
+          与 platform-scheduler-api（一次性定时任务注册），仅经 *-api 单向（4.4.2 不构成环）
+    </description>
+
+    <modules>
+        <module>platform-workflow-api</module>
+        <module>platform-workflow-service</module>
+    </modules>
+
+</project>

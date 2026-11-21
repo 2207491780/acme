@@ -12,9 +12,10 @@ import java.util.Map;
  * 单体手动 Flyway 多实例（REQ-20261118-002130 确认③）：{@code spring.flyway.enabled=false}
  * 关闭 Boot Flyway 自动配置（单 JVM classpath 合流后同路径迁移会互相污染，自动配置单实例
  * 不可用）；本配置类按域各建一个 Flyway——同一 DataSource、schemas/defaultSchema 各自独占、
- * locations 各自子目录（db/migration/{auth|system|infra|scheduler}）、历史表各自 schema 独立
- * （版本号跨服务各自协调：system 至 V26 / infra 至 V18 / auth 至 V6 / scheduler 至 V1，
- * TL 预分配机制维护；scheduler 增补 REQ-20261121-071002 确认⑥）。
+ * locations 各自子目录（db/migration/{auth|system|infra|scheduler|workflow}）、历史表各自
+ * schema 独立（版本号跨服务各自协调：system 至 V27 / infra 至 V18 / auth 至 V6 / scheduler 至 V1 /
+ * workflow 至 V1，TL 预分配机制维护；scheduler 增补 REQ-20261121-071002 确认⑥、workflow 增补
+ * REQ-20261121-142316）。
  * migrate 经 @Bean initMethod 在各实例就绪时执行（实例间顺序无强依赖：写库互不相交）。
  * auth 域三种子密码 placeholder 保留（与分布式 yml 同键语义，ACME_SEED_* 环境注入）。
  */
@@ -66,6 +67,17 @@ public class MonolithFlywayConfig {
                 .schemas("platform_scheduler")
                 .defaultSchema("platform_scheduler")
                 .locations("classpath:db/migration/scheduler")
+                .load();
+    }
+
+    /** workflow 域迁移（schema platform_workflow；V1 七表，REQ-20261121-142316 BPM 引擎聚合增补）。 */
+    @Bean(initMethod = "migrate")
+    public Flyway workflowFlyway(DataSource dataSource) {
+        return Flyway.configure()
+                .dataSource(dataSource)
+                .schemas("platform_workflow")
+                .defaultSchema("platform_workflow")
+                .locations("classpath:db/migration/workflow")
                 .load();
     }
 

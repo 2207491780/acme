@@ -41,6 +41,12 @@
             <groupId>com.acme</groupId>
             <artifactId>platform-scheduler-service</artifactId>
         </dependency>
+        <!-- BPM 工作流聚合（REQ-20261121-142316：第五 schema platform_workflow，bootstrap pom 加模块；
+            骨架形态对齐 scheduler 聚合先例——tick/兜底线程随 Spring 启动，本地适配器短路跨域 Feign） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-workflow-service</artifactId>
+        </dependency>
         <!-- 边缘认证面（确认④）：UserTokenAccessVerifier（用户令牌验签）与 JwsInternalTokenIssuer
             （内部令牌签发，经 InternalTokenIssuer bean）；trace 模块为 services 已传递的过滤链基线，
             audit 为本地审计 sink 的 SPI 载体（显式声明防隐式依赖） -->

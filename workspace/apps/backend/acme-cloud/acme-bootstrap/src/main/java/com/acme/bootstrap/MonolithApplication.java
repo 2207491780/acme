@@ -9,6 +9,7 @@ import com.acme.platform.infra.config.AuditRetentionProperties;
 import com.acme.platform.infra.config.ExceptionLogRetentionProperties;
 import com.acme.platform.scheduler.PlatformSchedulerApplication;
 import com.acme.platform.system.PlatformSystemApplication;
+import com.acme.platform.workflow.PlatformWorkflowApplication;
 import org.apache.ibatis.annotations.Mapper;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -31,7 +32,9 @@ import org.springframework.context.annotation.Import;
  * 永不实例化，跨域调用全部短路至本地适配器，见 {@code local} 包各类与
  * {@link MonolithContextDefinitionCustomizer}）。REQ-20261121-071002 确认⑥：
  * platform-scheduler 入聚合（tick 循环在单体形态随 Spring 启动，ShedLock 同款；
- * 下发线程池/RestClient bean 装配但单体无执行器注册时零下发行为）。</p>
+ * 下发线程池/RestClient bean 装配但单体无执行器注册时零下发行为）。
+ * REQ-20261121-142316：platform-workflow 入聚合（第五 schema platform_workflow；定时兜底/
+ * 注册重试线程随 Spring 启动，跨域 Feign——workflow 身份目录/调度注册——经本地适配器短路）。</p>
  *
  * <p>{@code @MapperScan("com.acme.platform")}：mybatis-flex starter 的自动 mapper 注册按
  * AutoConfigurationPackages（主应用包 com.acme.bootstrap）扫描，单体主包不含 mapper 接口——
@@ -54,7 +57,7 @@ import org.springframework.context.annotation.Import;
 @SpringBootApplication(scanBasePackages = {"com.acme.bootstrap", "com.acme.platform"})
 @MapperScan(basePackages = "com.acme.platform", annotationClass = Mapper.class)
 @Import({PlatformAuthApplication.class, PlatformSystemApplication.class, PlatformInfraApplication.class,
-        PlatformSchedulerApplication.class})
+        PlatformSchedulerApplication.class, PlatformWorkflowApplication.class})
 @EnableConfigurationProperties({AuthTokenProperties.class, LoginGuardProperties.class,
         LoginLogRetentionProperties.class, ExceptionLogRetentionProperties.class,
         AuditRetentionProperties.class})

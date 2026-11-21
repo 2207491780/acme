@@ -1,0 +1,71 @@
+# platform-workflow-service（9883）—— 仅 PG（schema platform_workflow），不连 Redis/Kafka
+# REQ-20261121-142316 确认⑧：k8s/base 结构对齐 platform-scheduler.yaml（deployment/service/端口/资源限额）
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-workflow
+  labels:
+    app: platform-workflow
+spec:
+  selector:
+    app: platform-workflow
+  ports:
+    - name: http
+      port: 9883
+      targetPort: 9883
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-workflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platform-workflow
+  template:
+    metadata:
+      labels:
+        app: platform-workflow
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth
+      containers:
+        - name: workflow
+          image: acme/platform-workflow
+          envFrom:
+            - configMapRef:
+                name: acme-app-config
+            - secretRef:
+                name: acme-app-secrets
+          env:
+            # 服务级覆盖共享 acme-app-config 的 JAVA_TOOL_OPTIONS（k8s 规则：env 优先于 envFrom），
+            # 范式同 platform-system/scheduler（ADR 26/28：metaspace 定容防贴线 OOM）
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=40 -XX:MaxMetaspaceSize=192m"
+          ports:
+            - containerPort: 9883
+              name: http
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9883
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9883
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9883
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 160Mi
+            limits:
+              # 容量核算同 platform-system（ADR 26）：命令内核/编译缓存为轻负载面，对齐 512Mi 定容
+              memory: 512Mi

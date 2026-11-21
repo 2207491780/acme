@@ -18,6 +18,13 @@ public interface FlexRepository<T extends AuditBase> {
     /** 保存：无 id 新增；有 id 乐观锁更新（0 行=并发冲突，转 FlexError.STALE_WRITE）。 */
     T save(T entity);
 
+    /**
+     * 显式插入（REQ-20261121-142316）：主键预分配的新实体入口——save 以 id 判别插入/更新，
+     * 预分配 id（雪花容器单例，审计监听器不覆盖）的新实体经本方法强制走 INSERT；
+     * 审计填充/租户注入/乐观锁初值由 InsertListener 照常承担。
+     */
+    T insert(T entity);
+
     /** 批量保存（逐条 insert；绑定表整体替换等场景）。 */
     List<T> saveAll(List<T> entities);
 

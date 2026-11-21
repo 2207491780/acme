@@ -7,6 +7,7 @@ import com.acme.platform.system.infrastructure.mapper.SysUserRoleMapper;
 import com.mybatisflex.core.query.QueryWrapper;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 /** 用户-角色绑定仓库实现（MyBatis-Flex 底座；解绑经旁路物理删除——绑定表唯一键决定，7.2.7）。 */
@@ -46,5 +47,13 @@ public class SysUserRoleRepositoryImpl extends FlexRepositorySupport<SysUserRole
             return List.of();
         }
         return mapper().selectListByQuery(QueryWrapper.create().where(SysUserRole::getUserId).in(userIds));
+    }
+
+    @Override
+    public List<SysUserRole> findByRoleIdIn(Collection<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return List.of();
+        }
+        return mapper().selectListByQuery(QueryWrapper.create().where(SysUserRole::getRoleId).in(roleIds));
     }
 }

@@ -21,6 +21,8 @@ resources:
   - platform-system.yaml
   # 调度中心服务（REQ-20261121-071002 确认⑥：k8s/base 登记 + 镜像映射）
   - platform-scheduler.yaml
+  # BPM 工作流服务（REQ-20261121-142316 确认⑧：k8s/base 登记 + 镜像映射）
+  - platform-workflow.yaml
   - web.yaml
   - ingress.yaml
 configMapGenerator:
@@ -52,6 +54,8 @@ images:
   - name: acme/platform-system
     newTag: latest
   - name: acme/platform-scheduler
+    newTag: latest
+  - name: acme/platform-workflow
     newTag: latest
   - name: acme/web
     newTag: latest

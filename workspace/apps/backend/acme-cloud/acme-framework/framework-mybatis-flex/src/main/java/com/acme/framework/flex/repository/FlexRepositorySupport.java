@@ -32,7 +32,9 @@ public abstract class FlexRepositorySupport<T extends AuditBase> implements Flex
 
     @Override
     public T save(T entity) {
-        if (entity.getId() == null) {
+        // REQ-20261121-142316：主键预分配的新实体（id 非空、version 未设——装载行/更新过行恒有
+        // 乐观锁初值）走 INSERT；审计填充/租户注入/乐观锁初值由 InsertListener 照常承担
+        if (entity.getId() == null || entity.getVersion() == null) {
             mapper.insert(entity);
             return entity;
         }
@@ -42,6 +44,13 @@ public abstract class FlexRepositorySupport<T extends AuditBase> implements Flex
         }
         // Flex 在 SQL 端自增版本（version = version + 1）不写回实体，此处负责实体版本同步
         entity.setVersion(entity.getVersion() + 1);
+        return entity;
+    }
+
+    @Override
+    public T insert(T entity) {
+        // 显式插入（主键预分配实体面；语义同 save 的插入分支，供调用方显式声明新实体意图）
+        mapper.insert(entity);
         return entity;
     }
 

@@ -190,8 +190,9 @@ class MonolithContextSmokeTest {
                         .as("Feign 工厂 bean 应被降级为非 primary（本地适配器胜出）：%s", name).isFalse();
             }
         }
-        assertThat(feignDefinitions).as("四服务去重后共 10 个显式 clients 声明"
-                + "（scheduler 复用 AuthorizationClient 同配置声明，不新增工厂 bean）").isEqualTo(10);
+        assertThat(feignDefinitions).as("五服务去重后共 12 个显式 clients 声明"
+                + "（scheduler/infra/workflow 复用 AuthorizationClient 同配置声明不新增；"
+                + "workflow 增补 SchedulerJobClient/WorkflowIdentityClient 两新契约）").isEqualTo(12);
     }
 
     // ---------- AC-2：三 Flyway 实例各自迁移落位 ----------

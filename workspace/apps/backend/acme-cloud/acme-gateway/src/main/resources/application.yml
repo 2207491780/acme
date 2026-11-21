@@ -57,6 +57,12 @@ spring:
               uri: lb://platform-scheduler
               predicates:
                 - Path=/admin/v1/scheduler/**
+            # BPM 工作流路由（REQ-20261121-142316 确认⑧：/admin/v1/workflow/** → lb://platform-workflow，
+            # 仅追加不改既有；/internal/v1/workflow/** 不进网关路由白名单，服务间直连）
+            - id: platform-workflow
+              uri: lb://platform-workflow
+              predicates:
+                - Path=/admin/v1/workflow/**
             # C 端认证路由（仅追加，11.1.3 双端前缀路由；consumer-auth-refresh-dataperm）
             - id: platform-auth-app
               uri: lb://platform-auth
@@ -88,6 +94,13 @@ spring:
               uri: lb://platform-scheduler
               predicates:
                 - Path=/v3/api-docs/scheduler
+              filters:
+                - SetPath=/v3/api-docs
+            # BPM 工作流文档转发路由（REQ-20261121-142316 确认⑧：springdoc 分组 /v3/api-docs/workflow）
+            - id: platform-workflow-doc
+              uri: lb://platform-workflow
+              predicates:
+                - Path=/v3/api-docs/workflow
               filters:
                 - SetPath=/v3/api-docs
           # 跨域归网关统一处理（BR-011、8.9、AC-026）；origin 白名单经环境注入（11.1.1 生产形态），
@@ -122,6 +135,8 @@ springdoc:
         url: /v3/api-docs/infra
       - name: scheduler
         url: /v3/api-docs/scheduler
+      - name: workflow
+        url: /v3/api-docs/workflow
 
 acme:
   gateway:

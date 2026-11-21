@@ -1,0 +1,68 @@
+# platform-workflow 测试域配置（遮蔽主 application.yml：无 Nacos 导入，测试不依赖共享环境；
+# 遮蔽口径照 platform-scheduler-service/src/test/resources/application.yml 先例——
+# spring.config.import 为列表合并不可注解覆盖，必须以测试域 yml 整体遮蔽主配置；
+# 无 Docker 自动跳过口径：PG 容器由 REQ20261121142316WorkflowEngineIntegrationTest
+# @DynamicPropertySource 注入 datasource url 与 default-schema/schemas=public）
+spring:
+  application:
+    name: platform-workflow
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        enabled: false
+  flyway:
+    enabled: true
+    # locations 继承主 yml（REQ-20261118-002130 确认①）：workflow 自 V1 起，per-service 子目录；
+    # 测试 schema 覆盖为 public（PG 容器口径，同 SchedulerCoreIntegrationTest @DynamicPropertySource）
+    locations: classpath:db/migration/workflow
+    default-schema: public
+    schemas: public
+
+acme:
+  workflow:
+    # BPM 引擎内核参数（BPM-1 契约终稿缺省值，测试与生产同语义）
+    timer:
+      # 定时兜底扫描轮询间隔毫秒（确认⑥本地 ScheduledExecutorService 兜底面）
+      fallback-poll-ms: 5000
+      # 注册失败重试间隔毫秒（确认⑥后台重试注册）
+      retry-register-interval-ms: 10000
+    delegate:
+      # ServiceTask 委托缺省超时毫秒（acme:timeoutMs 未配置时取值）
+      timeout-ms: 10000
+      # 委托失败重试上限缺省（acme:retryMaxAttempts 未配置时取值；0=不重试）
+      retry-max-attempts: 0
+      # 重试首间隔毫秒缺省（acme:retryBackoffMs 未配置时取值）
+      retry-backoff-ms: 1000
+    identity:
+      # 身份目录本地快照 TTL 毫秒（「流程引擎本地快照」方案——确认④配套）
+      snapshot-ttl-ms: 30000
+      # 快照条目上限（防御性）
+      snapshot-max-entries: 5000
+  security:
+    public-paths:
+      - /actuator/**
+    token:
+      hmac-secret: workflow-it-secret-0123456789abcdef
+  i18n:
+    basenames: i18n/acme-messages,i18n/platform-workflow-messages
+  flex:
+    id:
+      # 雪花 worker 标识（12.3.1；auth=1 / system=2 / infra=3 / scheduler=4 之后顺延防碰撞）
+      worker-id: 5
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        # 测试域 readiness 不含 nacosDiscovery（discovery 已禁用，nacosDiscovery 健康指示器
+        # 不注册——membership 校验 fail-fast；生产口径归主 yml）
+        readiness:
+          include: readinessState,db
