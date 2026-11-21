@@ -2,9 +2,9 @@
 # 用法：local-build.sh —— 本机构建产物（ADR 2026-11-18-03：CI/CD 本地化；构建与部署以产物目录为接口，
 # build 零凭证、deploy 凭证/网络分离，两步可分别执行）。
 # 产物目录：.ai-tmp/build/<env>-<sha7>/（gitignore 不入库；ENV-STACK 约定构建产物放根 .ai-tmp/）
-#   backend/       四个可执行 jar：gateway.jar / platform-auth.jar / platform-infra.jar / platform-system.jar
+#   backend/       五个可执行 jar：gateway.jar / platform-auth.jar / platform-infra.jar / platform-system.jar / platform-scheduler.jar
 #   frontend/web/  dist + nginx.conf
-#   images/        五个镜像 tar（docker save；镜像名 acme/<名>:<tag> 无 registry 前缀——前缀由 deploy 侧 docker tag）
+#   images/        六个镜像 tar（docker save；镜像名 acme/<名>:<tag> 无 registry 前缀——前缀由 deploy 侧 docker tag）
 #   meta.env       TAG/SHA7/ENV/CREATED —— deploy 的唯一输入接口
 # 前置（本机，仓库根执行）：Docker；Maven（不在 PATH 时 export MVN_CMD=完整路径，唯一口径见
 #   .ai-memory/playbooks/flex-test-assembly.md「构建与运行」）；Node≥22.13 + pnpm11.8。
@@ -16,9 +16,10 @@ SHA7=$(git rev-parse --short=7 HEAD)
 TAG="prod-$SHA7"
 ART="$REPO_ROOT/.ai-tmp/build/$TAG"
 
-# 服务选择（增量发布）：ACME_BUILD_SERVICES = 空格分隔子集，缺省=全量五服务；
+# 服务选择（增量发布）：ACME_BUILD_SERVICES = 空格分隔子集，缺省=全量六服务；
 # 非法名 fail-fast（与 local-deploy.sh/deploy.sh 的 ACME_DEPLOY_SERVICES/ACME_SERVICES 同一套服务名）
-ALL_SERVICES='gateway platform-auth platform-infra platform-system web'
+# platform-scheduler 增补（REQ-20261121-071002 确认⑥：与服务名注册表保持同一套）
+ALL_SERVICES='gateway platform-auth platform-infra platform-system platform-scheduler web'
 SERVICES=${ACME_BUILD_SERVICES:-$ALL_SERVICES}
 for s in $SERVICES; do
   case " $ALL_SERVICES " in
@@ -27,7 +28,7 @@ for s in $SERVICES; do
   esac
 done
 NEED_BACKEND=0
-for s in gateway platform-auth platform-infra platform-system; do
+for s in gateway platform-auth platform-infra platform-system platform-scheduler; do
   case " $SERVICES " in *" $s "*) NEED_BACKEND=1 ;; esac
 done
 NEED_WEB=0
@@ -46,11 +47,11 @@ echo "▶ [backend] Maven：先 install acme-parent（flatten+revision 需父 PO
 (cd "$REPO_ROOT/workspace/apps/backend/acme-cloud" \
  && "${MVN_CMD:-mvn}" -B -q -f ../acme-parent/pom.xml install \
  && "${MVN_CMD:-mvn}" -B -q -DskipTests \
-      -pl acme-gateway,acme-platform/platform-auth/platform-auth-service,acme-platform/platform-infra/platform-infra-service,acme-platform/platform-system/platform-system-service \
+      -pl acme-gateway,acme-platform/platform-auth/platform-auth-service,acme-platform/platform-infra/platform-infra-service,acme-platform/platform-system/platform-system-service,acme-platform/platform-scheduler/platform-scheduler-service \
       -am clean package)
 B="$REPO_ROOT/workspace/apps/backend/acme-cloud"
-# jar 取用口径同自包含 Dockerfile：三服务取 *-exec.jar；gateway 主构件即可执行 jar（剔 .original）
-for s in gateway platform-auth platform-infra platform-system; do
+# jar 取用口径同自包含 Dockerfile：各服务取 *-exec.jar；gateway 主构件即可执行 jar（剔 .original）
+for s in gateway platform-auth platform-infra platform-system platform-scheduler; do
   case " $SERVICES " in
     *" $s "*) ;;
     *) continue ;;
@@ -75,7 +76,7 @@ echo "✅ [frontend] dist 落盘"
 fi
 
 echo "▶ [images] 镜像构建（消费产物，轻量 prebuilt Dockerfile，产物 staging 为独立上下文）"
-for s in gateway platform-auth platform-infra platform-system; do
+for s in gateway platform-auth platform-infra platform-system platform-scheduler; do
   case " $SERVICES " in *" $s "*) ;; *) continue ;; esac
   ctx="$ART/.ctx/$s"; mkdir -p "$ctx"
   cp "$REPO_ROOT/workspace/apps/backend/Dockerfile.prebuilt" "$ctx/Dockerfile"

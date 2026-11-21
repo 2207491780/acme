@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-platform</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>platform-scheduler</artifactId>
+    <packaging>pom</packaging>
+    <name>platform-scheduler</name>
+    <description>
+        调度中心平台服务（REQ-20261121-071002，docs/scheduler-center-design-2026-11-21 §1 布局终稿）
+        - 能力域：定时任务定义 / 时间轮调度内核 / 执行器注册心跳 / 执行历史 / 下发协议（JOB-1）
+        - 结构：platform-scheduler-api（协议 DTO + 契约）+ platform-scheduler-service（实现与启动，5.3.2）
+        - 数据独占 schema：platform_scheduler（12.1.1；迁移空间 db/migration/scheduler 自 V1）
+        - 服务间依赖：platform-scheduler-service 消费 platform-system-api（权限判定 AuthorizationClient
+          单向，与 platform-infra 同先例，4.4.2 不构成环）；执行器 SDK / BPM 联动按 §4/§7 协议走 HTTP
+    </description>
+
+    <modules>
+        <module>platform-scheduler-api</module>
+        <module>platform-scheduler-service</module>
+    </modules>
+
+</project>

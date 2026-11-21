@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>platform-scheduler</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>platform-scheduler-service</artifactId>
+    <packaging>jar</packaging>
+    <name>platform-scheduler-service</name>
+    <description>
+        调度中心域服务实现与启动入口（REQ-20261121-071002；docs/scheduler-center-design-2026-11-21
+        §1~§5 架构终稿）。装配：core / jackson / trace / web / mybatis-flex / security / tenant / feign
+        / i18n；内核自研（tick 主循环 @Scheduled+ShedLock 单发、内存分层时间轮、DB 兜底扫描、HTTP 下发
+        RestClient+@LoadBalanced、重试链、超时巡检）。
+        未用不声明——cache / lock / stream / job / gateway / audit / storage / excel 不引入；
+        framework-job（standalone @AcmeTask+ShedLock）保持不动，本服务直接用 shedlock-spring 注解装配
+        tick 单发锁（锁表 sch_scheduler_lock，确认⑤ JDBC 口径）。
+    </description>
+
+    <dependencies>
+        <!-- 本服务契约 -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-scheduler-api</artifactId>
+        </dependency>
+        <!-- 服务间依赖（权限判定跨域契约，权限目录归 platform-system 独占 M-02，仅经 *-api，4.4.2；
+            platform-infra AuthorizationGateway 同先例） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-system-api</artifactId>
+        </dependency>
+        <!-- framework 按需（Modules.md 3.1） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-trace</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-mybatis-flex</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-tenant</artifactId>
+        </dependency>
+        <!-- B 端管理写端点 @AuditLog 补注（REQ-20261117-061017 确认③：含 beforeQuery 旧值快照；
+            platform-system/infra 同款装配口径） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-audit</artifactId>
+        </dependency>
+        <!-- Feign 出站支撑（权限判定 AuthorizationClient，platform-infra 装配口径） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-feign</artifactId>
+        </dependency>
+        <!-- zh/en 双语（NFR-007） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-i18n</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-i18n</artifactId>
+        </dependency>
+        <!-- 实引用直接声明（Modules.md 2.2.3） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-contract</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-util</artifactId>
+        </dependency>
+
+        <!-- Web 运行时（Boot 4 细粒度模块；platform 服务同基线） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-tomcat</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.validator</groupId>
+            <artifactId>hibernate-validator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tomcat.embed</groupId>
+            <artifactId>tomcat-embed-el</artifactId>
+        </dependency>
+
+        <!-- 调度内核：tick 主循环 + @Scheduled（spring-context 经 Boot 传递）；
+            @SchedulerLock 注解单发（确认⑤ lockAtMostFor=5s/lockAtLeastFor=1s，锁表 sch_scheduler_lock）。
+            shedlock-spring 为 shedlock-bom（acme-parent 已登记 5.16.0，framework-job 同源）管理的注解面工件 -->
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-spring</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-core</artifactId>
+        </dependency>
+        <!-- ShedLock JDBC 锁提供方（sch_scheduler_lock；设计规格 §2 ShedLock JDBC 口径） -->
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-provider-jdbc-template</artifactId>
+        </dependency>
+
+        <!-- 数据访问与迁移（12.3.3 Flyway 同仓；12.1.1 独占 schema platform_scheduler） -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+        </dependency>
+
+        <!-- Nacos 注册与配置中心（FR-018、14.3.1） -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+        <!-- 服务间调用客户端（权限判定 Feign + 内核下发 RestClient @LoadBalanced，10.4） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <!-- 健康探针与指标（14.2） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+
+        <!-- 测试域（16 章；common-test 为测试栈载体，test scope 引入） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Testcontainers PG（集成测试本地可执行，16.2.1） -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- 可执行 jar 附加 -exec 分类器（REQ-20261118-002130 确认②）：主构件保持普通 jar
+                        形态供 acme-bootstrap 单体聚合编译/打包（Boot 重打包的 BOOT-INF 布局不可作为
+                        依赖 jar 复用）；镜像构建（Dockerfile）按 -exec 优先取可执行 jar，行为不变 -->
+                    <classifier>exec</classifier>
+                </configuration>
+            </plugin>
+            <!-- Flex 全局默认方言是 JVM 级静态（FlexGlobalConfig.defaultConfig），H2 与 MySQL 共用反引号方言。
+                 本模块 H2 切片与 PG 集成若共用 surefire JVM，全局方言会被先建的 H2 上下文污染，致 PG 生成
+                 反引号 SQL 报 syntax error。每个测试类独立 JVM 隔离（platform-system-service 同款）。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <reuseForks>false</reuseForks>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

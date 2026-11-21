@@ -1,7 +1,7 @@
-# acme-bootstrap 三服务键语义合并面（REQ-20261118-002130 确认⑤）：platform-auth / platform-system /
-# platform-infra 三份 application.yml 的键并集手工维护（重复键取一；public-paths 取并集）——
-# 三服务 jar 内各自的 application.yml 在单体 classpath 被遮蔽（见 application.yml 头注），本文件是
-# 三服务键在单体的唯一载体。经 application.yml 的 spring.config.import 载入（其键优先级更高）。
+# acme-bootstrap 服务键语义合并面（REQ-20261118-002130 确认⑤）：platform-auth / platform-system /
+# platform-infra / platform-scheduler 各 application.yml 的键并集手工维护（重复键取一；public-paths
+# 取并集）——各服务 jar 内各自的 application.yml 在单体 classpath 被遮蔽（见 application.yml 头注），
+# 本文件是各服务键在单体的唯一载体。经 application.yml 的 spring.config.import 载入（其键优先级更高）。
 # 双 hmac 密钥域与分布式同键同义（ACME_USER_TOKEN_HMAC_SECRET=用户令牌域；
 # ACME_SECURITY_TOKEN_HMAC_SECRET=内部令牌域；两域必须不同值，≥32 字节，14.3.3 不落仓库默认值）。
 
@@ -78,5 +78,6 @@ acme:
       idle-timeout: 30s
       sweep-interval: 2s
   i18n:
-    # zh/en 双语（NFR-007）：框架汇总资源 + 三服务资源并集（消息键=错误码，8.2）
-    basenames: i18n/acme-messages,i18n/platform-auth-messages,i18n/platform-system-messages,i18n/platform-infra-messages
+    # zh/en 双语（NFR-007）：框架汇总资源 + 各服务资源并集（消息键=错误码，8.2；
+    # platform-scheduler 增补 REQ-20261121-071002 确认⑥）
+    basenames: i18n/acme-messages,i18n/platform-auth-messages,i18n/platform-system-messages,i18n/platform-infra-messages,i18n/platform-scheduler-messages

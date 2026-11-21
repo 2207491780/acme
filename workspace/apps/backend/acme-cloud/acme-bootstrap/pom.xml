@@ -14,14 +14,16 @@
     <name>acme-bootstrap</name>
     <description>
         单体打包形态部署单元（REQ-20261118-002130 确认②③④）：聚合 platform-auth/platform-system/
-        platform-infra 三服务实现为单 JVM 启动单元（本地联调 / 小部署可选形态；分布式为默认形态）。
-        依赖三 *-service（compile）+ framework-security/trace/audit；不声明 framework-gateway/WebFlux
+        platform-infra/platform-scheduler 服务实现为单 JVM 启动单元（本地联调 / 小部署可选形态；
+        分布式为默认形态）。REQ-20261121-071002 确认⑥：scheduler 模块入聚合（tick 循环在单体形态随
+        Spring 启动，ShedLock 同款）。
+        依赖各 *-service（compile）+ framework-security/trace/audit；不声明 framework-gateway/WebFlux
         与 stream/kafka 依赖（stream 经 acme.stream.enabled=false 关闭、审计走本地 sink 直调）。
         边缘认证由 BootstrapAuthFilter（用户令牌验签 + 撤销检查 + 内部令牌签发）承接网关职责。
     </description>
 
     <dependencies>
-        <!-- 三服务实现（单体聚合唯一形态要求，4.4.3 服务间仅经 *-api 的禁令不适用于聚合部署单元） -->
+        <!-- 服务实现（单体聚合唯一形态要求，4.4.3 服务间仅经 *-api 的禁令不适用于聚合部署单元） -->
         <dependency>
             <groupId>com.acme</groupId>
             <artifactId>platform-auth-service</artifactId>
@@ -33,6 +35,11 @@
         <dependency>
             <groupId>com.acme</groupId>
             <artifactId>platform-infra-service</artifactId>
+        </dependency>
+        <!-- 调度中心聚合（REQ-20261121-071002 确认⑥：bootstrap pom 加模块） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-scheduler-service</artifactId>
         </dependency>
         <!-- 边缘认证面（确认④）：UserTokenAccessVerifier（用户令牌验签）与 JwsInternalTokenIssuer
             （内部令牌签发，经 InternalTokenIssuer bean）；trace 模块为 services 已传递的过滤链基线，

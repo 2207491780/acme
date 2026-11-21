@@ -1,0 +1,71 @@
+# platform-scheduler-service（9884）—— 仅 PG（schema platform_scheduler），不连 Redis/Kafka
+# REQ-20261121-071002 确认⑥：k8s/base 结构对齐 platform-system.yaml（deployment/service/端口/资源限额）
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-scheduler
+  labels:
+    app: platform-scheduler
+spec:
+  selector:
+    app: platform-scheduler
+  ports:
+    - name: http
+      port: 9884
+      targetPort: 9884
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platform-scheduler
+  template:
+    metadata:
+      labels:
+        app: platform-scheduler
+    spec:
+      imagePullSecrets:
+        - name: acme-registry-auth
+      containers:
+        - name: scheduler
+          image: acme/platform-scheduler
+          envFrom:
+            - configMapRef:
+                name: acme-app-config
+            - secretRef:
+                name: acme-app-secrets
+          env:
+            # 服务级覆盖共享 acme-app-config 的 JAVA_TOOL_OPTIONS（k8s 规则：env 优先于 envFrom），
+            # 范式同 platform-system（ADR 26/28：metaspace 定容防贴线 OOM）
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=40 -XX:MaxMetaspaceSize=192m"
+          ports:
+            - containerPort: 9884
+              name: http
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9884
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 9884
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 9884
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 160Mi
+            limits:
+              # 容量核算同 platform-system（ADR 26）：内核 tick 巡检为轻负载面，对齐 512Mi 定容
+              memory: 512Mi

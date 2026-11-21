@@ -43,7 +43,7 @@ if ! curl -sf "http://127.0.0.1:18848/nacos/v1/console/namespaces" | grep -q "\"
     || { echo "❌ 创建 namespace $ENV 失败" >&2; exit 1; }
 fi
 
-for id in platform-auth platform-infra platform-system; do
+for id in platform-auth platform-infra platform-system platform-scheduler; do
   # --data-urlencode 保证 yaml 内容安全传输；tenant 即 namespaceId
   # prod：platform-infra 种子携带对象存储配置（MinIO，2026-11-19 启用）——endpoint 为公网同源地址
   # （浏览器直传预签名 URL 同源口径，CSP connect-src 'self'），access/secret 经环境变量注入不入库；

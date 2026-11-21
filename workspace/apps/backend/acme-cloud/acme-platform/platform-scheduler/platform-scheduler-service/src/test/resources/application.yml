@@ -1,0 +1,45 @@
+# platform-scheduler 测试域配置（遮蔽主 application.yml：无 Nacos 导入，测试不依赖共享环境；
+# 遮蔽口径照 platform-system-service/src/test/resources/application.yml 先例——
+# spring.config.import 为列表合并不可注解覆盖，必须以测试域 yml 整体遮蔽主配置）
+spring:
+  application:
+    name: platform-scheduler
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        enabled: false
+  flyway:
+    enabled: true
+    # locations 继承主 yml（REQ-20261118-002130 确认①）：scheduler 自 V1 起，per-service 子目录；
+    # 测试 schema 覆盖为 public（PG 容器口径，同 SystemIntegrationTest @DynamicPropertySource）
+    locations: classpath:db/migration/scheduler
+    default-schema: public
+    schemas: public
+
+acme:
+  scheduler:
+    # 调度内核参数（确认⑤/确认④终稿缺省值，测试与生产同语义）
+    dispatch:
+      # 下发接单超时（确认⑤：10s 未 200 视为下发失败走重试链）
+      timeout-ms: 10000
+    executor:
+      # 心跳 stale 阈值（确认④：30s 无心跳视为 OFFLINE）
+      heartbeat-stale-seconds: 30
+  security:
+    public-paths: []
+    token:
+      hmac-secret: scheduler-it-secret-0123456789abcdef
+  i18n:
+    basenames: i18n/acme-messages,i18n/platform-scheduler-messages
+  flex:
+    id:
+      # 雪花 worker 标识（12.3.1；auth=1 / system=2 / infra=3 之后顺延防碰撞）
+      worker-id: 4
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true

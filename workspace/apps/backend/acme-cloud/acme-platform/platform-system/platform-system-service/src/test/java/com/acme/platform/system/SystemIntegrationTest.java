@@ -82,8 +82,10 @@ class SystemIntegrationTest {
         // 种子数据（V2 基线 + V3/V4 infra 增补 + V5 内容域增补 + V7 文件/任务/Excel 权限增补
         // + V8 通知公告/站内信权限增补 + V9 组织架构/数据范围权限增补 + V10 登录安全权限增补
         // + V15 系统配置权限/菜单增补 + V19 日志中心权限/菜单增补 + V20 按钮 BUTTON 菜单节点增补
-        // + V22 六页 MENU 叶子增补，REQ-20261119-151640 + V24 租户套餐种子，REQ-20261121-022910）：
-        // 默认租户 / 超管 / super_admin / 72 权限点（68+4，V24 续编 69~72 套餐域）/
+        // + V22 六页 MENU 叶子增补，REQ-20261119-151640 + V24 租户套餐种子，REQ-20261121-022910
+        // + V26 调度中心权限种子，REQ-20261121-071002）：
+        // 默认租户 / 超管 / super_admin / 77 权限点（68+4，V24 续编 69~72 套餐域；
+        // V26 续编 73~77 调度中心域——无菜单节点，菜单归 JOB-3）/
         // 49 菜单（12 + V20 BUTTON 节点 27 + V22 MENU 叶子 6 + V24 套餐管理叶 46＋BUTTON 47~49；
         // me.menus 语义不动，BUTTON 仅授权树投影）
         assertThat(jdbcTemplate.queryForObject(
@@ -93,7 +95,7 @@ class SystemIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_role where role_code='super_admin'", Long.class)).isEqualTo(1L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_permission", Long.class)).isEqualTo(72L);
+                "select count(*) from sys_permission", Long.class)).isEqualTo(77L);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_menu", Long.class)).isEqualTo(49L);
         // REQ-20261119-051119 AC-1：BUTTON 节点入 sys_menu（permission_code=既有 API 码）且超管全绑
@@ -109,7 +111,7 @@ class SystemIntegrationTest {
                         + "where m.menu_type='BUTTON' and rm.role_id = "
                         + "(select id from sys_role where role_code='super_admin' and tenant_id='default')",
                 Long.class)).isEqualTo(30L);
-        // AC-1 权限点总数恒 72（V24 前恒 68；V24 套餐域 BUTTON 47~49 关联新增权限点 70~72）
+        // AC-1 权限点总数恒 77（V24 前 68 → V24 套餐域 69~72 → V26 调度中心域 73~77）
         assertThat(jdbcTemplate.queryForList(
                 "select distinct m.permission_code from sys_menu m where m.menu_type='BUTTON' "
                         + "and m.permission_code not in (select p.permission_code from sys_permission p)",
@@ -138,6 +140,21 @@ class SystemIntegrationTest {
                 .containsExactly("system:dept:list", "system:dept:create", "system:dept:update",
                         "system:dept:delete", "system:position:list", "system:position:create",
                         "system:position:update", "system:position:delete", "system:role:scope");
+        // REQ-20261121-071002：调度中心权限点种子（V26，确认②：73~77 共 5 点，无菜单节点；
+        // executors 列表归 job:list——GET /admin/v1/scheduler/executions 与 /executors 同挂
+        // scheduler:execution:list / scheduler:job:list 域）；接口级 http_method + http_path
+        assertThat(jdbcTemplate.queryForList(
+                "select permission_code from sys_permission where id >= 73 order by id",
+                String.class))
+                .containsExactly("scheduler:job:list", "scheduler:job:create", "scheduler:job:update",
+                        "scheduler:job:delete", "scheduler:execution:list");
+        // V26 role_permission 水位：行 id 续编 77~81，default 超管绑定 5 行（确认②）
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_role_permission where id >= 77", Long.class)).isEqualTo(5L);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_role_permission rp join sys_role r on r.id = rp.role_id "
+                        + "where rp.permission_id >= 73 and r.role_code='super_admin' "
+                        + "and r.tenant_id='default'", Long.class)).isEqualTo(5L);
         // V9 列口径：种子角色 data_scope 可空（null 经 DataScope.parse 归缺省档 ALL，存量角色语义不变）
         assertThat(jdbcTemplate.queryForObject(
                 "select data_scope from sys_role where role_code='super_admin'", String.class)).isNull();
@@ -145,7 +162,7 @@ class SystemIntegrationTest {
 
     @Test
     void seedScriptReplayIsIdempotent() {
-        // 重放 V2/V8/V9/V15/V19/V20/V24 的 INSERT 种子语句（幂等口径 AC-009：固定主键 + ON CONFLICT DO NOTHING
+        // 重放 V2/V8/V9/V15/V19/V20/V24/V26 的 INSERT 种子语句（幂等口径 AC-009：固定主键 + ON CONFLICT DO NOTHING
         // 不产生重复行）；DDL 由 Flyway 一次性执行、不在幂等重放范围（裸 CREATE TABLE 重跑必报已存在）
         replaySeedInserts("db/migration/system/V2__seed_baseline.sql");
         replaySeedInserts("db/migration/system/V8__notice_message_notify.sql");
@@ -154,14 +171,21 @@ class SystemIntegrationTest {
         replaySeedInserts("db/migration/system/V19__log_menu_permission.sql");
         replaySeedInserts("db/migration/system/V20__button_menu_nodes.sql");
         replaySeedInserts("db/migration/system/V24__tenant_package.sql");
+        // V26 调度中心权限种子（REQ-20261121-071002，文件名后缀未钉死按 V26__*.sql 解析）
+        replaySeedInsertsMatching("classpath*:db/migration/system/V26__*.sql");
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_user where username='admin'",
                 Long.class)).isEqualTo(1L);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(72L);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class)).isEqualTo(77L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 46",
-                Long.class)).isEqualTo(27L);
-        // V9 幂等：绑定行与权限点不因重放翻倍（>=54 含 V9 9 条 + V10 3 条 + V15 2 条 + V24 4 条）
+                Long.class)).isEqualTo(32L);
+        // V9 幂等：绑定行与权限点不因重放翻倍（>=54 含 V9 9 条 + V10 3 条 + V15 2 条 + V24 4 条 + V26 5 条）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_permission where permission_id >= 54",
-                Long.class)).isEqualTo(19L);
+                Long.class)).isEqualTo(24L);
+        // V26 幂等（REQ-20261121-071002 确认②）：权限点 73~77 与超管绑定行（id 77~81）不因重放翻倍
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_permission where id >= 73", Long.class)).isEqualTo(5L);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_role_permission where id >= 77", Long.class)).isEqualTo(5L);
         // V20/V24 幂等（REQ-20261119-051119 / REQ-20261121-022910 确认⑥）：BUTTON 节点与超管绑定行
         // 不因重放翻倍（BUTTON 仍 30）；role_menu id>=13 共 37 行＝BUTTON 绑定 27＋V22 叶子绑定 6
         // ＋V24 套餐绑定 4（REQ-20261121-022910，id 46~49）
@@ -533,7 +557,27 @@ class SystemIntegrationTest {
 
     /** 按分号切分迁移脚本、剔除 -- 注释行后仅重放 INSERT 语句（种子值不含分号字面量）。 */
     private void replaySeedInserts(String path) {
-        for (String chunk : readResource(path).split(";")) {
+        replaySeedInsertText(readResource(path), path);
+    }
+
+    /** 按通配模式解析迁移脚本后重放 INSERT（文件名后缀未钉死的迁移用，如 V26）。 */
+    private void replaySeedInsertsMatching(String locationPattern) {
+        try {
+            var resources = new org.springframework.core.io.support.PathMatchingResourcePatternResolver()
+                    .getResources(locationPattern);
+            assertThat(resources).as("迁移脚本缺失（backend 未落盘或命名不符）：%s", locationPattern).isNotEmpty();
+            for (var resource : resources) {
+                replaySeedInsertText(
+                        new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8),
+                        resource.getFilename());
+            }
+        } catch (java.io.IOException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private void replaySeedInsertText(String script, String sourceName) {
+        for (String chunk : script.split(";")) {
             String statement = chunk.lines()
                     .filter(line -> !line.strip().startsWith("--"))
                     .collect(java.util.stream.Collectors.joining("\n"))

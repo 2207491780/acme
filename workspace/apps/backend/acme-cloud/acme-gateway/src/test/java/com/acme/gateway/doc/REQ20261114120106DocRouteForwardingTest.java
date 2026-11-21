@@ -13,11 +13,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 文档转发路由形态与配置绑定核对（REQ-20261114-120106、AC-1/AC-2）：round1 打回单 AMB-3
- * 钉死——不存在单端点聚合，文档转发为 3 条路由（/v3/api-docs/{auth|system|infra} →
+ * 钉死——不存在单端点聚合，文档转发为逐服务路由（/v3/api-docs/{service} →
  * lb://platform-{service} + SetPath=/v3/api-docs，路由 id=platform-{service}-doc）；
  * acme.doc.enabled 默认 true（绑定 acme-gateway 的 GatewayDocProperties）。
+ * 基线三条 {auth|system|infra}（REQ-20261114-120106）+ 调度中心分组第四条 scheduler
+ * （REQ-20261121-071002 确认⑥，springdoc 分组 /v3/api-docs/scheduler）。
  * 既有 DocGuardFilterTest 覆盖关闭 404/DOC_DISABLED，既有 GatewayRoutingConfigTest 锁定
- * 8 条路由全量 id 集合（不修改两者），本类补充三条 doc 路由的转发形态与 SetPath 一致性
+ * 10 条路由全量 id 集合（不修改两者），本类补充四条 doc 路由的转发形态与 SetPath 一致性
  * （路由配置层断言，不起下游）。
  */
 @SpringBootTest(classes = AcmeGatewayApplication.class, properties = {
@@ -45,7 +47,8 @@ class REQ20261114120106DocRouteForwardingTest {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
         assertThat(routes).isNotNull();
 
-        for (String service : List.of("auth", "system", "infra")) {
+        // 基线三条（REQ-20261114-120106）+ 调度中心分组（REQ-20261121-071002 确认⑥）
+        for (String service : List.of("auth", "system", "infra", "scheduler")) {
             String routeId = "platform-" + service + "-doc";
             RouteDefinition doc = routes.stream()
                     .filter(r -> routeId.equals(r.getId()))
@@ -76,13 +79,14 @@ class REQ20261114120106DocRouteForwardingTest {
     }
 
     @Test
-    void docRouteCountIsExactlyThree() {
+    void docRouteCountIsExactlyFour() {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
         assertThat(routes).isNotNull();
         long docCount = routes.stream()
                 .filter(r -> r.getId() != null && r.getId().endsWith("-doc"))
                 .count();
-        // AMB-3：文档转发路由恰为 3 条，无聚合端点路由
-        assertThat(docCount).isEqualTo(3);
+        // AMB-3：文档转发路由逐服务、无聚合端点路由；基线 3 条（REQ-20261114-120106）
+        // + 调度中心分组 1 条（REQ-20261121-071002 确认⑥）= 4 条
+        assertThat(docCount).isEqualTo(4);
     }
 }

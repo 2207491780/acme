@@ -53,7 +53,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *   <li>AC-1：V25 种子形状（sys_capability 目录 2 行：1=platform:workflow 工作流 /
  *       2=platform:scheduler 调度中心，均 ENABLED；绑定表就绪零行）+ 种子重放幂等
  *       （SystemIntegrationTest.seedScriptReplayIsIdempotent 同款 INSERT 重放口径）+
- *       基线计数不变（菜单 49/权限 72/BUTTON 30——确认③：无新菜单/权限点/role_permission）+
+ *       基线计数不变（菜单 49/权限 77/BUTTON 30——确认③：V25 无新菜单/权限点/role_permission；
+ *       权限点水位为绝对计数、V26 调度域起为 77，REQ-20261121-071002）+
  *       能力目录端点形状（仅 ENABLED、id asc）。</li>
  *   <li>AC-2：套餐创建携带合法能力码 → 绑定行落库 + 详情 capabilities 回传一致；缺省=空集。</li>
  *   <li>AC-3：更新全量替换（增/删双向差异同步绑定表）；缺省=空集（与 menuIds 同口径）。</li>
@@ -94,7 +95,7 @@ class REQ20261121054613CapabilityApiIntegrationTest {
 
     private static final String OPERATOR = "req054613-it";
 
-    /** 夹具行 id 基点（种子权限/菜单/能力 id ≤72，雪花 id 远大于此，teardown 按夹具租户码清理）。 */
+    /** 夹具行 id 基点（种子权限/菜单/能力 id ≤77——V26 调度域权限续编 73~77；雪花 id 远大于此，teardown 按夹具租户码清理）。 */
     private static final long ID_BASE = 922_054_613_000L;
 
     // ---- V25 种子锚点（确认③钉死）：能力目录 2 行，均 ENABLED ----
@@ -365,9 +366,11 @@ class REQ20261121054613CapabilityApiIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_tenant_package_capability", Long.class)).isZero();
 
-        // ② 基线计数不变（确认③：无新菜单/权限点/role_permission——TL 钉死 72/49/30）
+        // ② 基线计数不变（确认③：V25 无新菜单/权限点/role_permission——菜单/BUTTON 水位仍 49/30；
+        //    权限点水位为绝对计数、随新增权限点的 REQ 抬升：68 基线 + V24 套餐域 4 点
+        //    + V26 调度域 5 点（REQ-20261121-071002）= 77，SystemIntegrationTest 同源口径）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
-                .as("V25 不新增权限点（V24 水位 72）").isEqualTo(72L);
+                .as("V25 不新增权限点（V26 水位 77）").isEqualTo(77L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
                 .as("V25 不新增菜单（V24 水位 49）").isEqualTo(49L);
         assertThat(jdbcTemplate.queryForObject(

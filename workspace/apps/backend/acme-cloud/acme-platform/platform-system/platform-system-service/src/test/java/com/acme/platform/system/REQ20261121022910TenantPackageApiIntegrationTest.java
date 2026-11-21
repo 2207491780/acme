@@ -668,8 +668,10 @@ class REQ20261121022910TenantPackageApiIntegrationTest {
                 "select count(*) from sys_role_menu rm join sys_menu m on m.id = rm.menu_id "
                         + "where rm.role_id = 1 and rm.tenant_id = 'default' and m.id between 46 and 49",
                 Long.class)).as("default 超管补绑 46~49 四行").isEqualTo(4L);
+        // 权限点水位为绝对计数、随新增权限点的 REQ 抬升：68 基线 + V24 套餐域 4 点（69~72）
+        // + V26 调度域 5 点（73~77，REQ-20261121-071002）= 77（SystemIntegrationTest 同源口径）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
-                .as("V24 后权限点总数=68+4").isEqualTo(72L);
+                .as("权限点总数水位=68 基线+V24 套餐域 4 点+V26 调度域 5 点").isEqualTo(77L);
         assertThat(jdbcTemplate.queryForList(
                 "select permission_code from sys_permission where id between 69 and 72 order by id",
                 String.class)).containsExactly(
@@ -683,7 +685,10 @@ class REQ20261121022910TenantPackageApiIntegrationTest {
                 String.class)).allSatisfy(path -> assertThat(path).startsWith("/admin/v1/system/tenant-packages"));
 
         // ② 种子 INSERT 重放（幂等口径同 SystemIntegrationTest：固定主键 + ON CONFLICT DO NOTHING
-        //    / 旧值守卫 UPDATE → 空操作；DDL 由 Flyway 一次性执行不在重放范围）
+        //    / 旧值守卫 UPDATE → 空操作；DDL 由 Flyway 一次性执行不在重放范围）。重放清单恒为 V24
+        //    （类域=V24 幂等）：重放断言全部为 before/after 相对口径，V26 已由 Flyway 应用并计入
+        //    before 快照，无需纳入本类重放清单——跨版本全量重放由
+        //    SystemIntegrationTest.seedScriptReplayIsIdempotent 承载（V26 在其清单内）。
         long menusBefore = jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class);
         long roleMenuV24Before = jdbcTemplate.queryForObject(
                 "select count(*) from sys_role_menu where menu_id between 46 and 49", Long.class);

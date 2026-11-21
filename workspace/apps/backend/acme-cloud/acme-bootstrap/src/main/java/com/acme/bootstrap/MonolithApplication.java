@@ -7,6 +7,7 @@ import com.acme.platform.auth.config.LoginLogRetentionProperties;
 import com.acme.platform.infra.PlatformInfraApplication;
 import com.acme.platform.infra.config.AuditRetentionProperties;
 import com.acme.platform.infra.config.ExceptionLogRetentionProperties;
+import com.acme.platform.scheduler.PlatformSchedulerApplication;
 import com.acme.platform.system.PlatformSystemApplication;
 import org.apache.ibatis.annotations.Mapper;
 import org.mybatis.spring.annotation.MapperScan;
@@ -23,19 +24,21 @@ import org.springframework.context.annotation.Import;
  * 单体启动入口（REQ-20261118-002130 确认②③：三服务聚合为单 JVM 形态，可选打包路径——
  * 本地联调 / 小部署；分布式为默认形态，能力差异见 BACKEND.md「双形态」）。
  *
- * <p>装配口径：{@code scanBasePackages} 扫单体组件面（com.acme.bootstrap）与三服务组件面
- * （com.acme.platform）；三 Application 类作为普通配置类导入（其 @EnableFeignClients 显式
+ * <p>装配口径：{@code scanBasePackages} 扫单体组件面（com.acme.bootstrap）与各服务组件面
+ * （com.acme.platform）；各 Application 类作为普通配置类导入（其 @EnableFeignClients 显式
  * clients 数组在单体由「Feign 惰性 + @Primary 本地适配器 + 工厂 bean primary 降级」化解——
  * {@code spring.cloud.openfeign.lazy-attributes-resolution=true} 下 Feign 工厂 bean 惰性注册、
  * 永不实例化，跨域调用全部短路至本地适配器，见 {@code local} 包各类与
- * {@link MonolithContextDefinitionCustomizer}）。</p>
+ * {@link MonolithContextDefinitionCustomizer}）。REQ-20261121-071002 确认⑥：
+ * platform-scheduler 入聚合（tick 循环在单体形态随 Spring 启动，ShedLock 同款；
+ * 下发线程池/RestClient bean 装配但单体无执行器注册时零下发行为）。</p>
  *
  * <p>{@code @MapperScan("com.acme.platform")}：mybatis-flex starter 的自动 mapper 注册按
  * AutoConfigurationPackages（主应用包 com.acme.bootstrap）扫描，单体主包不含 mapper 接口——
- * 显式扫描三服务 mapper 面（@MapperScan 在场使 starter 自动注册器退避，服务单跑语义不变）。</p>
+ * 显式扫描各服务 mapper 面（@MapperScan 在场使 starter 自动注册器退避，服务单跑语义不变）。</p>
  *
- * <p>中间件合并（确认③）：单一 DataSource（search_path 覆盖三 schema，{@code config} 包）、
- * 三个手动 Flyway 实例（spring.flyway.enabled=false 承担 Boot 自动配置关闭）、Redis 一份、
+ * <p>中间件合并（确认③）：单一 DataSource（search_path 覆盖四 schema，{@code config} 包）、
+ * 各手动 Flyway 实例（spring.flyway.enabled=false 承担 Boot 自动配置关闭）、Redis 一份、
  * Nacos 软依赖（无 config.import、discovery.enabled=false）、stream 关闭 + 本地审计 sink
  * （{@code audit} 包，AC-5 直落 acme_op_audit 无 Kafka）。</p>
  *
@@ -50,7 +53,8 @@ import org.springframework.context.annotation.Import;
  */
 @SpringBootApplication(scanBasePackages = {"com.acme.bootstrap", "com.acme.platform"})
 @MapperScan(basePackages = "com.acme.platform", annotationClass = Mapper.class)
-@Import({PlatformAuthApplication.class, PlatformSystemApplication.class, PlatformInfraApplication.class})
+@Import({PlatformAuthApplication.class, PlatformSystemApplication.class, PlatformInfraApplication.class,
+        PlatformSchedulerApplication.class})
 @EnableConfigurationProperties({AuthTokenProperties.class, LoginGuardProperties.class,
         LoginLogRetentionProperties.class, ExceptionLogRetentionProperties.class,
         AuditRetentionProperties.class})

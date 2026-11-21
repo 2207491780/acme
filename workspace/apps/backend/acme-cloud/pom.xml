@@ -228,6 +228,17 @@
                 <artifactId>platform-infra-service</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- platform-scheduler 增补登记（REQ-20261121-071002 调度中心核心，18.1.1 第 3 步） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>platform-scheduler-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>platform-scheduler-service</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <!-- 服务契约模块（18.1.1 第 3 步登记；business-api-integration G2.5：business-content） -->
             <dependency>
                 <groupId>com.acme</groupId>

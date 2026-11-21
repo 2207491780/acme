@@ -50,7 +50,7 @@ echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> ~/.bashrc
 ## 3. 腾讯云 TCR 个人版（已就绪，复用老环境仓库）
 
 - TCR 归属**应用面所在账号**（账号 ID `100038448417`）；命名空间 **`acme`**；五个**私有**仓库
-  `gateway / platform-auth / platform-infra / platform-system / web` 已于 2026-11-13 创建，直接复用。
+  `gateway / platform-auth / platform-infra / platform-system / platform-scheduler / web`（platform-scheduler 增补 REQ-20261121-071002）已于 2026-11-13 创建，直接复用。
 - 凭证方式：访问凭证页的**长期密码** + 用户名（账号 ID 形式），不使用临时令牌——记入数据面机
   `/opt/acme/prod/registry.env` 与本机 `.ai-tmp/registry.env`（真实值不入库、不经 AI 工具转录）。
 - REGISTRY 地址：`ccr.ccs.tencentyun.com/acme`（两台轻量机访问走腾讯内网路径，快且不占公网流量包）。
@@ -86,10 +86,10 @@ git clone <仓库地址> && git checkout acme-foundation   # 受保护主线（m
 
 ```sh
 sh workspace/env-stack/scripts/local-build.sh
-# 产物：.ai-tmp/build/prod-<sha7>/（backend 四 jar + frontend web dist + 五镜像 tar + meta.env）
+# 产物：.ai-tmp/build/prod-<sha7>/（backend 五 jar + frontend web dist + 六镜像 tar + meta.env）
 # 前置：Docker；Maven（不在 PATH 时 export MVN_CMD=完整路径）；Node≥22.13 + pnpm11.8
 # build 阶段零凭证；本地打包 skipTests，测试门禁由 ci.yml 承担
-# 增量构建：ACME_BUILD_SERVICES="web"（空格分隔子集，可一个或多个；缺省=全量五服务）——
+# 增量构建：ACME_BUILD_SERVICES="web"（空格分隔子集，可一个或多个；缺省=全量六服务）——
 #   只构建选中服务（web-only 时跳过 Maven 与后端镜像）；非法名 fail-fast
 ```
 
@@ -99,7 +99,7 @@ sh workspace/env-stack/scripts/local-build.sh
 # 本机 export：REGISTRY/REGISTRY_USERNAME/REGISTRY_PASSWORD（或 .ai-tmp/registry.env）
 #              ACME_DEPLOY_HOST=<数据面机>   ACME_SRV_HOST=<应用面机>
 sh workspace/env-stack/scripts/local-deploy.sh
-# 链路：五镜像 push TCR → scp env-stack → SSH 数据面 deploy.sh prod（部署+种子 Nacos+等待 rollout+
+# 链路：六镜像 push TCR → scp env-stack → SSH 数据面 deploy.sh prod（部署+种子 Nacos+等待 rollout+
 #       生成中间件端点文件）→ healthcheck.sh prod → 同步端点+dev.env 到应用面机（dev-tunnel 消费）
 # 增量部署：ACME_DEPLOY_SERVICES="web"（透传服务器侧 ACME_SERVICES）——只推送/部署选中服务；
 #   未选中服务在 kustomize images 段钉住集群当前 tag（清单不变→存量 Deployment 不滚动）；

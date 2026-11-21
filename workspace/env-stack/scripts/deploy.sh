@@ -56,10 +56,11 @@ TAG=${TAG:-"$ENV-latest"}
 [ -n "$REGISTRY" ] || { echo "❌ registry.env 缺 REGISTRY" >&2; exit 1; }
 
 NS="acme-$ENV"
-# 服务选择（增量发布）：ACME_SERVICES = 空格分隔子集，缺省=全量五服务（local-deploy.sh 透传）；
+# 服务选择（增量发布）：ACME_SERVICES = 空格分隔子集，缺省=全量六服务（local-deploy.sh 透传）；
 # 未选中服务在 images 段钉住集群当前 tag——渲染清单不变 → 不触发滚动（首次部署无存量
 # Deployment 时回退全局 TAG）；非法名 fail-fast（与 ACME_BUILD/DEPLOY_SERVICES 同一套服务名）
-ALL_SERVICES='gateway platform-auth platform-infra platform-system web'
+# platform-scheduler 增补（REQ-20261121-071002 确认⑥：ALL_SERVICES + 镜像映射）
+ALL_SERVICES='gateway platform-auth platform-infra platform-system platform-scheduler web'
 SERVICES=${ACME_SERVICES:-$ALL_SERVICES}
 for s in $SERVICES; do
   case " $ALL_SERVICES " in
@@ -125,7 +126,7 @@ fi
 
 # 6) 种子 Nacos（中间件就绪后执行）
 sh "$ENVSTACK/scripts/seed-nacos.sh" "$ENV"
-for dep in acme-gateway platform-auth platform-infra platform-system acme-web; do
+for dep in acme-gateway platform-auth platform-infra platform-system platform-scheduler acme-web; do
   # 首次部署需从 TCR 公网拉取五镜像（跨账号轻量机走公网路径，带宽受限）——等待上限 1800s；
   # 镜像已在节点缓存的重部署会提前秒级完成，无副作用
   kubectl -n "$NS" rollout status "deployment/$dep" --timeout=1800s

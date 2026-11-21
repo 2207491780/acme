@@ -128,6 +128,16 @@ public final class SystemPermissions {
     public static final String TENANT_PACKAGE_UPDATE = "system:tenant-package:update";
     public static final String TENANT_PACKAGE_DELETE = "system:tenant-package:delete";
 
+    /**
+     * 调度中心（REQ-20261121-071002 确认②；platform-system V26 种子，sys_permission 73~77）。
+     * executions 列表归 execution:list（77）、executors 列表归 job:list（73）——契约 frontmatter 语义。
+     */
+    public static final String SCHEDULER_JOB_LIST = "scheduler:job:list";
+    public static final String SCHEDULER_JOB_CREATE = "scheduler:job:create";
+    public static final String SCHEDULER_JOB_UPDATE = "scheduler:job:update";
+    public static final String SCHEDULER_JOB_DELETE = "scheduler:job:delete";
+    public static final String SCHEDULER_EXECUTION_LIST = "scheduler:execution:list";
+
     private SystemPermissions() {
     }
 }

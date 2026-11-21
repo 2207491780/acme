@@ -91,11 +91,13 @@ class MonolithContextSmokeTest {
 
     @DynamicPropertySource
     static void containers(DynamicPropertyRegistry registry) {
-        // 三 schema 合并 search_path（MonolithDataSourceConfig 语义同款）；env 键与分布式一致。
-        // 追加符：Testcontainers 2.x 的 jdbcUrl 已带 query（loggerLevel=OFF），须用 & 续参
+        // 四 schema 合并 search_path（MonolithDataSourceConfig 语义同款；platform_scheduler 为
+        // REQ-20261121-071002 确认⑥聚合增补——scheduler tick/锁表在单体随 Spring 启动）；
+        // env 键与分布式一致。追加符：Testcontainers 2.x 的 jdbcUrl 已带 query（loggerLevel=OFF），须用 & 续参
         registry.add("spring.datasource.url", () -> {
             String separator = POSTGRES.getJdbcUrl().contains("?") ? "&" : "?";
-            return POSTGRES.getJdbcUrl() + separator + "currentSchema=platform_auth,platform_system,platform_infra";
+            return POSTGRES.getJdbcUrl() + separator
+                    + "currentSchema=platform_auth,platform_system,platform_infra,platform_scheduler";
         });
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -188,7 +190,8 @@ class MonolithContextSmokeTest {
                         .as("Feign 工厂 bean 应被降级为非 primary（本地适配器胜出）：%s", name).isFalse();
             }
         }
-        assertThat(feignDefinitions).as("三服务共 10 个显式 clients 声明").isEqualTo(10);
+        assertThat(feignDefinitions).as("四服务去重后共 10 个显式 clients 声明"
+                + "（scheduler 复用 AuthorizationClient 同配置声明，不新增工厂 bean）").isEqualTo(10);
     }
 
     // ---------- AC-2：三 Flyway 实例各自迁移落位 ----------

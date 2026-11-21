@@ -50,15 +50,17 @@ class GatewayRoutingConfigTest {
         List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions().collectList().block();
         assertThat(routes).isNotNull();
         Set<String> ids = routes.stream().map(RouteDefinition::getId).collect(Collectors.toSet());
-        // 按能力域注册的五条路由（11.1.4 仅追加；Q-D07：sample 死路由已移除；
+        // 按能力域注册的六条路由（11.1.4 仅追加；Q-D07：sample 死路由已移除；
         // platform-infra 增补经 platform-infra-audit 拆分评审；
         // platform-auth-app 为 C 端双端前缀路由，consumer-auth-refresh-dataperm；
-        // platform-system-ws 为 WS 实时推送路由，REQ-20261114-120102）；
-        // 三条聚合文档转发路由（REQ-20261114-120106、AC-2）；
+        // platform-system-ws 为 WS 实时推送路由，REQ-20261114-120102；
+        // platform-scheduler 为调度中心路由，REQ-20261121-071002 确认⑥）；
+        // 四条聚合文档转发路由（REQ-20261114-120106、AC-2 基线三条
+        // + REQ-20261121-071002 确认⑥调度中心分组 platform-scheduler-doc）；
         // business-content / business-content-app 内容域双端路由已随业务域下线移除
         assertThat(ids).containsExactlyInAnyOrder("platform-auth", "platform-system", "platform-infra",
-                "platform-auth-app", "platform-system-ws",
-                "platform-auth-doc", "platform-system-doc", "platform-infra-doc");
+                "platform-scheduler", "platform-auth-app", "platform-system-ws",
+                "platform-auth-doc", "platform-system-doc", "platform-infra-doc", "platform-scheduler-doc");
         RouteDefinition auth = routes.stream()
                 .filter(r -> r.getId().equals("platform-auth")).findFirst().orElseThrow();
         assertThat(auth.getUri().toString()).isEqualTo("lb://platform-auth");
