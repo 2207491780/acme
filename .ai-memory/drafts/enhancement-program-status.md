@@ -17,7 +17,8 @@
 | 2 | JOB-1 调度中心核心 | DONE（c553b7a 已合并待推；终验全 reactor EXIT=0；水位 77；UTC 锁表纪律+坑 16 入册） | REQ-20261121-071002 |
 | 2 | BPM-1 引擎内核 MVP | DONE（round 1 收口：workflow 49/49+bootstrap 冒烟 6/6+全 reactor 51/52 定向修复；合并 4f90fba 快进+合并树冒烟复跑绿；已推双远端；工作树/分支回收；裁决⑨a-⑭入契约） | REQ-20261121-142316 |
 | 3+ | THEME-3 偏好持久化+mobile 对齐 | 交付全齐待门禁：frontend+tester 前端 29 例+适配 9 文件+错误码闭环（三包 typecheck 绿；core 307/307、mobile 102/102、web 515/523 零断言失败 8 超时类）；backend+tester 后端 17/17 真跑绿+模块 402/402；待 TL 低负载窗口跑 web 串行复判+build+desktop check | REQ-20261121-200415 |
-| 3+ | JOB-2 执行器 SDK | III-GATE：交付四项裁决落契约（triggerType 词表/反射桥取舍/种子 DISABLED+JOB-3 启停钉死/超时源偏差）；全 reactor 后台跑（job2-gate-full-test.log） | REQ-20261121-200724 |
+| 3+ | JOB-2 执行器 SDK | **DONE**（全 reactor 49 模块 BUILD SUCCESS 零失败；合并 ffe27b9 快进+合并树定向复验绿+双远端推送+工作树/分支回收；交付裁决四项入契约；JOB-3 钉死=4 行启停运维动作） | REQ-20261121-200724 |
+| 3+ | THEME-3 偏好持久化+mobile 对齐 | **III-GATE 前端门禁跑中**（t3-fe-gate.log：typecheck→test→build→desktop check 链，PID 14908；交付与适配全齐） | REQ-20261121-200415 |
 | 3+ | BPM-2 → JOB-3/BPM-3/TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动（BPM-0 预研已定稿可直接取号） | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
