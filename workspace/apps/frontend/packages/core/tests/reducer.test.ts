@@ -407,23 +407,18 @@ describe('state boundary', () => {
       apps: base.apps,
       releases: [base.releases[0]],
       // REQ-20261121-010725：settings patch 支持 legacy 扁平字段（theme/dark→mode、
-      // accent/density/motion 同名映射），合并后经 validateThemePreferences 归一，
-      // 产物 = settingsFromPreferences 构造（含 @deprecated 投影，preferences 唯一事实源）。
+      // accent/density/motion 同名映射），合并后经 validateThemePreferences 归一。
+      // THEME-3（REQ-20261121-200415 ⑧）：投影字段已删除，产物仅 schemaVersion+preferences。
       settings: { density: 'compact', motion: false },
     };
     // 部分状态缺失的外观字段以种子默认补全（seed preferences.mode=dark/accent=cyan/
-    // customAccent=null/motionEnabled=true），扁平覆盖 density/motion 归一进 preferences，
-    // 投影字段由 preferences 派生（与 preferences 永不漂移）。
+    // customAccent=null/motionEnabled=true），扁平覆盖 density/motion 归一进 preferences。
     const seedPrefs = (base.settings as { preferences: { mode: 'light' | 'dark' | 'system'; accent: string; customAccent: string | null; density: 'comfortable' | 'compact'; motionEnabled: boolean } }).preferences;
     const expectedSettings = {
       // REQ-20261121-043502（AC-10 回归口径适配）：偏好模型 v3 → schemaVersion=PREFERENCES_VERSION，
       // v3 新字段随种子默认进入 preferences（形状随 seedPrefs 派生，断言不变）。
       schemaVersion: PREFERENCES_VERSION,
       preferences: { ...seedPrefs, density: 'compact', motionEnabled: false },
-      theme: seedPrefs.mode,
-      accent: seedPrefs.accent,
-      density: 'compact',
-      motion: false,
     };
     const expected = {
       ...base, ...data, order: [base.releases[0].id], settings: expectedSettings,
@@ -442,17 +437,16 @@ describe('state boundary', () => {
     // REQ-20261121-010725（TL 钉死 reducer 语义）：UPDATE_SETTINGS 的 patch 支持
     // preferences 内嵌对象或 legacy 扁平字段（theme/dark→mode、accent/density/motion 同名映射，
     // 显式选预设 accent 清 customAccent）；合并后经 validateThemePreferences 归一；
-    // 产物 = settingsFromPreferences 构造（含投影）；schemaVersion 不接受补丁改写。
+    // THEME-3（REQ-20261121-200415 ⑧）：产物无投影字段（preferences 唯一事实源）；
+    // schemaVersion 不接受补丁改写。
     const base = seedState(now);
     const settingsOf = (state: ReturnType<typeof seedState>) =>
       state.settings as unknown as {
         schemaVersion: number;
         preferences: ThemePreferences;
-        theme: string; accent: string; density: string; motion: boolean;
       };
 
-    // ① preferences 内嵌 patch：逐字段生效 + 投影派生一致
-    // （043502 v3 适配：patch 以 DEFAULT_PREFERENCES 派生补 v3 形状；种子默认供给 v3 字段）
+    // ① preferences 内嵌 patch：逐字段生效（043502 v3 适配：patch 以 DEFAULT_PREFERENCES 派生补 v3 形状）
     const withPrefs = reduce(base, {
       type: 'UPDATE_SETTINGS',
       patch: { preferences: { ...DEFAULT_PREFERENCES, mode: 'dark', accent: 'emerald', customAccent: null, density: 'compact', motionEnabled: false } },
@@ -463,10 +457,9 @@ describe('state boundary', () => {
     expect(prefs.preferences).toEqual({
       ...DEFAULT_PREFERENCES, mode: 'dark', accent: 'emerald', customAccent: null, density: 'compact', motionEnabled: false,
     });
-    expect(prefs.theme).toBe('dark');
-    expect(prefs.accent).toBe('emerald');
-    expect(prefs.density).toBe('compact');
-    expect(prefs.motion).toBe(false);
+    for (const key of ['theme', 'accent', 'density', 'motion'] as const) {
+      expect(key in prefs, `投影字段 ${key} 删除后不得残留（THEME-3 ⑧）`).toBe(false);
+    }
 
     // ② legacy 扁平 patch：theme→mode 同名映射（light 起步 → theme:'dark' 映射为 mode dark）
     const lightState = reduce(withPrefs, {
@@ -474,10 +467,8 @@ describe('state boundary', () => {
       patch: { preferences: { ...settingsOf(withPrefs).preferences, mode: 'light' } },
     }, now);
     expect(settingsOf(lightState).preferences.mode).toBe('light');
-    expect(settingsOf(lightState).theme).toBe('light');
     const withLegacy = reduce(lightState, { type: 'UPDATE_SETTINGS', patch: { theme: 'dark' } }, now);
     expect(settingsOf(withLegacy).preferences.mode).toBe('dark');
-    expect(settingsOf(withLegacy).theme).toBe('dark');
 
     // ③ 显式选预设 accent 清 customAccent（customAccent 经 preferences 内嵌 patch 设置；
     //    legacy 扁平字段清单不含 customAccent），再以预设 accent patch 清除
@@ -491,7 +482,6 @@ describe('state boundary', () => {
     }, now);
     expect(settingsOf(withPreset).preferences.accent).toBe('emerald');
     expect(settingsOf(withPreset).preferences.customAccent).toBeNull();
-    expect(settingsOf(withPreset).accent).toBe('emerald');
 
     // ④ schemaVersion 不接受补丁改写（043502：当前版本=PREFERENCES_VERSION=3）
     const withVersionHack = reduce(base, {

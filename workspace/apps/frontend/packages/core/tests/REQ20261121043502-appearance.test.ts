@@ -14,7 +14,7 @@
  *   resolveSemanticColors(overrides) → null 回 TONES 基线、合法 hex 覆盖。
  *
  * 装配照 THEME-1 范本 REQ20261121010725-preferences.test.ts：node 环境纯函数单测。
- * 4 个 @deprecated 投影字段保持派生不变（v3 新字段不进投影，确认记录②）。
+ * THEME-3（REQ-20261121-200415 ⑧）：4 个 @deprecated 投影字段已物理删除，本文件断言同步改为零残留。
  *
  * 注：buildTheme/themeSnapshot 的 token 消费面在 web（契约变更清单归属），集成断言见
  * web/tests/REQ20261121043502-appearanceDrawer.test.tsx（AC-3web/AC-5/AC-7 用例）。
@@ -63,8 +63,9 @@ const defaultSettingsShape = (): { schemaVersion: number; preferences: ThemePref
 });
 
 /**
- * THEME-1 终稿口径：Settings 含 4 个 @deprecated 投影字段（theme/accent/density/motion）。
- * v3 新字段不进投影（确认记录②）——断言投影存在且与 preferences 一致即可。
+ * THEME-3 适配口径（REQ-20261121-200415 确认记录⑧）：4 个 @deprecated 投影字段已物理删除，
+ * Settings = { schemaVersion, preferences }（preferences 唯一事实源）。
+ * 原「投影存在且一致」断言改为「投影零残留」。
  */
 type SettingsWithProjections = {
   schemaVersion?: number;
@@ -75,14 +76,13 @@ type SettingsWithProjections = {
   motion?: unknown;
 };
 
-const expectProjectionsConsistent = (
+const expectNoProjections = (
   settings: SettingsWithProjections,
-  prefs: ThemePreferences,
+  _prefs?: ThemePreferences,
 ): void => {
-  expect(settings.theme, '投影 theme 应存在且与 preferences.mode 一致').toBe(prefs.mode);
-  expect(settings.accent, '投影 accent 应存在且与 preferences.accent 一致').toBe(prefs.accent);
-  expect(settings.density, '投影 density 应存在且与 preferences.density 一致').toBe(prefs.density);
-  expect(settings.motion, '投影 motion 应存在且与 preferences.motionEnabled 一致').toBe(prefs.motionEnabled);
+  for (const key of ['theme', 'accent', 'density', 'motion'] as const) {
+    expect(key in settings, `投影字段 ${key} 删除后不得残留（THEME-3 确认记录⑧）`).toBe(false);
+  }
 };
 
 describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
@@ -137,11 +137,11 @@ describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
       motionEnabled: false,
       ...V3_DEFAULTS,
     });
-    // 投影字段派生一致（v3 不新增投影字段）
-    expectProjectionsConsistent(migrated.settings as unknown as SettingsWithProjections, migrated.settings.preferences);
+    // 投影字段零残留（THEME-3 ⑧）
+    expectNoProjections(migrated.settings as unknown as SettingsWithProjections, migrated.settings.preferences);
 
     // v2 preferences 缺字段：present 无损保留、缺失补 v3/v2 默认
-    // （fixture 用 dark：投影 theme 为旧两态语义，system 不直接进投影——THEME-1 口径）
+    // （fixture 用 dark：THEME-3 ⑧ 后无投影，mode 三态经 preferences 直存）
     const partialV2 = migrateSettings({ schemaVersion: 2, preferences: { mode: 'dark', accent: 'ruby' } });
     expect(partialV2.migrated).toBe(true);
     expect(partialV2.settings.schemaVersion).toBe(3);
@@ -153,7 +153,7 @@ describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
       motionEnabled: true,
       ...V3_DEFAULTS,
     });
-    expectProjectionsConsistent(partialV2.settings as unknown as SettingsWithProjections, partialV2.settings.preferences);
+    expectNoProjections(partialV2.settings as unknown as SettingsWithProjections, partialV2.settings.preferences);
   });
 
   it('should_migrate_v1_legacy_flat_settings_directly_to_v3_when_no_version_present', () => {
@@ -169,7 +169,7 @@ describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
       motionEnabled: false,
       ...V3_DEFAULTS,
     });
-    expectProjectionsConsistent(legacy.settings as unknown as SettingsWithProjections, legacy.settings.preferences);
+    expectNoProjections(legacy.settings as unknown as SettingsWithProjections, legacy.settings.preferences);
 
     // dark:false → light 直迁
     const lightLegacy = migrateSettings({ dark: false, accent: 'cyan', density: 'comfortable', motion: true });
@@ -278,7 +278,7 @@ describe('REQ20261121043502 当前版本 blob 不重复迁移（迁移口径回�
     expect(result.migrated).toBe(false);
     expect(result.settings.schemaVersion).toBe(3);
     expect(result.settings.preferences).toEqual(current.preferences);
-    expectProjectionsConsistent(result.settings as unknown as SettingsWithProjections, result.settings.preferences);
+    expectNoProjections(result.settings as unknown as SettingsWithProjections, result.settings.preferences);
 
     // v3 blob 带非法字段（历史脏数据）：迁移路径兜底归一，不抛错
     const dirty = migrateSettings({

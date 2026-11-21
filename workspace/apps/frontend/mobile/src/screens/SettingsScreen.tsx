@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, TextInput, Image, StyleSheet } from 'react-native';
 import type { ReactNode } from 'react';
-import { useLocaleStore, type Accent, type NeutralPalette, type Theme } from '@acme/core';
+import { useLocaleStore, type Accent, type NeutralPalette, type ThemeMode } from '@acme/core';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/authStore';
 import { useMeStore } from '../store/meStore';
@@ -10,11 +10,11 @@ import { ApiError } from '../api/client';
 import { authApi } from '../api/auth';
 import { profileApi } from '../api/profile';
 import { registerPushTokenAfterLogin } from '../utils/push';
-import { useAccent } from '../hooks';
+import { useAccent, useOnAccent } from '../hooks';
 import { useAppTheme } from '../theme';
 import { useTranslation } from '../i18n';
 import { Card, Screen, Title, Eyebrow, Muted, Tag, Button, toast } from '../components/ui';
-import { ACCENTS, ACCENT_ORDER, TONE_COLOR, onAccent } from '../theme';
+import { ACCENTS, ACCENT_ORDER, TONE_COLOR } from '../theme';
 
 type SetStyles = ReturnType<typeof makeStyles>;
 
@@ -70,14 +70,17 @@ function SettingRow({
   );
 }
 
-/** 主题分段选择（契约②：settings.theme dark/light，即时生效并写入共享状态）。 */
-function ThemeSegmented({ value, styles }: { value: Theme; styles: SetStyles }) {
+/** 主题分段选择（THEME-3 契约⑦三态：跟随系统/浅色/深色；手动 light/dark 即脱离 system，
+ *  即时生效并写入共享状态）。 */
+function ThemeSegmented({ value, styles }: { value: ThemeMode; styles: SetStyles }) {
+  const preferences = useStore((s) => s.state.settings.preferences);
   const dispatch = useStore((s) => s.dispatch);
   const { t } = useTranslation();
   const { palette } = useAppTheme();
-  const options: { key: Theme; labelKey: string }[] = [
-    { key: 'dark', labelKey: 'settings.mobile.themeDark' },
+  const options: { key: ThemeMode; labelKey: string }[] = [
+    { key: 'system', labelKey: 'settings.mobile.themeSystem' },
     { key: 'light', labelKey: 'settings.mobile.themeLight' },
+    { key: 'dark', labelKey: 'settings.mobile.themeDark' },
   ];
   return (
     <View style={styles.themeSegment}>
@@ -89,7 +92,12 @@ function ThemeSegmented({ value, styles }: { value: Theme; styles: SetStyles }) 
             accessibilityRole="button"
             accessibilityState={{ selected }}
             accessibilityLabel={t(option.labelKey)}
-            onPress={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: option.key } })}
+            onPress={() =>
+              dispatch({
+                type: 'UPDATE_SETTINGS',
+                patch: { preferences: { ...preferences, mode: option.key } },
+              })
+            }
             style={[
               styles.themeOption,
               selected ? { backgroundColor: palette.text, borderColor: palette.text } : null,
@@ -148,6 +156,7 @@ function LocaleSegmented({ styles }: { styles: SetStyles }) {
 /** 头像展示（精简版，无上传）：有 avatarUrl 渲染圆形图片，否则昵称首字符 accent 底占位（契约⑦同语义）。 */
 function MiniAvatar({ uri, name, size = 44 }: { uri: string | null; name: string; size?: number }) {
   const accent = useAccent();
+  const onAccentHex = useOnAccent();
   const { palette } = useAppTheme();
   if (uri) {
     return (
@@ -171,7 +180,7 @@ function MiniAvatar({ uri, name, size = 44 }: { uri: string | null; name: string
         justifyContent: 'center',
       }}
     >
-      <Text style={{ color: onAccent, fontWeight: '700', fontSize: Math.round(size * 0.45), lineHeight: size * 0.5 }}>
+      <Text style={{ color: onAccentHex, fontWeight: '700', fontSize: Math.round(size * 0.45), lineHeight: size * 0.5 }}>
         {initial || '?'}
       </Text>
     </View>
@@ -403,7 +412,8 @@ function NotificationPrefsCard({ styles }: { styles: SetStyles }) {
 }
 
 export function SettingsScreen() {
-  const settings = useStore((s) => s.state.settings);
+  // 外观偏好（THEME-3 契约⑧）：全部读取点脱离投影字段，走 preferences 唯一事实源
+  const preferences = useStore((s) => s.state.settings.preferences);
   const state = useStore((s) => s.state);
   const dispatch = useStore((s) => s.dispatch);
   const resetData = useStore((s) => s.resetData);
@@ -412,6 +422,7 @@ export function SettingsScreen() {
   // 员工账号区解锁依据（REQ-20261119-040838 B 会话）：员工账密登录后展示资料/改密/会话/通知卡
   const bSession = useBSessionStore((s) => s.session);
   const accent = useAccent();
+  const onAccentHex = useOnAccent();
   const { t } = useTranslation();
   const { palette } = useAppTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -442,7 +453,7 @@ export function SettingsScreen() {
           label={t('settings.appearance.theme')}
           desc={t('settings.appearance.themeDesc')}
           styles={styles}
-          control={<ThemeSegmented value={settings.theme} styles={styles} />}
+          control={<ThemeSegmented value={preferences.mode} styles={styles} />}
         />
         <SettingRow
           label={t('settings.appearance.accent')}
@@ -450,9 +461,11 @@ export function SettingsScreen() {
           styles={styles}
           control={<View />}
         />
+        {/* 12 预设色板（THEME-3 契约⑦）：预设即选中即放弃自定义取色；customAccent 经后端同步
+            生效并以选中态高亮呈现（一期无取色器 UI，纯展示 chip）。 */}
         <View style={styles.swatchRow}>
           {ACCENT_ORDER.map((name: Accent) => {
-            const selected = settings.accent === name;
+            const selected = preferences.customAccent == null && preferences.accent === name;
             return (
               <Pressable
                 key={name}
@@ -460,16 +473,35 @@ export function SettingsScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 hitSlop={4}
-                onPress={() => dispatch({ type: 'UPDATE_SETTINGS', patch: { accent: name } })}
+                onPress={() =>
+                  dispatch({
+                    type: 'UPDATE_SETTINGS',
+                    patch: { preferences: { ...preferences, accent: name } },
+                  })
+                }
                 style={[
                   styles.swatch,
                   { backgroundColor: ACCENTS[name], borderColor: selected ? palette.text : 'transparent' },
                 ]}
               >
-                {selected ? <View style={styles.swatchDot} /> : null}
+                {selected ? <View style={[styles.swatchDot, { backgroundColor: onAccentHex }]} /> : null}
               </Pressable>
             );
           })}
+          {preferences.customAccent ? (
+            <View
+              accessible
+              accessibilityLabel={t('settings.appearance.accentCustom')}
+              accessibilityRole="button"
+              accessibilityState={{ selected: true }}
+              style={[
+                styles.swatch,
+                { backgroundColor: preferences.customAccent, borderColor: palette.text },
+              ]}
+            >
+              <View style={[styles.swatchDot, { backgroundColor: onAccentHex }]} />
+            </View>
+          ) : null}
         </View>
         <SettingRow
           label={t('settings.mobile.motionLabel')}
@@ -478,9 +510,14 @@ export function SettingsScreen() {
           control={
             <Toggle
               label={t('settings.mobile.motionLabel')}
-              value={settings.motion}
+              value={preferences.motionEnabled}
               styles={styles}
-              onChange={(v) => dispatch({ type: 'UPDATE_SETTINGS', patch: { motion: v } })}
+              onChange={(v) =>
+                dispatch({
+                  type: 'UPDATE_SETTINGS',
+                  patch: { preferences: { ...preferences, motionEnabled: v } },
+                })
+              }
             />
           }
         />
@@ -598,7 +635,7 @@ const makeStyles = (p: NeutralPalette) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    swatchDot: { width: 10, height: 10, borderRadius: 99, backgroundColor: onAccent },
+    swatchDot: { width: 10, height: 10, borderRadius: 99 },
     themeSegment: { flexDirection: 'row', borderWidth: 1, borderColor: p.border, borderRadius: 10, overflow: 'hidden' },
     themeOption: {
       paddingHorizontal: 14,

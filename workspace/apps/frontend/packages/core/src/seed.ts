@@ -1,4 +1,4 @@
-import { DEFAULT_PREFERENCES, settingsFromPreferences } from './preferences';
+import { DEFAULT_PREFERENCES, buildSettings } from './preferences';
 import type { AppState, App, Release, Platform, Env, Status } from './types';
 
 const hoursAgo = (now: number, h: number): string =>
@@ -134,7 +134,7 @@ export function seedState(now: number = Date.now()): AppState {
     ],
     // 种子外观默认保持深色（与 index.html 首绘默认一致，避免无 blob 冷启动闪变）；
     // 出厂默认偏好（恢复默认基准）= DEFAULT_PREFERENCES（mode light），见 preferences.ts。
-    settings: settingsFromPreferences({ ...DEFAULT_PREFERENCES, mode: 'dark' }),
+    settings: buildSettings({ ...DEFAULT_PREFERENCES, mode: 'dark' }),
     activity: [
       { id: 'act-1', at: hoursAgo(now, 0.4), text: 'REL-2412 进入测试阶段', tone: 'violet' },
       { id: 'act-2', at: hoursAgo(now, 1.2), text: 'REL-2411 构建进度 38%', tone: 'info' },

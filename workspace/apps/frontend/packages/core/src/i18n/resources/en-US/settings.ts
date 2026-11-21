@@ -132,6 +132,7 @@ export const settings = {
     sub: 'Accent color, theme and motion take effect instantly and persist to shared state.',
     themeDark: 'Dark',
     themeLight: 'Light',
+    themeSystem: 'System',
     motionLabel: 'Build animation',
     motionDesc: 'When enabled, build progress advances in real time (TICK)',
     accentAria: 'Accent color {{name}}',

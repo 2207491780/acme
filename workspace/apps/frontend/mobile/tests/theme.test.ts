@@ -1,13 +1,14 @@
 /**
  * @vitest-environment jsdom
  *
- * 主题派生回归锚点（REQ-20261119-032108 契约②）：
- * - 历史 API 兼容：静态 palette 导出仍为 dark 缺省子集、语义映射引用同一；
- * - 双主题派生：ThemeProvider 消费 core settings.theme，经 resolvePalette 派生，
+ * 主题派生回归锚点（REQ-20261119-032108 契约②；THEME-3 REQ-20261121-200415 适配）：
+ * - resolvePalette 分支引用同一性（dark→DARK_NEUTRALS / light→LIGHT_NEUTRALS）；
+ *   THEME-3 ⑧：静态 palette/onAccent 历史导出已删除，不再断言；
+ * - 双主题派生：ThemeProvider 消费 core preferences.mode（legacy patch theme→mode 语义不变），
  *   dark→DARK_NEUTRALS / light→LIGHT_NEUTRALS（引用同一性），切换即时刷新；
  * - StatusBar barStyle 联动（barStyleFor）。
- * 装配：jsdom + react-dom 渲染探针（ThemeProvider/useAppTheme 为纯 React，无 RN 依赖）；
- * async-storage 内存桩（theme → useStore → utils/storage import 链兜底）。
+ * 装配：jsdom + react-dom 渲染探针；async-storage 内存桩 + react-native 替身
+ * （THEME-3 ⑦：theme.ts 经 useColorScheme 解析 system，vitest 下需打桩）。
  */
 import { createElement } from 'react';
 import { act } from 'react';
@@ -15,6 +16,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DARK_NEUTRALS,
+  DEFAULT_PREFERENCES,
   LIGHT_NEUTRALS,
   TONES,
   PLATFORM_COLORS,
@@ -40,10 +42,17 @@ vi.mock('@react-native-async-storage/async-storage', () => {
   return { default: api, AsyncStorage: api };
 });
 
+// react-native 替身（THEME-3 ⑦：theme.ts 经 useColorScheme 解析 system 三态）
+vi.mock('react-native', () => ({
+  useColorScheme: () => 'dark',
+  useWindowDimensions: () => ({ width: 390, height: 844, scale: 2, fontScale: 1 }),
+  StyleSheet: { create: (styles: unknown) => styles, flatten: (styles: unknown) => styles },
+  Platform: { OS: 'ios', select: (options: Record<string, unknown>) => options?.ios ?? options?.default },
+}));
+
 import {
   ACCENTS,
   ACCENT_ORDER,
-  palette,
   TONE_COLOR,
   PLATFORM_COLOR,
   ENV_COLOR,
@@ -78,8 +87,8 @@ async function renderProbe(): Promise<void> {
 
 beforeEach(() => {
   captured = undefined;
-  // 归位缺省主题（dark），用例间互不污染
-  useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: 'dark' } });
+  // 归位缺省主题（dark），用例间互不污染（THEME-3 ⑧：patch 走 preferences.mode）
+  useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { preferences: { ...DEFAULT_PREFERENCES, mode: 'dark' } } });
 });
 
 afterEach(() => {
@@ -94,19 +103,10 @@ afterEach(() => {
 
 describe('mobile theme derivation（历史 API 兼容）', () => {
   it('should_derive_palette_from_core_dark_neutrals', () => {
-    expect(palette).toEqual({
-      bg: DARK_NEUTRALS.bg,
-      surface: DARK_NEUTRALS.surface,
-      elevated: DARK_NEUTRALS.elevated,
-      text: DARK_NEUTRALS.text,
-      text2: DARK_NEUTRALS.text2,
-      muted: DARK_NEUTRALS.muted,
-      border: DARK_NEUTRALS.border,
-    });
-    expect(palette.bg).toBe('#14161a');
-    expect(palette.muted).toBe('#8b929e');
-    // resolvePalette 分支：引用同一性（dark/light 各自返回 core 常量对象本身）
+    // THEME-3 ⑧：静态 palette 导出已删除；本用例保留 resolvePalette 分支引用同一性断言
     expect(resolvePalette('dark')).toBe(DARK_NEUTRALS);
+    expect(resolvePalette('dark').bg).toBe('#14161a');
+    expect(resolvePalette('dark').muted).toBe('#8b929e');
     expect(resolvePalette('light')).toBe(LIGHT_NEUTRALS);
   });
 
@@ -147,9 +147,10 @@ describe('mobile theme（REQ-20261119-032108 双主题派生）', () => {
     await renderProbe();
     expect(captured!.theme).toBe('dark');
 
-    // settings.theme → light：zustand 通知 → ThemeProvider 重派生 → 探针即时刷新
+    // patch preferences.mode → light：zustand 通知 → ThemeProvider 重派生 → 探针即时刷新
+    // （THEME-3 ⑧：投影键删除，patch 一律走 preferences）
     await act(async () => {
-      useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: 'light' } });
+      useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { preferences: { ...DEFAULT_PREFERENCES, mode: 'light' } } });
       await Promise.resolve();
     });
 
@@ -162,7 +163,7 @@ describe('mobile theme（REQ-20261119-032108 双主题派生）', () => {
 
     // 切回 dark：引用回到 DARK_NEUTRALS 本体
     await act(async () => {
-      useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: 'dark' } });
+      useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { preferences: { ...DEFAULT_PREFERENCES, mode: 'dark' } } });
       await Promise.resolve();
     });
     expect(captured!.theme).toBe('dark');

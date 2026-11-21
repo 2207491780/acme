@@ -56,6 +56,7 @@ import { DateTimePrefsRefresh } from './components/DateTimePrefsRefresh';
 import { CommandPalette } from './components/CommandPalette';
 import { PreferencesDrawer } from './components/PreferencesDrawer';
 import { useSystemPrefersDark } from './hooks/useSystemPrefersDark';
+import { usePreferencesSync } from './hooks/usePreferencesSync';
 import { buildDynamicNav, type NavEntry } from './nav';
 import { ReleaseDrawer } from './components/ReleaseDrawer';
 import { ReleaseFormModal } from './components/ReleaseFormModal';
@@ -143,6 +144,11 @@ export function App() {
   const session = useAuthStore((s) => s.session);
   const isAuthed = session !== null;
   useEffect(() => startAuthRenewal(), []);
+
+  // 偏好后端持久化（REQ-20261121-200415 契约⑥）：登录拉取后端权威覆盖本地 + 偏好变更防抖
+  // 800ms PUT themePreference + 401/未登录静默停上行。hooks 必须位于下方条件 return 之前
+  // （与下方 P0 注释同口径：登录/登出切换时 hook 数量不得变化）。
+  usePreferencesSync();
 
   // 会话恢复校验（p1-me-sync）：进入应用即拉取服务端画像（me 401 由 client 续约/清会话处理）。
   // 依赖收敛为 isAuthed：滑动续约会整体替换 session 对象，以 session 为依赖会导致每次续约重复拉取 me。

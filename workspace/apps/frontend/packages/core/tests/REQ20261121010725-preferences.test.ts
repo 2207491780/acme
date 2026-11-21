@@ -52,9 +52,9 @@ const defaultSettingsShape = (): { schemaVersion: number; preferences: ThemePref
 });
 
 /**
- * 终稿口径（TL 裁决）：Settings = { schemaVersion: PREFERENCES_VERSION, preferences } + 4 个
- * @deprecated 派生投影字段（theme/accent/density/motion，由 settingsFromPreferences 统一派生，
- * preferences 唯一事实源）。断言三段：钉死字段严格 + 投影字段存在 + 投影↔preferences 一致。
+ * THEME-3 适配口径（REQ-20261121-200415 确认记录⑧）：4 个 @deprecated 投影字段
+ * （theme/accent/density/motion）已物理删除，Settings = { schemaVersion, preferences }
+ * （preferences 唯一事实源）。原「投影存在且一致」断言改为「投影零残留」。
  */
 type SettingsWithProjections = {
   schemaVersion?: number;
@@ -65,14 +65,13 @@ type SettingsWithProjections = {
   motion?: unknown;
 };
 
-const expectProjectionsConsistent = (
+const expectNoProjections = (
   settings: SettingsWithProjections,
-  prefs: ThemePreferences,
+  _prefs?: ThemePreferences,
 ): void => {
-  expect(settings.theme, '投影 theme 应存在且与 preferences.mode 一致').toBe(prefs.mode);
-  expect(settings.accent, '投影 accent 应存在且与 preferences.accent 一致').toBe(prefs.accent);
-  expect(settings.density, '投影 density 应存在且与 preferences.density 一致').toBe(prefs.density);
-  expect(settings.motion, '投影 motion 应存在且与 preferences.motionEnabled 一致').toBe(prefs.motionEnabled);
+  for (const key of ['theme', 'accent', 'density', 'motion'] as const) {
+    expect(key in settings, `投影字段 ${key} 删除后不得残留（THEME-3 确认记录⑧）`).toBe(false);
+  }
 };
 
 describe('REQ20261121010725 core 偏好引擎 schema（AC-1/AC-2）', () => {
@@ -172,8 +171,8 @@ describe('REQ20261121010725 legacy 迁移（AC-3）', () => {
       radius: 'medium', grayMode: false, weakMode: false, contentWidth: 'fluid',
       semanticColors: { success: null, warning: null, danger: null },
     });
-    // 无损：@deprecated 投影字段存在且与映射值一致（settingsFromPreferences 派生）
-    expectProjectionsConsistent(migrated.settings as unknown as SettingsWithProjections, migrated.settings.preferences);
+    // 无损：投影字段零残留（THEME-3 ⑧：Settings 仅 schemaVersion+preferences）
+    expectNoProjections(migrated.settings as unknown as SettingsWithProjections, migrated.settings.preferences);
 
     // dark:false → mode 'light'
     const lightLegacy = migrateSettings({ dark: false, accent: 'cyan', density: 'comfortable', motion: true });
@@ -184,7 +183,7 @@ describe('REQ20261121010725 legacy 迁移（AC-3）', () => {
       radius: 'medium', grayMode: false, weakMode: false, contentWidth: 'fluid',
       semanticColors: { success: null, warning: null, danger: null },
     });
-    expectProjectionsConsistent(lightLegacy.settings as unknown as SettingsWithProjections, lightLegacy.settings.preferences);
+    expectNoProjections(lightLegacy.settings as unknown as SettingsWithProjections, lightLegacy.settings.preferences);
   });
 
   it('should_return_defaults_without_throwing_when_migrate_input_invalid', () => {
@@ -195,7 +194,7 @@ describe('REQ20261121010725 legacy 迁移（AC-3）', () => {
       const result = migrateSettings(garbage).settings;
       expect(result.schemaVersion).toBe(PREFERENCES_VERSION);
       expect(result.preferences).toEqual({ ...DEFAULT_PREFERENCES });
-      expectProjectionsConsistent(result as unknown as SettingsWithProjections, result.preferences);
+      expectNoProjections(result as unknown as SettingsWithProjections, result.preferences);
     }
   });
 
@@ -206,7 +205,7 @@ describe('REQ20261121010725 legacy 迁移（AC-3）', () => {
     expect(result.migrated).toBe(false);
     expect(result.settings.schemaVersion).toBe(3);
     expect(result.settings.preferences).toEqual(current.preferences);
-    expectProjectionsConsistent(result.settings as unknown as SettingsWithProjections, result.settings.preferences);
+    expectNoProjections(result.settings as unknown as SettingsWithProjections, result.settings.preferences);
   });
 });
 

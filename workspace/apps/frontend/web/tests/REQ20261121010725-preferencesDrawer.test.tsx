@@ -160,11 +160,19 @@ const expectBlobToContain = (snippet: string): void => {
   expect((raw as string).replace(/\s+/g, '')).toContain(snippet);
 };
 
+/** 偏好写入辅助：store 初始化首个 dispatch 可能未落定（水合竞态），重试至设置段落定。 */
+const setPreferences = async (prefs: ThemePreferences): Promise<void> => {
+  await waitFor(() => {
+    useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { preferences: prefs } });
+    expect(currentPrefs()).toEqual(prefs);
+  });
+};
+
 /** 测试基线：重置到种子态后统一写默认偏好（隔离上一用例遗留）。 */
-const resetSettingsBaseline = (): void => {
+const resetSettingsBaseline = async (): Promise<void> => {
   const store = useStore.getState();
   if (typeof store.resetData === 'function') store.resetData();
-  store.dispatch({ type: 'UPDATE_SETTINGS', patch: { preferences: { ...DEFAULT_PREFERENCES } } });
+  await setPreferences({ ...DEFAULT_PREFERENCES });
 };
 
 // ————— 顶栏偏好入口与抽屉定位 —————
@@ -358,7 +366,7 @@ beforeEach(async () => {
   window.sessionStorage.clear();
   useAuthStore.getState().clear();
   useMeStore.getState().clear();
-  resetSettingsBaseline();
+  await resetSettingsBaseline();
 });
 
 afterEach(async () => {
@@ -369,7 +377,7 @@ afterEach(async () => {
   window.location.hash = '';
   useAuthStore.getState().clear();
   useMeStore.getState().clear();
-  resetSettingsBaseline();
+  await resetSettingsBaseline();
   await act(async () => {
     await i18n.changeLanguage('zh-CN');
   });
@@ -496,14 +504,9 @@ describe('REQ20261121010725 偏好抽屉（AC-5/AC-6/AC-7/AC-8/AC-9）', () => {
 
   it('should_reset_all_preferences_when_reset_confirmed', async () => {
     // 预置非默认偏好（043502 v3 适配：以 DEFAULT_PREFERENCES 派生，v3 字段随默认形状走）
-    useStore.getState().dispatch({
-      type: 'UPDATE_SETTINGS',
-      patch: {
-        preferences: {
-          ...DEFAULT_PREFERENCES,
-          mode: 'dark', accent: 'emerald', customAccent: '#b08968', density: 'compact', motionEnabled: false,
-        },
-      },
+    await setPreferences({
+      ...DEFAULT_PREFERENCES,
+      mode: 'dark', accent: 'emerald', customAccent: '#b08968', density: 'compact', motionEnabled: false,
     });
     await renderApp();
     const drawer = await openPreferencesDrawer();

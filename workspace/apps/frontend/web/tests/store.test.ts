@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEY } from '@acme/core';
-import type { ReleaseInput, StorageLike } from '@acme/core';
+import type { ReleaseInput, StorageLike, ThemePreferences } from '@acme/core';
 import { createAppStore } from '../src/store/useStore';
 import { memoryStorage } from '../src/utils/dom';
 
@@ -90,11 +90,27 @@ describe('createAppStore', () => {
   });
 
   it('should_reject_invalid_import_without_overwriting_storage', () => {
-    store.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: 'light' } });
-    const before = store.getState().state;
+    // THEME-3（REQ-20261121-200415 ⑧）：投影键删除，patch/fixture 一律走 preferences——
+    // settings 非法枚举经归一化兜底（逐字段降级默认），不再拒绝 IMPORT；
+    // 业务态非法仍 fail-closed 拒绝，且原状态与存储不被覆盖。
+    const prefsOf = (): ThemePreferences =>
+      (store.getState().state.settings as { preferences: ThemePreferences }).preferences;
+    store.getState().dispatch({
+      type: 'UPDATE_SETTINGS',
+      patch: { preferences: { ...prefsOf(), mode: 'light' } },
+    });
     const persisted = storage.getItem(STORAGE_KEY);
-    const data = { ...before, settings: { ...before.settings, density: 'dense' } };
-    expect(store.getState().dispatch({ type: 'IMPORT', data })).toBe(false);
+    const before = store.getState().state;
+
+    // settings preferences 非法枚举（负例刻意违反类型，边界单点逃逸）：
+    // parse-state 对 settings 值域 fail-closed（⑧ 仅删投影校验，preferences 值域校验保留）→ IMPORT 拒绝
+    const badPrefs = { ...prefsOf(), density: 'dense' } as unknown as ThemePreferences;
+    const badSettings = { ...before, settings: { ...before.settings, preferences: badPrefs } };
+    expect(store.getState().dispatch({ type: 'IMPORT', data: badSettings })).toBe(false);
+
+    // 业务态非法：同样拒绝且不覆盖
+    const badRelease = { ...before, releases: [{ ...before.releases[0], version: 123 }] };
+    expect(store.getState().dispatch({ type: 'IMPORT', data: badRelease })).toBe(false);
     expect(store.getState().state).toBe(before);
     expect(storage.getItem(STORAGE_KEY)).toBe(persisted);
   });
@@ -134,7 +150,16 @@ describe('createAppStore', () => {
     expect(failing.getState().storageError).toBe(true);
     expect(failing.getState().state.releases[0].title).toBe(validInput.title);
     writable = true;
-    failing.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: 'light' } });
+    failing.getState().dispatch({
+      type: 'UPDATE_SETTINGS',
+      // THEME-3 ⑧：patch 一律走 preferences
+      patch: {
+        preferences: {
+          ...(failing.getState().state.settings as { preferences: ThemePreferences }).preferences,
+          mode: 'light',
+        },
+      },
+    });
     expect(failing.getState().storageError).toBe(false);
     expect(JSON.parse(storage.getItem(STORAGE_KEY)!).releases[0].title).toBe(validInput.title);
   });
@@ -146,7 +171,16 @@ describe('createAppStore', () => {
     });
     failing.getState().dispatch({ type: 'CREATE_RELEASE', payload: validInput });
     const unsaved = failing.getState().state;
-    store.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: 'light' } });
+    store.getState().dispatch({
+      type: 'UPDATE_SETTINGS',
+      // THEME-3 ⑧：patch 一律走 preferences
+      patch: {
+        preferences: {
+          ...(store.getState().state.settings as { preferences: ThemePreferences }).preferences,
+          mode: 'light',
+        },
+      },
+    });
     const latest = storage.getItem(STORAGE_KEY);
     expect(failing.getState().dispatch({ type: 'TICK' })).toBe(false);
     expect(failing.getState().state).toBe(unsaved);

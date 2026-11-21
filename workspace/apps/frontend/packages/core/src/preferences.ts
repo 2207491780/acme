@@ -29,6 +29,9 @@ export interface ThemePreferences {
   contentWidth: ContentWidth;
   /** 语义色覆盖（THEME-2 v3）：success/warning/danger 各自 null=TONES 基线（解析见 theme.resolveSemanticColors）。 */
   semanticColors: SemanticColorOverrides;
+  /** 扩展偏好域（REQ-20261121-200415 THEME-3 契约⑤）：仅当存在注册域时出现；
+   *  键=注册键（经 spec.parse 降级）或未注册透传键（原样存储，不做结构解释）。 */
+  extensions?: Record<string, unknown>;
 }
 
 /** 偏好子结构版本号：写入 settings.schemaVersion，无版本标记的旧 settings 经 migrateSettings 迁移。 */
@@ -53,6 +56,52 @@ const DENSITIES: Density[] = ['comfortable', 'compact'];
 const RADII_SCALES: RadiusScale[] = ['small', 'medium', 'large', 'full'];
 const CONTENT_WIDTHS: ContentWidth[] = ['fluid', 'compact'];
 const SEMANTIC_KEYS: (keyof SemanticColorOverrides)[] = ['success', 'warning', 'danger'];
+
+// —— 扩展偏好注册机制（REQ-20261121-200415 THEME-3 契约⑤）——
+
+/** 扩展偏好域规格：defaults=出厂值；parse 将外部输入归一化为域值，非法降级 defaults 且不抛错。 */
+export interface PreferenceExtensionSpec<T = unknown> {
+  defaults: T;
+  parse: (value: unknown) => T;
+}
+
+/** 扩展偏好注册表（内部状态）：registerPreferenceExtension 为唯一写入口。 */
+const PREFERENCE_EXTENSION_REGISTRY = new Map<string, PreferenceExtensionSpec>();
+
+/**
+ * 注册扩展偏好域（THEME-3 契约⑤，最小机制）：
+ * - 注册后 validateThemePreferences 对该域调用 spec.parse 降级（非法/抛错 → defaults）；
+ * - 未注册键在 extensions 中原样透传存储，不做结构解释（后端亦仅整体结构校验，契约③）；
+ * - 注册表非空时 preferences 才出现 extensions 键（AC-5：仅注册后出现）；
+ * - 同键重复注册以后注册者为准（幂等，不抛错）。
+ */
+export function registerPreferenceExtension<T>(key: string, spec: PreferenceExtensionSpec<T>): void {
+  PREFERENCE_EXTENSION_REGISTRY.set(key, spec);
+}
+
+/** 已注册扩展域键集（只读快照；测试/诊断面）。 */
+export function registeredPreferenceExtensionKeys(): string[] {
+  return [...PREFERENCE_EXTENSION_REGISTRY.keys()];
+}
+
+/** 扩展域归一化（契约⑤）：注册键经 spec.parse 降级（抛错兜底 defaults）；未注册键透传。 */
+function normalizeExtensions(raw: unknown): Record<string, unknown> {
+  const source = isRecord(raw) ? raw : {};
+  const extensions: Record<string, unknown> = {};
+  for (const [key, spec] of PREFERENCE_EXTENSION_REGISTRY) {
+    let value: unknown;
+    try {
+      value = key in source ? spec.parse(source[key]) : spec.defaults;
+    } catch {
+      value = spec.defaults;
+    }
+    extensions[key] = value;
+  }
+  for (const [key, value] of Object.entries(source)) {
+    if (!PREFERENCE_EXTENSION_REGISTRY.has(key)) extensions[key] = value;
+  }
+  return extensions;
+}
 
 // 与 chart-option 的 HEX_RE 同口径：3/6 位 hex（theme.parseHex/mixHex 均兼容展开）。
 const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
@@ -122,7 +171,7 @@ function normalizeSemanticColors(value: unknown): SemanticColorOverrides {
 /** 逐字段校验并归一化偏好：非法字段降级默认、合法字段原样保留，永不抛错。 */
 export function validateThemePreferences(input: unknown): ThemePreferences {
   const raw = isRecord(input) ? input : {};
-  return {
+  const result: ThemePreferences = {
     mode: isThemeModeValue(raw.mode) ? raw.mode : DEFAULT_PREFERENCES.mode,
     accent: isAccentKey(raw.accent) ? raw.accent : DEFAULT_PREFERENCES.accent,
     customAccent:
@@ -139,6 +188,11 @@ export function validateThemePreferences(input: unknown): ThemePreferences {
     contentWidth: isContentWidth(raw.contentWidth) ? raw.contentWidth : DEFAULT_PREFERENCES.contentWidth,
     semanticColors: normalizeSemanticColors(raw.semanticColors),
   };
+  // 扩展域（THEME-3 契约⑤）：仅当存在注册域时出现 extensions 键（AC-5）
+  if (PREFERENCE_EXTENSION_REGISTRY.size > 0) {
+    result.extensions = normalizeExtensions(raw.extensions);
+  }
+  return result;
 }
 
 /**
@@ -150,10 +204,11 @@ export function validateThemePreferences(input: unknown): ThemePreferences {
  * - 迁移结果写入版本标记 schemaVersion = PREFERENCES_VERSION；
  * - 已带当前版本标记的新形状仅做逐字段校验归一化（migrated=false）；
  * - null/undefined/非法输入返回默认 settings，不抛错（migrated=false，无数据可迁移）。
+ * THEME-3（契约⑧）：迁移窗口保留（旧投影 blob 无损迁移），产物不再含投影字段。
  */
 export function migrateSettings(raw: unknown): { settings: Settings; migrated: boolean } {
   if (!isRecord(raw)) {
-    return { settings: settingsFromPreferences(DEFAULT_PREFERENCES), migrated: false };
+    return { settings: buildSettings(DEFAULT_PREFERENCES), migrated: false };
   }
   const prefs: ThemePreferences = {
     ...DEFAULT_PREFERENCES,
@@ -175,7 +230,7 @@ export function migrateSettings(raw: unknown): { settings: Settings; migrated: b
   }
   const hasValidVersion = typeof raw.schemaVersion === 'number' && Number.isFinite(raw.schemaVersion);
   const migrated = !hasValidVersion || raw.schemaVersion !== PREFERENCES_VERSION;
-  return { settings: settingsFromPreferences(prefs), migrated };
+  return { settings: buildSettings(prefs), migrated };
 }
 
 /** mode=system 时按 prefers-color-scheme 解析生效主题；显式 light/dark 原样返回（手动选择脱离 system）。 */
@@ -196,19 +251,9 @@ export function resolveOnAccent(p: ThemePreferences): string {
 
 /**
  * 由偏好组装完整 settings（唯一构造入口，seed/reducer/parse-state/migrateSettings 统一走此函数）：
- * 写入版本标记 schemaVersion，并派生 @deprecated 扁平投影（theme=mode 的 dark 侧近似、
- * accent/density/motion 直映射）。system 模式投影取 'dark'（与 index.html 首绘默认一致；
- * 端侧精确解析属消费方职责）。投影仅供 mobile 过渡兼容（TL 裁决：物理删除归 THEME-3），
- * preferences 仍是唯一事实源——所有投影随本函数单向再生成，无独立写路径；
- * v3 新字段（radius/grayMode/weakMode/contentWidth/semanticColors）不进投影（THEME-2 确认②）。
+ * 写入版本标记 schemaVersion。THEME-3（REQ-20261121-200415 契约⑧）已物理删除 4 个 @deprecated
+ * 扁平投影字段及其派生逻辑——preferences 是唯一事实源，settings = { schemaVersion, preferences }。
  */
-export function settingsFromPreferences(preferences: ThemePreferences): Settings {
-  return {
-    schemaVersion: PREFERENCES_VERSION,
-    preferences,
-    theme: preferences.mode === 'light' ? 'light' : 'dark',
-    accent: preferences.accent,
-    density: preferences.density,
-    motion: preferences.motionEnabled,
-  };
+export function buildSettings(preferences: ThemePreferences): Settings {
+  return { schemaVersion: PREFERENCES_VERSION, preferences };
 }

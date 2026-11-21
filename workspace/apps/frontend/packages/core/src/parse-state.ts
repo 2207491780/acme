@@ -1,5 +1,6 @@
 import { ENVS, PLATFORMS, SORTS, STATUSES } from './constants';
 import {
+  buildSettings,
   isAccentKey,
   isContentWidth,
   isDensityValue,
@@ -7,7 +8,6 @@ import {
   isRadiusScale,
   isSemanticColorOverrides,
   isThemeModeValue,
-  settingsFromPreferences,
   type ThemePreferences,
 } from './preferences';
 import { seedState } from './seed';
@@ -140,26 +140,23 @@ function isLegacyTheme(value: unknown): value is 'dark' | 'light' {
 
 /**
  * settings 归一化（REQ-20261121-010725；THEME-2 v3 字段同口径）：blob 内嵌 preferences 新形状
- * 与 legacy 扁平形状（迁移）双口径统一收敛为 `settingsFromPreferences` 产物（schemaVersion + preferences）。
+ * 与 legacy 扁平形状（迁移）双口径统一收敛为 `buildSettings` 产物（schemaVersion + preferences）。
  * 口径 = fail-closed（与 IMPORT/存储冲突校验同标准）：任何「显式存在但非法」的字段返回 null
  * （整个 blob 拒绝，不静默降级）；「未提供」的字段沿用种子偏好，保持旧数据的部分合并语义。
  * 逐字段降级语义在偏好引擎层（validateThemePreferences/migrateSettings），两者各司其职。
+ * THEME-3（REQ-20261121-200415 契约⑧）：投影 fail-closed 校验已物理删除——迁移窗口内旧 blob
+ * 的 4 个投影键仍被接受但值一律忽略（由 preferences 单向重建）。
  */
 function normalizeStoredSettings(raw: unknown, base: Settings): Settings | null {
   if (!isRecord(raw)) return null;
   const prefs: ThemePreferences = { ...base.preferences };
   const p = isRecord(raw.preferences) ? raw.preferences : null;
   if (p) {
-    // 新形状：根键 = schemaVersion + preferences + 4 个 deprecated 投影键（settingsFromPreferences
-    // 产物原样往返）；其余未知键（含 legacy dark/customAccent）视为非法数据，fail-closed。
+    // 新形状：根键 = schemaVersion + preferences（+ 迁移窗口内的旧投影键，值一律忽略——
+    // 投影校验随投影字段一并删除，见 THEME-3 契约⑧）；其余未知键（含 legacy dark/customAccent）
+    // 视为非法数据，fail-closed。
     const allowed = ['schemaVersion', 'preferences', 'theme', 'accent', 'density', 'motion'];
     if (Object.keys(raw).some((key) => !allowed.includes(key))) return null;
-    // 投影键显式存在时必须合法（与 IMPORT/存储冲突校验同标准），值一律忽略——
-    // 由 preferences 单向重建，防止 blob 内投影与事实源漂移
-    if ('theme' in raw && !isLegacyTheme(raw.theme)) return null;
-    if ('accent' in raw && !isAccentKey(raw.accent)) return null;
-    if ('density' in raw && !isDensityValue(raw.density)) return null;
-    if ('motion' in raw && typeof raw.motion !== 'boolean') return null;
     if ('mode' in p && !isThemeModeValue(p.mode)) return null;
     if ('accent' in p && !isAccentKey(p.accent)) return null;
     if ('customAccent' in p && p.customAccent !== null && !isHexColor(p.customAccent)) return null;
@@ -195,7 +192,7 @@ function normalizeStoredSettings(raw: unknown, base: Settings): Settings | null 
     if (isDensityValue(raw.density)) prefs.density = raw.density;
     if (typeof raw.motion === 'boolean') prefs.motionEnabled = raw.motion;
   }
-  return settingsFromPreferences(prefs);
+  return buildSettings(prefs);
 }
 
 function isActivity(value: unknown): value is Activity {

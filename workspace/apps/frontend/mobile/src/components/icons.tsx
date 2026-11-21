@@ -1,8 +1,10 @@
 import { View } from 'react-native';
-import type { Platform } from '@acme/core';
-import { PLATFORM_COLOR, onAccent } from '../theme';
+import { ON_ACCENT, type Platform } from '@acme/core';
+import { PLATFORM_COLOR } from '../theme';
 
 // 纯 View 组合的矢量图标，避免引入未在 project.md 登记的图标依赖。
+// 静态装饰取色（THEME-3 契约⑧）：onAccent 历史导出已删除，直接取 core 令牌（历史行为=ON_ACCENT.cyan）。
+const onAccent = ON_ACCENT.cyan;
 
 export function IconDashboard({ color, size = 22 }: { color: string; size?: number }) {
   const cell = size * 0.42;

@@ -1,9 +1,9 @@
 import { seedState } from './seed';
 import { parseState, isQuery, isAppPatch } from './parse-state';
 import {
+  buildSettings,
   isAccentKey,
   isDensityValue,
-  settingsFromPreferences,
   validateThemePreferences,
 } from './preferences';
 import { uid, clamp, isVersion, statusLabel } from './utils';
@@ -14,6 +14,7 @@ import type {
   App,
   Release,
   ReleaseInput,
+  Settings,
   StorageLike,
   Tone,
   ValidationErrors,
@@ -221,10 +222,10 @@ export function reduce(
     }
     case 'UPDATE_SETTINGS': {
       // preferences 为唯一事实源（REQ-20261121-010725）：preferences 子对象整体合并后统一
-      // 经 validateThemePreferences 归一化并由 settingsFromPreferences 重建（版本标记不受补丁改写）。
-      // legacy 扁平补丁（mobile 过渡兼容，THEME-3 移除）：theme/dark→mode、accent/density/motion
-      // 同名映射；显式选择预设 accent 即放弃自定义取色。
-      const patch = action.patch;
+      // 经 validateThemePreferences 归一化并由 buildSettings 重建（版本标记不受补丁改写）。
+      // legacy 扁平补丁「写 preferences」语义不变（THEME-3 契约⑧）：theme/dark→mode、
+      // accent/density/motion 同名映射；显式选择预设 accent 即放弃自定义取色。
+      const patch = action.patch as Partial<Settings>;
       const legacy = patch as Record<string, unknown>;
       const prefs = { ...s.settings.preferences, ...patch.preferences };
       if (legacy.theme === 'dark' || legacy.theme === 'light') prefs.mode = legacy.theme;
@@ -235,7 +236,7 @@ export function reduce(
       }
       if (isDensityValue(legacy.density)) prefs.density = legacy.density;
       if (typeof legacy.motion === 'boolean') prefs.motionEnabled = legacy.motion;
-      s.settings = settingsFromPreferences(validateThemePreferences(prefs));
+      s.settings = buildSettings(validateThemePreferences(prefs));
       return s;
     }
     case 'UPDATE_APP': {

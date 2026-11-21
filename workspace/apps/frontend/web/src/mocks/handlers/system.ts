@@ -1,5 +1,14 @@
 import { http } from 'msw';
-import { findUnknownWatermarkPlaceholders } from '@acme/core';
+import {
+  findUnknownWatermarkPlaceholders,
+  isAccentKey,
+  isContentWidth,
+  isDensityValue,
+  isHexColor,
+  isRadiusScale,
+  isSemanticColorOverrides,
+  isThemeModeValue,
+} from '@acme/core';
 import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantPackageView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
@@ -162,8 +171,12 @@ const store = {
   users: [...db.users],
   /** 本人画像（REQ-20261119-082531）：PUT /me 与头像上传改写此行，GET /me 回显。 */
   meUser: { ...db.me.user } as AdminUserView,
-  /** 本人通知偏好（REQ-20261119-082531 契约⑤；sys_user_preference dev 演示行）。 */
-  preferences: { messagePush: false },
+  /** 本人偏好（REQ-20261121-200415 契约②④两域；sys_user_preference dev 演示行）：
+   *  messagePush 默认 false；themePreference=null=未设行（GET 默认值口径）。 */
+  preferences: { messagePush: false, themePreference: null } as {
+    messagePush: boolean;
+    themePreference: Record<string, unknown> | null;
+  },
   /** 本人推送令牌（REQ-20261119-082531 契约⑤；token upsert/删除演示态）。 */
   pushTokens: [] as { token: string; platform: string }[],
   roles: [...db.roles],
@@ -279,6 +292,80 @@ function meCapabilities(): string[] {
   return store.packageCapabilities[packageId] ?? [];
 }
 
+// ————— themePreference 校验拒绝矩阵（REQ-20261121-200415 契约③⑫；与后端结构校验器同口径）—————
+
+const PREFERENCE_BLOB_TOP_KEYS = ['schemaVersion', 'preferences', 'extensions'];
+const PREFERENCE_KEYS = [
+  'mode', 'accent', 'customAccent', 'density', 'motionEnabled', 'radius', 'grayMode',
+  'weakMode', 'contentWidth', 'semanticColors', 'extensions',
+];
+const EXT_KEY_LIMIT_BYTES = 16 * 1024;
+const EXT_TOTAL_LIMIT_BYTES = 64 * 1024;
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** extensions 结构校验（契约③：仅整体结构，内容透传）：object、单键 ≤16KB、总量 ≤64KB。 */
+function validatePreferenceExtensions(value: unknown): string | null {
+  if (!isRecordValue(value)) {
+    return 'extensions 必须为对象';
+  }
+  let total = 0;
+  for (const [key, item] of Object.entries(value)) {
+    const size = (JSON.stringify(item ?? null) ?? '').length;
+    if (size > EXT_KEY_LIMIT_BYTES) {
+      return 'extensions 单键序列化超过 16KB';
+    }
+    total += key.length + size;
+    if (total > EXT_TOTAL_LIMIT_BYTES) {
+      return 'extensions 总量超过 64KB';
+    }
+  }
+  return null;
+}
+
+/** themePreference blob fail-closed 校验：合法返回 null；非法返回拒绝原因（原数据不动）。 */
+function validateThemePreferenceBlob(blob: unknown): string | null {
+  if (!isRecordValue(blob)) {
+    return 'themePreference 必须为对象';
+  }
+  if (Object.keys(blob).some((key) => !PREFERENCE_BLOB_TOP_KEYS.includes(key))) {
+    return 'themePreference 含未知顶层键';
+  }
+  if (typeof blob.schemaVersion !== 'number' || !Number.isInteger(blob.schemaVersion)) {
+    return 'schemaVersion 必须为整数';
+  }
+  if (!isRecordValue(blob.preferences)) {
+    return 'preferences 必须为对象';
+  }
+  if (blob.extensions !== undefined && validatePreferenceExtensions(blob.extensions)) {
+    return validatePreferenceExtensions(blob.extensions);
+  }
+  const p = blob.preferences;
+  if (Object.keys(p).some((key) => !PREFERENCE_KEYS.includes(key))) {
+    return 'preferences 含未知键';
+  }
+  if (p.extensions !== undefined && validatePreferenceExtensions(p.extensions)) {
+    return validatePreferenceExtensions(p.extensions);
+  }
+  if ('mode' in p && !isThemeModeValue(p.mode)) return 'mode 枚举非法';
+  if ('accent' in p && !isAccentKey(p.accent)) return 'accent 枚举非法';
+  if ('customAccent' in p && p.customAccent !== null && !isHexColor(p.customAccent)) {
+    return 'customAccent 必须为 null 或合法 hex';
+  }
+  if ('density' in p && !isDensityValue(p.density)) return 'density 枚举非法';
+  if ('motionEnabled' in p && typeof p.motionEnabled !== 'boolean') return 'motionEnabled 必须为布尔';
+  if ('radius' in p && !isRadiusScale(p.radius)) return 'radius 枚举非法';
+  if ('grayMode' in p && typeof p.grayMode !== 'boolean') return 'grayMode 必须为布尔';
+  if ('weakMode' in p && typeof p.weakMode !== 'boolean') return 'weakMode 必须为布尔';
+  if ('contentWidth' in p && !isContentWidth(p.contentWidth)) return 'contentWidth 枚举非法';
+  if ('semanticColors' in p && !isSemanticColorOverrides(p.semanticColors)) {
+    return 'semanticColors 必须为 null/合法 hex 三键对象';
+  }
+  return null;
+}
+
 export const systemHandlers = [
   // ---- me ----
   // REQ-20261121-054613：capabilities=当前租户生效能力码集（绑定套餐=套餐能力集/未绑定=全部启用码）
@@ -339,15 +426,37 @@ export const systemHandlers = [
       createdAt: nowIso(),
     });
   }),
-  // preferences（契约⑤）：GET 缺省 messagePush=false；PUT upsert 本人行（布尔校验 PREFERENCE_INVALID）
-  http.get('/admin/v1/system/me/preferences', () => ok(store.preferences)),
+  // preferences（REQ-20261121-200415 契约②③④⑫两域）：GET 未设行 messagePush=false+
+  // themePreference=null；PUT 按域 upsert（null/缺省=不动该域，至少一域非 null 否则 400；
+  // 向后兼容旧 {messagePush} 单域 PUT）；themePreference 校验拒绝矩阵（fail-closed，
+  // 原数据不动）→ 400 SYS-01-0001（TL 裁决与后端 wire 原文同形）。校验口径与后端契约③
+  // 一致、逐键校验器取自 core。
+  http.get('/admin/v1/system/me/preferences', () =>
+    ok({ messagePush: store.preferences.messagePush, themePreference: store.preferences.themePreference })),
   http.put('/admin/v1/system/me/preferences', async ({ request }) => {
     const body = await bodyOf(request);
-    if (typeof body.messagePush !== 'boolean') {
-      return fail('PREFERENCE_INVALID', '偏好参数非法：messagePush 必须为布尔', 200);
+    // 域判定：null/undefined=不动该域（契约②）；两域均非有效值 → 400
+    // 错误码口径（TL 裁决 REQ-20261121-200415 + 后端 wire 原文定稿）：HTTP 400 + code
+    // 'SYS-01-0001'（VALIDATION_FAILED 枚举的 wire 码，枚举名不上 wire）、data=null、
+    // message=「主题偏好非法: <原因>」（两域全空对齐后端原文）——复用既有校验段，AC-12 同形。
+    const hasPush = body.messagePush !== undefined && body.messagePush !== null;
+    const hasTheme = body.themePreference !== undefined && body.themePreference !== null;
+    if (!hasPush && !hasTheme) {
+      return fail('SYS-01-0001', 'messagePush 与 themePreference 至少一项非空', 400);
     }
-    store.preferences = { messagePush: body.messagePush };
-    return ok(store.preferences);
+    if (hasPush && typeof body.messagePush !== 'boolean') {
+      return fail('SYS-01-0001', '主题偏好非法: messagePush 必须为布尔', 400);
+    }
+    if (hasTheme) {
+      const error = validateThemePreferenceBlob(body.themePreference);
+      if (error) {
+        return fail('SYS-01-0001', `主题偏好非法: ${error}`, 400);
+      }
+    }
+    // 按域 upsert：仅写非 null 域，另一域原样保留（AC-1/AC-2）
+    if (hasPush) store.preferences.messagePush = body.messagePush as boolean;
+    if (hasTheme) store.preferences.themePreference = body.themePreference as Record<string, unknown>;
+    return ok({ messagePush: store.preferences.messagePush, themePreference: store.preferences.themePreference });
   }),
   // push-tokens（契约⑤）：POST upsert（同 token 幂等）/ DELETE ?token= 删本人行（幂等成功）
   http.post('/admin/v1/system/me/push-tokens', async ({ request }) => {

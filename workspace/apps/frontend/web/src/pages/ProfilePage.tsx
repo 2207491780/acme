@@ -331,7 +331,8 @@ function NotificationCard() {
         if (alive) setPrefs(view);
       })
       .catch(() => {
-        if (alive) setPrefs({ messagePush: false });
+        // GET 失败兜底 = 两域缺省视图（REQ-20261121-200415 契约④：messagePush=false+themePreference=null）
+        if (alive) setPrefs({ messagePush: false, themePreference: null });
       });
     return () => {
       alive = false;
@@ -343,7 +344,8 @@ function NotificationCard() {
     systemApi.mePreferencesUpdate({ messagePush: checked })
       .then((view) => {
         // 端点理论回传最新视图；空体/空数据兜底本地开关态，避免成功后开关回弹
-        setPrefs(view ?? { messagePush: checked });
+        //（两域形状：已加载视图保留 themePreference 原值，未加载按契约④缺省兜底）
+        setPrefs(view ?? (prefs ? { ...prefs, messagePush: checked } : { messagePush: checked, themePreference: null }));
         message.success(t('profile.toasts.prefsSaved'));
       })
       .catch((ex: unknown) => {

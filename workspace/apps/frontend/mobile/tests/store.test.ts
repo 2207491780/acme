@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { STORAGE_KEY } from '@acme/core';
+import { DEFAULT_PREFERENCES, STORAGE_KEY } from '@acme/core';
 import type { ReleaseInput, StorageLike } from '@acme/core';
 import { createMobileStore } from '../src/store/useStore';
 import { memoryStorage } from '../src/utils/storage';
@@ -75,8 +75,11 @@ describe('createMobileStore（与 Web 同构，共享 core）', () => {
   });
 
   it('UPDATE_SETTINGS 更新强调色', () => {
-    store.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { accent: 'magenta' } });
-    expect(store.getState().state.settings.accent).toBe('magenta');
+    // THEME-3（REQ-20261121-200415 ⑧）：投影键删除，patch 一律走 preferences；断言迁移至唯一事实源
+    store.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { preferences: { ...DEFAULT_PREFERENCES, accent: 'magenta' } } });
+    const settings = store.getState().state.settings as unknown as { preferences: { accent: string } };
+    expect(settings.preferences.accent).toBe('magenta');
+    expect('accent' in (store.getState().state.settings as object)).toBe(false);
   });
 
   it('resetData 恢复种子', () => {

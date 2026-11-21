@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 个人中心偏好与推送令牌接口（REQ-20261119-082531 确认记录⑤；路径与契约 §API 逐字一致；
- * 认证即可访问——无 @RequirePermission 新权限点）。本人语义（me：UserContext.userId，同
- * MessageController 收件人口径）。
+ * 个人中心偏好与推送令牌接口（REQ-20261119-082531 确认记录⑤ + REQ-20261121-200415 确认记录②④；
+ * 路径与契约 §API 逐字一致；认证即可访问——无 @RequirePermission 新权限点）。
+ * 本人语义（me：UserContext.userId，同 MessageController 收件人口径）。
+ * 偏好两域：GET 回 messagePush（未设行 false）+ themePreference（未设行 null，确认记录④）；
+ * PUT 按域 upsert（至少一域非 null 否则 400，themePreference 结构校验由用例层承载）。
  */
 @RestController
 @RequestMapping("/admin/v1/system/me")
@@ -30,17 +32,21 @@ public class UserPreferenceController {
         this.preferenceUseCase = preferenceUseCase;
     }
 
-    /** 本人通知偏好（未设行回默认 messagePush=false）。 */
+    /** 本人偏好两域视图（未设行 messagePush=false + themePreference=null，确认记录④）。 */
     @GetMapping("/preferences")
     public AdminPreferenceView preferences() {
-        return new AdminPreferenceView(preferenceUseCase.messagePushOf(currentUserId()));
+        Long userId = currentUserId();
+        return new AdminPreferenceView(preferenceUseCase.messagePushOf(userId),
+                preferenceUseCase.themePreferenceOf(userId));
     }
 
-    /** 本人通知偏好 upsert（本人单行，幂等）。 */
+    /** 本人偏好按域 upsert（本人单行，幂等；至少一域非 null，themePreference 结构校验在用例层）。 */
     @PutMapping("/preferences")
     public AdminPreferenceView upsertPreferences(@Valid @RequestBody AdminPreferenceView request) {
-        preferenceUseCase.upsertMessagePush(currentUserId(), request.messagePush());
-        return request;
+        preferenceUseCase.upsertPreferences(currentUserId(), request.messagePush(), request.themePreference());
+        return new AdminPreferenceView(
+                preferenceUseCase.messagePushOf(currentUserId()),
+                preferenceUseCase.themePreferenceOf(currentUserId()));
     }
 
     /** 推送令牌注册（upsert 按 token 唯一键）。 */

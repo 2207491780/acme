@@ -435,7 +435,7 @@ describe('REQ20261119082531 通知开关（prefs API）', () => {
     const fetchMock = await renderSettings({
       routes: {
         '/system/me/preferences': ({ method }) => (method === 'PUT'
-          ? failEnvelope('PREFERENCE_INVALID', '偏好参数非法', 200)
+          ? failEnvelope('SYS-01-0001', '偏好参数非法', 200)
           : undefined),
       },
     });

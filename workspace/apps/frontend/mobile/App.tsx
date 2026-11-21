@@ -1,5 +1,5 @@
 // App 壳（REQ-20261119-032108 重构）：react-navigation v7 接入。
-// 层级：ThemeProvider（settings.theme → resolvePalette）→ ToastProvider（顶层 toast）→
+// 层级：ThemeProvider（preferences.mode 三态解析 → resolvePalette）→ ToastProvider（顶层 toast）→
 // SafeAreaView[StatusBar 联动 + 离线横幅 + 品牌头] → ErrorBoundary（外层防线）→
 // NavigationContainer(linking) → Stack[Login(initial) → Main(Tabs: 4 Tab，各含内层 ErrorBoundary)]。
 // 登录语义（契约⑨）：AuthNavigator 统一联动 session——建立 → replace 主 Tabs；登出 → reset 回 Login；
@@ -29,9 +29,10 @@ import { startAuthRenewal } from './src/api/client';
 import { registerPushTokenAfterLogin } from './src/utils/push';
 import { initMobileStorage } from './src/utils/storage';
 import { hydrateDicts } from './src/use-dict';
-import { useAccent } from './src/hooks';
+import { useAccent, useOnAccent } from './src/hooks';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
-import { ThemeProvider, useAppTheme, barStyleFor, onAccent } from './src/theme';
+import { usePreferencesSync } from './src/hooks/usePreferencesSync';
+import { ThemeProvider, useAppTheme, barStyleFor } from './src/theme';
 import { i18n, useTranslation } from './src/i18n';
 import {
   LOGIN_ROUTE,
@@ -86,6 +87,7 @@ const TAB_SCREENS: Record<TabKey, ComponentType> = {
 /** 自绘 TabBar（保持既有设计语言：accent pill + 活跃数 badge；路由状态来自 bottom-tabs）。 */
 function AppTabBar({ state, navigation }: BottomTabBarProps) {
   const accent = useAccent();
+  const onAccentHex = useOnAccent();
   const { palette } = useAppTheme();
   const { t } = useTranslation();
   const activeCount = useStore(
@@ -111,7 +113,7 @@ function AppTabBar({ state, navigation }: BottomTabBarProps) {
               <meta.Icon color={color} size={22} />
               {key === 'releases' && activeCount > 0 ? (
                 <View style={[styles.badge, { backgroundColor: accent }]}>
-                  <Text style={styles.badgeText}>{activeCount}</Text>
+                  <Text style={[styles.badgeText, { color: onAccentHex }]}>{activeCount}</Text>
                 </View>
               ) : null}
             </View>
@@ -161,7 +163,7 @@ function AppShell() {
   const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const dispatch = useStore((s) => s.dispatch);
-  const motion = useStore((s) => s.state.settings.motion);
+  const motion = useStore((s) => s.state.settings.preferences.motionEnabled);
   const offline = useNetworkStatus();
   // 登录态（login-app）：启动恢复安全存储会话 + 续约守护循环；未登录渲染登录 Stack
   const session = useAuthStore((s) => s.session);
@@ -172,6 +174,9 @@ function AppShell() {
   const [businessReady, setBusinessReady] = useState(false);
   const isAuthed = session != null;
   const barStyle = barStyleFor(theme);
+  // 偏好后端持久化（REQ-20261121-200415 契约⑨）：登录拉取后端权威覆盖本地（AsyncStorage
+  // STORAGE_KEY 单 blob 兜底）+ 偏好变更防抖 800ms PUT themePreference + 未登录/失败静默。
+  usePreferencesSync();
 
   useEffect(() => {
     void hydrate();
@@ -331,6 +336,6 @@ const makeStyles = (p: NeutralPalette) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    badgeText: { color: onAccent, fontSize: 10, fontWeight: '800' },
+    badgeText: { fontSize: 10, fontWeight: '800' },
     tabLabel: { fontSize: 11, fontWeight: '600' },
   });

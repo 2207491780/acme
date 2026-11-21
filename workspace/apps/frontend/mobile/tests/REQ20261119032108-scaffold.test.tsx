@@ -144,7 +144,7 @@ vi.mock('react-native', async () => {
 
 // ---- 被测对象（mock 声明之后 import） ----
 
-import { DARK_NEUTRALS, LIGHT_NEUTRALS, i18n } from '@acme/core';
+import { DARK_NEUTRALS, DEFAULT_PREFERENCES, LIGHT_NEUTRALS, i18n } from '@acme/core';
 import { useStore } from '../src/store/useStore';
 import { useAuthStore } from '../src/store/authStore';
 import { useNetworkStatus } from '../src/hooks/useNetworkStatus';
@@ -184,7 +184,8 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   useAuthStore.getState().clear();
-  useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: 'dark' } });
+  // THEME-3 ⑧：投影键删除，patch 一律走 preferences（mode 驱动主题派生）
+  useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { preferences: { ...DEFAULT_PREFERENCES, mode: 'dark' } } });
   navStub.getState.mockReturnValue({ index: 0, routes: [{ name: 'Login' }] });
   navStub.replace.mockClear();
   navStub.reset.mockClear();
@@ -228,7 +229,7 @@ describe('REQ20261119032108 theme（AC-3）', () => {
     expect(barStyleFor('dark')).toBe('light-content');
 
     await act(async () => {
-      useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { theme: 'light' } });
+      useStore.getState().dispatch({ type: 'UPDATE_SETTINGS', patch: { preferences: { ...DEFAULT_PREFERENCES, mode: 'light' } } });
       await flush();
     });
     expect(capturedTheme!.theme).toBe('light');

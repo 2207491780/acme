@@ -94,17 +94,30 @@ describe('REQ20261114120110 冷启动恢复 parse-state 校验管道（AC-3）',
     ).toBe(false);
   });
 
-  it('should_fallback_to_seed_when_persisted_settings_enum_invalid', () => {
+  it('should_restore_persisted_state_when_settings_projection_key_corrupted', () => {
     const storage = memoryStorage();
     const corrupted = validPersistedState() as unknown as { settings: Record<string, unknown> };
-    // settings.theme 非法枚举（parse-state isSettings 校验）
+    // THEME-3（REQ-20261121-200415 ⑧）：parse-state 投影 fail-closed 校验已删除，
+    // settings.theme 为未知键（归一化丢弃），不再触发整体回落种子；
+    // preferences 唯一事实源不受污染，水合正常完成。
     corrupted.settings.theme = 'neon';
     seedRaw(storage, JSON.stringify(corrupted));
 
     const store = storeOn(storage);
 
-    expect(store.getState().state.releases).toHaveLength(14);
-    expect(store.getState().state.settings.theme).toBe(seedState(now).settings.theme);
+    // ⑧ 后：未知键丢弃、解析成功 → 持久化业务态完整恢复（14 种子 + 1 新建 = 15）
+    expect(store.getState().state.releases).toHaveLength(15);
+    expect(
+      store.getState().state.releases.some((r) => r.title === validInput.title),
+    ).toBe(true);
+    const settings = store.getState().state.settings as unknown as {
+      preferences?: { mode: string };
+      theme?: unknown;
+    };
+    expect(settings.preferences?.mode).toBe(
+      (seedState(now).settings as unknown as { preferences: { mode: string } }).preferences.mode,
+    );
+    expect('theme' in settings, '投影字段 theme 删除后不得残留').toBe(false);
   });
 
   it('should_fallback_to_seed_when_order_references_unknown_release', () => {

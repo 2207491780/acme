@@ -1,4 +1,5 @@
 import { apiFetch, apiJson, buildQuery } from '../http/client';
+import type { ThemePreferences } from '../preferences';
 import type { FileView } from './infra';
 
 /** 分页信封（契约对齐 PageResult；total 为 Long——按数字容错解析）。 */
@@ -82,9 +83,33 @@ export interface MeUpdatePayload {
   avatarUrl?: string | null;
 }
 
-/** 用户通知偏好视图（REQ-20261119-082531 契约⑤；sys_user_preference.prefs jsonb，本人单行 upsert）。 */
+/** 主题偏好 blob（REQ-20261121-200415 THEME-3 契约②③）：schemaVersion + preferences
+ *  （preferences 可含 extensions 扩展域，core preferences 注册机制口径）；后端校验与 core
+ *  字段集对齐，extensions 仅整体结构校验、内容透传。 */
+export interface ThemePreferenceBlob {
+  schemaVersion: number;
+  preferences: ThemePreferences;
+  /** 顶层扩展域（契约③ blob 顶层白名单可省键；前端常态经 preferences.extensions 携带，
+   *  顶层形状为后端校验器同形容忍面——结构校验、内容透传）。 */
+  extensions?: Record<string, unknown>;
+}
+
+/**
+ * 用户偏好视图（REQ-20261119-082531 契约⑤；REQ-20261121-200415 契约②④扩两域；
+ * sys_user_preference.prefs jsonb，本人单行按域 upsert）：
+ * - messagePush 维持既有默认 false；
+ * - themePreference=null=未设行（后端不内置主题默认值，前端以 DEFAULT_PREFERENCES 兜底，契约④）。
+ */
 export interface UserPreferenceView {
   messagePush: boolean;
+  themePreference: ThemePreferenceBlob | null;
+}
+
+/** 偏好更新载荷（契约②按域 upsert）：null/缺省=不动该域；至少一域非 null 否则 400；
+ *  向后兼容既有 {messagePush} 单域 PUT（themePreference 不被触碰）。 */
+export interface UserPreferenceUpdate {
+  messagePush?: boolean | null;
+  themePreference?: ThemePreferenceBlob | null;
 }
 
 /** 登录趋势点（REQ-20261119-011524 契约①，对齐 LoginTrendPoint；date=YYYY-MM-DD 按日桶）。 */
@@ -403,11 +428,11 @@ export const systemApi = {
     form.append('file', file);
     return apiFetch<FileView>(ME_AVATAR_ENDPOINT, { method: 'POST', body: form });
   },
-  /** 读取本人通知偏好（契约⑤；无偏好行返回缺省 messagePush=false）。 */
+  /** 读取本人偏好（REQ-20261121-200415 契约②④两域；未设行 messagePush=false+themePreference=null）。 */
   mePreferences: (): Promise<UserPreferenceView> =>
     apiFetch<UserPreferenceView>('/admin/v1/system/me/preferences'),
-  /** 更新本人通知偏好（契约⑤；本人行 upsert，字段集 {messagePush}）。 */
-  mePreferencesUpdate: (payload: { messagePush: boolean }): Promise<UserPreferenceView> =>
+  /** 更新本人偏好（契约②按域 upsert）：null/缺省域不被触碰，至少一域非 null 否则 400。 */
+  mePreferencesUpdate: (payload: UserPreferenceUpdate): Promise<UserPreferenceView> =>
     apiJson<UserPreferenceView>('/admin/v1/system/me/preferences', 'PUT', payload),
   /** 注册推送令牌（契约⑤；本人 token upsert——同 token 幂等；void 端点兼容空体）。 */
   pushTokenRegister: (payload: { token: string; platform: PushTokenPlatform }): Promise<void> =>

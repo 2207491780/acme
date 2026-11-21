@@ -90,17 +90,10 @@ export interface SavedView {
 export interface Settings {
   /** 偏好子结构版本标记（PREFERENCES_VERSION）：迁移与校验唯一入口见 preferences.ts。 */
   schemaVersion: number;
-  /** 主题偏好唯一事实源（REQ-20261121-010725）：web 全部读取路径必须走此字段。 */
+  /** 主题偏好唯一事实源（REQ-20261121-010725）：三端全部读取路径必须走此字段。
+   *  REQ-20261121-200415 THEME-3 契约⑧：@deprecated 扁平投影字段（theme/accent/density/motion）
+   *  已物理删除，settings = { schemaVersion, preferences }（唯一构造入口 buildSettings）。 */
   preferences: ThemePreferences;
-  /** @deprecated 派生投影：由 preferences 单向派生（settingsFromPreferences 统一构造），
-   *  勿直接读写，唯一事实=settings.preferences；仅为 mobile 过渡兼容保留（THEME-3 删除）。 */
-  theme: Theme;
-  /** @deprecated 同 theme，勿直接读写。 */
-  accent: Accent;
-  /** @deprecated 同 theme，勿直接读写。 */
-  density: Density;
-  /** @deprecated 同 theme，勿直接读写。 */
-  motion: boolean;
 }
 
 export interface Activity {

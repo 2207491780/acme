@@ -132,6 +132,7 @@ export const settings = {
     sub: '强调色、主题与动效即时生效并写入共享状态。',
     themeDark: '深色',
     themeLight: '浅色',
+    themeSystem: '跟随系统',
     motionLabel: '构建动效',
     motionDesc: '开启后构建进度实时推进（TICK）',
     accentAria: '强调色 {{name}}',

@@ -31,8 +31,8 @@ mobile/
 ├── vitest.config.ts
 ├── src/
 │   ├── nav.ts              # TabKey/路由常量（Login/Main + 四 Tab）/ 深链映射（linking，type-only 引 RN）
-│   ├── theme.ts            # 双主题：ThemeProvider/useAppTheme 消费 core settings.theme → resolvePalette
-│   │                       #   （dark→DARK_NEUTRALS/light→LIGHT_NEUTRALS）；静态 palette 导出保留 dark 缺省
+│   ├── theme.ts            # 三态主题（THEME-3）：ThemeProvider/useAppTheme 消费 core preferences.mode
+│   │                       #   （system=useColorScheme 解析）→ resolvePalette（dark/light 两套中性色）
 │   ├── i18n.ts             # useTranslation：消费 core i18next 实例 + localeStore（mobile 不装 i18n 包）
 │   ├── hooks.ts            # useAccent / useOnAccent
 │   ├── hooks/useNetworkStatus.ts  # NetInfo 订阅 + 启动探测 → offline 布尔（离线横幅数据源）
@@ -57,14 +57,16 @@ mobile/
   `navigation.replace('Main')`；登出 `navigation.reset` 回 `Login`；深链冷启动已落 Main/* 时不干预。
 - **TabKey 语义保留**：`nav.ts` 是路由常量唯一事实源（`TAB_KEYS` 顺序 = 旧手动切换顺序），Tab 路由名 = TabKey。
 
-## 主题（双主题）
+## 主题（三态）
 
-- `src/theme.ts` 导出 `ThemeProvider` / `useAppTheme()`（别名 `useThemeTheme`）：消费 core `settings.theme`，
-  经 `resolvePalette` 派生完整 NeutralPalette（dark→`DARK_NEUTRALS` / light→`LIGHT_NEUTRALS`，引用同一性由
-  `tests/theme.test.ts` 锁定）；`barStyleFor(theme)` 联动 StatusBar。
+- `src/theme.ts` 导出 `ThemeProvider` / `useAppTheme()`（别名 `useThemeTheme`）：消费 core `preferences.mode`
+  三态（THEME-3 契约⑦；system=useColorScheme 解析、系统切换即时生效，手动 light/dark 脱离 system），
+  经 `resolveThemeMode` + `resolvePalette` 派生完整 NeutralPalette（dark→`DARK_NEUTRALS` /
+  light→`LIGHT_NEUTRALS`）；`barStyleFor(theme)` 联动 StatusBar。
 - 样式模式：模块级 `makeStyles(palette)` 工厂 + 组件内 `useMemo`（palette 引用随 resolvePalette 稳定）；
-  全部组件样式随主题即时刷新，静态 `palette` 导出仅为历史兼容（dark 缺省），组件不得新增使用。
-- `app.json` `userInterfaceStyle: automatic`（跟随系统，用户可在设置页覆盖 dark/light）。
+  全部组件样式随主题即时刷新；静态 `palette`/`onAccent` 历史导出已随投影字段删除（THEME-3 契约⑧），
+  组件一律经 `useAppTheme()`/`useAccent()`/`useOnAccent()` 取派生值。
+- `app.json` `userInterfaceStyle: automatic`（跟随系统默认档，用户可在设置页显式覆盖 light/dark）。
 
 ## i18n
 
