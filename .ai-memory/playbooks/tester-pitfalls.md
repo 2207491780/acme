@@ -34,3 +34,7 @@
 15. **前端重 jsdom 文件并行会崩 Tinypool worker / 超时 flake**：先 `vitest run <file> --no-file-parallelism` 串行复跑判别，串行过 ≠ 回归，不进打回循环。
 16. **跑后端 IT 前先 `docker version`** 确认 daemon 活着；日志见 `Could not find a valid Docker environment` = 全跳过 ≠ 验证（`Tests run: N, Skipped: 0` 才算）。
 17. **先跑完后端再跑前端**，避免 CPU 争抢放大超时假失败。
+
+## 坑 16：跨 REQ 基线计数漂移（2026-11-21 JOB-1 终验实证）
+
+新增权限点/菜单/种子行的 REQ 会让**所有历史 REQ 测试里钉死的绝对计数断言**变红（例：V26 加 5 权限点 → TENANT-1/TENANT-2 时代的「总数=72」4 处齐红）。纪律：凡本 REQ 增删种子行的 tester，**交付前必须全库 grep 历史测试中的水位断言**（`grep -rn "总数\|水位\|= 72\|toHaveLength" */src/test` 按实际水位词扫描）并统一抬到新水位（含重放列表补本 REQ 迁移文件）；契约委派单里 TL 须把「历史计数扫描」列入 tester 职责清单，不能只适配自己 REQ 新增面。
