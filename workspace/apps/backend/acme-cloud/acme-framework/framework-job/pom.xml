@@ -32,6 +32,12 @@
             <groupId>com.acme</groupId>
             <artifactId>framework-core</artifactId>
         </dependency>
+        <!-- 执行器 SDK 内部令牌签发接缝（确认④⑤，optional：使用方服务装配面已显式携带） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-security</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <!-- ShedLock（bom 5.16.0 已核实坐标） -->
         <dependency>
@@ -78,6 +84,22 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
+        <!-- 执行器 SDK（REQ-20261121-200724 确认④⑤，optional 不传递：使用方服务已显式携带；
+            服务侧 LB/Nacos 缺席时 ExecutorLifecycle 静默降级不注册不接单）。
+            spring-boot-web-server 承载 ExecutorLifecycle 的 WebServerApplicationContext 引用
+            （org.springframework.boot.web.server.context，Boot 4 模块化）
+            （Boot 4 模块化实证归属；webmvc/tomcat/jackson 面由使用方服务自带） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-web-server</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- 测试域（framework-core 先例） -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -102,6 +124,24 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- 执行器 SDK 集成测试运行面（tester REQ20261121200724ExecutorSdk* 先例：
+            RANDOM_PORT 宿主需 MVC/Tomcat/Jackson；scheduler-api 契约面因 enforcer 4.4.4
+            framework 禁依赖 platform 不可引——attempt/shard 透传断言走 SDK 自建 JobExecutionContext） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-tomcat</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jackson</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

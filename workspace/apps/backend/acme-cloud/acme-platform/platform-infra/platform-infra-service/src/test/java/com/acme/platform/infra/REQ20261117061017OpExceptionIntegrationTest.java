@@ -506,7 +506,8 @@ class REQ20261117061017OpExceptionIntegrationTest {
         for (JsonNode record : records) {
             assertThat(textOf(record, "jobKey", "job_key")).isEqualTo("file-retention-cleanup");
             assertThat(textOf(record, "triggerType", "trigger_type"))
-                    .as("手动触发记录 trigger_type=MANUAL（AMB-8 双兼容）").isEqualTo("MANUAL");
+                    .as("手动触发记录 trigger_type=TRIGGER_MANUAL（REQ-20261121-200724 确认⑦归一）")
+                    .isEqualTo("TRIGGER_MANUAL");
             assertThat(textOf(record, "startedAt", "started_at")).isNotBlank();
         }
         // 倒序（started_at desc，AMB-8 文本序比较）

@@ -24,11 +24,14 @@ public class JobExecution extends AuditBase {
     /** 状态：执行失败。 */
     public static final String STATUS_FAILED = "FAILED";
 
-    /** 触发来源：手动触发。 */
-    public static final String TRIGGER_MANUAL = "MANUAL";
+    /** 触发来源：手动触发（REQ-20261121-200724 确认⑦ triggerType 归一取值）。 */
+    public static final String TRIGGER_MANUAL = "TRIGGER_MANUAL";
 
-    /** 触发来源：调度（REQ-20261114-071607 裁决⑦ trigger∈{MANUAL,SCHEDULED}）。 */
-    public static final String TRIGGER_SCHEDULED = "SCHEDULED";
+    /** 触发来源：本地调度兜底（REQ-20261121-200724 确认⑦ triggerType 归一取值）。 */
+    public static final String TRIGGER_SCHEDULED = "TRIGGER_SCHEDULED";
+
+    /** 触发来源：调度中心下发执行（REQ-20261121-200724 确认⑦ triggerType 归一取值；SDK 下发路径恒传）。 */
+    public static final String TRIGGER_DISPATCHED = "SCHEDULER_DISPATCH";
 
     @Column("job_key")
     private String jobKey;
