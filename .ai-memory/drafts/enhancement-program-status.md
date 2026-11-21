@@ -17,7 +17,8 @@
 | 2 | JOB-1 调度中心核心 | DONE（c553b7a 已合并待推；终验全 reactor EXIT=0；水位 77；UTC 锁表纪律+坑 16 入册） | REQ-20261121-071002 |
 | 2 | BPM-1 引擎内核 MVP | round 1 修复中（27→5 红收敛；余 5 簇 delta 打回单已派 backend 续修；裁决⑫已回写契约） | REQ-20261121-142316 |
 | 3+ | THEME-3 偏好持久化+mobile 对齐 | II-DEV 前端线并行中（REQ-20261121-200415 契约 confirmed+worktree 就绪；t3-frontend/t3-tester-fe 已派；backend 线待 BPM-1 Maven 收口后错峰） | REQ-20261121-200415 |
-| 3+ | JOB-2 → BPM-2 → JOB-3/BPM-3/TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动（JOB-2 事实采集中） | |
+| 3+ | JOB-2 执行器 SDK | 契约 confirmed+worktree 就绪（REQ-20261121-200724；开放点五项已裁决：HTTP 单通道/@JobHandler+@AcmeTask 共存/双轨历史/V2 种子/单体降级开关）；待 BPM-1 Maven 收口后派 backend+tester | REQ-20261121-200724 |
+| 3+ | BPM-2 → JOB-3/BPM-3/TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
 

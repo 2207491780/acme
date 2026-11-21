@@ -14,7 +14,9 @@
 1. 开工第一步，在主工作树（通常停在 `acme-foundation`）执行：`node .ai/worktree.mjs add feat/<简述>`
    （add 内置**自动 GC**：已随主线 push 到远端且无未提交修改的干净工作树被自动回收——2026-11-20
    上线；分支 tip 未 push 的一律保留（宁可不清，不可误删）；镜像常驻检出 `ai-coding-support`
-   与主工作树永不触碰。手动清理/预检：`node .ai/worktree.mjs gc [--dry-run]`；加 `--branches`
+   与主工作树永不触碰。**新建工作树有 6h 宽限期（`ACME_WORKTREE_GC_MIN_AGE_MS` 可调）：add/gc
+   一律跳过，防「契约单分支 tip==远端 tip+零改动」在用工作树被误回收（ADR 2026-11-21-03）**。
+   手动清理/预检：`node .ai/worktree.mjs gc [--dry-run]`；加 `--branches`
    追加回收**已随主线 push 且未检出**的本地分支（保护分支 acme-foundation/main/ai-coding-support
    永不触碰；未推送分支删除属授权自主级）。注意：GC 递归删除
    带大量依赖产物（node_modules）的工作树在 Windows 上可能耗时数分钟，属正常；孤儿目录（曾被

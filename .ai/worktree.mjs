@@ -4,13 +4,30 @@
 // gc（2026-11-20）：已 push 的干净工作树自动清理——候选=检出分支 tip 已是 origin/acme-foundation
 // 祖先（内容已随主线推上远端）且工作树无未提交修改；镜像常驻检出（ai-coding-support）与主工作树
 // 永不触碰；分支一律保留（删除按「AI 操作授权分级」）。add 时自动 GC（静默尽力，失败不阻塞）。
+// gc 宽限期（2026-11-21 REQ-200415 事故防线）：新建未满 ACME_WORKTREE_GC_MIN_AGE_MS（默认 6h）的
+// 工作树一律跳过——「契约单分支 tip==远端 tip+零改动」会被旧判据误判为可回收， 曾在 add 取号时
+// 静默移除正在使用的工作树（ADR 2026-11-21-03）。
 // gc --branches：追加回收本地分支——tip 已随主线 push 且未检出于任何工作树的非保护分支
 // （acme-foundation/main/ai-coding-support 永不触碰；未推送分支删除属授权自主级）。
 import { execFileSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { statSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
 
 const MAIN_BRANCH = 'acme-foundation';
 const MIRROR_BRANCH = 'ai-coding-support';
+// GC 宽限期：新建未满此年龄的工作树一律跳过（默认 6h；ADR 2026-11-21-03）
+const GC_MIN_AGE_MS = Number(process.env.ACME_WORKTREE_GC_MIN_AGE_MS ?? 6 * 60 * 60 * 1000);
+// 工作树年龄：取 .git/worktrees/<name> 管理目录的创建时间（≈ worktree add 时刻）。
+// 管理目录不可读时按「足够老」处理，走后续 dirty/pushed 判定（不放宽、不加严）。
+const worktreeAgeMs = (dir) => {
+  try {
+    const st = statSync(join(root, '.git', 'worktrees', basename(dir)));
+    const born = st.birthtimeMs > 0 ? st.birthtimeMs : st.mtimeMs;
+    return Date.now() - born;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+};
 const git = (args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 const gitCwd = (cwd, args) => execFileSync('git', args, { encoding: 'utf8', cwd }).trim();
 const norm = (p) => resolve(p).replaceAll('\\', '/');
@@ -72,6 +89,11 @@ const gcWorktrees = ({ dryRun }) => {
   for (const { dir, branch } of listBranchWorktrees()) {
     if (branch === MIRROR_BRANCH) {
       skipped.push(`${branch}（镜像对齐常驻检出，跳过）`);
+      continue;
+    }
+    const ageMs = worktreeAgeMs(dir);
+    if (ageMs < GC_MIN_AGE_MS) {
+      skipped.push(`${branch}（新建 ${Math.round(ageMs / 60000)} 分钟 < 宽限期 ${Math.round(GC_MIN_AGE_MS / 60000)} 分钟，疑似在用，跳过）`);
       continue;
     }
     const dirty = (() => {
