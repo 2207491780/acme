@@ -15,7 +15,7 @@
 | 2 | THEME-2 外观能力包 | DONE（v3 落地，门禁 PASS，已合并待推） | REQ-20261121-043502 |
 | 2 | TENANT-2 功能分配-服务能力开关 | DONE（V25 落地，门禁五项 PASS，92c4f88 已合并待推） | REQ-20261121-054613 |
 | 2 | JOB-1 调度中心核心 | DONE（c553b7a 已合并待推；终验全 reactor EXIT=0；水位 77；UTC 锁表纪律+坑 16 入册） | REQ-20261121-071002 |
-| 2 | BPM-1 引擎内核 MVP | 契约草稿就绪（contracts/REQ-BPM1-PENDING-draft.md，取号时替换 ID 并提交；注意坑 16：V27 加权限点须全库扫水位断言 77→新值） | |
+| 2 | BPM-1 引擎内核 MVP | round 1 修复中（backend 154 文件交付+真实栈冒烟；tester 48 例 21/48+坑 16 六文件绿；27 红归因 9 簇实现缺陷修复中——协议终稿三节已钉死进契约） | REQ-20261121-142316 |
 | 3+ | THEME-3 → JOB-2 → BPM-2 → JOB-3/BPM-3/TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
