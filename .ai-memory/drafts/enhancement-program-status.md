@@ -14,7 +14,7 @@
 | 1 | TENANT-1 租户套餐模型 | DONE（V24 落地，门禁五项 PASS，2dc7eb2 已合并待推） | REQ-20261121-022910 |
 | 2 | THEME-2 外观能力包 | DONE（v3 落地，门禁 PASS，已合并待推） | REQ-20261121-043502 |
 | 2 | TENANT-2 功能分配-服务能力开关 | DONE（V25 落地，门禁五项 PASS，92c4f88 已合并待推） | REQ-20261121-054613 |
-| 2 | JOB-1 调度中心核心 | II-DEV→round 2（后端全交付+tester 22 用例 solo 全绿；联合 delta 排查「tick 多方法停摆」根因中——backend 主查/tester 配合收敛装配；下发协议终稿已钉死见 backend 报告） | REQ-20261121-071002 |
+| 2 | JOB-1 调度中心核心 | III-GATE 终验中（tick 停摆根因收口：sch_scheduler_lock UTC 参照系错配——裸 now() 致 +8h 假锁，修复=DDL 回退官方 TIMESTAMP+全锁行写入 timezone('utc',now())+锁名单源；联合复跑 22/22+SystemIT 14/14 绿；全 reactor mvn 终验后台跑；规格 §10 实现定稿附录已回改） | REQ-20261121-071002 |
 | 2 | BPM-1 引擎内核 MVP | 契约草稿就绪（contracts/REQ-BPM1-PENDING-draft.md，取号时替换 ID 并提交） | |
 | 3+ | THEME-3 → JOB-2 → BPM-2 → JOB-3/BPM-3/TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
 

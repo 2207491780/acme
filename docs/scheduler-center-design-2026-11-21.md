@@ -84,3 +84,17 @@
 
 - 后端：零新增（时间轮/分层轮自研；ShedLock/framework-lock/CronExpression/framework-stream 均已有）。
 - 前端：零新增（管理页复用 CrudTable 既有惯例）。
+
+## 10. 实现定稿附录（JOB-1 偏差回改，2026-11-21 随 REQ-20261121-071002 收口）
+
+以下为 JOB-1 实现过程的语义收敛与补钉，本节即终稿口径（与正文冲突处以本节为准）：
+
+1. **状态机措辞收敛（§4）**：接单确认→DISPATCHED；调度侧自推 RUNNING（接单成功后）；结果回调承载 RUNNING/SUCCESS/FAILED；CAS 矩阵：PENDING/DISPATCHED→RUNNING/FAILED/CANCELLED，RUNNING→SUCCESS/FAILED/TIMEOUT/CANCELLED，终态不可再推进（PENDING/DISPATCHED 直接 SUCCESS→409 STATE_CONFLICT）。
+2. **misfire 判界（§3.1）**：周期型（CRON/FIXED_RATE）=下一期已整周期错过；ONCE=超 tick 容差 1s（防 tick 延迟误判）。
+3. **孤儿执行**：PENDING/DISPATCHED 超接单窗口（10s）由超时巡检按 DISPATCH_TIMEOUT 处置（走重试链）。
+4. **重试间隔**：一期恒定间隔（retry_policy={maxAttempts,initialIntervalMs}）；指数退避+jitter 归 JOB-4。
+5. **BPM 注销端点**：DELETE /internal/v1/scheduler/jobs/{job_key} 归 BPM-6 契约承接（JOB-1 未含）。
+6. **依赖**：shedlock-spring/shedlock-provider-jdbc-template 工件（版本由既有 shedlock-bom 5.16.0 管理）。
+7. **锁名分离**：tick 与超时巡检独立锁名（platform-scheduler-tick / platform-scheduler-patrol），锁名单源化于内核常量。
+8. **springdoc 分组**：服务侧不接 framework-doc；分组=网关配置面（/v3/api-docs/scheduler）。
+9. **运维纪律（JOB-1 根因收口实证，必须遵守）**：`sch_scheduler_lock` 列型=ShedLock 5.16 官方模板 `TIMESTAMP`（无时区，naive UTC 墙钟语义，会话时区免疫）；**任何外部写入该锁表的工具/脚本必须用 `timezone('utc', now())` 表达式**——裸 `now()` 会产生约 8 小时假锁（UTC+8 会话实测）。已知观察：DB 时钟滞后 JVM 约 100ms + lockAtLeastFor=1s 使单实例 tick 实际节奏 ~2s（ShedLock 隔次跳过）；集群语义不受影响，触发正确性以「DB 兜底扫描 + fire_time 幂等」为准绳而非 tick 频率。
