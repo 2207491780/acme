@@ -1,15 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App, Button, DatePicker, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
+import { App, Button, DatePicker, Form, Input, Popconfirm, Select, Space, Tag, TreeSelect, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { ApiError, Auth, formatDate, systemApi, tenantPackageApi, useCrud, useMeStore, type AdminTenantPackageView, type AdminTenantView } from '@acme/core';
+import { ApiError, Auth, formatDate, systemApi, tenantPackageApi, useCrud, useMeStore, type AdminTenantPackageView, type AdminTenantTreeNode, type AdminTenantView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 
 const { Text } = Typography;
 
 const CODE_PATTERN = /^[a-z][a-z0-9_-]*$/;
+
+/** 层级深度上限（REQ-20261122-102954 契约②：1=顶层，level≤3）。 */
+const TENANT_MAX_LEVEL = 3;
+
+/** 父租户下拉节点（TreeSelect treeData 形态；显式类型规避递归引用推断）。 */
+interface ParentTreeOption {
+  value: string;
+  title: string;
+  children: ParentTreeOption[];
+}
 
 interface TenantFormValues {
   tenantCode: string;
@@ -21,6 +31,8 @@ interface TenantFormValues {
   expiresAt?: Dayjs | null;
   /** 绑定套餐（REQ-20261121-022910；表单态为套餐 id 字符串，清空=不受限，提交转 number|null）。 */
   packageId?: string;
+  /** 父租户（REQ-20261122-102954；表单态为租户 id 字符串，清空=顶层，提交转 string|null）。 */
+  parentId?: string;
 }
 
 /** 租户管理（p2-admin）：分页/搜索/新建/改名/启停；无删除能力——停用代替（FR-007）。
@@ -52,6 +64,16 @@ export function TenantsPage() {
     [packages],
   );
 
+  // 租户层级树（REQ-20261122-102954 契约⑨）：parent 下拉数据源；拉取失败/信封空降级为空数组
+  // （下拉无选项，列表不受影响）；wire 归一=数组校验+节点 children 缺省兜底（旧口径/同形 mock 容忍）
+  const [tenantTree, setTenantTree] = useState<AdminTenantTreeNode[]>([]);
+  useEffect(() => {
+    // page/size 仅随请求携带（统一列表分页口径，menuTree 同先例；后端全量返回不截断）
+    systemApi.tenantTree(1, crud.size)
+      .then((tree) => setTenantTree(Array.isArray(tree) ? tree : []))
+      .catch(() => setTenantTree([]));
+  }, []);
+
   const [editing, setEditing] = useState<AdminTenantView | null>(null);
   const [creating, setCreating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -73,9 +95,49 @@ export function TenantsPage() {
       contactPhone: record.contactPhone ?? undefined,
       expiresAt: record.expiresAt ? dayjs(record.expiresAt) : undefined,
       packageId: record.packageId ?? undefined,
+      parentId: record.parentId ?? undefined,
     });
     setCreating(false);
   };
+
+  // 防环排除（REQ-20261122-102954 契约③）：编辑时父租户候选剔除自身与全部后代（改父构成环由后端 TENANT_CYCLE 兜底拒绝）
+  const excludedParentIds = useMemo(() => {
+    const excluded = new Set<string>();
+    if (!editing) {
+      return excluded;
+    }
+    const walk = (nodes: AdminTenantTreeNode[]): boolean => {
+      for (const node of nodes ?? []) {
+        if (node.id === editing.id) {
+          excluded.add(node.id);
+          const collect = (list: AdminTenantTreeNode[]): void => {
+            for (const child of list ?? []) {
+              excluded.add(child.id);
+              collect(child.children ?? []);
+            }
+          };
+          collect(node.children ?? []);
+          return true;
+        }
+        if (walk(node.children ?? [])) {
+          return true;
+        }
+      }
+      return false;
+    };
+    walk(tenantTree);
+    return excluded;
+  }, [editing, tenantTree]);
+
+  const parentTreeData = useMemo<ParentTreeOption[]>(() => {
+    const toOption = (node: AdminTenantTreeNode): ParentTreeOption => ({
+      value: node.id,
+      // 选项文案=租户名称（契约⑩未钉编码后缀；选中回显与防环断言按名称口径）
+      title: node.tenantName,
+      children: (node.children ?? []).filter((child) => !excludedParentIds.has(child.id)).map(toOption),
+    });
+    return tenantTree.filter((node) => !excludedParentIds.has(node.id)).map(toOption);
+  }, [tenantTree, excludedParentIds]);
 
   const submit = async () => {
     const values = await form.validateFields();
@@ -88,6 +150,8 @@ export function TenantsPage() {
     setSubmitting(true);
     // 套餐归一（REQ-20261121-022910）：清空=不受限（null=解除绑定）；提交转 number 口径
     const packageId = values.packageId ? Number(values.packageId) : null;
+    // 父租户归一（REQ-20261122-102954）：清空=顶层（null）；提交 wire 字符串口径
+    const parentId = values.parentId || null;
     try {
       if (editing) {
         await systemApi.tenantUpdate(editing.id, {
@@ -95,6 +159,7 @@ export function TenantsPage() {
           remark: values.remark,
           ...profile,
           packageId,
+          parentId,
           version: editing.version,
         });
         message.success(t('tenants.form.updated'));
@@ -105,6 +170,7 @@ export function TenantsPage() {
           remark: values.remark,
           ...profile,
           packageId,
+          parentId,
         });
         message.success(t('tenants.form.created'));
       }
@@ -112,7 +178,14 @@ export function TenantsPage() {
       setCreating(false);
       crud.reload(1);
     } catch (ex: unknown) {
-      message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
+      // 层级域错误码映射（REQ-20261122-102954 契约③）：TENANT_DEPTH_EXCEEDED/TENANT_CYCLE
+      if (ex instanceof ApiError && ex.code === 'TENANT_DEPTH_EXCEEDED') {
+        message.error(t('tenants.errors.depthExceeded'));
+      } else if (ex instanceof ApiError && ex.code === 'TENANT_CYCLE') {
+        message.error(t('tenants.errors.cycle'));
+      } else {
+        message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -132,6 +205,18 @@ export function TenantsPage() {
   const columns: ColumnsType<AdminTenantView> = [
     { title: t('tenants.columns.tenantCode'), dataIndex: 'tenantCode', key: 'tenantCode', minWidth: 160, fixed: 'left' },
     { title: t('tenants.columns.tenantName'), dataIndex: 'tenantName', key: 'tenantName', minWidth: 160 },
+    {
+      // 层级列（REQ-20261122-102954 契约⑨）：按 level 缩进（1=顶层，上限 3；缺失=旧口径按顶层兜底）
+      title: t('tenants.columns.level'), dataIndex: 'level', key: 'level', minWidth: 110,
+      render: (_, record) => {
+        const level = Math.min(Math.max(record.level ?? 1, 1), TENANT_MAX_LEVEL);
+        return (
+          <span style={{ display: 'inline-block', paddingLeft: (level - 1) * 16 }}>
+            {level === 1 ? t('tenants.columns.levelTop') : t('tenants.columns.levelN', { level })}
+          </span>
+        );
+      },
+    },
     {
       // 套餐列（REQ-20261121-022910）：视图 packageName 直显 → 本地套餐目录映射兜底 → 未绑定=不受限
       title: t('tenants.columns.package'), dataIndex: 'packageName', key: 'package', minWidth: 140, ellipsis: true,
@@ -162,6 +247,7 @@ export function TenantsPage() {
           <Auth code="system:tenant:update">
             <Popconfirm
               title={t('tenants.status.toggleConfirm', { action: record.status === 'ENABLED' ? t('common.status.disabled') : t('common.status.enabled'), code: record.tenantCode })}
+              description={record.status === 'ENABLED' ? t('tenants.status.cascadeHint') : undefined}
               onConfirm={() => void toggleStatus(record)}
             >
               <Button size="small" danger={record.status === 'ENABLED'}>
@@ -221,6 +307,18 @@ export function TenantsPage() {
         </Form.Item>
         <Form.Item name="remark" label={t('tenants.form.remark')} rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}>
           <Input.TextArea placeholder={t('common.validation.optional')} rows={2} />
+        </Form.Item>
+        {/* 父租户（REQ-20261122-102954）：树形下拉（GET /tenants/tree 数据源，展示名（编码））；
+            编辑时选项已剔除自身与后代（防环）；可清空=顶层；提交 parentId string|null（TENANT_DEPTH_EXCEEDED/TENANT_CYCLE 后端校验） */}
+        <Form.Item name="parentId" label={t('tenants.form.parent')} extra={t('tenants.form.parentExtra')}>
+          <TreeSelect
+            allowClear
+            placeholder={t('tenants.form.parentPlaceholder')}
+            treeData={parentTreeData}
+            treeNodeFilterProp="title"
+            treeDefaultExpandAll
+            showSearch
+          />
         </Form.Item>
         {/* 绑定套餐（REQ-20261121-022910）：可清空=不受限；提交 packageId（null=解除绑定） */}
         <Form.Item name="packageId" label={t('tenants.form.package')} extra={t('tenants.form.packageExtra')}>

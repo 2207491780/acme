@@ -97,8 +97,9 @@ public class TenantInitUseCase {
             if (tenantRepository.existsByTenantCode(request.tenantCode())) {
                 throw new BizException(SystemError.TENANT_CODE_DUPLICATED);
             }
-            SysTenant tenant = tenantRepository
-                    .save(new SysTenant(request.tenantCode(), request.tenantName(), request.remark()));
+            SysTenant tenant = new SysTenant(request.tenantCode(), request.tenantName(), request.remark());
+            applyParent(tenant, request.parentId());
+            tenantRepository.save(tenant);
             SysRole adminRole = createTenantAdminRole();
             SysUser admin = createAdminUser(request, adminRole);
             log.info("租户开通初始化完成：tenant={} adminUserId={} operator={}",
@@ -113,6 +114,25 @@ public class TenantInitUseCase {
         } finally {
             TenantContext.bind(previous);
         }
+    }
+
+    /**
+     * 开通挂父（REQ-20261122-102954 确认⑤：平台侧建子租户走本模板，初始管理员随 TenantContext
+     * 绑定归子租户编码）：parent 须存在（TENANT_NOT_FOUND）；level=父+1，深度超限
+     * TENANT_DEPTH_EXCEEDED（上限 {@link TenantUseCase#MAX_TENANT_DEPTH}=3）。新租户无后代，无环风险。
+     */
+    private void applyParent(SysTenant tenant, Long parentId) {
+        if (parentId == null) {
+            return;
+        }
+        SysTenant parent = tenantRepository.findById(parentId)
+                .orElseThrow(() -> new BizException(SystemError.TENANT_NOT_FOUND));
+        int childLevel = (parent.getLevel() == null ? 1 : parent.getLevel()) + 1;
+        if (childLevel > TenantUseCase.MAX_TENANT_DEPTH) {
+            throw new BizException(SystemError.TENANT_DEPTH_EXCEEDED);
+        }
+        tenant.setParentId(parent.getId());
+        tenant.setLevel(childLevel);
     }
 
     private SysRole createTenantAdminRole() {

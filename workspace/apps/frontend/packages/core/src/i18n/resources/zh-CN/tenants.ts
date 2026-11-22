@@ -8,6 +8,9 @@ export const tenants = {
   columns: {
     tenantCode: '租户代码',
     tenantName: '租户名称',
+    level: '层级',
+    levelTop: '顶层',
+    levelN: '第 {{level}} 层',
     package: '套餐',
     unlimited: '不受限',
     status: '状态',
@@ -28,6 +31,9 @@ export const tenants = {
     name: '租户名称',
     nameRequired: '请输入租户名称',
     namePlaceholder: '租户显示名称',
+    parent: '父租户',
+    parentPlaceholder: '选择父租户，不选则为顶层（可清空）',
+    parentExtra: '层级上限 3 层；编辑时不能选择自身或其子租户（防环）',
     remark: '备注',
     package: '套餐',
     packagePlaceholder: '选择套餐，不选则不受限（可清空）',
@@ -43,10 +49,13 @@ export const tenants = {
   },
   status: {
     toggleConfirm: '确认{{action}}租户 {{code}}？',
+    cascadeHint: '停用后该租户的全部子租户将级联停用（并撤销会话）；恢复父租户不会自动恢复子租户，需逐个显式恢复。',
     enabled: '租户已启用',
     disabled: '租户已停用',
   },
   errors: {
     loadFailed: '租户清单加载失败',
+    depthExceeded: '租户层级超过上限（最多 3 层）',
+    cycle: '设置该父租户会形成层级环，操作已被拒绝',
   },
 };

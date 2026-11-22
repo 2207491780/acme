@@ -121,11 +121,37 @@ public final class EntityViews {
                 permission.getVersion());
     }
 
-    /** 租户视图（REQ-20261117-025200 增补联系人 / 有效期透传；REQ-20261121-022910 增补套餐绑定）。 */
+    /**
+     * 租户视图（REQ-20261117-025200 增补联系人 / 有效期透传；REQ-20261121-022910 增补套餐绑定；
+     * REQ-20261122-102954 增补 parentId/level 层级字段，平铺响应 children 恒空列表）。
+     */
     public static AdminTenantView tenantView(SysTenant tenant) {
         return new AdminTenantView(tenant.getId(), tenant.getTenantCode(), tenant.getTenantName(),
                 tenant.getStatus(), tenant.getRemark(), tenant.getContactName(), tenant.getContactPhone(),
-                tenant.getExpiresAt(), tenant.getCreatedAt(), tenant.getVersion(), tenant.getPackageId());
+                tenant.getExpiresAt(), tenant.getCreatedAt(), tenant.getVersion(), tenant.getPackageId(),
+                tenant.getParentId(), tenant.getLevel(), List.of());
+    }
+
+    /**
+     * 租户树（REQ-20261122-102954 tree 端点：全量目录 parent_id 组装，含 status/level/套餐；
+     * 根 parentId=null，环 / 孤儿显式失败与 deptTree 同款）。
+     */
+    public static List<AdminTenantView> tenantTree(List<SysTenant> allTenants) {
+        List<TreeNode<SysTenant>> roots = TreeBuilder.build(allTenants,
+                SysTenant::getId, SysTenant::getParentId);
+        return mapTenantNodes(roots);
+    }
+
+    private static List<AdminTenantView> mapTenantNodes(List<TreeNode<SysTenant>> nodes) {
+        List<AdminTenantView> views = new ArrayList<>();
+        for (TreeNode<SysTenant> node : nodes) {
+            SysTenant tenant = node.payload();
+            views.add(new AdminTenantView(tenant.getId(), tenant.getTenantCode(), tenant.getTenantName(),
+                    tenant.getStatus(), tenant.getRemark(), tenant.getContactName(), tenant.getContactPhone(),
+                    tenant.getExpiresAt(), tenant.getCreatedAt(), tenant.getVersion(), tenant.getPackageId(),
+                    tenant.getParentId(), tenant.getLevel(), mapTenantNodes(node.children())));
+        }
+        return views;
     }
 
     public static AdminDictTypeView dictTypeView(SysDictType type) {

@@ -8,6 +8,9 @@ export const tenants = {
   columns: {
     tenantCode: 'Tenant code',
     tenantName: 'Tenant name',
+    level: 'Level',
+    levelTop: 'Top level',
+    levelN: 'Level {{level}}',
     package: 'Package',
     unlimited: 'Unrestricted',
     status: 'Status',
@@ -28,6 +31,9 @@ export const tenants = {
     name: 'Tenant name',
     nameRequired: 'Please enter the tenant name',
     namePlaceholder: 'Tenant display name',
+    parent: 'Parent tenant',
+    parentPlaceholder: 'Select a parent tenant; leave empty for a top-level tenant',
+    parentExtra: 'Maximum 3 levels; a tenant or its descendants cannot be selected as parent when editing (cycle prevention)',
     remark: 'Remark',
     package: 'Package',
     packagePlaceholder: 'Select a package; leave empty for unrestricted',
@@ -43,10 +49,13 @@ export const tenants = {
   },
   status: {
     toggleConfirm: 'Confirm {{action}} of tenant {{code}}?',
+    cascadeHint: 'Disabling will cascade-disable all descendant tenants (and revoke their sessions); re-enabling the parent will NOT automatically restore descendants — restore them one by one explicitly.',
     enabled: 'Tenant enabled',
     disabled: 'Tenant disabled',
   },
   errors: {
     loadFailed: 'Failed to load tenants',
+    depthExceeded: 'Tenant hierarchy exceeds the maximum depth of 3',
+    cycle: 'Setting this parent would create a hierarchy cycle; the operation was rejected',
   },
 };

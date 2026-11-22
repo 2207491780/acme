@@ -29,4 +29,7 @@ public interface SysTenantRepository extends FlexRepository<SysTenant> {
 
     /** 按套餐批量取租户（分页 tenantCount 聚合一次取回；REQ-20261121-022910）。 */
     List<SysTenant> findByPackageIdIn(Collection<Long> packageIds);
+
+    /** 直接子租户（REQ-20261122-102954：环检测/深度校验/level 重算/级联停用后代遍历）。 */
+    List<SysTenant> findByParentId(Long parentId);
 }

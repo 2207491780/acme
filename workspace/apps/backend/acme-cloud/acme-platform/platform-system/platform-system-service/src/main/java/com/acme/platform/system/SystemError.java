@@ -79,6 +79,12 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     /** 默认租户停用被拒绝。 */
     TENANT_DISABLE_DENIED(SystemErrorCodes.TENANT_DISABLE_DENIED, "默认租户不允许停用", 409),
 
+    /** 租户层级深度超出上限（最大 3 层，REQ-20261122-102954 确认③）。 */
+    TENANT_DEPTH_EXCEEDED(SystemErrorCodes.TENANT_DEPTH_EXCEEDED, "租户层级深度超出上限", 409),
+
+    /** 租户父节点调整成环（目标父为自身或其子孙，REQ-20261122-102954 确认③）。 */
+    TENANT_CYCLE(SystemErrorCodes.TENANT_CYCLE, "不能将租户移动到自身或其子租户之下", 409),
+
     /** 接口级权限点不足。 */
     PERMISSION_DENIED(SystemErrorCodes.PERMISSION_DENIED, "无操作权限", 403),
 

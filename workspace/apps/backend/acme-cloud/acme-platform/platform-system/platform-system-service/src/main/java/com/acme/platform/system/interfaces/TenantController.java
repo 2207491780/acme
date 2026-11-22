@@ -16,6 +16,7 @@ import com.acme.platform.system.application.TenantUseCase;
 import com.acme.platform.system.domain.SysTenant;
 import com.acme.platform.system.security.RequirePermission;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -67,6 +68,13 @@ public class TenantController {
             contentParams = {"request.tenantCode", "request.tenantName"})
     public AdminTenantView create(@Valid @RequestBody AdminTenantCreate request) {
         return EntityViews.tenantView(tenantUseCase.create(request));
+    }
+
+    /** 全量租户树（REQ-20261122-102954 确认⑨：平台侧层级视图，含 status/level/套餐；无新权限点）。 */
+    @GetMapping("/tree")
+    @RequirePermission(SystemPermissions.TENANT_LIST)
+    public List<AdminTenantView> tree() {
+        return EntityViews.tenantTree(tenantUseCase.listAll());
     }
 
     @GetMapping("/{tenantId}")

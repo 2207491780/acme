@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -33,6 +34,9 @@ import java.util.List;
  * 下拉排除已过期租户（确认记录③）；按代码直查目录（by-code 内部契约数据源）。
  * REQ-20261121-022910：create/update 支持 packageId（null=不绑定 / 解除绑定=不受限；
  * 非空须为既有套餐，否则 TENANT_PACKAGE_NOT_FOUND——逻辑校验无 FK，确认③④）。
+ * REQ-20261122-102954：层级扩展——create/update 收 parentId（环检测 TENANT_CYCLE+深度校验
+ * TENANT_DEPTH_EXCEEDED≤3+改父后代 level 递归重算）；updateStatus 停用级联后代（afterCommit
+ * 逐租户撤会话；恢复父不自动恢复子）；tree 数据源（listAll，平台侧旁路）。
  */
 @Service
 public class TenantUseCase {
@@ -41,6 +45,9 @@ public class TenantUseCase {
 
     /** 默认租户编码（种子固定；停用保护判定）。 */
     public static final String DEFAULT_TENANT_CODE = "default";
+
+    /** 租户层级深度上限（1=顶层，确认③：最大深度 3）。 */
+    public static final int MAX_TENANT_DEPTH = 3;
 
     private final SysTenantRepository tenantRepository;
     private final TenantSessionRevocationGateway revocationGateway;
@@ -64,6 +71,7 @@ public class TenantUseCase {
         tenant.setContactPhone(request.contactPhone());
         tenant.setExpiresAt(request.expiresAt());
         tenant.setPackageId(request.packageId());
+        applyParentOnCreate(tenant, request.parentId());
         return tenantRepository.save(tenant);
     }
 
@@ -112,6 +120,7 @@ public class TenantUseCase {
         tenant.setContactPhone(request.contactPhone());
         tenant.setExpiresAt(request.expiresAt());
         tenant.setPackageId(request.packageId());
+        applyParentOnUpdate(tenant, request.parentId());
         return tenantRepository.save(tenant);
     }
 
@@ -128,6 +137,9 @@ public class TenantUseCase {
     /**
      * 启用 / 停用（默认租户不可停用；停用成功事务提交后枚举撤销该租户活跃会话，确认记录①②；
      * 撤销调用失败仅 WARN——停用不回滚）。
+     * REQ-20261122-102954 确认⑦：停用级联后代——沿 parent 链递归物化后代 status=DISABLED
+     * （自身 status 即权威，解析零层级感知），afterCommit 逐租户撤销会话；
+     * 恢复（ENABLED）不自动恢复子（显式逐个恢复）。
      */
     @Transactional
     public void updateStatus(Long tenantId, EnableStatus status) {
@@ -138,7 +150,116 @@ public class TenantUseCase {
         tenant.setStatus(status);
         tenantRepository.save(tenant);
         if (status == EnableStatus.DISABLED) {
-            registerAfterCommitRevocation(tenant.getTenantCode());
+            List<String> revokedCodes = new ArrayList<>();
+            revokedCodes.add(tenant.getTenantCode());
+            disableDescendants(tenant.getId(), revokedCodes);
+            registerAfterCommitRevocation(revokedCodes);
+        }
+    }
+
+    /**
+     * 全量租户目录（tree 端点数据源，REQ-20261122-102954 确认⑨；跨租户平台管理场景，
+     * 显式旁路声明 + 审计 12.4.2）。
+     */
+    @IgnoreTenant("tenant-tree-lookup")
+    public List<SysTenant> listAll() {
+        return tenantRepository.findAll(QueryWrapper.create()
+                .orderBy(SysTenant::getTenantCode, true));
+    }
+
+    // ---------- 层级（REQ-20261122-102954 确认②③） ----------
+
+    /** 创建挂父：parent 须存在（TENANT_NOT_FOUND）；level=父+1，深度超限 TENANT_DEPTH_EXCEEDED。 */
+    private void applyParentOnCreate(SysTenant tenant, Long parentId) {
+        if (parentId == null) {
+            return;
+        }
+        SysTenant parent = tenantRepository.findById(parentId)
+                .orElseThrow(() -> new BizException(SystemError.TENANT_NOT_FOUND));
+        int childLevel = requireParentLevel(parent) + 1;
+        if (childLevel > MAX_TENANT_DEPTH) {
+            throw new BizException(SystemError.TENANT_DEPTH_EXCEEDED);
+        }
+        tenant.setParentId(parent.getId());
+        tenant.setLevel(childLevel);
+    }
+
+    /**
+     * 改父（允许，确认③）：null=移至顶层（level=1）；非空须存在且不构成环（目标父为自身或其子孙
+     * → TENANT_CYCLE，原数据不动）；深度=新父链最深后代整体重算后超限 → TENANT_DEPTH_EXCEEDED；
+     * 通过后后代 level 递归重算（子=父+1）。
+     */
+    private void applyParentOnUpdate(SysTenant tenant, Long newParentId) {
+        if (newParentId == null) {
+            tenant.setParentId(null);
+            tenant.setLevel(1);
+            recalcDescendantLevels(tenant);
+            return;
+        }
+        if (newParentId.equals(tenant.getId())) {
+            throw new BizException(SystemError.TENANT_CYCLE);
+        }
+        SysTenant parent = tenantRepository.findById(newParentId)
+                .orElseThrow(() -> new BizException(SystemError.TENANT_NOT_FOUND));
+        rejectAncestorCycle(tenant.getId(), parent);
+        int newLevel = requireParentLevel(parent) + 1;
+        if (newLevel + descendantLevelShift(tenant) > MAX_TENANT_DEPTH) {
+            throw new BizException(SystemError.TENANT_DEPTH_EXCEEDED);
+        }
+        tenant.setParentId(parent.getId());
+        tenant.setLevel(newLevel);
+        recalcDescendantLevels(tenant);
+    }
+
+    /** 父租户层级读取（防御存量 NULL 视为顶层 1）。 */
+    private int requireParentLevel(SysTenant parent) {
+        return parent.getLevel() == null ? 1 : parent.getLevel();
+    }
+
+    /** 环检测：沿新父向上走祖先链，命中被移动租户即成环（TENANT_CYCLE）。 */
+    private void rejectAncestorCycle(Long movingId, SysTenant parent) {
+        SysTenant cursor = parent;
+        while (cursor != null) {
+            if (cursor.getId().equals(movingId)) {
+                throw new BizException(SystemError.TENANT_CYCLE);
+            }
+            cursor = cursor.getParentId() == null ? null
+                    : tenantRepository.findById(cursor.getParentId()).orElse(null);
+        }
+    }
+
+    /** 后代相对层级跨度（BFS 逐层经 idx(parent_id) 取直接子；无后代为 0）。 */
+    private int descendantLevelShift(SysTenant tenant) {
+        int ownLevel = requireParentLevel(tenant);
+        int max = ownLevel;
+        List<SysTenant> frontier = tenantRepository.findByParentId(tenant.getId());
+        while (!frontier.isEmpty()) {
+            List<SysTenant> next = new ArrayList<>();
+            for (SysTenant node : frontier) {
+                max = Math.max(max, requireParentLevel(node));
+                next.addAll(tenantRepository.findByParentId(node.getId()));
+            }
+            frontier = next;
+        }
+        return max - ownLevel;
+    }
+
+    /** 后代 level 递归重算（子=父+1；调用前父 level 已就位）。 */
+    private void recalcDescendantLevels(SysTenant parent) {
+        for (SysTenant child : tenantRepository.findByParentId(parent.getId())) {
+            child.setLevel(requireParentLevel(parent) + 1);
+            tenantRepository.save(child);
+            recalcDescendantLevels(child);
+        }
+    }
+
+    /** 级联停用后代（BFS 物化 status=DISABLED，逐租户记入撤销集；自身 status 即权威，确认⑦）。 */
+    private void disableDescendants(Long parentId, List<String> revokedCodes) {
+        for (SysTenant child : tenantRepository.findByParentId(parentId)) {
+            child.setStatus(EnableStatus.DISABLED);
+            tenantRepository.save(child);
+            revokedCodes.add(child.getTenantCode());
+            disableDescendants(child.getId(), revokedCodes);
         }
     }
 
@@ -147,17 +268,17 @@ public class TenantUseCase {
      * 撤销调用在 afterCommit——事务回滚（含 default 租户拒绝）不外呼；
      * 服务身份绑定在 {@link TenantSessionRevocationGateway}，失败降级 WARN 不抛）。
      */
-    private void registerAfterCommitRevocation(String tenantCode) {
+    private void registerAfterCommitRevocation(List<String> tenantCodes) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             // 无活动事务（理论不可达：updateStatus 恒在事务内）：防御式直调，保持撤销语义不丢失
-            log.warn("停用租户无活动事务，撤销调用退化为同步执行：tenantCode={}", tenantCode);
-            revokeTenantSessionsQuietly(tenantCode);
+            log.warn("停用租户无活动事务，撤销调用退化为同步执行：tenantCodes={}", tenantCodes);
+            tenantCodes.forEach(this::revokeTenantSessionsQuietly);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                revokeTenantSessionsQuietly(tenantCode);
+                tenantCodes.forEach(TenantUseCase.this::revokeTenantSessionsQuietly);
             }
         });
     }

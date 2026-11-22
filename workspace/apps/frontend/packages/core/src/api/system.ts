@@ -227,7 +227,9 @@ export interface AdminSystemConfigUpdate {
 
 /** 租户视图（契约对齐 AdminTenantView；id/version 序列化为字符串）。
  *  REQ-20261117-025200 扩展联系人/联系电话/有效期（可空；expiresAt ISO-8601 字符串，null=长期）。
- *  REQ-20261121-022910 扩展绑定套餐（可空=不受限；packageId wire 字符串口径，packageName 冗余下发便于列表直显）。 */
+ *  REQ-20261121-022910 扩展绑定套餐（可空=不受限；packageId wire 字符串口径，packageName 冗余下发便于列表直显）。
+ *  REQ-20261122-102954 扩展 parentId/level（子租户层级；parentId null/缺失=顶层，level 1=顶层上限 3；
+ *  两字段可选=旧口径 wire 兼容，消费方按缺省 1/顶层降级）。 */
 export interface AdminTenantView {
   id: string;
   tenantCode: string;
@@ -242,8 +244,24 @@ export interface AdminTenantView {
   packageId?: string | null;
   /** 绑定套餐名称（冗余下发；未绑定/套餐已删=null）。 */
   packageName?: string | null;
+  /** 父租户 id（REQ-20261122-102954；wire 字符串口径；null/缺失=顶层租户）。 */
+  parentId?: string | null;
+  /** 层级（REQ-20261122-102954；1=顶层，上限 3；缺失=旧口径按 1 兜底）。 */
+  level?: number;
   createdAt: string;
   version: string;
+}
+
+/** 租户树节点（REQ-20261122-102954 契约⑨：GET /tenants/tree 全量树形平台侧下发——
+ *  行字段同 AdminTenantView（含 status/level/套餐），children 嵌套；parent 下拉/层级展示数据源）。 */
+export interface AdminTenantTreeNode extends AdminTenantView {
+  children: AdminTenantTreeNode[];
+}
+
+/** 租户开通视图（REQ-20261122-102954 契约⑤⑨对齐 AdminTenantInitView）：开通租户行 + 初始
+ *  管理员回显（adminUsername=归属新建租户编码的管理员登录名）。 */
+export interface AdminTenantInitView extends AdminTenantView {
+  adminUsername: string;
 }
 
 /** 租户套餐视图（REQ-20261121-022910 契约对齐 AdminTenantPackageView；id wire 字符串口径；
@@ -460,16 +478,45 @@ export const systemApi = {
   tenantList: (page: number, size: number, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminTenantView>> =>
     apiFetch<PageResult<AdminTenantView>>(`/admin/v1/system/tenants?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
   /** 新建租户（tenantCode 全局唯一且不可改；REQ-20261117-025200 增联系人/联系电话/有效期，可空=长期；
-   *  REQ-20261121-022910 增可选 packageId（可空=不受限）。 */
-  tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; packageId?: number | null }): Promise<AdminTenantView> =>
+   *  REQ-20261121-022910 增可选 packageId（可空=不受限）；
+   *  REQ-20261122-102954 增可选 parentId（wire 字符串口径，null/缺省=顶层；父链深度超 3 → TENANT_DEPTH_EXCEEDED）。 */
+  tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; packageId?: number | null; parentId?: string | null }): Promise<AdminTenantView> =>
     apiJson<AdminTenantView>('/admin/v1/system/tenants', 'POST', payload),
+  /** 租户开通模板（REQ-20261122-102954 契约⑤⑨）：平台侧一次建租户+tenant_admin 角色+初始管理员+绑定；
+   *  parentId 同 create（wire 字符串，null/缺省=顶层，父链超深 → TENANT_DEPTH_EXCEEDED）；
+   *  管理员归属新建租户编码（sys_user.tenant_id=tenant_code，username 全局唯一由后端校验）。 */
+  tenantInit: (payload: {
+    tenantCode: string;
+    tenantName: string;
+    adminUsername: string;
+    adminNickname?: string;
+    remark?: string;
+    contactName?: string | null;
+    contactPhone?: string | null;
+    expiresAt?: string | null;
+    packageId?: number | null;
+    parentId?: string | null;
+  }): Promise<AdminTenantInitView> =>
+    apiJson<AdminTenantInitView>('/admin/v1/system/tenants/init', 'POST', payload),
   /** 租户改名/备注/联系人/有效期（version 乐观锁）；REQ-20261121-022910 增可选 packageId
-   *  （number|null，null=解除绑定；向后兼容——不传即不改动既有绑定）。 */
-  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; packageId?: number | null; version: string }): Promise<AdminTenantView> =>
+   *  （number|null，null=解除绑定；向后兼容——不传即不改动既有绑定）；
+   *  REQ-20261122-102954 增可选 parentId（改父=后端重校验环+深度并重算后代 level；
+   *  环 → TENANT_CYCLE、深度超限 → TENANT_DEPTH_EXCEEDED）。 */
+  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; packageId?: number | null; parentId?: string | null; version: string }): Promise<AdminTenantView> =>
     apiJson<AdminTenantView>(`/admin/v1/system/tenants/${tenantId}`, 'PUT', payload),
-  /** 停用/启用租户（停用即"删除"，FR-007）。 */
+  /** 停用/启用租户（停用即"删除"，FR-007；REQ-20261122-102954 契约⑦：停用后端级联停用全部后代
+   *  并逐租户撤会话，恢复父不自动恢复子——前端不重复提交级联）。 */
   tenantStatus: (tenantId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>
     apiJson<void>(`/admin/v1/system/tenants/${tenantId}/status`, 'PUT', { status }),
+  /** 租户层级树（REQ-20261122-102954 契约⑨：GET /tenants/tree 全量树形平台侧下发，
+   *  行字段同 AdminTenantView（status/level/套餐）+children 嵌套；parent 下拉与层级展示数据源。
+   *  page/size 为可选分页参数：全量树不截断，仅用于统一列表请求携带分页口径（menuTree 同先例）；
+   *  signal 为可选取消信号，透传 apiFetch）。 */
+  tenantTree: (page?: number, size?: number, signal?: AbortSignal): Promise<AdminTenantTreeNode[]> => {
+    const query = buildQuery({ page, size });
+    const suffix = query ? `?${query}` : '';
+    return apiFetch<AdminTenantTreeNode[]>(`/admin/v1/system/tenants/tree${suffix}`, { signal });
+  },
 
   // ---- 用户管理（USER_* 权限码） ----
   /** 用户分页（username 匹配、status/deptId 过滤——deptId 含子部门递归为后端语义；signal 为可选取消信号，透传 apiFetch）。 */

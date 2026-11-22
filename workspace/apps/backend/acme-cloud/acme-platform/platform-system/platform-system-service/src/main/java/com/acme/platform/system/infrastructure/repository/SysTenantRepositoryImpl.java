@@ -58,4 +58,15 @@ public class SysTenantRepositoryImpl extends FlexRepositorySupport<SysTenant> im
         return mapper().selectListByQuery(
                 QueryWrapper.create().where(SysTenant::getPackageId).in(packageIds));
     }
+
+    @Override
+    public List<SysTenant> findByParentId(Long parentId) {
+        if (parentId == null) {
+            // 顶层租户查询：parent_id IS NULL（eq(null) 在 Flex 中被剔除条件，显式 isNull 承载）
+            return mapper().selectListByQuery(
+                    QueryWrapper.create().where(SysTenant::getParentId).isNull());
+        }
+        return mapper().selectListByQuery(
+                QueryWrapper.create().where(SysTenant::getParentId).eq(parentId));
+    }
 }

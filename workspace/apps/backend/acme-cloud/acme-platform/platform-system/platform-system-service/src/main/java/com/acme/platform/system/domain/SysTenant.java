@@ -43,6 +43,14 @@ public class SysTenant extends AuditBase {
     @Column("package_id")
     private Long packageId;
 
+    /** 父租户 ID（可空=null 顶层；逻辑引用 sys_tenant.id，无 FK，REQ-20261122-102954 确认②）。 */
+    @Column("parent_id")
+    private Long parentId;
+
+    /** 层级（1=顶层，上限 3；物化列，一致性由改父/级联写保证，REQ-20261122-102954 确认②）。 */
+    @Column("level")
+    private Integer level;
+
     protected SysTenant() {
     }
 
@@ -51,6 +59,8 @@ public class SysTenant extends AuditBase {
         this.tenantName = tenantName;
         this.status = EnableStatus.ENABLED;
         this.remark = remark;
+        this.parentId = null;
+        this.level = 1;
     }
 
     public String getTenantCode() {
@@ -111,5 +121,21 @@ public class SysTenant extends AuditBase {
 
     public void setPackageId(Long packageId) {
         this.packageId = packageId;
+    }
+
+    public Long getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(Long parentId) {
+        this.parentId = parentId;
+    }
+
+    public Integer getLevel() {
+        return level;
+    }
+
+    public void setLevel(Integer level) {
+        this.level = level;
     }
 }

@@ -76,6 +76,12 @@ public final class SystemErrorCodes {
     /** 默认租户停用被拒绝（409）。 */
     public static final String TENANT_DISABLE_DENIED = "platform-system-06-0003";
 
+    /** 租户层级深度超出上限（最大 3 层，409；REQ-20261122-102954 确认③）。 */
+    public static final String TENANT_DEPTH_EXCEEDED = "platform-system-06-0004";
+
+    /** 租户父节点调整成环（目标父为自身或其子孙，409；REQ-20261122-102954 确认③）。 */
+    public static final String TENANT_CYCLE = "platform-system-06-0005";
+
     /** 接口级权限点不足（403）。 */
     public static final String PERMISSION_DENIED = "platform-system-07-0001";
 

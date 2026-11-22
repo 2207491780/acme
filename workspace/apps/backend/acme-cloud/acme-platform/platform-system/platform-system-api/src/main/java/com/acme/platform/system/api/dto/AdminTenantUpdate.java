@@ -12,6 +12,8 @@ import java.time.Instant;
  * null=长期有效；不校验过去时间——存量允许，登录时拒绝即可，契约 §API 租户 CRUD 扩展）。
  * REQ-20261121-022910 增补 packageId（null=解除套餐绑定（不受限）；非空须为既有套餐，否则
  * TENANT_PACKAGE_NOT_FOUND，契约 §API 租户更新扩展）。
+ * REQ-20261122-102954 增补 parentId（可空=null 移至顶层；非空改父=沿 parent 链重校验环+深度，
+ * 后代 level 整体重算，环报 TENANT_CYCLE / 深度超限报 TENANT_DEPTH_EXCEEDED）。
  */
 public record AdminTenantUpdate(@NotBlank @Size(min = 1, max = 128) String tenantName,
                                 @Size(max = 255) String remark,
@@ -19,5 +21,12 @@ public record AdminTenantUpdate(@NotBlank @Size(min = 1, max = 128) String tenan
                                 @Size(max = 32) String contactPhone,
                                 Instant expiresAt,
                                 @NotNull Long version,
-                                Long packageId) {
+                                Long packageId,
+                                Long parentId) {
+
+    /** 兼容构造（REQ-20261122-102954 之前调用面）：parentId 缺省 null=不调整层级。 */
+    public AdminTenantUpdate(String tenantName, String remark, String contactName, String contactPhone,
+                             Instant expiresAt, Long version, Long packageId) {
+        this(tenantName, remark, contactName, contactPhone, expiresAt, version, packageId, null);
+    }
 }

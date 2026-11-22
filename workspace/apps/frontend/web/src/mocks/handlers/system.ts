@@ -9,7 +9,7 @@ import {
   isSemanticColorOverrides,
   isThemeModeValue,
 } from '@acme/core';
-import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantPackageView, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
+import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
@@ -214,6 +214,103 @@ function tenantViewOf(tenant: AdminTenantView): AdminTenantView {
     ? store.tenantPackages.find((pkg) => pkg.id === tenant.packageId)?.packageName ?? null
     : null;
   return { ...tenant, packageName };
+}
+
+// ————— 租户层级（REQ-20261122-102954 契约②③⑨ mock 同形：level 1=顶层，上限 3；parentId wire 字符串口径） —————
+
+/** 租户层级深度上限（契约②：level≤3，创建/改父越限 → TENANT_DEPTH_EXCEEDED）。 */
+const TENANT_MAX_LEVEL = 3;
+
+/** 租户 id → 行索引（环检测/深度校验用，随调用重建避免陈旧缓存）。 */
+const tenantRowsById = (): Map<string, AdminTenantView> =>
+  new Map(store.tenants.map((tenant) => [tenant.id, tenant]));
+
+/** candidate 链向上是否命中 tenantId（候选父为自身或其后代即构成环）。 */
+function isTenantAncestorOf(candidateParentId: string, tenantId: string): boolean {
+  const byId = tenantRowsById();
+  let cursor = byId.get(candidateParentId);
+  while (cursor) {
+    if (cursor.id === tenantId) {
+      return true;
+    }
+    cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+  }
+  return false;
+}
+
+/** tenantId 的后代 id 全集（沿 parent 链向下闭包传递；防环排除/深度校验口径，不含自身）。 */
+function tenantDescendantIdsOf(tenantId: string): Set<string> {
+  const affected = new Set<string>([tenantId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const row of store.tenants) {
+      if (row.parentId && affected.has(row.parentId) && !affected.has(row.id)) {
+        affected.add(row.id);
+        grew = true;
+      }
+    }
+  }
+  affected.delete(tenantId);
+  return affected;
+}
+
+/** body.parentId 归一（REQ-20261122-102954 契约⑨）：undefined/null/空串=null（顶层）；
+ *  字符串/数字 wire 双口径；父不存在 → TENANT_NOT_FOUND（同后端租户域错误码段）。 */
+function parseTenantParentId(
+  body: Record<string, unknown>,
+): { ok: true; parentId: string | null } | { ok: false; response: ReturnType<typeof fail> } {
+  if (body.parentId === undefined || body.parentId === null || body.parentId === '') {
+    return { ok: true, parentId: null };
+  }
+  const parentId = String(body.parentId);
+  if (!store.tenants.some((tenant) => tenant.id === parentId)) {
+    return { ok: false, response: fail('TENANT_NOT_FOUND', '父租户不存在或已被删除', 404) };
+  }
+  return { ok: true, parentId };
+}
+
+/** 全表 level 重算（契约③改父后后代整体重算；逐行克隆避免污染 db 种子）：
+ *  沿 parent 链向上计数（防环护栏 seen——异常数据不致死循环，悬空父按顶层兜底）。 */
+function recomputeTenantLevels(rows: AdminTenantView[]): AdminTenantView[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return rows.map((row) => {
+    let level = 1;
+    let cursor = row.parentId ? byId.get(row.parentId) : undefined;
+    const seen = new Set<string>([row.id]);
+    while (cursor && !seen.has(cursor.id)) {
+      seen.add(cursor.id);
+      level += 1;
+      cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
+    }
+    return { ...row, level };
+  });
+}
+
+/** 租户全量树装配（契约⑥/⑨ GET /tenants/tree）：行视图 → parent_id 挂 children（悬空父按顶层兜底防丢行），
+ *  同层按 tenantCode 排序保证形态稳定。 */
+function buildTenantTree(): AdminTenantTreeNode[] {
+  const nodes = new Map<string, AdminTenantTreeNode>();
+  for (const tenant of store.tenants) {
+    nodes.set(tenant.id, { ...tenantViewOf(tenant), children: [] });
+  }
+  const roots: AdminTenantTreeNode[] = [];
+  for (const node of nodes.values()) {
+    const parent = node.parentId ? nodes.get(node.parentId) : undefined;
+    if (parent && parent.id !== node.id) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  const sortTree = (list: AdminTenantTreeNode[]): AdminTenantTreeNode[] => {
+    list.sort((a, b) => a.tenantCode.localeCompare(b.tenantCode));
+    for (const node of list) {
+      node.children = sortTree(node.children);
+    }
+    return list;
+  };
+  return sortTree(roots);
 }
 
 /** 套餐 body 载荷归一：packageName 必填 ≤128（trim）、remark ≤255（空串归一 null）、
@@ -518,6 +615,8 @@ export const systemHandlers = [
       .map(tenantViewOf);
     return page(slicePage(rows, pagingOf(request)), rows.length);
   }),
+  // REQ-20261122-102954 契约⑨/⑥：GET /tenants/tree 全量树形（含 status/level/套餐），平台侧视图
+  http.get('/admin/v1/system/tenants/tree', () => ok(buildTenantTree())),
   http.post('/admin/v1/system/tenants', async ({ request }) => {
     const body = await bodyOf(request);
     if (typeof body.tenantCode !== 'string' || typeof body.tenantName !== 'string') {
@@ -528,6 +627,18 @@ export const systemHandlers = [
     if (!packaged.ok) {
       return packaged.response;
     }
+    // REQ-20261122-102954 契约③：可选 parentId（可空=顶层；父链深度超 3 → TENANT_DEPTH_EXCEEDED）
+    const parent = parseTenantParentId(body);
+    if (!parent.ok) {
+      return parent.response;
+    }
+    const parentRow = parent.parentId
+      ? store.tenants.find((tenant) => tenant.id === parent.parentId)
+      : undefined;
+    const parentLevel = parentRow?.level ?? 1;
+    if (parentRow && parentLevel >= TENANT_MAX_LEVEL) {
+      return fail('TENANT_DEPTH_EXCEEDED', '租户层级超过上限（最多 3 层）', 400);
+    }
     const created = {
       id: genId(), tenantCode: body.tenantCode, tenantName: body.tenantName,
       status: 'ENABLED' as const, remark: (body.remark as string | undefined) ?? null,
@@ -536,10 +647,75 @@ export const systemHandlers = [
       contactPhone: (body.contactPhone as string | null | undefined) ?? null,
       expiresAt: (body.expiresAt as string | null | undefined) ?? null,
       packageId: packaged.packageId,
+      // REQ-20261122-102954：parentId/level 物化（level=父+1，顶层=1）
+      parentId: parent.parentId,
+      level: parentRow ? parentLevel + 1 : 1,
       createdAt: nowIso(), version: '0',
     };
     store.tenants = [created, ...store.tenants];
     return ok(tenantViewOf(created));
+  }),
+  // REQ-20261122-102954 契约⑤⑨/AC-10：租户开通模板（init）——平台侧建子租户复用
+  //  tenant_admin 角色+初始管理员+绑定链；mock 同形：层级/套餐校验与 create 一致，
+  //  管理员归属新建租户编码（sys_user.tenant_id=tenant_code；视图不带 tenantId 列，mock 行以
+  //  tenantCode 旁路承载归属，供 dev 演示与契约自验）
+  http.post('/admin/v1/system/tenants/init', async ({ request }) => {
+    const body = await bodyOf(request);
+    if (typeof body.tenantCode !== 'string' || typeof body.tenantName !== 'string') {
+      return fail('TENANT_CODE_INVALID', '租户代码/名称缺失', 400);
+    }
+    const packaged = parseTenantPackageId(body, null);
+    if (!packaged.ok) {
+      return packaged.response;
+    }
+    const parent = parseTenantParentId(body);
+    if (!parent.ok) {
+      return parent.response;
+    }
+    const parentRow = parent.parentId
+      ? store.tenants.find((tenant) => tenant.id === parent.parentId)
+      : undefined;
+    const parentLevel = parentRow?.level ?? 1;
+    if (parentRow && parentLevel >= TENANT_MAX_LEVEL) {
+      return fail('TENANT_DEPTH_EXCEEDED', '租户层级超过上限（最多 3 层）', 400);
+    }
+    const created: AdminTenantView = {
+      id: genId(), tenantCode: body.tenantCode, tenantName: body.tenantName,
+      status: 'ENABLED', remark: (body.remark as string | undefined) ?? null,
+      contactName: (body.contactName as string | null | undefined) ?? null,
+      contactPhone: (body.contactPhone as string | null | undefined) ?? null,
+      expiresAt: (body.expiresAt as string | null | undefined) ?? null,
+      packageId: packaged.packageId,
+      parentId: parent.parentId,
+      level: parentRow ? parentLevel + 1 : 1,
+      createdAt: nowIso(), version: '0',
+    };
+    store.tenants = [created, ...store.tenants];
+    // 开通模板（契约⑤）：tenant_admin 角色 + 初始管理员 + 角色绑定，管理员归属新建子租户编码
+    const tenantAdminRole: AdminRoleView = {
+      id: genId(), parentId: null,
+      roleCode: 'tenant_admin', roleName: `${created.tenantName}管理员`,
+      status: 'ENABLED', builtIn: false, remark: null,
+      dataScope: 'ALL', version: '0',
+    };
+    store.roles = [...store.roles, tenantAdminRole];
+    const adminUsername = typeof body.adminUsername === 'string' ? body.adminUsername.trim() : '';
+    const adminNickname = typeof body.adminNickname === 'string' && body.adminNickname.trim()
+      ? body.adminNickname.trim()
+      : `${created.tenantName}管理员`;
+    const initialAdmin: AdminUserView & { tenantCode: string } = {
+      id: genId(), username: adminUsername || `${created.tenantCode}-admin`,
+      nickname: adminNickname,
+      email: (body.adminEmail as string | null | undefined) ?? null,
+      phone: (body.adminPhone as string | null | undefined) ?? null,
+      status: 'ENABLED', builtIn: false,
+      roleIds: [tenantAdminRole.id], deptId: null, positionId: null,
+      createdAt: nowIso(), updatedAt: nowIso(), version: '0',
+      tenantCode: created.tenantCode,
+    };
+    store.users = [...store.users, initialAdmin];
+    // AdminTenantInitView 同形：开通租户行 + 初始管理员回显
+    return ok({ ...tenantViewOf(created), adminUsername: initialAdmin.username });
   }),
   http.put('/admin/v1/system/tenants/:tenantId', async ({ request, params }) => {
     const body = await bodyOf(request);
@@ -554,6 +730,32 @@ export const systemHandlers = [
     if (!packaged.ok) {
       return packaged.response;
     }
+    // REQ-20261122-102954 契约③：改父允许（重校验环+深度+后代整体重算 level）——
+    // 父为自身或后代 → TENANT_CYCLE；新深度超 3 → TENANT_DEPTH_EXCEEDED
+    const parent = parseTenantParentId(body);
+    if (!parent.ok) {
+      return parent.response;
+    }
+    const nextParentId = parent.parentId ?? target.parentId ?? null;
+    if (nextParentId && (nextParentId === id || isTenantAncestorOf(nextParentId, id))) {
+      return fail('TENANT_CYCLE', '父租户不能为自身或其后代（会形成层级环）', 400);
+    }
+    const nextParent = nextParentId
+      ? store.tenants.find((tenant) => tenant.id === nextParentId)
+      : undefined;
+    const nextLevel = nextParent ? (nextParent.level ?? 1) + 1 : 1;
+    // 子树高度（含自身）：后代最深层级相对偏移；无后代=1
+    const descendantIds = tenantDescendantIdsOf(id);
+    const targetLevel = target.level ?? 1;
+    const subtreeHeight = descendantIds.size > 0
+      ? Math.max(...[...descendantIds].map((descId) => {
+        const row = store.tenants.find((tenant) => tenant.id === descId);
+        return (row?.level ?? targetLevel) - targetLevel + 1;
+      }))
+      : 1;
+    if (nextLevel + subtreeHeight - 1 > TENANT_MAX_LEVEL) {
+      return fail('TENANT_DEPTH_EXCEEDED', '租户层级超过上限（最多 3 层）', 400);
+    }
     const updated = {
       ...target,
       tenantName: typeof body.tenantName === 'string' ? body.tenantName : target.tenantName,
@@ -563,15 +765,25 @@ export const systemHandlers = [
       contactPhone: (body.contactPhone as string | null | undefined) ?? null,
       expiresAt: (body.expiresAt as string | null | undefined) ?? null,
       packageId: packaged.packageId,
+      parentId: nextParentId,
+      level: nextLevel,
       version: String(Number(target.version) + 1),
     };
-    store.tenants = store.tenants.map((tenant) => (tenant.id === id ? updated : tenant));
+    // 后代整体重算 level（契约③改父语义；逐行克隆避免污染 db 种子）
+    store.tenants = recomputeTenantLevels(
+      store.tenants.map((tenant) => (tenant.id === id ? updated : tenant)),
+    );
     return ok(tenantViewOf(updated));
   }),
+  // REQ-20261122-102954 契约⑦：停用级联后代（物化自身 status）+恢复父不自动恢复子（启用仅改自身）
   http.put('/admin/v1/system/tenants/:tenantId/status', async ({ request, params }) => {
     const body = await bodyOf(request);
     const id = String(params.tenantId);
-    store.tenants = store.tenants.map((tenant) => (tenant.id === id ? { ...tenant, status: body.status === 'DISABLED' ? 'DISABLED' : 'ENABLED' } : tenant));
+    const next = body.status === 'DISABLED' ? 'DISABLED' : 'ENABLED';
+    const affected = next === 'DISABLED'
+      ? new Set<string>([id, ...tenantDescendantIdsOf(id)])
+      : new Set<string>([id]);
+    store.tenants = store.tenants.map((tenant) => (affected.has(tenant.id) ? { ...tenant, status: next } : tenant));
     return empty();
   }),
 

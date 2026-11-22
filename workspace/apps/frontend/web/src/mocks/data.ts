@@ -106,6 +106,8 @@ export const tenants: AdminTenantView[] = [
     contactName: '平台管理员', contactPhone: '13800000000', expiresAt: null,
     // REQ-20261121-022910：未绑定套餐（packageId null=不受限，行为与现状一致）
     packageId: null,
+    // REQ-20261122-102954：顶层租户（parentId null=顶层，level 1）
+    parentId: null, level: 1,
     createdAt: '2026-01-01T00:00:00Z', version: '0',
   },
   {
@@ -113,7 +115,16 @@ export const tenants: AdminTenantView[] = [
     contactName: null, contactPhone: null, expiresAt: null,
     // REQ-20261121-022910：绑定「基础版」套餐（演示租户套餐过滤样例；packageName 由 handler 实时装配）
     packageId: '1',
+    parentId: null, level: 1,
     createdAt: '2026-01-02T00:00:00Z', version: '0',
+  },
+  {
+    // REQ-20261122-102954 两层层级样例：beta 的子租户（parentId 引用数字 id wire 字符串口径，level=父+1）
+    id: '3', tenantCode: 'beta-south', tenantName: 'Beta 南区分部', status: 'ENABLED', remark: null,
+    contactName: null, contactPhone: null, expiresAt: null,
+    packageId: null,
+    parentId: '2', level: 2,
+    createdAt: '2026-01-03T00:00:00Z', version: '0',
   },
 ];
 
