@@ -18,8 +18,8 @@
 | 2 | BPM-1 引擎内核 MVP | DONE（round 1 收口：workflow 49/49+bootstrap 冒烟 6/6+全 reactor 51/52 定向修复；合并 4f90fba 快进+合并树冒烟复跑绿；已推双远端；工作树/分支回收；裁决⑨a-⑭入契约） | REQ-20261121-142316 |
 | 3+ | JOB-2 执行器 SDK | **DONE**（全 reactor 49 模块 BUILD SUCCESS 零失败；合并 ffe27b9 快进+合并树定向复验绿+双远端推送+工作树/分支回收；交付裁决四项入契约；JOB-3 钉死=4 行启停运维动作） | REQ-20261121-200724 |
 | 3+ | THEME-3 偏好持久化+mobile 对齐 | **DONE**（合并 085791b 快进+合并树 IT 17/17 复验绿+双远端推送+工作树/分支回收；门禁链 GATE_ALL_PASS：三包 typecheck/core 28/mobile 14/web 67 全绿/build/desktop check；后端模块 402/402；tester 46 用例+三轮适配闭环） | REQ-20261121-200415 |
-| 3+ | JOB-3 调度中心管理页 | II-DEV 三路并行（REQ-20261122-023213 契约 confirmed：JobsPage 全切 scheduler 面/单页三 Tab/V28 菜单种子/双轨历史只切读不删写/种子启用引导；开放点五项全裁决） | REQ-20261122-023213 |
-| 3+ | BPM-2 流程设计器 | II-DEV 三路并行（REQ-20261122-023441 契约 confirmed：X6 落 web 包/bpmn-io 归 core/textarea+双栏 diff/带参路由单实例页签/layoutJson 扩展 PUT xml/校验面板+节点定位；附带最小定义列表页作入口；X6 已登记 rules 预算压缩腾位） | REQ-20261122-023441 |
+| 3+ | JOB-3 调度中心管理页 | **DONE**（合并 95e5eaa 快进+合并树 V28 复验 exit=0+双远端推送+工作树/分支回收；门禁 GATE_ALL_PASS：web 69 文件/mobile 14/build/desktop ✓；51 例映射 AC-1~12；并行 flake 串行判别绿；交付裁决入契约） | REQ-20261122-023213 |
+| 3+ | BPM-2 流程设计器 | III-GATE（frontend 门禁链 GATE_ALL_PASS：web 70 文件/build 18.25s/desktop ✓；backend 49/49+layoutJson 2/2 真跑；tester 50/50；校验规则三裁决落地；浏览器实测发现 msw 权限 fixture 缺口已派 delta 修复中，修后 X6 画布走查+合并） | REQ-20261122-023441 |
 | 4+ | BPM-3/TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
