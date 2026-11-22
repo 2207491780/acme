@@ -10,10 +10,11 @@ import java.util.Map;
 /**
  * 流程实例视图（契约 API：GET /{id} = 实例 + 活跃节点 + 任务树 + 变量摘要）。
  *
- * @param id            实例 id
- * @param definitionId  定义 id
- * @param definitionKey 定义键
- * @param businessKey   业务键
+ * @param id              实例 id
+ * @param definitionId    定义 id
+ * @param definitionKey   定义键
+ * @param definitionName  定义名称（REQ-20261122-102730 确认⑤，instance→definition 投影）
+ * @param businessKey     业务键
  * @param initiator     发起人（用户 id）
  * @param status        实例状态
  * @param suspendReason 挂起原因（可空）
@@ -23,9 +24,10 @@ import java.util.Map;
  * @param activeNodes   活跃节点（is_active execution 投影：节点 id/类型/是否并发/是否 scope 根）
  * @param tasks         活跃任务树（CREATED/CLAIMED 状态，TaskItemView 形态）
  */
-public record ProcessInstanceView(Long id, Long definitionId, String definitionKey, String businessKey,
-                                  String initiator, WorkflowInstanceStatus status, String suspendReason,
-                                  Instant startTime, Instant endTime, Map<String, Object> variables,
+public record ProcessInstanceView(Long id, Long definitionId, String definitionKey, String definitionName,
+                                  String businessKey, String initiator, WorkflowInstanceStatus status,
+                                  String suspendReason, Instant startTime, Instant endTime,
+                                  Map<String, Object> variables,
                                   List<ActiveNodeView> activeNodes, List<TaskItemView> tasks) {
 
     /**

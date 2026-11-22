@@ -29,6 +29,9 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 实例域用例（写路径走命令内核；查询直查——详情=实例+活跃节点+任务树+变量摘要，契约 §4）。
@@ -98,7 +101,9 @@ public class InstanceUseCase {
                 .map(this::taskItem)
                 .toList();
         return new ProcessInstanceView(instance.getId(), instance.getDefinitionId(),
-                definition == null ? null : definition.getProcessKey(), instance.getBusinessKey(),
+                definition == null ? null : definition.getProcessKey(),
+                definition == null ? null : definition.getName(),
+                instance.getBusinessKey(),
                 instance.getInitiator(), instance.getStatus(), instance.getSuspendReason(),
                 instance.getStartTime(), instance.getEndTime(), variableSummary(instanceId),
                 activeNodes, tasks);
@@ -126,24 +131,22 @@ public class InstanceUseCase {
         }
         query = query.orderBy(WfProcessInstance::getStartTime, false);
         var page = instanceRepository.findAll(query, pageQuery.page(), pageQuery.size());
+        Map<Long, WfProcessDefinition> definitions = definitionsOf(page.records());
         return new PageResult<>(page.records().stream().map(instance ->
-                new ProcessInstanceView(instance.getId(), instance.getDefinitionId(), definitionKey,
-                        instance.getBusinessKey(), instance.getInitiator(), instance.getStatus(),
-                        instance.getSuspendReason(), instance.getStartTime(), instance.getEndTime(),
-                        null, List.of(), List.of())).toList(), page.total());
+                instanceView(instance, definitions.get(instance.getDefinitionId()), definitionKey))
+                .toList(), page.total());
     }
 
-    /** 我发起（initiator=me）。 */
+    /** 我发起（initiator=me；definitionKey/definitionName 经 definition 批量装配——确认⑤）。 */
     public PageResult<ProcessInstanceView> initiated(String me, PageQuery pageQuery) {
         QueryWrapper query = QueryWrapper.create()
                 .where(WfProcessInstance::getInitiator).eq(me)
                 .orderBy(WfProcessInstance::getStartTime, false);
         var page = instanceRepository.findAll(query, pageQuery.page(), pageQuery.size());
+        Map<Long, WfProcessDefinition> definitions = definitionsOf(page.records());
         return new PageResult<>(page.records().stream().map(instance ->
-                new ProcessInstanceView(instance.getId(), instance.getDefinitionId(), null,
-                        instance.getBusinessKey(), instance.getInitiator(), instance.getStatus(),
-                        instance.getSuspendReason(), instance.getStartTime(), instance.getEndTime(),
-                        null, List.of(), List.of())).toList(), page.total());
+                instanceView(instance, definitions.get(instance.getDefinitionId()), null))
+                .toList(), page.total());
     }
 
     /** 终止（撤回语义面）。 */
@@ -199,6 +202,27 @@ public class InstanceUseCase {
             }
         }
         return result;
+    }
+
+    /** 列表投影（确认⑤：definitionName 补齐；definitionKey 优先取 definition 真实键，
+     * 过滤查询时与过滤参数天然一致，definition 缺失回退入参）。 */
+    private ProcessInstanceView instanceView(WfProcessInstance instance, WfProcessDefinition definition,
+                                             String definitionKeyFallback) {
+        return new ProcessInstanceView(instance.getId(), instance.getDefinitionId(),
+                definition == null ? definitionKeyFallback : definition.getProcessKey(),
+                definition == null ? null : definition.getName(),
+                instance.getBusinessKey(), instance.getInitiator(), instance.getStatus(),
+                instance.getSuspendReason(), instance.getStartTime(), instance.getEndTime(),
+                null, List.of(), List.of());
+    }
+
+    /** 定义投影批量加载（页级一次 in 查询，禁 N+1 逐条——确认⑤）。 */
+    private Map<Long, WfProcessDefinition> definitionsOf(List<WfProcessInstance> instances) {
+        List<Long> definitionIds = instances.stream()
+                .map(WfProcessInstance::getDefinitionId).filter(Objects::nonNull).distinct().toList();
+        return definitionIds.isEmpty() ? Map.of()
+                : definitionRepository.findAllById(definitionIds).stream()
+                        .collect(Collectors.toMap(WfProcessDefinition::getId, Function.identity()));
     }
 
     private ProcessInstanceView.TaskItemView taskItem(WfTask task) {

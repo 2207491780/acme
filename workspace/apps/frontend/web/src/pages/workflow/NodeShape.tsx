@@ -5,6 +5,7 @@ import { FONT_SIZE, FONT_WEIGHT, RADII, SPACING, TONES, statusColor, type BpmnEl
  * BPMN 节点 React 组件形态（REQ-20261122-023441 AC-3，x6-react-shape 注册用）：
  * 展示=类型徽标+名称+关键属性摘要+校验标红；色值全部走 core 令牌（确认⑦），
  * 主题态经 node data 注入（DesignerPage 在主题变化时刷新 data），组件不感知主题源。
+ * REQ-20261122-102730（BPM-3 契约⑥）：增 running 态（实例活跃节点高亮，色走 TONES.info 令牌）。
  */
 
 export interface BpmnNodeData {
@@ -14,6 +15,8 @@ export interface BpmnNodeData {
   summary?: string;
   /** 校验失败标红（AC-9/AC-10 点击定位标红）。 */
   error?: boolean;
+  /** 实例运行中态（BPM-3 实例详情 readOnly 流程图 activeNodes 高亮）。 */
+  running?: boolean;
   /** 选中框色（X6 selection 插件的面色由配置承载，节点内不再描边）。 */
   nodeFill?: string;
   nodeBorder?: string;
@@ -68,6 +71,7 @@ function readData(raw: unknown): BpmnNodeData {
     name: typeof candidate.name === 'string' ? candidate.name : '',
     summary: typeof candidate.summary === 'string' && candidate.summary !== '' ? candidate.summary : undefined,
     error: candidate.error === true,
+    running: candidate.running === true,
     nodeFill: typeof candidate.nodeFill === 'string' ? candidate.nodeFill : undefined,
     nodeBorder: typeof candidate.nodeBorder === 'string' ? candidate.nodeBorder : undefined,
     nodeText: typeof candidate.nodeText === 'string' ? candidate.nodeText : undefined,
@@ -79,10 +83,11 @@ function readData(raw: unknown): BpmnNodeData {
 export function BpmnNodeView({ node }: BpmnNodeViewProps): ReactElement {
   const data = readData(node?.getData());
   const fill = data.nodeFill ?? 'var(--surface)';
-  const border = data.error ? TONES.danger : (data.nodeBorder ?? 'var(--border)');
+  // running 态=实例活跃节点（BPM-3）：info 色描边；error 校验标红优先级不变
+  const border = data.error ? TONES.danger : data.running ? TONES.info : (data.nodeBorder ?? 'var(--border)');
   const text = data.nodeText ?? 'var(--text)';
   const text2 = data.nodeText2 ?? 'var(--muted)';
-  const glyphColor = data.error ? TONES.danger : (data.dark ? text : text2);
+  const glyphColor = data.error ? TONES.danger : data.running ? TONES.info : (data.dark ? text : text2);
   return (
     <div
       data-bpmn-node
@@ -115,6 +120,12 @@ export function BpmnNodeView({ node }: BpmnNodeViewProps): ReactElement {
         >
           {data.name || ''}
         </span>
+        {data.running ? (
+          <span
+            aria-hidden
+            style={{ width: 6, height: 6, borderRadius: '50%', background: TONES.info, flexShrink: 0, marginLeft: 'auto' }}
+          />
+        ) : null}
       </div>
       {data.summary ? (
         <span

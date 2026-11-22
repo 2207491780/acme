@@ -1,18 +1,20 @@
-import { useState } from 'react';
-import { App, Button, Drawer, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
+import { useMemo, useState, type ReactElement } from 'react';
+import { App, Button, Card, Drawer, Form, Input, Popconfirm, Select, Space, Tabs, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, Auth, formatDate, statusColor, systemErrorMessage, TONE_ANTD, useCrud, useMeStore, workflowApi, WORKFLOW_ERROR_CODES, workflowValidationErrorsOf } from '@acme/core';
 import type { ProcessDefinitionView } from '@acme/core';
 import { CrudTable } from '../components/CrudTable';
+import { InstanceMonitorTab } from './workflow/InstanceMonitorTab';
 
 const { Text } = Typography;
 
 /**
- * 流程定义列表页（REQ-20261122-023441 确认④，最小定义列表）：
- * key/name/version/status 分页过滤 + 操作列分控（设计=list、部署/停用/新建=deploy 79）
- * + 新建 Drawer → POST 创建草稿 → 跳转设计器空画布（AC-1/AC-2）。BPM-3 在此扩实例/版本管理。
+ * 流程中心页（REQ-20261122-102730 契约②④，/workflow 三 Tab）：
+ * 流程定义 Tab（REQ-20261122-023441 既有列表迁移为 DefinitionsTab 子组件）/
+ * 实例监控 Tab（InstanceMonitorTab：分页过滤+状态徽标+操作分控 80+详情 Drawer）/
+ * 待办中心 Tab（入口提示卡：待办为高频独立入口 /workflow/todos，不入三 Tab）。
  */
 
 type DefinitionStatus = ProcessDefinitionView['status'];
@@ -24,7 +26,8 @@ function statusToneOf(status: DefinitionStatus): keyof typeof TONE_ANTD {
   return 'muted';
 }
 
-export function WorkflowPage() {
+/** 流程定义 Tab（既有 BPM-2 列表原样抽组：key/name/version/status 分页过滤 + 操作列分控 + 新建 Drawer）。 */
+function DefinitionsTab(): ReactElement {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const navigate = useNavigate();
@@ -187,5 +190,42 @@ export function WorkflowPage() {
         </Form>
       </Drawer>
     </>
+  );
+}
+
+/** 待办中心入口提示 Tab（契约③：待办为独立路由页 /workflow/todos，此处仅承载入口）。 */
+function TodoEntryTab(): ReactElement {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  return (
+    <Card>
+      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          {t('workflow.todoEntry.hint')}
+        </Typography.Paragraph>
+        <Button type="primary" onClick={() => navigate('/workflow/todos')}>
+          {t('workflow.todoEntry.go')}
+        </Button>
+      </Space>
+    </Card>
+  );
+}
+
+/** 流程中心页壳（/workflow 三 Tab；既有定义 Tab 零回归=内容原样迁移）。 */
+export function WorkflowPage() {
+  const { t } = useTranslation();
+  const tabItems = useMemo(
+    () => [
+      { key: 'definitions', label: t('workflow.tabs.definitions'), children: <DefinitionsTab /> },
+      { key: 'instances', label: t('workflow.tabs.instances'), children: <InstanceMonitorTab /> },
+      { key: 'todos', label: t('workflow.tabs.todos'), children: <TodoEntryTab /> },
+    ],
+    [t],
+  );
+  return (
+    <div>
+      {/* destroyOnHidden：切 Tab 即卸载非活动 pane（JobsPage 口径；三 Tab 内容域独立） */}
+      <Tabs defaultActiveKey="definitions" items={tabItems} destroyOnHidden />
+    </div>
   );
 }

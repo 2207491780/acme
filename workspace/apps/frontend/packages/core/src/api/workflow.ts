@@ -96,6 +96,256 @@ export const WORKFLOW_ENDPOINTS = {
     `/admin/v1/workflow/process-definitions/${encodeURIComponent(definitionId)}/disable`,
 } as const;
 
+// ————————————————————————————————————————————————————————————————————————————
+// 实例/任务域（REQ-20261122-102730 BPM-3 契约⑤⑧）：instanceApi/taskApi + 5 类型。
+// wire 口径：id 一律字符串（定义域先例延续）；实例列表/详情/待办任务行均带投影
+// definitionKey/definitionName/businessKey/initiator（后端 JOIN 装配，前端禁 N+1 二次取详情）。
+// ————————————————————————————————————————————————————————————————————————————
+
+/** 流程实例状态（状态机：RUNNING/SUSPENDED(运维挂起|SERVICE_TASK_FAILED|NO_ASSIGNEE_RESOLVED)/COMPLETED/TERMINATED）。 */
+export type ProcessInstanceStatus = 'RUNNING' | 'SUSPENDED' | 'COMPLETED' | 'TERMINATED';
+
+/** 任务状态（状态机：CREATED→CLAIMED→COMPLETED|REJECTED|CANCELLED；固定 assignee 亦先 CREATED）。 */
+export type WorkflowTaskStatus = 'CREATED' | 'CLAIMED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
+
+/** 历史动作（ENTER/LEAVE 配对可算停留时长；REJECT_EDGE=驳回回流边；TIMER_FIRE=定时触发）。 */
+export type HistoryAction = 'ENTER' | 'LEAVE' | 'REJECT_EDGE' | 'TIMER_FIRE';
+
+/** 活跃节点视图（实例详情 readOnly 流程图 running 态高亮定位面）。 */
+export interface ActiveNodeView {
+  nodeId: string;
+  nodeName?: string | null;
+  nodeType?: string | null;
+  /** 进入时刻（ISO；缺省=无时间戳）。 */
+  enterAt?: string | null;
+}
+
+/** 任务项视图（实例详情内嵌任务面；与 TaskView 共用基础字段，无跨实例投影）。 */
+export interface TaskItemView {
+  id: string;
+  instanceId: string;
+  nodeId: string;
+  nodeName: string | null;
+  assignee: string | null;
+  status: WorkflowTaskStatus;
+  claimTime: string | null;
+  completeTime: string | null;
+  createTime: string;
+}
+
+/** 任务视图（todo/done 列表行；REQ-20261122-102730 契约⑤投影扩展——
+ *  definitionKey/definitionName/businessKey/initiator 由后端 JOIN definition+instance 装配）。 */
+export interface TaskView extends TaskItemView {
+  definitionKey: string | null;
+  definitionName: string | null;
+  businessKey: string | null;
+  initiator: string | null;
+}
+
+/** 流程实例视图（契约对齐 ProcessInstanceView；definitionName 为契约⑤投影扩展——
+ *  initiated 列表回显，其余场景可空）。 */
+export interface ProcessInstanceView {
+  id: string;
+  definitionId: string;
+  definitionKey: string | null;
+  /** 契约⑤投影扩展（JOIN definition；initiated 列表与实例行回显）。 */
+  definitionName?: string | null;
+  businessKey: string | null;
+  initiator: string | null;
+  status: ProcessInstanceStatus;
+  suspendReason: string | null;
+  startTime: string;
+  endTime: string | null;
+  /** 流程变量摘要（详情回显；列表可置空）。 */
+  variables: Record<string, unknown> | null;
+  /** 活跃节点（详情回显；列表可置空数组）。 */
+  activeNodes: ActiveNodeView[];
+  /** 活动任务（详情回显；列表可置空数组）。 */
+  tasks: TaskItemView[];
+}
+
+/** 历史活动视图（非分页 List；ENTER/LEAVE 配对，REJECT_EDGE 的 nodeId=sequenceFlow id 供边标红）。 */
+export interface HistoryActivityView {
+  id: string;
+  nodeId: string;
+  nodeType: string | null;
+  action: HistoryAction;
+  assignee: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  detail: string | null;
+}
+
+/** 发起实例载荷（Create：definitionId 必填；业务键/变量可选）。 */
+export interface ProcessInstanceStartPayload {
+  definitionId: string;
+  businessKey?: string | null;
+  variables?: Record<string, unknown> | null;
+}
+
+/** 实例分页过滤（definitionKey/status/businessKey 精确；undefined/null/空串均省略）。 */
+export interface ProcessInstanceListFilters {
+  definitionKey?: string | null;
+  status?: ProcessInstanceStatus | null;
+  businessKey?: string | null;
+}
+
+/** 任务分页过滤（契约⑤：todo/done 增可选 definitionKey/status；均缺省省略）。 */
+export interface TaskListFilters {
+  definitionKey?: string;
+  status?: WorkflowTaskStatus;
+}
+
+/** 办理任务载荷（complete(form)：一期表单自由值，comment 为预留键）。 */
+export interface TaskCompletePayload {
+  comment?: string;
+}
+
+/** 驳回载荷（targetNodeId 可选=驳回到指定节点；comment 可选）。 */
+export interface TaskRejectPayload {
+  targetNodeId?: string | null;
+  comment?: string | null;
+}
+
+/** 转办/委托载荷（delegate 委托链单层）。 */
+export interface TaskAssigneePayload {
+  assignee: string;
+}
+
+/** 实例域端点（base 下挂 detail/history/terminate/suspend/resume）。 */
+export const WORKFLOW_INSTANCE_ENDPOINTS = {
+  base: '/admin/v1/workflow/process-instances',
+  initiated: '/admin/v1/workflow/process-instances/initiated',
+  detail: (instanceId: string): string =>
+    `/admin/v1/workflow/process-instances/${encodeURIComponent(instanceId)}`,
+  history: (instanceId: string): string =>
+    `/admin/v1/workflow/process-instances/${encodeURIComponent(instanceId)}/history`,
+  terminate: (instanceId: string): string =>
+    `/admin/v1/workflow/process-instances/${encodeURIComponent(instanceId)}/terminate`,
+  suspend: (instanceId: string): string =>
+    `/admin/v1/workflow/process-instances/${encodeURIComponent(instanceId)}/suspend`,
+  resume: (instanceId: string): string =>
+    `/admin/v1/workflow/process-instances/${encodeURIComponent(instanceId)}/resume`,
+} as const;
+
+/** 任务域端点（base 下挂 todo/done 与 complete/reject/claim/unclaim/transfer/delegate 动作）。 */
+export const WORKFLOW_TASK_ENDPOINTS = {
+  base: '/admin/v1/workflow/tasks',
+  todo: '/admin/v1/workflow/tasks/todo',
+  done: '/admin/v1/workflow/tasks/done',
+  complete: (taskId: string): string =>
+    `/admin/v1/workflow/tasks/${encodeURIComponent(taskId)}/complete`,
+  reject: (taskId: string): string =>
+    `/admin/v1/workflow/tasks/${encodeURIComponent(taskId)}/reject`,
+  claim: (taskId: string): string =>
+    `/admin/v1/workflow/tasks/${encodeURIComponent(taskId)}/claim`,
+  unclaim: (taskId: string): string =>
+    `/admin/v1/workflow/tasks/${encodeURIComponent(taskId)}/unclaim`,
+  transfer: (taskId: string): string =>
+    `/admin/v1/workflow/tasks/${encodeURIComponent(taskId)}/transfer`,
+  delegate: (taskId: string): string =>
+    `/admin/v1/workflow/tasks/${encodeURIComponent(taskId)}/delegate`,
+} as const;
+
+/** 实例域接口（platform-workflow；管理面 workflow:instance:manage(80) / 读面 process-instances(80)）。 */
+export const instanceApi = {
+  /** 实例分页（definitionKey/status/businessKey 过滤；权限点 workflow:instance:manage）。 */
+  page: (
+    page: number,
+    size: number,
+    filters: ProcessInstanceListFilters = {},
+    signal?: AbortSignal,
+  ): Promise<PageResult<ProcessInstanceView>> =>
+    apiFetch<PageResult<ProcessInstanceView>>(
+      `${WORKFLOW_INSTANCE_ENDPOINTS.base}?${buildQuery({
+        page, size, definitionKey: filters.definitionKey, status: filters.status, businessKey: filters.businessKey,
+      })}`,
+      { signal },
+    ),
+
+  /** 我发起的实例分页（待办中心「我发起」子区；投影 definitionName 随行回显）。 */
+  initiated: (page: number, size: number, signal?: AbortSignal): Promise<PageResult<ProcessInstanceView>> =>
+    apiFetch<PageResult<ProcessInstanceView>>(
+      `${WORKFLOW_INSTANCE_ENDPOINTS.initiated}?${buildQuery({ page, size })}`,
+      { signal },
+    ),
+
+  /** 实例详情（含 variables/activeNodes/tasks 全量回显）。 */
+  get: (instanceId: string, signal?: AbortSignal): Promise<ProcessInstanceView> =>
+    apiFetch<ProcessInstanceView>(WORKFLOW_INSTANCE_ENDPOINTS.detail(instanceId), { signal }),
+
+  /** 历史活动（非分页 List；ENTER/LEAVE 配对 + REJECT_EDGE 边回流）。 */
+  history: (instanceId: string, signal?: AbortSignal): Promise<HistoryActivityView[]> =>
+    apiFetch<HistoryActivityView[]>(WORKFLOW_INSTANCE_ENDPOINTS.history(instanceId), { signal }),
+
+  /** 发起实例（definition 须 DEPLOYED，否则 DISABLED 409）。 */
+  start: (payload: ProcessInstanceStartPayload): Promise<ProcessInstanceView> =>
+    apiJson<ProcessInstanceView>(WORKFLOW_INSTANCE_ENDPOINTS.base, 'POST', payload),
+
+  /** 终止（RUNNING→TERMINATED；void 端点 emptyAsSuccess 双口径）。 */
+  terminate: (instanceId: string): Promise<void> =>
+    apiFetch<void>(WORKFLOW_INSTANCE_ENDPOINTS.terminate(instanceId), { method: 'POST' }, { emptyAsSuccess: true }),
+
+  /** 挂起（RUNNING→SUSPENDED，reason 落 suspendReason；void 端点信封/空体双口径）。 */
+  suspend: (instanceId: string, reason: string | null): Promise<void> =>
+    apiJson<void>(WORKFLOW_INSTANCE_ENDPOINTS.suspend(instanceId), 'POST', { reason }, { emptyAsSuccess: true }),
+
+  /** 恢复（SUSPENDED→RUNNING，suspendReason 清空）。 */
+  resume: (instanceId: string): Promise<void> =>
+    apiFetch<void>(WORKFLOW_INSTANCE_ENDPOINTS.resume(instanceId), { method: 'POST' }, { emptyAsSuccess: true }),
+};
+
+/** 任务域接口（读面 workflow:task:list(81) / 写面 workflow:task:operate(82)）。 */
+export const taskApi = {
+  /** 我的待办分页（契约⑤可选过滤 definitionKey/status）。 */
+  todo: (
+    page: number,
+    size: number,
+    filters: TaskListFilters = {},
+    signal?: AbortSignal,
+  ): Promise<PageResult<TaskView>> =>
+    apiFetch<PageResult<TaskView>>(
+      `${WORKFLOW_TASK_ENDPOINTS.todo}?${buildQuery({ page, size, definitionKey: filters.definitionKey, status: filters.status })}`,
+      { signal },
+    ),
+
+  /** 我已办分页（同 todo 过滤口径）。 */
+  done: (
+    page: number,
+    size: number,
+    filters: TaskListFilters = {},
+    signal?: AbortSignal,
+  ): Promise<PageResult<TaskView>> =>
+    apiFetch<PageResult<TaskView>>(
+      `${WORKFLOW_TASK_ENDPOINTS.done}?${buildQuery({ page, size, definitionKey: filters.definitionKey, status: filters.status })}`,
+      { signal },
+    ),
+
+  /** 办理任务（complete(form)；候选 ALL 策略 CREATED 可直办）。 */
+  complete: (taskId: string, payload: TaskCompletePayload = {}): Promise<void> =>
+    apiFetch<void>(WORKFLOW_TASK_ENDPOINTS.complete(taskId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }, { emptyAsSuccess: true }),
+
+  /** 驳回（targetNodeId 可选=驳回到指定节点）。 */
+  reject: (taskId: string, payload: TaskRejectPayload = {}): Promise<void> =>
+    apiFetch<void>(WORKFLOW_TASK_ENDPOINTS.reject(taskId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }, { emptyAsSuccess: true }),
+
+  /** 认领（CREATED→CLAIMED，assignee=本人）。 */
+  claim: (taskId: string): Promise<void> =>
+    apiFetch<void>(WORKFLOW_TASK_ENDPOINTS.claim(taskId), { method: 'POST' }, { emptyAsSuccess: true }),
+
+  /** 取消认领（CLAIMED→CREATED，assignee 清空）。 */
+  unclaim: (taskId: string): Promise<void> =>
+    apiFetch<void>(WORKFLOW_TASK_ENDPOINTS.unclaim(taskId), { method: 'POST' }, { emptyAsSuccess: true }),
+
+  /** 转办（assignee 变更；void 端点信封/空体双口径）。 */
+  transfer: (taskId: string, payload: TaskAssigneePayload): Promise<void> =>
+    apiJson<void>(WORKFLOW_TASK_ENDPOINTS.transfer(taskId), 'POST', payload, { emptyAsSuccess: true }),
+
+  /** 委托（委托链单层；void 端点信封/空体双口径）。 */
+  delegate: (taskId: string, payload: TaskAssigneePayload): Promise<void> =>
+    apiJson<void>(WORKFLOW_TASK_ENDPOINTS.delegate(taskId), 'POST', payload, { emptyAsSuccess: true }),
+};
+
 /** 工作流域接口（platform-workflow；写面 workflow:definition:deploy(79) / 读面 list(78)）。 */
 export const workflowApi = {
   /** 流程定义分页（keyword 模糊、status 精确；权限点 workflow:definition:list；signal 可选取消）。 */

@@ -24,6 +24,8 @@ export const nav = {
     // BPM process designer (REQ-20261122-023441 ④): NAV /workflow entry + /workflow list tab
     workflowDesigner: 'Process Designer',
     workflow: 'Process Definitions',
+    // BPM-3 (REQ-20261122-102730 ③): todo center page /workflow/todos (permission 81)
+    workflowTodos: 'Todo Center',
     settings: 'Settings',
     profile: 'Profile',
   },

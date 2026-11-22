@@ -6,14 +6,7 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
-import { Graph } from '@antv/x6';
-import { register } from '@antv/x6-react-shape';
-import { Selection as SelectionPlugin } from '@antv/x6-plugin-selection';
-import { Transform } from '@antv/x6-plugin-transform';
-import { Snapline } from '@antv/x6-plugin-snapline';
-import { Clipboard } from '@antv/x6-plugin-clipboard';
-import { Keyboard } from '@antv/x6-plugin-keyboard';
-import { MiniMap } from '@antv/x6-plugin-minimap';
+import type { Graph } from '@antv/x6';
 import {
   ApiError, Auth, BpmnXmlError, systemErrorMessage,
   workflowApi, WORKFLOW_ERROR_CODES, workflowValidationErrorsOf,
@@ -24,14 +17,15 @@ import { useStore } from '../../store/useStore';
 import { useSystemPrefersDark } from '../../hooks/useSystemPrefersDark';
 import { download } from '../../utils/dom';
 import { Palette, BPMN_DND_MIME } from './Palette';
-import { BpmnNodeView } from './NodeShape';
 import { PropertyPanel } from './PropertyPanel';
 import { ValidationPanel, type ValidationItem, type ValidationStatus } from './ValidationPanel';
 import { ImportXmlModal } from './ImportXmlModal';
 import { VersionDiffModal } from './VersionDiffModal';
+// 画布装配共享工厂（REQ-20261122-102730 契约⑥）：形状注册/装配/主题/模型同步单源
+import { applyCanvasTheme, createBpmnCanvas, syncModelToGraph } from './canvasFactory';
 import {
-  autoLayout, buildSavePayload, canConnect, connect, createNodeModel, DEFAULT_NODE_SIZES,
-  emptyModel, importModel, parseLayoutJson, removeEdge, removeNode, runValidation,
+  autoLayout, buildSavePayload, canConnect, connect, createNodeModel,
+  emptyModel, importModel, nodeSummary, parseLayoutJson, removeEdge, removeNode, runValidation,
   updateEdge, updateNode, type ConnectRejectReason, type Selection,
 } from './designerModel';
 
@@ -42,34 +36,10 @@ function rejectMessageKey(reason: ConnectRejectReason | undefined): string {
 
 const { Text } = Typography;
 
-/** x6-react-shape 节点形状注册（模块级一次；组件=React 形态 AC-3）。 */
-const BPMN_NODE_SHAPE = 'acme-bpmn-node';
-let shapeRegistered = false;
-function ensureShapeRegistered(): void {
-  if (shapeRegistered) return;
-  register({ shape: BPMN_NODE_SHAPE, component: BpmnNodeView, width: 128, height: 48 });
-  shapeRegistered = true;
-}
-
 /** 解析 /workflow/designer/:definitionId?（TabKeepAlive 容器外渲染，路由参数自解析）。 */
 function parseDefinitionId(pathname: string): string | null {
   const match = /^\/workflow\/designer(?:\/([^/]+))?$/.exec(pathname);
   return match?.[1] ?? null;
-}
-
-/** 节点摘要行（PropertyPanel 与画布组件共用口径）。 */
-function nodeSummary(node: BpmnModel['nodes'][number]): string | undefined {
-  if (node.type === 'UserTask') {
-    const candidates = [...(node.candidateRoles ?? []), ...(node.candidateDepts ?? []), ...(node.candidateUsers ?? [])];
-    return node.assignee ?? (candidates.length > 0 ? candidates.join(',') : undefined);
-  }
-  if (node.type === 'ServiceTask') {
-    return node.serviceRef ?? node.callbackPath;
-  }
-  if (node.type === 'BoundaryEvent') {
-    return node.attachedToRef ?? undefined;
-  }
-  return undefined;
 }
 
 /**
@@ -111,71 +81,35 @@ export function DesignerPage(): ReactElement {
     setDirty(true);
   }, []);
 
-  // —— 画布装配（挂载一次；主题/模型变化走同步 effect） ——
+  // —— 画布装配（挂载一次；经共享工厂 canvasFactory，契约⑥） ——
   useEffect(() => {
     if (!containerRef.current) return undefined;
-    ensureShapeRegistered();
-    const graph = new Graph({
+    const graph = createBpmnCanvas({
       container: containerRef.current,
-      grid: { visible: true, type: 'dot', size: 20, args: { color: canvas.grid, thickness: 1 } },
-      background: { color: canvas.background },
-      connecting: {
-        router: 'orth',
-        connector: { name: 'rounded', args: { radius: 8 } },
-        anchor: 'center',
-        connectionPoint: 'anchor',
-        allowBlank: false,
-        allowLoop: false,
-        allowNode: false,
-        allowMulti: false,
-        highlight: true,
+      minimapContainer: minimapRef.current,
+      palette: canvas,
+      handlers: {
+        onBlankClick: () => setSelection(null),
+        onCellClick: (id, isEdge) => setSelection(isEdge ? { kind: 'edge', id } : { kind: 'node', id }),
+        onNodeMoved: (id, position) => positionsRef.current.set(id, position),
+        validateConnection: (sourceId, targetId) => canConnect(modelRef.current, sourceId, targetId).ok,
         createEdge: () => graphRef.current?.createEdge({ shape: 'edge' }) ?? null,
-        validateConnection: ({ sourceCell, targetCell }) => {
-          if (!sourceCell || !targetCell) return false;
-          return canConnect(modelRef.current, sourceCell.id, targetCell.id).ok;
+        onEdgeConnected: (sourceId, targetId) => {
+          const verdict = canConnect(modelRef.current, sourceId, targetId);
+          if (!verdict.ok) {
+            message.warning(t(rejectMessageKey(verdict.reason)));
+            return 'remove';
+          }
+          const result = connect(modelRef.current, sourceId, targetId);
+          if (result.edge) {
+            // 临时边（X6 生成 id）由工厂移除，模型同步 effect 以模型 edge id+统一 attrs 回填
+            applyModel(result.model);
+            return 'remove';
+          }
+          return 'keep';
         },
       },
-      highlighting: {
-        magnetAdsorbed: { name: 'stroke', args: { attrs: { stroke: canvas.selection, strokeWidth: 2 } } },
-      },
     });
-    graph.use(new SelectionPlugin({ enabled: true, multiple: true, rubberband: true, showNodeSelectionBox: false }));
-    graph.use(new Transform({ resizing: true, rotating: false }));
-    graph.use(new Snapline({ enabled: true }));
-    graph.use(new Clipboard({ enabled: true }));
-    graph.use(new Keyboard({ enabled: true }));
-    if (minimapRef.current) {
-      graph.use(new MiniMap({ container: minimapRef.current, width: 180, height: 120 }));
-    }
-
-    graph.on('blank:click', () => setSelection(null));
-    graph.on('cell:click', ({ cell }) => {
-      const id = cell.id;
-      const isEdge = cell.isEdge();
-      setSelection(isEdge ? { kind: 'edge', id } : { kind: 'node', id });
-    });
-    graph.on('node:moved', ({ node }) => {
-      const position = node.getPosition();
-      positionsRef.current.set(node.id, { x: position.x, y: position.y });
-    });
-    graph.on('edge:connected', ({ edge, isNew }) => {
-      if (!isNew) return;
-      const sourceId = edge.getSourceCellId();
-      const targetId = edge.getTargetCellId();
-      const verdict = canConnect(modelRef.current, sourceId, targetId);
-      if (!verdict.ok) {
-        graph.removeCell(edge);
-        message.warning(t(rejectMessageKey(verdict.reason)));
-        return;
-      }
-      const result = connect(modelRef.current, sourceId, targetId);
-      if (result.edge) {
-        // 临时边（X6 生成 id）移除后由模型同步 effect 以模型 edge id+统一 attrs 回填
-        graph.removeCell(edge);
-        applyModel(result.model);
-      }
-    });
-
     graphRef.current = graph;
     return () => {
       graph.dispose();
@@ -189,9 +123,7 @@ export function DesignerPage(): ReactElement {
   useEffect(() => {
     const graph = graphRef.current;
     if (!graph) return;
-    graph.options.grid = { visible: true, type: 'dot', size: 20, args: { color: canvas.grid, thickness: 1 } };
-    graph.drawGrid();
-    graph.drawBackground({ color: canvas.background });
+    applyCanvasTheme(graph, canvas);
     for (const node of modelRef.current.nodes) {
       const cell = graph.getCellById(node.id);
       if (cell) {
@@ -206,63 +138,14 @@ export function DesignerPage(): ReactElement {
     }
   }, [canvas, resolvedMode]);
 
-  // 模型 → 图同步（节点增删/数据刷新/连线增删）
+  // 模型 → 图同步（节点增删/数据刷新/连线增删；共享工厂单源）
   useEffect(() => {
     const graph = graphRef.current;
     if (!graph) return;
-    const modelNodeIds = new Set(model.nodes.map((node) => node.id));
-    for (const node of graph.getNodes()) {
-      if (!modelNodeIds.has(node.id) && node.shape === BPMN_NODE_SHAPE) {
-        graph.removeCell(node);
-      }
-    }
-    for (const node of model.nodes) {
-      const size = DEFAULT_NODE_SIZES[node.type];
-      const position = positionsRef.current.get(node.id) ?? { x: 0, y: 0 };
-      let cell = graph.getCellById(node.id);
-      if (!cell) {
-        cell = graph.addNode({
-          id: node.id,
-          shape: BPMN_NODE_SHAPE,
-          x: position.x,
-          y: position.y,
-          width: size.width,
-          height: size.height,
-          data: {
-            type: node.type,
-            name: node.name || t(`workflow.designer.palette.items.${node.type}`),
-            summary: nodeSummary(node),
-            nodeFill: canvas.nodeFill,
-            nodeBorder: canvas.nodeBorder,
-            nodeText: canvas.nodeText,
-            nodeText2: canvas.nodeText2,
-            dark: resolvedMode === 'dark',
-          },
-        });
-      } else {
-        cell.setData({
-          type: node.type,
-          name: node.name || t(`workflow.designer.palette.items.${node.type}`),
-          summary: nodeSummary(node),
-          nodeFill: canvas.nodeFill,
-          nodeBorder: canvas.nodeBorder,
-          nodeText: canvas.nodeText,
-          nodeText2: canvas.nodeText2,
-          dark: resolvedMode === 'dark',
-        }, { overwrite: true });
-      }
-    }
-    const modelEdgeIds = new Set(model.edges.map((edge) => edge.id));
-    for (const edge of graph.getEdges()) {
-      if (!modelEdgeIds.has(edge.id)) {
-        graph.removeCell(edge);
-      }
-    }
-    for (const edge of model.edges) {
-      if (!graph.getCellById(edge.id)) {
-        graph.addEdge({ id: edge.id, source: { cell: edge.sourceId }, target: { cell: edge.targetId }, attrs: { line: { stroke: canvas.edge, strokeWidth: 1.5, targetMarker: { name: 'block', size: 8 } } } });
-      }
-    }
+    syncModelToGraph(graph, model, positionsRef.current, canvas, resolvedMode === 'dark', {
+      nameOf: (node) => node.name || t(`workflow.designer.palette.items.${node.type}`),
+      summaryOf: nodeSummary,
+    });
   }, [model, canvas, resolvedMode, t]);
 
   // —— 打开定义（definitionId 变化=同签页内路由替换，不开新签） ——

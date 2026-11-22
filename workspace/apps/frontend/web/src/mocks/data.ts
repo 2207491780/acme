@@ -24,6 +24,9 @@ import type {
   JobExecutionView,
   JobView,
   ProcessDefinitionView,
+  ProcessInstanceView,
+  TaskView,
+  HistoryActivityView,
 } from '@acme/core';
 
 /**
@@ -204,15 +207,16 @@ export const menus: AdminMenuView[] = [
       },
     ],
   },
-  // REQ-20261122-023441（V27）：流程中心目录（id 60）+ 流程定义叶（id 61，path /workflow，
-  // permission workflow:definition:list）+ BUTTON×4（62 deploy/63 instance:manage/64 task:list/65 task:operate，
-  // BUTTON 不进侧边导航仅承载权限投影；BPM-3/4 的 instance/task 预留码先行挂树对齐权限-菜单关联形状）
+  // V29（REQ-20261122-102730 确认③）：流程中心目录（60）+ 流程定义叶（61，path /workflow）+
+  // 待办中心叶（66，path /workflow/todos，permission workflow:task:list）+ BUTTON×4
+  // （62 deploy/63 instance:manage/64 task:list/65 task:operate，对齐 BPM-2 fixture 先例形状；
+  // 纯菜单种子无新权限点——坑 16 计数不变）
   {
     id: 60, parentId: 0, menuName: '流程中心', menuType: 'DIRECTORY', path: null, component: null, icon: 'lucide-workflow',
     sortOrder: 2, visible: true, permissionCode: null, status: 'ENABLED', version: '0',
     children: [
       {
-        id: 61, parentId: 60, menuName: '流程设计器', menuType: 'MENU', path: '/workflow', component: 'workflow/index', icon: 'lucide-workflow',
+        id: 61, parentId: 60, menuName: '流程定义', menuType: 'MENU', path: '/workflow', component: 'workflow/index', icon: 'lucide-workflow',
         sortOrder: 1, visible: true, permissionCode: 'workflow:definition:list', status: 'ENABLED', version: '0',
         children: [
           {
@@ -232,6 +236,10 @@ export const menus: AdminMenuView[] = [
             sortOrder: 4, visible: true, permissionCode: 'workflow:task:operate', status: 'ENABLED', version: '0', children: [],
           },
         ],
+      },
+      {
+        id: 66, parentId: 60, menuName: '待办中心', menuType: 'MENU', path: '/workflow/todos', component: 'workflow/todos/index', icon: 'lucide-check-square',
+        sortOrder: 2, visible: true, permissionCode: 'workflow:task:list', status: 'ENABLED', version: '0', children: [],
       },
     ],
   },
@@ -499,6 +507,106 @@ export const sampleLeaveBpmnXml = [
 
 /** 流程定义 fixtures（REQ-20261122-023441：契约对齐 ProcessDefinitionView——id/version wire 字符串、
  *  列表 bpmnXml 置空由 handler 落实；DEPLOYED/deployedAt/DISABLED 各态占位）。 */
+/** BPM-3 任务 fixtures（REQ-20261122-102730 契约⑤投影：todo/done 行带 definitionKey/Name/businessKey/initiator，
+ *  wire 字符串 id；覆盖 CREATED/CLAIMED/COMPLETED 全态——todo=前两条，done=已办结条）。 */
+export const workflowTasks: TaskView[] = [
+  {
+    id: '9401', instanceId: '9301', nodeId: 'task-1', nodeName: '主管审批',
+    assignee: null, status: 'CREATED', claimTime: null, completeTime: null,
+    createTime: '2026-11-22T01:30:05Z',
+    definitionKey: 'expense-claim', definitionName: '报销申请', businessKey: 'EXP-20261122-001', initiator: 'admin',
+  },
+  {
+    id: '9402', instanceId: '9302', nodeId: 'task-1', nodeName: '主管审批',
+    assignee: 'admin', status: 'CLAIMED', claimTime: '2026-11-22T03:10:00Z', completeTime: null,
+    createTime: '2026-11-22T02:40:00Z',
+    definitionKey: 'expense-claim', definitionName: '报销申请', businessKey: 'EXP-20261122-002', initiator: 'ops',
+  },
+  {
+    id: '9403', instanceId: '9304', nodeId: 'task-1', nodeName: '主管审批',
+    assignee: 'admin', status: 'COMPLETED', claimTime: '2026-11-21T10:00:00Z', completeTime: '2026-11-21T11:00:00Z',
+    createTime: '2026-11-21T09:30:00Z',
+    definitionKey: 'expense-claim', definitionName: '报销申请', businessKey: 'EXP-20261121-001', initiator: 'admin',
+  },
+];
+
+/** BPM-3 实例 fixtures（契约对齐 ProcessInstanceView：wire 字符串 id；definitionName=契约⑤投影）。
+ *  覆盖 RUNNING/SUSPENDED/COMPLETED/TERMINATED 全态与 suspendReason 三因样例。 */
+export const workflowInstances: ProcessInstanceView[] = [
+  {
+    id: '9301', definitionId: '9002', definitionKey: 'expense-claim', definitionName: '报销申请',
+    businessKey: 'EXP-20261122-001', initiator: 'admin', status: 'RUNNING',
+    suspendReason: null, startTime: '2026-11-22T01:30:00Z', endTime: null,
+    variables: { amount: 1280, reason: '差旅报销' },
+    activeNodes: [{ nodeId: 'task-1', nodeName: '主管审批', nodeType: 'UserTask', enterAt: '2026-11-22T01:30:05Z' }],
+    tasks: [{ id: '9401', instanceId: '9301', nodeId: 'task-1', nodeName: '主管审批', assignee: null, status: 'CREATED', claimTime: null, completeTime: null, createTime: '2026-11-22T01:30:05Z' }],
+  },
+  {
+    id: '9302', definitionId: '9002', definitionKey: 'expense-claim', definitionName: '报销申请',
+    businessKey: 'EXP-20261122-002', initiator: 'ops', status: 'RUNNING',
+    suspendReason: null, startTime: '2026-11-22T02:40:00Z', endTime: null,
+    variables: { amount: 260, reason: '办公用品' },
+    activeNodes: [{ nodeId: 'task-1', nodeName: '主管审批', nodeType: 'UserTask', enterAt: '2026-11-22T02:40:10Z' }],
+    tasks: [{ id: '9402', instanceId: '9302', nodeId: 'task-1', nodeName: '主管审批', assignee: 'admin', status: 'CLAIMED', claimTime: '2026-11-22T03:10:00Z', completeTime: null, createTime: '2026-11-22T02:40:00Z' }],
+  },
+  {
+    id: '9303', definitionId: '9002', definitionKey: 'expense-claim', definitionName: '报销申请',
+    businessKey: 'EXP-20261122-003', initiator: 'admin', status: 'SUSPENDED',
+    // 契约状态机：SUSPENDED 三因=运维挂起|SERVICE_TASK_FAILED|NO_ASSIGNEE_RESOLVED（此处服务任务失败因）
+    suspendReason: 'SERVICE_TASK_FAILED', startTime: '2026-11-22T00:15:00Z', endTime: null,
+    variables: { amount: 9900, reason: '设备采购' },
+    activeNodes: [], tasks: [],
+  },
+  {
+    id: '9304', definitionId: '9002', definitionKey: 'expense-claim', definitionName: '报销申请',
+    businessKey: 'EXP-20261121-001', initiator: 'admin', status: 'COMPLETED',
+    suspendReason: null, startTime: '2026-11-21T09:30:00Z', endTime: '2026-11-21T11:05:00Z',
+    variables: { amount: 320, reason: '团队聚餐' },
+    activeNodes: [], tasks: [],
+  },
+  {
+    id: '9305', definitionId: '9002', definitionKey: 'expense-claim', definitionName: '报销申请',
+    businessKey: 'EXP-20261120-009', initiator: 'ops', status: 'TERMINATED',
+    suspendReason: null, startTime: '2026-11-20T14:00:00Z', endTime: '2026-11-20T16:30:00Z',
+    variables: null,
+    activeNodes: [], tasks: [],
+  },
+];
+
+/** BPM-3 历史链 fixtures（实例 id → HistoryActivityView 非分页 List；ENTER/LEAVE 配对可算停留时长，
+ *  REJECT_EDGE nodeId=sequenceFlow id 供只读流程图边标红，TIMER_FIRE=定时触发样例）。 */
+export const workflowHistories: Record<string, HistoryActivityView[]> = {
+  '9301': [
+    { id: '9601', nodeId: 'start-1', nodeType: 'StartEvent', action: 'ENTER', assignee: null, startAt: '2026-11-22T01:30:00Z', endAt: null, detail: null },
+    { id: '9602', nodeId: 'start-1', nodeType: 'StartEvent', action: 'LEAVE', assignee: null, startAt: '2026-11-22T01:30:02Z', endAt: '2026-11-22T01:30:04Z', detail: null },
+    { id: '9603', nodeId: 'flow-2', nodeType: 'sequenceFlow', action: 'REJECT_EDGE', assignee: 'ops', startAt: '2026-11-22T01:45:00Z', endAt: null, detail: '驳回：金额超限回流' },
+    { id: '9604', nodeId: 'task-1', nodeType: 'UserTask', action: 'ENTER', assignee: null, startAt: '2026-11-22T01:30:05Z', endAt: null, detail: null },
+  ],
+  '9302': [
+    { id: '9605', nodeId: 'start-1', nodeType: 'StartEvent', action: 'ENTER', assignee: null, startAt: '2026-11-22T02:40:00Z', endAt: null, detail: null },
+    { id: '9606', nodeId: 'start-1', nodeType: 'StartEvent', action: 'LEAVE', assignee: null, startAt: '2026-11-22T02:40:08Z', endAt: '2026-11-22T02:40:10Z', detail: null },
+    { id: '9607', nodeId: 'task-1', nodeType: 'UserTask', action: 'ENTER', assignee: null, startAt: '2026-11-22T02:40:10Z', endAt: null, detail: null },
+  ],
+  '9303': [
+    { id: '9608', nodeId: 'start-1', nodeType: 'StartEvent', action: 'ENTER', assignee: null, startAt: '2026-11-22T00:15:00Z', endAt: null, detail: null },
+    { id: '9609', nodeId: 'service-1', nodeType: 'ServiceTask', action: 'TIMER_FIRE', assignee: null, startAt: '2026-11-22T00:20:00Z', endAt: null, detail: '服务任务重试超限' },
+  ],
+  '9304': [
+    { id: '9610', nodeId: 'start-1', nodeType: 'StartEvent', action: 'ENTER', assignee: null, startAt: '2026-11-21T09:30:00Z', endAt: null, detail: null },
+    { id: '9611', nodeId: 'start-1', nodeType: 'StartEvent', action: 'LEAVE', assignee: null, startAt: '2026-11-21T09:30:02Z', endAt: '2026-11-21T09:30:04Z', detail: null },
+    { id: '9612', nodeId: 'task-1', nodeType: 'UserTask', action: 'ENTER', assignee: 'admin', startAt: '2026-11-21T09:30:05Z', endAt: null, detail: null },
+    { id: '9613', nodeId: 'task-1', nodeType: 'UserTask', action: 'LEAVE', assignee: 'admin', startAt: '2026-11-21T11:00:00Z', endAt: '2026-11-21T11:00:30Z', detail: '同意' },
+    { id: '9614', nodeId: 'service-1', nodeType: 'ServiceTask', action: 'ENTER', assignee: null, startAt: '2026-11-21T11:00:30Z', endAt: null, detail: null },
+    { id: '9615', nodeId: 'service-1', nodeType: 'ServiceTask', action: 'LEAVE', assignee: null, startAt: '2026-11-21T11:04:30Z', endAt: '2026-11-21T11:05:00Z', detail: null },
+    { id: '9616', nodeId: 'end-1', nodeType: 'EndEvent', action: 'ENTER', assignee: null, startAt: '2026-11-21T11:05:00Z', endAt: null, detail: null },
+  ],
+  '9305': [
+    { id: '9617', nodeId: 'start-1', nodeType: 'StartEvent', action: 'ENTER', assignee: null, startAt: '2026-11-20T14:00:00Z', endAt: null, detail: null },
+    { id: '9618', nodeId: 'start-1', nodeType: 'StartEvent', action: 'LEAVE', assignee: null, startAt: '2026-11-20T14:00:05Z', endAt: '2026-11-20T14:00:08Z', detail: null },
+    { id: '9619', nodeId: 'task-1', nodeType: 'UserTask', action: 'ENTER', assignee: null, startAt: '2026-11-20T14:00:08Z', endAt: null, detail: null },
+  ],
+};
+
 export const workflowDefinitions: ProcessDefinitionView[] = [
   {
     id: '9001', key: 'leave-approval', name: '请假审批', version: '3', status: 'DRAFT',
@@ -507,7 +615,8 @@ export const workflowDefinitions: ProcessDefinitionView[] = [
   },
   {
     id: '9002', key: 'expense-claim', name: '报销申请', version: '1', status: 'DEPLOYED',
-    bpmnXml: null, layoutJson: null,
+    // BPM-3（REQ-20261122-102730）：9002 补 running 实例链的流程图渲染源（详情回显；列表置空由 handler 落实）
+    bpmnXml: sampleLeaveBpmnXml, layoutJson: null,
     createdAt: '2026-11-20T08:00:00Z', deployedAt: '2026-11-20T09:30:00Z',
   },
   {

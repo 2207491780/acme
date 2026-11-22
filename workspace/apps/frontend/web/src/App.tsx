@@ -8,6 +8,7 @@ import {
   BookOutlined,
   BugOutlined,
   BgColorsOutlined,
+  CarryOutOutlined,
   ControlOutlined,
   DashboardOutlined,
   DeploymentUnitOutlined,
@@ -95,6 +96,8 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   { path: '/files', icon: <FileOutlined />, labelKey: 'nav.items.files', permission: 'infra:file:list' },
   // BPM 流程设计器（REQ-20261122-023441 确认④）：/workflow 条目（labelKey=nav.items.workflowDesigner 域）
   { path: '/workflow', icon: <DeploymentUnitOutlined />, labelKey: 'nav.items.workflowDesigner', permission: 'workflow:definition:list' },
+  // BPM-3 待办中心（REQ-20261122-102730 确认③）：独立路由页 /workflow/todos（permission 81；菜单种子 V29 下发）
+  { path: '/workflow/todos', icon: <CarryOutOutlined />, labelKey: 'nav.items.workflowTodos', permission: 'workflow:task:list' },
   { path: '/settings', icon: <SettingOutlined />, labelKey: 'nav.items.settings' },
   // 个人中心（REQ-20261119-082531 契约⑦）：认证即可；icon 取 id-card 类标识（与注册表 positions 同族）
   { path: '/profile', icon: <IdcardOutlined />, labelKey: 'nav.items.profile' },

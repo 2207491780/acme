@@ -24,6 +24,8 @@ export const nav = {
     // BPM 流程设计器（REQ-20261122-023441 确认④）：NAV /workflow 条目 + /workflow 列表页签
     workflowDesigner: '流程设计器',
     workflow: '流程定义',
+    // BPM-3（REQ-20261122-102730 确认③）：待办中心独立路由页 /workflow/todos（permission 81）
+    workflowTodos: '待办中心',
     settings: '设置',
     profile: '个人中心',
   },

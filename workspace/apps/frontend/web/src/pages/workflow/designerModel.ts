@@ -75,6 +75,21 @@ export function emptyModel(): BpmnModel {
   return { nodes: [createNodeModel('StartEvent', 'start-1')], edges: [] };
 }
 
+/** 节点摘要行（PropertyPanel/DesignerPage 与实例详情只读渲染共用口径）。 */
+export function nodeSummary(node: BpmnModel['nodes'][number]): string | undefined {
+  if (node.type === 'UserTask') {
+    const candidates = [...(node.candidateRoles ?? []), ...(node.candidateDepts ?? []), ...(node.candidateUsers ?? [])];
+    return node.assignee ?? (candidates.length > 0 ? candidates.join(',') : undefined);
+  }
+  if (node.type === 'ServiceTask') {
+    return node.serviceRef ?? node.callbackPath;
+  }
+  if (node.type === 'BoundaryEvent') {
+    return node.attachedToRef ?? undefined;
+  }
+  return undefined;
+}
+
 // ———————————————————————————————— 连线白名单（AC-4） ————————————————————————————————
 
 /** 面板选中态（null=无选中；node/edge 二选一；PropertyPanel 与 DesignerPage 共用）。 */

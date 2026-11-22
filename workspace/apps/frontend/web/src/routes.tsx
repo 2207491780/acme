@@ -53,6 +53,8 @@ const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage as PageComponent })));
 const WorkflowPage = lazy(() => import('./pages/WorkflowPage').then((m) => ({ default: m.WorkflowPage as PageComponent })));
 const DesignerPage = lazy(() => import('./pages/workflow/DesignerPage').then((m) => ({ default: m.DesignerPage as PageComponent })));
+// 待办中心（REQ-20261122-102730 确认③）：独立路由页（高频独立入口，不入 /workflow 三 Tab）
+const TodoCenterPage = lazy(() => import('./pages/TodoCenterPage').then((m) => ({ default: m.TodoCenterPage as PageComponent })));
 
 /** 24 页清单（25 条 Route − login − `*`；/files 为 REQ-20261119-063129 契约⑥补齐）。
  *  /tenant-packages 为 REQ-20261121-022910：套餐管理（权限 system:tenant-package:list）。
@@ -90,6 +92,8 @@ export const PAGE_ROUTES: PageRoute[] = [
     routePath: '/workflow/designer/:definitionId?',
     element: <DesignerPage />,
   },
+  // 待办中心（REQ-20261122-102730 确认③）：独立页（JobsPage 页模式），权限点 workflow:task:list（81）
+  { path: '/workflow/todos', labelKey: 'nav.items.workflowTodos', permission: 'workflow:task:list', element: <TodoCenterPage /> },
   // 系统配置（REQ-20261116-230354）：GET 认证即可读，页面不设 PermissionGate；
   // 保存能力在页面内按 system:config:update fail-closed（AC-6）
   { path: '/system/config', labelKey: 'nav.items.systemConfig', element: <SystemConfigPage /> },

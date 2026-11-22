@@ -6,6 +6,7 @@ import com.acme.platform.workflow.api.dto.TaskCompleteRequest;
 import com.acme.platform.workflow.api.dto.TaskDelegateRequest;
 import com.acme.platform.workflow.api.dto.TaskRejectRequest;
 import com.acme.platform.workflow.api.dto.TaskTransferRequest;
+import com.acme.platform.workflow.api.WorkflowTaskStatus;
 import com.acme.platform.workflow.api.dto.TaskView;
 import com.acme.platform.workflow.application.TaskUseCase;
 import com.acme.platform.workflow.security.RequirePermission;
@@ -41,20 +42,24 @@ public class AdminTaskController {
         this.taskUseCase = taskUseCase;
     }
 
-    /** 我的待办（assignee=me 或候选含我，租户隔离）。 */
+    /** 我的待办（assignee=me 或候选含我，租户隔离；definitionKey/status 可选过滤——确认⑤）。 */
     @GetMapping("/todo")
     @RequirePermission(SystemPermissions.WORKFLOW_TASK_LIST)
     public PageResult<TaskView> todo(@RequestParam(defaultValue = "1") Integer page,
-                                     @RequestParam(defaultValue = "20") Integer size) {
-        return taskUseCase.todo(currentUserId(), new PageQuery(page, size));
+                                     @RequestParam(defaultValue = "20") Integer size,
+                                     @RequestParam(required = false) String definitionKey,
+                                     @RequestParam(required = false) WorkflowTaskStatus status) {
+        return taskUseCase.todo(currentUserId(), new PageQuery(page, size), definitionKey, status);
     }
 
-    /** 我的已办（COMPLETED 且完成时 assignee=me）。 */
+    /** 我的已办（COMPLETED 且完成时 assignee=me；definitionKey/status 可选过滤——确认⑤）。 */
     @GetMapping("/done")
     @RequirePermission(SystemPermissions.WORKFLOW_TASK_LIST)
     public PageResult<TaskView> done(@RequestParam(defaultValue = "1") Integer page,
-                                     @RequestParam(defaultValue = "20") Integer size) {
-        return taskUseCase.done(currentUserId(), new PageQuery(page, size));
+                                     @RequestParam(defaultValue = "20") Integer size,
+                                     @RequestParam(required = false) String definitionKey,
+                                     @RequestParam(required = false) WorkflowTaskStatus status) {
+        return taskUseCase.done(currentUserId(), new PageQuery(page, size), definitionKey, status);
     }
 
     /** 办结（表单落 form_data jsonb；隐式认领锚点）。 */
