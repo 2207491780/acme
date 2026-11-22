@@ -22,7 +22,8 @@
 | 3+ | BPM-2 流程设计器 | **DONE**（合并 4aa192c（amend 修正）+合并树复验 typecheck/定向绿+双远端推送+分支回收；门禁 GATE_ALL_PASS web 70 文件/build 18.25s/desktop ✓；tester 50/50+校验规则三裁决；浏览器实测走查 PASS 截图取证 .ai-tmp/bpm2-designer-evidence.png；与 JOB-3 并行合流 TL 手解三文件冲突+合并树复验兜底） | REQ-20261122-023441 |
 | 3 | 轮 3 全收口（THEME-3/JOB-2/BPM-2+JOB-3 提前） | **DONE** | |
 | 遗留 | 孤儿目录人工清理 | .worktrees 下 feat-req-20261120-213603-menu-filter、feat-req-20261121-071002-scheduler-core、feat-req-20261122-023441-bpm-designer 三个孤儿残留目录（Safe-Delete 钩子拒绝脚本删除，注册已注销、内容可弃）——需用户人工删除或授权 bypass | — |
-| 4+ | BPM-3/TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
+| 4+ | BPM-3 流程管理页 | II-DEV 三路并行（REQ-20261122-102730 契约 confirmed：/workflow 扩 Tab+待办中心独立页/V29 菜单种子无新权限点/TaskView 投影后端扩展禁 N+1/X6 只读工厂 readOnly flag/审批深化归 BPM-4） | REQ-20261122-102730 |
+| 4+ | TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动（TENANT-3 事实采集中） | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
 

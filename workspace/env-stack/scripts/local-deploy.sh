@@ -21,10 +21,10 @@ ART=${ACME_ART_DIR:-"$(ls -dt "$REPO_ROOT"/.ai-tmp/build/prod-* 2>/dev/null | he
 # shellcheck disable=SC1090
 . "$ART/meta.env"
 
-# 服务选择（增量发布）：ACME_DEPLOY_SERVICES = 空格分隔子集，缺省=全量五服务；
+# 服务选择（增量发布）：ACME_DEPLOY_SERVICES = 空格分隔子集，缺省=全量七服务；
 # 透传服务器侧 deploy.sh 的 ACME_SERVICES——未选中服务在集群侧钉住当前 tag（清单不变不滚动）；
 # 非法名 fail-fast（与 local-build.sh 的 ACME_BUILD_SERVICES 同一套服务名）
-ALL_SERVICES='gateway platform-auth platform-infra platform-system web'
+ALL_SERVICES='gateway platform-auth platform-infra platform-system platform-scheduler platform-workflow web'
 SERVICES=${ACME_DEPLOY_SERVICES:-$ALL_SERVICES}
 for s in $SERVICES; do
   case " $ALL_SERVICES " in
