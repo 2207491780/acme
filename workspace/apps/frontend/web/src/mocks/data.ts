@@ -23,6 +23,7 @@ import type {
   JobAdminView,
   JobExecutionView,
   JobView,
+  ProcessDefinitionView,
 } from '@acme/core';
 
 /**
@@ -75,6 +76,10 @@ export const me = {
     // 75 启停/触发/新建/编辑（契约⑤），76 删除；me.menus 动态形态由菜单种子 V28 下发）
     'scheduler:job:list', 'scheduler:job:create', 'scheduler:job:update', 'scheduler:job:delete',
     'auth:loginlog:list', 'auth:online:list', 'auth:online:revoke',
+    // REQ-20261122-023441（V27 随 role_menu 60~64 下发超管）：workflow 五码——
+    // definition:list(78)+definition:deploy(79) 为 BPM-2 本页所需；instance:manage/task:list/task:operate 为 BPM-3/4 预留
+    'workflow:definition:list', 'workflow:definition:deploy',
+    'workflow:instance:manage', 'workflow:task:list', 'workflow:task:operate',
   ],
   menus: [] as AdminMenuView[],
   // REQ-20261117-180000：本人部门名（deptId 4001=总部；水印 {deptName} 供给）
@@ -194,6 +199,37 @@ export const menus: AdminMenuView[] = [
           {
             id: 49, parentId: 46, menuName: '套餐删除', menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 3, visible: true, permissionCode: 'system:tenant-package:delete', status: 'ENABLED', version: '0', children: [],
+          },
+        ],
+      },
+    ],
+  },
+  // REQ-20261122-023441（V27）：流程中心目录（id 60）+ 流程定义叶（id 61，path /workflow，
+  // permission workflow:definition:list）+ BUTTON×4（62 deploy/63 instance:manage/64 task:list/65 task:operate，
+  // BUTTON 不进侧边导航仅承载权限投影；BPM-3/4 的 instance/task 预留码先行挂树对齐权限-菜单关联形状）
+  {
+    id: 60, parentId: 0, menuName: '流程中心', menuType: 'DIRECTORY', path: null, component: null, icon: 'lucide-workflow',
+    sortOrder: 2, visible: true, permissionCode: null, status: 'ENABLED', version: '0',
+    children: [
+      {
+        id: 61, parentId: 60, menuName: '流程设计器', menuType: 'MENU', path: '/workflow', component: 'workflow/index', icon: 'lucide-workflow',
+        sortOrder: 1, visible: true, permissionCode: 'workflow:definition:list', status: 'ENABLED', version: '0',
+        children: [
+          {
+            id: 62, parentId: 61, menuName: '流程部署', menuType: 'BUTTON', path: null, component: null, icon: null,
+            sortOrder: 1, visible: true, permissionCode: 'workflow:definition:deploy', status: 'ENABLED', version: '0', children: [],
+          },
+          {
+            id: 63, parentId: 61, menuName: '实例管理', menuType: 'BUTTON', path: null, component: null, icon: null,
+            sortOrder: 2, visible: true, permissionCode: 'workflow:instance:manage', status: 'ENABLED', version: '0', children: [],
+          },
+          {
+            id: 64, parentId: 61, menuName: '任务查询', menuType: 'BUTTON', path: null, component: null, icon: null,
+            sortOrder: 3, visible: true, permissionCode: 'workflow:task:list', status: 'ENABLED', version: '0', children: [],
+          },
+          {
+            id: 65, parentId: 61, menuName: '任务办理', menuType: 'BUTTON', path: null, component: null, icon: null,
+            sortOrder: 4, visible: true, permissionCode: 'workflow:task:operate', status: 'ENABLED', version: '0', children: [],
           },
         ],
       },
@@ -441,5 +477,42 @@ export const schedulerExecutors: ExecutorView[] = [
     appName: 'platform-system', instanceId: 'uuid-system-0001', host: '10.0.0.12', port: 9882,
     handlers: [],
     heartbeatAt: '2026-11-22T02:40:00Z', status: 'OFFLINE',
+  },
+];
+
+/** 最小 BPMN XML fixture（REQ-20261122-023441：设计器详情回显/导入演示；
+ *  含 acme: 扩展属性与 XOR 条件/default，形状由 @acme/core serializeBpmnModel 保证）。 */
+export const sampleLeaveBpmnXml = [
+  '<?xml version="1.0" encoding="UTF-8"?>',
+  '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:acme="http://acme.dev/bpmn/ext/v1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://acme.dev/bpmn">',
+  '  <bpmn:process id="Process_1" isExecutable="true">',
+  '    <bpmn:startEvent id="start-1" name="提交申请"/>',
+  '    <bpmn:userTask id="task-1" name="主管审批" acme:assignee="${initiator}" acme:assigneeStrategy="ALL"/>',
+  '    <bpmn:serviceTask id="service-1" name="落库通知" acme:serviceRef="notifyService" acme:retryPolicy="3"/>',
+  '    <bpmn:endEvent id="end-1"/>',
+  '    <bpmn:sequenceFlow id="flow-1" sourceRef="start-1" targetRef="task-1"/>',
+  '    <bpmn:sequenceFlow id="flow-2" sourceRef="task-1" targetRef="service-1"/>',
+  '    <bpmn:sequenceFlow id="flow-3" sourceRef="service-1" targetRef="end-1"/>',
+  '  </bpmn:process>',
+  '</bpmn:definitions>',
+].join('\n');
+
+/** 流程定义 fixtures（REQ-20261122-023441：契约对齐 ProcessDefinitionView——id/version wire 字符串、
+ *  列表 bpmnXml 置空由 handler 落实；DEPLOYED/deployedAt/DISABLED 各态占位）。 */
+export const workflowDefinitions: ProcessDefinitionView[] = [
+  {
+    id: '9001', key: 'leave-approval', name: '请假审批', version: '3', status: 'DRAFT',
+    bpmnXml: null, layoutJson: null,
+    createdAt: '2026-11-21T02:00:00Z', deployedAt: null,
+  },
+  {
+    id: '9002', key: 'expense-claim', name: '报销申请', version: '1', status: 'DEPLOYED',
+    bpmnXml: null, layoutJson: null,
+    createdAt: '2026-11-20T08:00:00Z', deployedAt: '2026-11-20T09:30:00Z',
+  },
+  {
+    id: '9003', key: 'asset-retirement', name: '资产报废', version: '2', status: 'DISABLED',
+    bpmnXml: null, layoutJson: null,
+    createdAt: '2026-11-19T10:00:00Z', deployedAt: '2026-11-19T11:00:00Z',
   },
 ];

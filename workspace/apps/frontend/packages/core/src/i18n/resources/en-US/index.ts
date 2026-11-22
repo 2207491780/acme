@@ -23,6 +23,7 @@ import { files } from './files';
 import { systemConfig } from './systemConfig';
 import { settings } from './settings';
 import { profile } from './profile';
+import { workflow } from './workflow';
 import { components } from './components';
 
 /** en-US resource aggregation (per-domain split files; aggregation only, no copy here). */
@@ -52,5 +53,6 @@ export const enUS = {
   systemConfig,
   settings,
   profile,
+  workflow,
   components,
 };

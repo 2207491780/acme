@@ -58,10 +58,11 @@ public class DefinitionUseCase {
                 new CreateDefinitionCommand.CreatePayload(key, name, bpmnXml));
     }
 
-    /** 保存 XML（草稿态；结构校验失败 → ProcessValidationException 携逐条明细，控制器转信封）。 */
-    public Long saveXml(Long definitionId, String bpmnXml) {
+    /** 保存 XML（草稿态；layoutJson 随 XML 整体覆盖落库，缺省 null 即置 NULL——REQ-20261122-023441 ⑤；
+     * 结构校验失败 → ProcessValidationException 携逐条明细，控制器转信封）。 */
+    public Long saveXml(Long definitionId, String bpmnXml, String layoutJson) {
         return executor.execute(saveDefinitionXmlCommand,
-                new SaveDefinitionXmlCommand.SaveXmlPayload(definitionId, bpmnXml));
+                new SaveDefinitionXmlCommand.SaveXmlPayload(definitionId, bpmnXml, layoutJson));
     }
 
     /** 部署（结构校验 → 编译缓存 → DEPLOYED）。 */

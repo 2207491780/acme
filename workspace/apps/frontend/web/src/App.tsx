@@ -10,6 +10,7 @@ import {
   BgColorsOutlined,
   ControlOutlined,
   DashboardOutlined,
+  DeploymentUnitOutlined,
   DownOutlined,
   FieldTimeOutlined,
   FileOutlined,
@@ -41,7 +42,7 @@ import {
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, resolveAccentColor, resolveSemanticColors, resolveThemeMode, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
 import dayjs from 'dayjs';
-import { PAGE_ROUTES, findPageRoute } from './routes';
+import { PAGE_ROUTES, findPageRoute, tabPathOf } from './routes';
 import { Avatar } from './components/Avatar';
 import { useTabsStore } from './store/tabsStore';
 import { useStore } from './store/useStore';
@@ -92,6 +93,8 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   { path: '/jobs', icon: <ScheduleOutlined />, labelKey: 'nav.items.jobs', permission: 'scheduler:job:list' },
   // 文件管理（REQ-20261119-063129 契约⑥）：路由既有，NAV/i18n 条目补齐
   { path: '/files', icon: <FileOutlined />, labelKey: 'nav.items.files', permission: 'infra:file:list' },
+  // BPM 流程设计器（REQ-20261122-023441 确认④）：/workflow 条目（labelKey=nav.items.workflowDesigner 域）
+  { path: '/workflow', icon: <DeploymentUnitOutlined />, labelKey: 'nav.items.workflowDesigner', permission: 'workflow:definition:list' },
   { path: '/settings', icon: <SettingOutlined />, labelKey: 'nav.items.settings' },
   // 个人中心（REQ-20261119-082531 契约⑦）：认证即可；icon 取 id-card 类标识（与注册表 positions 同族）
   { path: '/profile', icon: <IdcardOutlined />, labelKey: 'nav.items.profile' },
@@ -392,12 +395,15 @@ export function App() {
     if (path === '/login') {
       return;
     }
-    if (!findPageRoute(path)) {
+    // base-path 单实例页签（REQ-20261122-023441 确认④）：/workflow/designer/:id 归一 base path
+    const tabPath = tabPathOf(path);
+    if (!findPageRoute(tabPath)) {
       navigate('/', { replace: true });
       return;
     }
-    const dynamicLabel = dynamicNav?.entries.find((entry) => entry.path === path)?.label;
-    useTabsStore.getState().openTab(path, dynamicLabel ? { label: dynamicLabel } : undefined);
+    const dynamicLabel = dynamicNav?.entries.find((entry) => entry.path === tabPath)?.label
+      ?? dynamicNav?.entries.find((entry) => entry.path === path)?.label;
+    useTabsStore.getState().openTab(tabPath, dynamicLabel ? { label: dynamicLabel } : undefined);
   }, [location.pathname, dynamicNav, navigate, tabsDisabled]);
 
   // 页签切换滚动位置恢复（AC-1）：Content 为共享滚动视口（既有布局契约 overflow:auto 不变），
@@ -451,13 +457,16 @@ export function App() {
   // 兜底空态（全部关闭且无 pinned 时按当前路由重开，内容区不留白）
   const reconcileTabs = () => {
     const { tabs: openTabs, activePath } = useTabsStore.getState();
+    // base-path 单实例页签（REQ-20261122-023441 确认④）：比较与回退均按归一 tab path，
+    // 防止 designer 带参路由（/workflow/designer/:id）被重置回 base path
+    const tabPath = tabPathOf(location.pathname);
     if (openTabs.length === 0) {
-      if (findPageRoute(location.pathname)) {
-        useTabsStore.getState().openTab(location.pathname);
+      if (findPageRoute(tabPath)) {
+        useTabsStore.getState().openTab(tabPath);
       }
       return;
     }
-    if (activePath && activePath !== location.pathname) {
+    if (activePath && activePath !== tabPath) {
       navigate(activePath);
     }
   };
@@ -490,9 +499,13 @@ export function App() {
     useTabsStore.getState().closeAll();
     reconcileTabs();
   };
-  // 页签图标：动态菜单 icon 优先，静态 NAV 兜底（icon 不可序列化，渲染时注入 TabBar）
+  // 页签图标：动态菜单 icon 优先，静态 NAV 兜底（icon 不可序列化，渲染时注入 TabBar）；
+  // designer 带参路由按归一 tab path 回退（NAV 条目为 /workflow）
   const tabIconOf = (path: string): ReactNode =>
-    dynamicNav?.entries.find((entry) => entry.path === path)?.icon ?? NAV_ICONS.get(path) ?? null;
+    dynamicNav?.entries.find((entry) => entry.path === path)?.icon
+    ?? NAV_ICONS.get(path)
+    ?? NAV_ICONS.get(tabPathOf(path))
+    ?? null;
 
   const onSearch = (value: string) => {
     setQuery({ search: value });
@@ -804,7 +817,7 @@ export function App() {
                   {PAGE_ROUTES.map((route) => (
                     <Route
                       key={route.path}
-                      path={route.path}
+                      path={route.routePath ?? route.path}
                       element={(
                         <PageBoundary>
                           {route.permission

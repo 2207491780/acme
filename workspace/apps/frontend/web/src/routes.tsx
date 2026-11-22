@@ -22,6 +22,11 @@ export interface PageRoute {
   labelKey: string;
   /** PermissionGate 权限码（undefined=页面不设门禁）。 */
   permission?: string;
+  /** base-path 单实例页签（REQ-20261122-023441 确认④）：pathname 前缀命中本路由，
+   *  definitionId 变化=同签页内路由替换不开新签（页签 path 恒为 base path）。 */
+  matchPrefix?: boolean;
+  /** 逃生口单页 Routes 的 react-router path（带动态段；缺省=path）。 */
+  routePath?: string;
   element: ReactElement;
 }
 
@@ -46,9 +51,12 @@ const FilesPage = lazy(() => import('./pages/FilesPage').then((m) => ({ default:
 const ExceptionsPage = lazy(() => import('./pages/ExceptionsPage').then((m) => ({ default: m.ExceptionsPage as PageComponent })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings as PageComponent })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage as PageComponent })));
+const WorkflowPage = lazy(() => import('./pages/WorkflowPage').then((m) => ({ default: m.WorkflowPage as PageComponent })));
+const DesignerPage = lazy(() => import('./pages/workflow/DesignerPage').then((m) => ({ default: m.DesignerPage as PageComponent })));
 
-/** 22 页清单（23 条 Route − login − `*`；/files 为 REQ-20261119-063129 契约⑥补齐）。
- *  /tenant-packages 为 REQ-20261121-022910：套餐管理（权限 system:tenant-package:list）。 */
+/** 24 页清单（25 条 Route − login − `*`；/files 为 REQ-20261119-063129 契约⑥补齐）。
+ *  /tenant-packages 为 REQ-20261121-022910：套餐管理（权限 system:tenant-package:list）。
+ *  /workflow 与 /workflow/designer 为 REQ-20261122-023441（designer=base-path 单实例页签）。 */
 export const PAGE_ROUTES: PageRoute[] = [
   { path: '/', labelKey: 'nav.items.dashboard', element: <Dashboard /> },
   { path: '/releases', labelKey: 'nav.items.releases', element: <Releases /> },
@@ -72,6 +80,16 @@ export const PAGE_ROUTES: PageRoute[] = [
   { path: '/op-exceptions', labelKey: 'nav.items.opExceptions', permission: 'infra:exception:list', element: <ExceptionsPage /> },
   // 调度中心（REQ-20261122-023213 JOB-3）：复用 /jobs 改造为三 Tab 管理页，权限点换 scheduler:job:list（73）
   { path: '/jobs', labelKey: 'nav.items.jobs', permission: 'scheduler:job:list', element: <JobsPage /> },
+  // BPM 流程设计器（REQ-20261122-023441 确认④）：/workflow 列表页 + /workflow/designer base-path 单实例页签
+  { path: '/workflow', labelKey: 'nav.items.workflow', permission: 'workflow:definition:list', element: <WorkflowPage /> },
+  {
+    path: '/workflow/designer',
+    labelKey: 'nav.items.workflowDesigner',
+    permission: 'workflow:definition:list',
+    matchPrefix: true,
+    routePath: '/workflow/designer/:definitionId?',
+    element: <DesignerPage />,
+  },
   // 系统配置（REQ-20261116-230354）：GET 认证即可读，页面不设 PermissionGate；
   // 保存能力在页面内按 system:config:update fail-closed（AC-6）
   { path: '/system/config', labelKey: 'nav.items.systemConfig', element: <SystemConfigPage /> },
@@ -80,7 +98,21 @@ export const PAGE_ROUTES: PageRoute[] = [
   { path: '/profile', labelKey: 'nav.items.profile', element: <ProfilePage /> },
 ];
 
-/** path → PageRoute 线性查找（页签数 ≤ 20，无需 Map）。 */
+/** /workflow/designer base path（确认④：definitionId 变化=同签页内路由替换）。 */
+export const DESIGNER_TAB_PATH = '/workflow/designer';
+
+/** pathname → 页签 path（/workflow/designer/* 归一到 base path，其余全等透传）。 */
+export function tabPathOf(pathname: string): string {
+  if (pathname === DESIGNER_TAB_PATH || pathname.startsWith(`${DESIGNER_TAB_PATH}/`)) {
+    return DESIGNER_TAB_PATH;
+  }
+  return pathname;
+}
+
+/** path → PageRoute 线性查找（页签数 ≤ 20，无需 Map）；matchPrefix 路由按前缀命中。 */
 export function findPageRoute(path: string): PageRoute | undefined {
-  return PAGE_ROUTES.find((route) => route.path === path);
+  return PAGE_ROUTES.find((route) =>
+    route.matchPrefix
+      ? path === route.path || path.startsWith(`${route.path}/`)
+      : route.path === path);
 }

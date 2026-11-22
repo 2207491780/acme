@@ -358,6 +358,50 @@ export function statusColor(status: Status | string): string {
   return TONES[statusTone(status)];
 }
 
+// —— BPM 画布专用色（REQ-20261122-023441 确认⑦）——
+// 网格线/选中框/标红等画布色走令牌单源，随主题解析；页面/组件禁止硬编码色值。
+export interface CanvasPalette {
+  /** 画布背景（bg1 之上再淡一层，与页面 bg 区分）。 */
+  background: string;
+  /** 网格点/线（发丝级）。 */
+  grid: string;
+  /** 节点填充。 */
+  nodeFill: string;
+  /** 节点描边。 */
+  nodeBorder: string;
+  /** 节点主文本。 */
+  nodeText: string;
+  /** 节点次文本（类型标注）。 */
+  nodeText2: string;
+  /** 连线颜色。 */
+  edge: string;
+  /** 连线箭头/锚点。 */
+  port: string;
+  /** 选中框（主强调色基线 cyan；随设置动态换色由页面经 ACCENTS 二次注入）。 */
+  selection: string;
+  /** 校验失败标红。 */
+  errorMark: string;
+  /** 对齐吸附线。 */
+  snapline: string;
+}
+
+export function resolveCanvasPalette(theme: Theme): CanvasPalette {
+  const neutral = resolvePalette(theme);
+  return {
+    background: neutral.bg1,
+    grid: theme === 'light' ? 'rgba(20, 24, 32, 0.08)' : 'rgba(255, 255, 255, 0.07)',
+    nodeFill: neutral.surface,
+    nodeBorder: neutral.border,
+    nodeText: neutral.text,
+    nodeText2: neutral.text2,
+    edge: neutral.text2,
+    port: neutral.muted,
+    selection: ACCENTS.cyan,
+    errorMark: TONES.danger,
+    snapline: TONES.warning,
+  };
+}
+
 // 渐变配方：克制、同色系、低对比。brand 仅做轻微明度变化；hero 极淡染色淡出到表面色；
 // text 在强调色与同族伴随色间做柔和过渡。Mobile 以纯色/近似呈现（无渐变依赖）。
 export const GRADIENTS = {

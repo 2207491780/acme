@@ -21,6 +21,9 @@ export const nav = {
     opExceptions: 'Exception Logs',
     jobs: 'Scheduler Center',
     files: 'Files',
+    // BPM process designer (REQ-20261122-023441 ④): NAV /workflow entry + /workflow list tab
+    workflowDesigner: 'Process Designer',
+    workflow: 'Process Definitions',
     settings: 'Settings',
     profile: 'Profile',
   },

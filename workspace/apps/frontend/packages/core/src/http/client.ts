@@ -8,12 +8,15 @@ export interface ApiEnvelope<T> {
   data: T;
 }
 
-/** 接口业务错误（携带后端错误码与 HTTP 状态，供页面按态渲染）。 */
+/** 接口业务错误（携带后端错误码与 HTTP 状态，供页面按态渲染）。
+ *  REQ-20261122-023441：fail 信封 data 非空时随 ApiError.data 透出（如 workflow
+ *  VALIDATION_FAILED 的明细列表；裸 View 信封失败 data=null/缺省不变）。 */
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
     public readonly code: string,
     message: string,
+    public readonly data?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -213,7 +216,7 @@ async function request<T>(
     throw new ApiError(res.status, 'EMPTY_BODY', `接口无响应体（HTTP ${res.status}）`);
   }
   if (!envelope.success) {
-    throw new ApiError(res.status, envelope.code, envelope.message ?? '请求失败');
+    throw new ApiError(res.status, envelope.code, envelope.message ?? '请求失败', envelope.data);
   }
   return envelope.data;
 }

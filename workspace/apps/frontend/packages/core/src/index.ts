@@ -34,3 +34,5 @@ export * from './api/notify';
 export * from './api/infra';
 export * from './api/scheduler';
 export * from './api/audit';
+export * from './api/workflow';
+export * from './workflow/bpmn-io';

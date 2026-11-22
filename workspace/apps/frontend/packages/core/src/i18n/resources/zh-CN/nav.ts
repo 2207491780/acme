@@ -21,6 +21,9 @@ export const nav = {
     opExceptions: '异常日志',
     jobs: '调度中心',
     files: '文件管理',
+    // BPM 流程设计器（REQ-20261122-023441 确认④）：NAV /workflow 条目 + /workflow 列表页签
+    workflowDesigner: '流程设计器',
+    workflow: '流程定义',
     settings: '设置',
     profile: '个人中心',
   },

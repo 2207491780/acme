@@ -60,7 +60,7 @@ public class AdminProcessDefinitionController {
     public Result<Object> saveXml(@PathVariable Long id,
                                   @Valid @RequestBody ProcessDefinitionXmlSaveRequest request) {
         try {
-            definitionUseCase.saveXml(id, request.bpmnXml());
+            definitionUseCase.saveXml(id, request.bpmnXml(), request.layoutJson());
             return Result.ok(definitionUseCase.get(id));
         } catch (ProcessValidationException ex) {
             return validationFailure(ex);

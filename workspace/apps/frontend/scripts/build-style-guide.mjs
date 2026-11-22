@@ -86,6 +86,8 @@ const TOKENS = {
   motion: core.MOTION,
   shadows: core.SHADOWS,
   z: core.Z,
+  // REQ-20261122-023441 确认⑦：BPM 画布专用色（随主题解析，校验页核对用）
+  canvas: { dark: core.resolveCanvasPalette('dark'), light: core.resolveCanvasPalette('light') },
   density: core.DENSITY,
   gradients,
   statusOrder: STATUS_ORDER,

@@ -29,9 +29,10 @@ public class SaveDefinitionXmlCommand implements WorkflowCommand<Long> {
 
     private WfProcessDefinition definition;
     private String bpmnXml;
+    private String layoutJson;
 
-    /** 保存载荷（bpmnXml 必填）。 */
-    public record SaveXmlPayload(Long definitionId, String bpmnXml) {
+    /** 保存载荷（bpmnXml 必填；layoutJson 可选，随 XML 整体覆盖语义——缺省 null 置 NULL）。 */
+    public record SaveXmlPayload(Long definitionId, String bpmnXml, String layoutJson) {
     }
 
     @Override
@@ -41,6 +42,7 @@ public class SaveDefinitionXmlCommand implements WorkflowCommand<Long> {
                 .orElseThrow(() -> new BizException(WorkflowError.WORKFLOW_DEFINITION_NOT_FOUND,
                         "流程定义不存在：" + payload.definitionId()));
         bpmnXml = payload.bpmnXml();
+        layoutJson = payload.layoutJson();
     }
 
     @Override
@@ -63,6 +65,9 @@ public class SaveDefinitionXmlCommand implements WorkflowCommand<Long> {
     @Override
     public Long execute(CommandContext context) {
         definition.setBpmnXml(bpmnXml);
+        // 布局随 XML 整体覆盖（REQ-20261122-023441 确认⑤）：缺省 null 显式置空——save 更新走
+        // mapper.update(entity, ignoreNulls=false)，null layout_json 落 NULL（前端保存总是带布局或显式 null）
+        definition.setLayoutJson(layoutJson);
         context.persist(() -> support.saveDefinition(definition));
         return definition.getId();
     }
