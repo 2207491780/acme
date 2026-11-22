@@ -25,9 +25,10 @@
 | 4 | BPM-3 流程管理页 | **DONE**（合并 cd7033a+合并树复验 typecheck/定向绿+双远端推送+回收；门禁 GATE_ALL_PASS web **74 文件全绿**/build 52.99s/desktop ✓；backend 58/58+V29 3/3；tester 46 例映射 AC-1~12；浏览器实测=只读画布 svg 1/nodes 4/edges 3+五块 Drawer+待办两子区；运行时重启一次四路续任无损） | REQ-20261122-102730 |
 | 4 | TENANT-3 子租户层级 | **DONE**（合并 1fc9076+合并树 V30 复验 exit=0+双远端推送+回收；backend 414/414 Skipped=0+层级 9/9 两路独立复验；frontend 9/9+typecheck 绿；tester 19 例映射；§6.3 三问推荐答案钉死；门禁注记=唯一红为已知负载敏感用例零代码交集放行） | REQ-20261122-102954 |
 | 4 | 轮 4 全收口（BPM-3+TENANT-3） | **DONE** | |
-| 5 | BPM-4 审批详情深化 | II-DEV 双路（REQ-20261122-150750 契约 confirmed：Drawer 升级五块/complete 形状修正修现网 comment 丢弃缺口/驳回候选剔 delegate 污染+含 StartEvent/delegate 仅 CLAIMED/schema 联动归二期/加签减签排除；纯前端后端零变更） | REQ-20261122-150750 |
-| 5 | JOB-4 调度韧性 | II-DEV 双路（REQ-20261122-150756 契约 confirmed：重试调度侧唯一+retry_policy 向后兼容扩展/分片真扇出 N 次下发+V3 索引改造/告警 system 内部端点+三类触发+5 分钟去重/超时归一回调开放 TIMEOUT/可观测复用现有面） | REQ-20261122-150756 |
-| 5 | TENANT-4 生命周期+配额 | II-DEV 三路（REQ-20261122-150802 契约 confirmed：双态保留+grace_until 派生四视觉态（否决物化）/配额三级覆盖 租户覆盖表>套餐列>平台缺省 一期仅存储/usage 实时聚合/切换视角不改造/过期派生无定时） | REQ-20261122-150802 |
+| 5 | BPM-4 审批详情深化 | II-DEV（REQ-20261122-150750 纯前端；**并发 4 纪律下：bpm4-frontend-r4 在跑**；磁盘 10 处改动含 ApprovalDetailDrawer/core api/i18n/msm；tester bpm4-tester-r4 排队待派；多轮宿主中断史 r2/r3 零增量、r3 任内无前端增量） | REQ-20261122-150750 |
+| 5 | JOB-4 调度韧性 | II-DEV（REQ-20261122-150756 纯后端；**job4-backend-r4 在跑**；磁盘 16 处——r3 重大增量：V3__shard_fanout_index_and_definition_shardable.sql 已建+shardable 字段/扇出已落+告警接线+内部通知端点；InternalNotify IT 上轮 Skipped=4 待 Docker 真跑（Docker 已在线 29.3.1）；job4-tester-r4 排队） | REQ-20261122-150756 |
+| 5 | TENANT-4 生命周期+配额 | II-DEV（REQ-20261122-150802 双端；**tenant4-backend-r4 + tenant4-frontend-r4 在跑**；磁盘 38 处——V31+配额域全套+宽限 auth 链+前端四件套+TesterTest 类；遗留 tmp-req150802-smoke.test.tsx 待删；tenant4-tester-r4 排队） | REQ-20261122-150802 |
+| 5 | 并发队列 | 上限 4：在跑=job4-backend-r4/tenant4-backend-r4/bpm4-frontend-r4/tenant4-frontend-r4；排队=bpm4-tester-r4→job4-tester-r4→tenant4-tester-r4（有空位即按序拉起） | — |
 | 6+ | BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
