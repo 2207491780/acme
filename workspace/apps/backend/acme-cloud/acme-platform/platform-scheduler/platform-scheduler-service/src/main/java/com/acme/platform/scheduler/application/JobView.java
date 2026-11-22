@@ -16,6 +16,7 @@ import java.time.Instant;
  * @param param             任务参数（jsonb 文本原样）
  * @param retryPolicy       重试策略（jsonb 文本原样）
  * @param shardTotal        分片总数
+ * @param shardable         分片扇出开关（REQ-20261122-150756 载体裁决⑥；扇出条件=shardable && shardTotal>1）
  * @param timeoutMs         下发/执行超时毫秒
  * @param misfirePolicy     misfire 策略
  * @param status            启停状态（创建默认 DISABLED）
@@ -25,6 +26,7 @@ import java.time.Instant;
  */
 public record JobView(String id, String jobKey, String appName, String handler, String triggerType,
                       String cronExpr, Long fixedRateMs, Instant onceFireAt, String param,
-                      String retryPolicy, Integer shardTotal, Long timeoutMs, String misfirePolicy,
+                      String retryPolicy, Integer shardTotal, Boolean shardable, Long timeoutMs,
+                      String misfirePolicy,
                       String status, Instant nextFireTime, String remark, Long version) {
 }

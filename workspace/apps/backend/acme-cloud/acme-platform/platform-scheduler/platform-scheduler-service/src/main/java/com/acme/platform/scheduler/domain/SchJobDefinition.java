@@ -58,6 +58,11 @@ public class SchJobDefinition extends AuditBase {
     @Column("shard_total")
     private Integer shardTotal;
 
+    /** 分片扇出开关（REQ-20261122-150756 载体裁决⑥：调度侧列=扇出权威开关；
+     *  扇出条件=shardable && shardTotal>1；false/缺省=单发兼容，SDK 注解值仅 advisory）。 */
+    @Column("shardable")
+    private Boolean shardable;
+
     /** 下发/执行超时毫秒（默认 60000；超时巡检口径）。 */
     @Column("timeout_ms")
     private Long timeoutMs;
@@ -163,6 +168,14 @@ public class SchJobDefinition extends AuditBase {
 
     public void setShardTotal(Integer shardTotal) {
         this.shardTotal = shardTotal;
+    }
+
+    public Boolean getShardable() {
+        return shardable;
+    }
+
+    public void setShardable(Boolean shardable) {
+        this.shardable = shardable;
     }
 
     public Long getTimeoutMs() {

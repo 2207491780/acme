@@ -451,6 +451,14 @@ class REQ20261121071002SchedulerCoreIntegrationTest {
         return count != null && count > 0;
     }
 
+    /** 该 jobKey 全部 execution 行的 attempt 水位（无行=0；耗尽断言口径：不得超出 maxAttempts）。 */
+    private long maxAttemptOf(String jobKey) {
+        Long maxAttempt = jdbcTemplate.queryForObject(
+                "select coalesce(max(attempt), 0) from sch_job_execution where job_key = ?",
+                Long.class, jobKey);
+        return maxAttempt == null ? 0L : maxAttempt;
+    }
+
     private String stateOf(long executionId) {
         List<String> states = jdbcTemplate.queryForList(
                 "select state from sch_job_execution where id = ?", String.class, executionId);
@@ -872,33 +880,53 @@ class REQ20261121071002SchedulerCoreIntegrationTest {
         String jobKey = uniq("jobexhaust");
         ObjectNode body = onceBody(jobKey, STUB_APP, "it.handler.ex", Instant.now().plusSeconds(1),
                 "FIRE_ONCE_NOW");
-        ((ObjectNode) body.get("retryPolicy")).put("maxAttempts", 1);
+        int maxAttempts = 1;
+        ((ObjectNode) body.get("retryPolicy")).put("maxAttempts", maxAttempts);
         long jobId = createJobOk(body, jobKey);
         enableJob(jobId);
 
-        // 全部 execution 行最终 FAILED（SCHEDULE attempt=0 与其 RETRY 链）
+        // ① 观察窗（2.5s）——attempt 水位口径：窗内该 jobKey 全部 execution 行的
+        //    max(attempt) 恒 <= maxAttempts（本用例=1，与原「无 attempt>=2 行」子条件等价），
+        //    保留「耗尽后不得再生成更高 attempt」的断言本意；原口径的行数冻结子条件
+        //    （total==rowsAtSettle）被剔除——它会被「源行 FAILED 落库 → 子 RETRY 行
+        //    合法 INSERT」的毫秒级间隙误击（round-1 门禁归因：用例夹具竞态，非实现回归）；
+        //    水位对重试链异步延伸在途免疫：合法续期行（RETRY attempt=1）落库不越界。
+        boolean attemptWithinMax = staysTrueFor(2_500, () -> maxAttemptOf(jobKey) <= maxAttempts);
+        assertThat(attemptWithinMax)
+                .as("重试链全程不得生成 attempt 超过 maxAttempts（本用例=%d）的 execution，"
+                        + "观察窗末实际水位=%d", maxAttempts, maxAttemptOf(jobKey))
+                .isTrue();
+
+        // ② 窗末断言：全部 execution 行到达终态 FAILED——源行 + 合法续期行都已 settle。
+        //    本夹具 maxAttempts=1，重试链恰产生源行 + 1 条 RETRY 续期行（同 reactor 阳性
+        //    对照 REQ20261122150756 耗尽腿同款夹具），故 settle 以 total >= 2 且全部
+        //    FAILED 为准：total=1 只是「源行已 FAILED、续期行在途」的间隙态，不得据此
+        //    提前判定 settle（round-1 竞态入口，await 继续轮询至真 settle）。
         boolean settled = await(20_000, () -> {
             Long total = jdbcTemplate.queryForObject(
                     "select count(*) from sch_job_execution where job_key = ?", Long.class, jobKey);
             Long failedTotal = jdbcTemplate.queryForObject(
                     "select count(*) from sch_job_execution where job_key = ? and state = 'FAILED'",
                     Long.class, jobKey);
-            return total != null && failedTotal != null && total >= 1 && total.equals(failedTotal);
+            return total != null && failedTotal != null && total >= 2 && total.equals(failedTotal);
         });
-        assertThat(settled).as("重试耗尽后该任务全部 execution 应终态 FAILED").isTrue();
+        assertThat(settled)
+                .as("重试耗尽后该任务全部 execution（源行+续期行）应终态 FAILED").isTrue();
 
-        // 耗尽后不再生成新 attempt（观察窗 2.5s：行数不变、无 attempt>=2 行）
-        long rowsAtSettle = jdbcTemplate.queryForObject(
+        // ③ 窗末后再观察 2s：链已收敛——行数不再变化（无新增 execution），且 attempt
+        //    水位仍不越界（若重试链慢于①观察窗结束才走完，settle 后仍可捕获越界续期）。
+        long rowsAtConvergence = jdbcTemplate.queryForObject(
                 "select count(*) from sch_job_execution where job_key = ?", Long.class, jobKey);
-        boolean exhausted = staysTrueFor(2_500, () -> {
+        boolean converged = staysTrueFor(2_000, () -> {
             Long total = jdbcTemplate.queryForObject(
                     "select count(*) from sch_job_execution where job_key = ?", Long.class, jobKey);
-            Long highAttempts = jdbcTemplate.queryForObject(
-                    "select count(*) from sch_job_execution where job_key = ? and attempt >= 2",
-                    Long.class, jobKey);
-            return total != null && highAttempts != null && total == rowsAtSettle && highAttempts == 0L;
+            return total != null && total == rowsAtConvergence
+                    && maxAttemptOf(jobKey) <= maxAttempts;
         });
-        assertThat(exhausted).as("maxAttempts 耗尽后不得再生成 attempt>=2 的 execution").isTrue();
+        assertThat(converged)
+                .as("链收敛后 2s 内行数不得变化且 attempt 水位不得超过 maxAttempts=%d"
+                        + "（窗末行数=%d）", maxAttempts, rowsAtConvergence)
+                .isTrue();
     }
 
     // ---------- AC-9：同 job 串行（上一 execution 未终态不触发下一次 SCHEDULE） ----------

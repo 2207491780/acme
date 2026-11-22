@@ -215,6 +215,9 @@ public class JobUseCase {
         if (request.shardTotal() != null) {
             definition.setShardTotal(request.shardTotal() < 1 ? 1 : request.shardTotal());
         }
+        if (request.shardable() != null) {
+            definition.setShardable(request.shardable());
+        }
         if (request.timeoutMs() != null) {
             definition.setTimeoutMs(request.timeoutMs() <= 0 ? DEFAULT_TIMEOUT_MS : request.timeoutMs());
         }
@@ -228,6 +231,11 @@ public class JobUseCase {
         // misfire 默认 FIRE_ONCE_NOW；部分更新遇到既有空值同样兜底，防 NOT NULL 违例）
         if (definition.getShardTotal() == null) {
             definition.setShardTotal(1);
+        }
+        // shardable 落库缺省兜底（REQ-20261122-150756 载体裁决⑥：列 NOT NULL DEFAULT false，
+        // 创建缺省/部分更新既有空值统一 false=单发兼容，防 NOT NULL 违例）
+        if (definition.getShardable() == null) {
+            definition.setShardable(Boolean.FALSE);
         }
         if (definition.getTimeoutMs() == null) {
             definition.setTimeoutMs(DEFAULT_TIMEOUT_MS);
@@ -246,7 +254,7 @@ public class JobUseCase {
                 definition.getTriggerType() == null ? null : definition.getTriggerType().name(),
                 definition.getCronExpr(), definition.getFixedRateMs(), definition.getOnceFireAt(),
                 definition.getParam(), definition.getRetryPolicy(), definition.getShardTotal(),
-                definition.getTimeoutMs(),
+                definition.getShardable(), definition.getTimeoutMs(),
                 definition.getMisfirePolicy() == null ? null : definition.getMisfirePolicy().name(),
                 definition.getStatus() == null ? null : definition.getStatus().name(),
                 definition.getNextFireTime(), definition.getRemark(), definition.getVersion());

@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -58,6 +59,7 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
     private final TriggerCalculator triggerCalculator;
     private final JobDispatcher dispatcher;
     private final RetryChain retryChain;
+    private final SchedulerAlertNotifier alertNotifier;
     private final ThreadPoolTaskExecutor dispatchExecutor;
     private final SchedulerProperties properties;
     private final JsonMapper jsonMapper;
@@ -70,6 +72,7 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
                            TriggerCalculator triggerCalculator,
                            JobDispatcher dispatcher,
                            RetryChain retryChain,
+                           SchedulerAlertNotifier alertNotifier,
                            ThreadPoolTaskExecutor schedulerDispatchExecutor,
                            SchedulerProperties schedulerProperties,
                            JsonMapper jsonMapper,
@@ -81,6 +84,7 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
         this.triggerCalculator = triggerCalculator;
         this.dispatcher = dispatcher;
         this.retryChain = retryChain;
+        this.alertNotifier = alertNotifier;
         this.dispatchExecutor = schedulerDispatchExecutor;
         this.properties = schedulerProperties;
         this.jsonMapper = jsonMapper;
@@ -214,8 +218,8 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
             return;
         }
         InsertResult result = insertScheduleExecution(definition, decision.fireTime());
-        if (result.inserted()) {
-            submitDispatchQuietly(result.execution().getId());
+        for (SchJobExecution execution : result.executions()) {
+            submitDispatchQuietly(execution.getId());
         }
         // 触发后即时计算并落库 next_fire_time（INSERTED 与 DUPLICATE 均推进——DUPLICATE 为
         // 并发双触发/崩溃恢复场景，不推进会永久卡在旧触发点）
@@ -248,6 +252,9 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
         definition.setParam(request.param());
         definition.setRetryPolicy(defaultRetryPolicy(request));
         definition.setShardTotal(1);
+        // shardable 兜底（REQ-20261122-150756 载体裁决⑥：V3 列 NOT NULL，Flex 显式 insert 含 null 列
+        // 会违约——一次性注册恒单发=false，与管理面创建缺省口径一致）
+        definition.setShardable(Boolean.FALSE);
         definition.setTimeoutMs(request.timeoutMs() == null ? 60_000L : request.timeoutMs());
         definition.setMisfirePolicy(MisfirePolicy.FIRE_ONCE_NOW);
         definition.setStatus(SchedulerJobStatus.ENABLED);
@@ -274,8 +281,10 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
 
     /**
      * 结果回调推进（确认④ CAS 终稿）：PENDING/DISPATCHED 只可推进到 RUNNING/FAILED/CANCELLED；
-     * RUNNING→终态；PENDING/DISPATCHED 不可直接 SUCCESS；终态不可再推进。
-     * FAILED 终态落定后续重试链（attempt+1）；SUCCESS/CANCELLED 无后续。
+     * RUNNING→终态；PENDING/DISPATCHED 不可直接 SUCCESS；终态不可再推进（TIMEOUT 回调开放后
+     * 巡检与回调先到先得，REQ-20261122-150756 确认⑤）。
+     * FAILED/TIMEOUT 终态落定后续重试链（attempt+1；重试语义调度侧唯一，确认②）；
+     * SUCCESS/CANCELLED 无后续。
      */
     public SchJobExecution advanceResult(Long executionId, ExecutionState targetState,
                                          String result, String error, Long costMs) {
@@ -297,7 +306,7 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
         }
         executionRepository.save(execution);
         log.info("结果回调推进：executionId={}, -> {}", executionId, targetState);
-        if (targetState == ExecutionState.FAILED) {
+        if (targetState == ExecutionState.FAILED || targetState == ExecutionState.TIMEOUT) {
             definitionRepository.findById(execution.getDefinitionId()).ifPresent(definition ->
                     retryChain.spawnRetry(definition, execution));
         }
@@ -326,6 +335,8 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
                     executionRepository.save(execution);
                     log.warn("超时巡检命中：executionId={}, jobKey={}, timeout_ms={}",
                             execution.getId(), execution.getJobKey(), timeoutMs);
+                    alertNotifier.alert(execution.getJobKey(), SchedulerAlertNotifier.REASON_EXECUTION_TIMEOUT,
+                            execution.getId(), execution.getAttempt(), execution.getError());
                     retryChain.spawnRetry(definition, execution);
                 }
             });
@@ -368,29 +379,56 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
         execution.setFireTime(fireTime);
         execution.setState(ExecutionState.PENDING);
         execution.setAttempt(0);
+        // 单分片行为不变（REQ-20261122-150756 确认③）：shard_index 恒 0（新 uk 含 shard_index 列）
+        execution.setShardIndex(0);
         execution.setTraceId(Traces.current() != null ? Traces.current().traceId() : Traces.newTraceId());
         return execution;
     }
 
-    /** 插入结果（inserted=false 即唯一索引兜底命中）。 */
-    private record InsertResult(boolean inserted, SchJobExecution execution) {
+    /** 插入结果（executions 空=唯一索引兜底命中；非空=本次周期实际落库的各片 execution）。 */
+    private record InsertResult(List<SchJobExecution> executions) {
     }
 
+    /**
+     * SCHEDULE 周期 execution 落库（REQ-20261122-150756 确认③分片真扇出）：
+     * 扇出模式（shardable && shardTotal>1，载体裁决⑥）→ N 次 insert（同 fire_time、
+     * shard_index=0..N-1 各一条，uk(def_id,fire_time,shard_index) 承载每片幂等）；
+     * 单发（shardable=false 或 shardTotal=1）→ 恰 1 条（shard_index=0，行为与 V2 前完全一致）。
+     * 并发双触发：uk 含 shard_index ⇒ 每片至多一条，部分片命中幂等不阻断其余片落库与下发
+     * （周期完整性由「每片唯一」保证，先到先得）。
+     */
     private InsertResult insertScheduleExecution(SchJobDefinition definition, Instant fireTime) {
-        SchJobExecution execution = newExecution(definition, ExecutionTriggerType.SCHEDULE, fireTime);
-        try {
-            executionRepository.save(execution);
-            return new InsertResult(true, execution);
-        } catch (DuplicateKeyException ex) {
-            log.debug("触发幂等命中（唯一索引）：jobKey={}, fireTime={}", definition.getJobKey(), fireTime);
-            return new InsertResult(false, null);
-        } catch (RuntimeException ex) {
-            if (isUniqueViolation(ex)) {
-                log.debug("触发幂等命中（唯一约束方言兜底）：jobKey={}, fireTime={}", definition.getJobKey(), fireTime);
-                return new InsertResult(false, null);
+        int shardCount = fanoutShardCount(definition);
+        List<SchJobExecution> inserted = new ArrayList<>();
+        for (int shardIndex = 0; shardIndex < shardCount; shardIndex++) {
+            SchJobExecution execution = newExecution(definition, ExecutionTriggerType.SCHEDULE, fireTime);
+            execution.setShardIndex(shardIndex);
+            try {
+                executionRepository.save(execution);
+                inserted.add(execution);
+            } catch (DuplicateKeyException ex) {
+                log.debug("触发幂等命中（唯一索引）：jobKey={}, fireTime={}, shardIndex={}",
+                        definition.getJobKey(), fireTime, shardIndex);
+            } catch (RuntimeException ex) {
+                if (isUniqueViolation(ex)) {
+                    log.debug("触发幂等命中（唯一约束方言兜底）：jobKey={}, fireTime={}, shardIndex={}",
+                            definition.getJobKey(), fireTime, shardIndex);
+                } else {
+                    throw ex;
+                }
             }
-            throw ex;
         }
+        return new InsertResult(inserted);
+    }
+
+    /**
+     * 分片扇出片数（载体裁决⑥：扇出条件=shardable && shardTotal>1；否则恒 1 片单发兼容）。
+     */
+    private static int fanoutShardCount(SchJobDefinition definition) {
+        boolean shardable = Boolean.TRUE.equals(definition.getShardable());
+        int total = definition.getShardTotal() == null || definition.getShardTotal() < 1
+                ? 1 : definition.getShardTotal();
+        return shardable && total > 1 ? total : 1;
     }
 
     /** PG 唯一冲突的驱动侧识别（DuplicateKeyException 未覆盖路径的 message 兜底）。 */

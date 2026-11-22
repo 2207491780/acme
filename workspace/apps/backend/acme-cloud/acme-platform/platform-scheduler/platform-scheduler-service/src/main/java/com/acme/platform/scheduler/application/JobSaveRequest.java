@@ -22,6 +22,8 @@ import java.time.Instant;
  * @param param             任务参数（jsonb 文本，可空）
  * @param retryPolicy       重试策略（可空=不重试/更新保持既有）
  * @param shardTotal        分片总数（可空=1）
+ * @param shardable         分片扇出开关（REQ-20261122-150756 载体裁决⑥；可空=保持既有/创建缺省
+ *                          false；扇出条件=shardable && shardTotal>1）
  * @param timeoutMs         下发/执行超时毫秒（可空=60000）
  * @param misfirePolicy     misfire 策略（可空=FIRE_ONCE_NOW 缺省）
  * @param remark            备注（可空）
@@ -29,7 +31,8 @@ import java.time.Instant;
  */
 public record JobSaveRequest(String jobKey, String appName, String handler, TriggerType triggerType,
                              String cronExpr, Long fixedRateMs, Instant onceFireAt, String param,
-                             RetryPolicySpec retryPolicy, Integer shardTotal, Long timeoutMs,
+                             RetryPolicySpec retryPolicy, Integer shardTotal, Boolean shardable,
+                             Long timeoutMs,
                              MisfirePolicy misfirePolicy, String remark, Long version) {
 
     /** 重试策略落库文本（null=不重试）。 */

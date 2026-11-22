@@ -57,6 +57,11 @@ public class SysMessage extends AuditBase {
         return tenantId;
     }
 
+    /** 租户值自设（旁路路径实体自设租户值口径；常规路径由 TenantFactory 注入覆盖不感知）。 */
+    public void setTenantId(String tenantId) {
+        this.tenantId = tenantId;
+    }
+
     public Long getSenderId() {
         return senderId;
     }

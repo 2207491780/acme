@@ -58,6 +58,7 @@ public class JobDispatcher {
     private final JobExecutionRepository executionRepository;
     private final ExecutorRegistryRepository executorRegistryRepository;
     private final RetryChain retryChain;
+    private final SchedulerAlertNotifier alertNotifier;
     private final SchedulerProperties properties;
     private final Clock clock;
 
@@ -68,6 +69,7 @@ public class JobDispatcher {
                          JobExecutionRepository executionRepository,
                          ExecutorRegistryRepository executorRegistryRepository,
                          RetryChain retryChain,
+                         SchedulerAlertNotifier alertNotifier,
                          SchedulerProperties schedulerProperties,
                          Clock schedulerClock) {
         this.dispatchRestClient = schedulerDispatchRestClient;
@@ -77,6 +79,7 @@ public class JobDispatcher {
         this.executionRepository = executionRepository;
         this.executorRegistryRepository = executorRegistryRepository;
         this.retryChain = retryChain;
+        this.alertNotifier = alertNotifier;
         this.properties = schedulerProperties;
         this.clock = schedulerClock;
     }
@@ -129,7 +132,7 @@ public class JobDispatcher {
         }
         JobDispatchCommand command = new JobDispatchCommand(
                 definition.getJobKey(), definition.getHandler(), definition.getParam(),
-                shardContext(definition), dispatched.getFireTime(), resolveTraceId(dispatched),
+                shardContext(definition, dispatched), dispatched.getFireTime(), resolveTraceId(dispatched),
                 dispatched.getAttempt() == null ? 0 : dispatched.getAttempt());
         DispatchAcceptView accepted;
         try {
@@ -174,11 +177,12 @@ public class JobDispatcher {
         return false;
     }
 
-    /** 分片上下文（本 REQ 单分片语义：index=0,total=shard_total；真扇出归 JOB-4）。 */
-    private ShardContext shardContext(SchJobDefinition definition) {
+    /** 分片上下文（index=execution.shard_index（单分片恒 0），total=shard_total）。 */
+    private ShardContext shardContext(SchJobDefinition definition, SchJobExecution execution) {
         int total = definition.getShardTotal() == null || definition.getShardTotal() < 1
                 ? 1 : definition.getShardTotal();
-        return new ShardContext(0, total);
+        int index = execution.getShardIndex() == null ? 0 : execution.getShardIndex();
+        return new ShardContext(index, total);
     }
 
     /** traceId：落库值优先；缺失（历史数据）即时生成。 */
@@ -201,7 +205,9 @@ public class JobDispatcher {
     }
 
     /**
-     * 失败口径落库 + 重试链（确认⑤：各失败统一 RETRY execution attempt+1，耗尽→终态 FAILED）。
+     * 失败口径落库 + 重试链（确认⑤：各失败统一 RETRY execution attempt+1，耗尽→终态 FAILED）；
+     * 三态终态失败（NO_EXECUTOR / DISPATCH_FAILED / DISPATCH_TIMEOUT）另发调度告警
+     * （REQ-20261122-150756 确认④触发点二；DISPATCH_REJECTED 不在告警口径内）。
      */
     void failExecution(SchJobExecution execution, String errorKind, String detail) {
         execution.setState(ExecutionState.FAILED);
@@ -211,8 +217,19 @@ public class JobDispatcher {
         if (definition != null) {
             retryChain.spawnRetry(definition, execution);
         }
+        if (isAlertableDispatchFailure(errorKind)) {
+            alertNotifier.alert(execution.getJobKey(), errorKind, execution.getId(),
+                    execution.getAttempt(), execution.getError());
+        }
         log.warn("下发失败：executionId={}, jobKey={}, error={}, attempt={}",
                 execution.getId(), execution.getJobKey(), execution.getError(), execution.getAttempt());
+    }
+
+    /** dispatch 三态终态失败判定（告警口径，确认④钉死三态枚举）。 */
+    private static boolean isAlertableDispatchFailure(String errorKind) {
+        return DispatchErrors.NO_EXECUTOR.equals(errorKind)
+                || DispatchErrors.DISPATCH_FAILED.equals(errorKind)
+                || DispatchErrors.DISPATCH_TIMEOUT.equals(errorKind);
     }
 
     /** PENDING→DISPATCHED CAS（乐观锁承载：他人已推进时 save 抛 STALE_WRITE=让位）。 */
