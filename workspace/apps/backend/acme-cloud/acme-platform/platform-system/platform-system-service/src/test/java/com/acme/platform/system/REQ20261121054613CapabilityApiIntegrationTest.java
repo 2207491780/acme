@@ -369,9 +369,10 @@ class REQ20261121054613CapabilityApiIntegrationTest {
         // ② 基线计数不变（确认③：V25 无新菜单/权限点/role_permission——菜单/BUTTON 水位仍 49/30；
         //    权限点水位为绝对计数、随新增权限点的 REQ 抬升：68 基线 + V24 套餐域 4 点
         //    + V26 调度域 5 点（REQ-20261121-071002）+ V27 工作流域 5 点（REQ-20261121-142316）
-        //    = 82，SystemIntegrationTest 同源口径）
+        //    + V32 开通模板/运营视图域 5 点（REQ-20261122-233426）
+        //    = 87，SystemIntegrationTest 同源口径）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
-                .as("V25 不新增权限点（V27 水位 82）").isEqualTo(82L);
+                .as("V25 不新增权限点（V32 水位 87）").isEqualTo(87L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
                 .as("V25 不新增菜单（V24 水位 49＋V29 流程中心 6=55，跨 REQ 适配 BPM-3 水位对齐）").isEqualTo(55L);
         assertThat(jdbcTemplate.queryForObject(

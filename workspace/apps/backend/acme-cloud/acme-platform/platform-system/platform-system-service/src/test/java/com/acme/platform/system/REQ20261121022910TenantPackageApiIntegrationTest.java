@@ -671,9 +671,11 @@ class REQ20261121022910TenantPackageApiIntegrationTest {
                 Long.class)).as("default 超管补绑 46~49 四行").isEqualTo(4L);
         // 权限点水位为绝对计数、随新增权限点的 REQ 抬升：68 基线 + V24 套餐域 4 点（69~72）
         // + V26 调度域 5 点（73~77，REQ-20261121-071002）
-        // + V27 工作流域 5 点（78~82，REQ-20261121-142316）= 82（SystemIntegrationTest 同源口径）
+        // + V27 工作流域 5 点（78~82，REQ-20261121-142316）
+        // + V32 开通模板/运营视图域 5 点（83~87，REQ-20261122-233426）= 87（SystemIntegrationTest 同源口径）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
-                .as("权限点总数水位=68 基线+V24 套餐域 4 点+V26 调度域 5 点+V27 工作流域 5 点").isEqualTo(82L);
+                .as("权限点总数水位=68 基线+V24 套餐域 4 点+V26 调度域 5 点+V27 工作流域 5 点"
+                        + "+V32 开通模板/运营视图域 5 点").isEqualTo(87L);
         assertThat(jdbcTemplate.queryForList(
                 "select permission_code from sys_permission where id between 69 and 72 order by id",
                 String.class)).containsExactly(

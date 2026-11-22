@@ -18,9 +18,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>覆盖 <b>AC-1</b>（契约回填锚点）：V20 后 BUTTON 节点入 sys_menu 且 permission_code
  * 均为既有 API 权限点（join 校验存在、类型 API、启用未删）、超管 role_menu 全绑、
- * 权限点总数 82（V20 前恒 68 不新建；V24 套餐域新增 4 点 69~72，REQ-20261121-022910；
+ * 权限点总数 87（V20 前恒 68 不新建；V24 套餐域新增 4 点 69~72，REQ-20261121-022910；
  * V26 调度域新增 5 点 73~77，REQ-20261121-071002；
- * V27 工作流域新增 5 点 78~82，REQ-20261121-142316）；另含 V20 种子
+ * V27 工作流域新增 5 点 78~82，REQ-20261121-142316；
+ * V32 开通模板/运营视图域新增 5 点 83~87，REQ-20261122-233426——坑 16 抬升适配）；另含 V20 种子
  * 幂等重放（口径同 V19：固定主键 + ON CONFLICT (id) DO NOTHING）。</p>
  *
  * <p>与 {@link SystemIntegrationTest} 计数断言的口径一致性（确认⑥联动说明）：</p>
@@ -114,13 +115,15 @@ class REQ20261119051119ButtonMenuMigrationTest {
                 "select min(id) from sys_menu where menu_type = 'BUTTON'", Long.class))
                 .as("BUTTON 菜单 id 自 13 起续编").isGreaterThanOrEqualTo(13L);
 
-        // 权限点总数 82（V20 前恒 68 不新建；V24 套餐域新增 4 点 69~72，BUTTON 47~49 关联之；
+        // 权限点总数 87（V20 前恒 68 不新建；V24 套餐域新增 4 点 69~72，BUTTON 47~49 关联之；
         // V26 调度域新增 5 点 73~77，REQ-20261121-071002；V27 工作流域新增 5 点 78~82，
-        // REQ-20261121-142316。水位为绝对计数、随新增权限点的 REQ
+        // REQ-20261121-142316；V32 开通模板/运营视图域新增 5 点 83~87，REQ-20261122-233426。
+        // 水位为绝对计数、随新增权限点的 REQ
         // 抬升——总数来源见 SystemIntegrationTest 同源口径，勿在各自用例重复钉基数演变史）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
-                .as("sys_permission 总数 = 68 基线 + V24 套餐域 4 点 + V26 调度域 5 点 + V27 工作流域 5 点")
-                .isEqualTo(82L);
+                .as("sys_permission 总数 = 68 基线 + V24 套餐域 4 点 + V26 调度域 5 点 + V27 工作流域 5 点"
+                        + " + V32 开通模板/运营视图域 5 点")
+                .isEqualTo(87L);
 
         // 总数 = 非 BUTTON 基数 22（原 12＋V22 六叶子＋V24 套餐叶 46＋V29 流程中心 50~52）+ BUTTON（与 SystemIntegrationTest 的基数→N 联动口径一致）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
@@ -186,7 +189,7 @@ class REQ20261119051119ButtonMenuMigrationTest {
                 """.formatted(SUPER_ADMIN_ROLE_ID, DEFAULT_TENANT), Long.class))
                 .as("重放 V20 后超管 BUTTON 绑定行不翻倍").isEqualTo(superAdminButtonBindingBefore);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
-                .as("重放 V20 不新增权限点（总数=V27 水位 82）").isEqualTo(permissionBefore).isEqualTo(82L);
+                .as("重放 V20 不新增权限点（总数=V32 水位 87）").isEqualTo(permissionBefore).isEqualTo(87L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
                 .as("重放 V20 后 sys_menu 总数不变").isEqualTo(menuTotalBefore);
     }
