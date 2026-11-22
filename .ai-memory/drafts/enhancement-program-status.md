@@ -28,7 +28,7 @@
 | 5 | BPM-4 审批详情深化 | II-DEV（REQ-20261122-150750 纯前端；**并发 4 纪律下：bpm4-frontend-r4 在跑**；磁盘 10 处改动含 ApprovalDetailDrawer/core api/i18n/msm；tester bpm4-tester-r4 排队待派；多轮宿主中断史 r2/r3 零增量、r3 任内无前端增量） | REQ-20261122-150750 |
 | 5 | JOB-4 调度韧性 | II-DEV（REQ-20261122-150756 纯后端；**job4-backend-r4 在跑**；磁盘 16 处——r3 重大增量：V3__shard_fanout_index_and_definition_shardable.sql 已建+shardable 字段/扇出已落+告警接线+内部通知端点；InternalNotify IT 上轮 Skipped=4 待 Docker 真跑（Docker 已在线 29.3.1）；job4-tester-r4 排队） | REQ-20261122-150756 |
 | 5 | TENANT-4 生命周期+配额 | II-DEV（REQ-20261122-150802 双端；**tenant4-backend-r4 + tenant4-frontend-r4 在跑**；磁盘 38 处——V31+配额域全套+宽限 auth 链+前端四件套+TesterTest 类；遗留 tmp-req150802-smoke.test.tsx 待删；tenant4-tester-r4 排队） | REQ-20261122-150802 |
-| 5 | 并发队列 | 上限 4：在跑=job4-backend-r4/tenant4-backend-r4/bpm4-frontend-r4/tenant4-frontend-r4；排队=bpm4-tester-r4→job4-tester-r4→tenant4-tester-r4（有空位即按序拉起） | — |
+| 5 | 并发队列 | 上限 4：在跑=job4-backend-r4/tenant4-backend-r4/bpm4-frontend-r4（vitest 终验中）/job4-tester-r4（新拉）；已完成=bpm4-tester-r4（20/20 全绿交付关闭）+tenant4-frontend-r4；排队=tenant4-tester-r4 | — |
 | 6+ | BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
