@@ -151,7 +151,18 @@ public enum SystemError implements ErrorCode, HttpStatusAware {
     TENANT_PACKAGE_MENU_FORBIDDEN(SystemErrorCodes.TENANT_PACKAGE_MENU_FORBIDDEN, "不能分配套餐范围外的菜单", 403),
 
     /** 套餐能力集非法（capabilities 含未知能力码，REQ-20261121-054613 确认④；对齐 14-0004 引用集先例）。 */
-    TENANT_CAPABILITY_INVALID(SystemErrorCodes.TENANT_CAPABILITY_INVALID, "套餐能力集包含未知的能力", 409);
+    TENANT_CAPABILITY_INVALID(SystemErrorCodes.TENANT_CAPABILITY_INVALID, "套餐能力集包含未知的能力", 409),
+
+    // ---- 15 段：租户开通初始化模板域（REQ-20261122-233426）----
+
+    /** 开通模板不存在（详情 / 更新 / 删除对不存在或已删 id 不可静默成功）。 */
+    TENANT_TEMPLATE_NOT_FOUND(SystemErrorCodes.TENANT_TEMPLATE_NOT_FOUND, "开通模板不存在", 404),
+
+    /** 开通模板编码已存在（创建 / 更新撞既有码）。 */
+    TENANT_TEMPLATE_DUPLICATE(SystemErrorCodes.TENANT_TEMPLATE_DUPLICATE, "开通模板编码已存在", 409),
+
+    /** 开通模板内容非法（保留前缀权限码/空角色集/未知配置键/不可解析配置值，PARAM_INVALID 口径 400）。 */
+    TENANT_TEMPLATE_CONTENT_INVALID(SystemErrorCodes.TENANT_TEMPLATE_CONTENT_INVALID, "开通模板内容非法", 400);
 
     private final String code;
     private final String defaultMessage;

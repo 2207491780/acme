@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
 public class SystemConfigUseCase {
 
     /** 闲置锁屏时长合法取值（契约确认记录⑦：0/1/5/15 分钟）。 */
-    private static final Set<Integer> ALLOWED_IDLE_TIMEOUTS_MS = Set.of(0, 60_000, 300_000, 900_000);
+    static final Set<Integer> ALLOWED_IDLE_TIMEOUTS_MS = Set.of(0, 60_000, 300_000, 900_000);
 
     /** 水印模板合法占位符（REQ-20261117-180000；与 core 渲染器 WATERMARK_PLACEHOLDERS 对齐）。 */
     private static final Set<String> WATERMARK_PLACEHOLDERS =

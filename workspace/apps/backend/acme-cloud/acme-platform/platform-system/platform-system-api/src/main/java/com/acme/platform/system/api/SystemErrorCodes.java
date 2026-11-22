@@ -145,6 +145,17 @@ public final class SystemErrorCodes {
     /** 套餐能力集非法（capabilities 含未知能力码，409；REQ-20261121-054613，对齐 14-0004 引用集先例）。 */
     public static final String TENANT_CAPABILITY_INVALID = "platform-system-14-0006";
 
+    // ---- 15 段：租户开通初始化模板域（REQ-20261122-233426）----
+
+    /** 开通模板不存在（404；详情/更新/删除对不存在或已删 id 不可静默成功）。 */
+    public static final String TENANT_TEMPLATE_NOT_FOUND = "platform-system-15-0001";
+
+    /** 开通模板编码已存在（409；创建/更新撞既有码）。 */
+    public static final String TENANT_TEMPLATE_DUPLICATE = "platform-system-15-0002";
+
+    /** 开通模板内容非法（400 PARAM_INVALID 口径；保留前缀权限码/空角色集/未知配置键/不可解析配置值）。 */
+    public static final String TENANT_TEMPLATE_CONTENT_INVALID = "platform-system-15-0003";
+
     private SystemErrorCodes() {
     }
 }

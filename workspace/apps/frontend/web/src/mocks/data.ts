@@ -14,6 +14,7 @@ import type {
   AdminPositionView,
   AdminRoleView,
   AdminSystemConfigView,
+  AdminTenantInitTemplateView,
   AdminTenantPackageView,
   AdminTenantView,
   AdminUserView,
@@ -63,6 +64,9 @@ export const me = {
     'system:tenant:list', 'system:tenant:create', 'system:tenant:update',
     // REQ-20261121-022910（契约确认⑥）：套餐权限点 69~72（V24 随 role_menu 46~49 下发超管）
     'system:tenant-package:list', 'system:tenant-package:create', 'system:tenant-package:update', 'system:tenant-package:delete',
+    // REQ-20261122-233426（TENANT-5 确认⑤）：V32 种子权限点 5 个挂靠租户管理既有菜单（超管绑定随种子幂等写入）
+    'system:tenant-template:list', 'system:tenant-template:create', 'system:tenant-template:update', 'system:tenant-template:delete',
+    'system:tenant:usage-overview',
     'system:user:list', 'system:user:create', 'system:user:update', 'system:user:delete', 'system:user:assign-role',
     'system:role:list', 'system:role:create', 'system:role:update', 'system:role:delete', 'system:role:grant', 'system:role:scope',
     'system:dept:list', 'system:dept:create', 'system:dept:update', 'system:dept:delete',
@@ -176,6 +180,41 @@ export const tenantQuotaOverrides: Record<string, number> = {
   // beta-south：3 GiB 覆盖样例（用量 Modal 来源层级=租户覆盖演示）
   '3': 3_221_225_472,
 };
+
+/** 租户开通模板种子（REQ-20261122-233426 确认②④：V32 sys_tenant_init_template 样例 2 条——
+ *  content jsonb 形状={adminUsernamePrefix?, adminNickname?, rolePresets[], configEntries[]}；
+ *  permissionCodes 仅非保留前缀（保留域=system:tenant:/infra:audit:/system:tenant-package:）；
+ *  defaultPackageId 引用 tenantPackages 行（wire 字符串口径）。 */
+export const tenantInitTemplates: AdminTenantInitTemplateView[] = [
+  {
+    id: '801', code: 'startup-basic', name: '标准起步模板', remark: '预置基础协作角色与通知配置，绑定基础版套餐',
+    content: {
+      adminUsernamePrefix: 'startup-',
+      adminNickname: '管理员',
+      rolePresets: [
+        { roleKey: 'ops', roleName: '运维员', permissionCodes: ['system:user:list', 'system:user:create', 'system:user:update', 'infra:file:list', 'infra:file:upload'] },
+        { roleKey: 'viewer', roleName: '只读观察', permissionCodes: ['system:user:list', 'infra:audit:list'] },
+      ],
+      configEntries: [
+        { configKey: 'notify.mail.enabled', value: 'true' },
+        { configKey: 'workspace.defaultPageSize', value: '20' },
+      ],
+    },
+    defaultPackageId: '1',
+    createdAt: '2026-02-01T00:00:00Z', updatedAt: '2026-02-01T00:00:00Z',
+  },
+  {
+    id: '802', code: 'minimal', name: '极简模板', remark: null,
+    content: {
+      rolePresets: [
+        { roleKey: 'member', roleName: '普通成员', permissionCodes: ['system:user:list'] },
+      ],
+      configEntries: [],
+    },
+    defaultPackageId: null,
+    createdAt: '2026-02-02T00:00:00Z', updatedAt: '2026-02-03T00:00:00Z',
+  },
+];
 
 export const users: AdminUserView[] = [
   {

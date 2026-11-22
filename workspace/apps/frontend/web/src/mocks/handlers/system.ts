@@ -9,7 +9,7 @@ import {
   isSemanticColorOverrides,
   isThemeModeValue,
 } from '@acme/core';
-import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, RoleDataScope, TenantQuotaSource, TenantUsageView } from '@acme/core';
+import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantInitTemplateView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, RoleDataScope, TenantQuotaSource, TenantUsageOverviewRow, TenantUsageView } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
@@ -171,6 +171,8 @@ const store = {
   packageMenuIds: { ...db.tenantPackageMenus } as Record<string, number[]>,
   capabilities: [...db.capabilities] as AdminCapabilityView[],
   packageCapabilities: { ...db.tenantPackageCapabilities } as Record<string, string[]>,
+  /** 租户开通模板（REQ-20261122-233426 确认④：V32 sys_tenant_init_template dev 演示态）。 */
+  tenantInitTemplates: [...db.tenantInitTemplates] as AdminTenantInitTemplateView[],
   users: [...db.users],
   /** 本人画像（REQ-20261119-082531）：PUT /me 与头像上传改写此行，GET /me 回显。 */
   meUser: { ...db.me.user } as AdminUserView,
@@ -386,6 +388,130 @@ function parseTenantPackageId(body: Record<string, unknown>, fallback: string | 
     return { ok: false, response: fail('TENANT_PACKAGE_NOT_FOUND', '套餐不存在或已被删除', 404) };
   }
   return { ok: true, packageId };
+}
+
+// ————— 租户开通模板（REQ-20261122-233426 确认②③④ mock 同形） —————
+
+/** 保留权限前缀（对齐后端 TenantInitUseCase.RESERVED_PERMISSION_PREFIXES 原文）：
+ *  模板内 permissionCodes 命中任一前缀 → PARAM_INVALID（保存时即拒，确认③）。 */
+const RESERVED_PERMISSION_PREFIXES = ['system:tenant:', 'infra:audit:', 'system:tenant-package:'];
+
+/** 模板编码模式（对齐租户代码同型口径 ^[a-z][a-z0-9_-]*$）。 */
+const TEMPLATE_CODE_PATTERN = /^[a-z][a-z0-9_-]*$/;
+
+/** 模板 body 载荷归一（确认②③）：code/name 必填（code uk 模式 ≤64、name ≤128）、remark ≤255、
+ *  defaultPackageId 可空（存在性校验）、content 结构校验——rolePresets 空角色集/保留前缀
+ *  → PARAM_INVALID（保存时即拒）；configEntries 键必填。失败返回 fail 响应。 */
+function parseTemplateBody(
+  body: Record<string, unknown>,
+): { ok: true; code: string; name: string; remark: string | null; content: AdminTenantInitTemplateView['content']; defaultPackageId: string | null } | { ok: false; response: ReturnType<typeof fail> } {
+  const code = typeof body.code === 'string' ? body.code.trim() : '';
+  if (!code || code.length > 64 || !TEMPLATE_CODE_PATTERN.test(code)) {
+    return { ok: false, response: fail('PARAM_INVALID', '模板编码必填（小写字母开头，仅小写字母/数字/中划线，≤64 字符）', 400) };
+  }
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name || name.length > 128) {
+    return { ok: false, response: fail('PARAM_INVALID', '模板名称必填且不超过 128 字符', 400) };
+  }
+  if (body.remark !== undefined && body.remark !== null && typeof body.remark !== 'string') {
+    return { ok: false, response: fail('PARAM_INVALID', '备注类型非法', 400) };
+  }
+  const remark = typeof body.remark === 'string' && body.remark.trim() ? body.remark.trim() : null;
+  if (remark && remark.length > 255) {
+    return { ok: false, response: fail('PARAM_INVALID', '备注长度不超过 255 字符', 400) };
+  }
+  // defaultPackageId（可空；非法 → TENANT_PACKAGE_NOT_FOUND，复用套餐域存在性口径）
+  let defaultPackageId: string | null = null;
+  if (body.defaultPackageId !== undefined && body.defaultPackageId !== null && body.defaultPackageId !== '') {
+    const pkgId = String(body.defaultPackageId);
+    if (!store.tenantPackages.some((pkg) => pkg.id === pkgId)) {
+      return { ok: false, response: fail('TENANT_PACKAGE_NOT_FOUND', '默认套餐不存在或已被删除', 404) };
+    }
+    defaultPackageId = pkgId;
+  }
+  // content 结构校验（确认②原文形状 + 确认③保存时即拒口径）
+  const content = body.content;
+  if (!isRecordValue(content)) {
+    return { ok: false, response: fail('PARAM_INVALID', 'content 必须为对象', 400) };
+  }
+  if (content.adminUsernamePrefix !== undefined && content.adminUsernamePrefix !== null
+    && typeof content.adminUsernamePrefix !== 'string') {
+    return { ok: false, response: fail('PARAM_INVALID', 'content.adminUsernamePrefix 必须为字符串', 400) };
+  }
+  if (content.adminNickname !== undefined && content.adminNickname !== null
+    && typeof content.adminNickname !== 'string') {
+    return { ok: false, response: fail('PARAM_INVALID', 'content.adminNickname 必须为字符串', 400) };
+  }
+  if (!Array.isArray(content.rolePresets) || content.rolePresets.length === 0) {
+    return { ok: false, response: fail('PARAM_INVALID', 'content.rolePresets 不能为空（空角色集被拒绝）', 400) };
+  }
+  for (const preset of content.rolePresets as unknown[]) {
+    if (!isRecordValue(preset)) {
+      return { ok: false, response: fail('PARAM_INVALID', 'content.rolePresets 项必须为对象', 400) };
+    }
+    const roleKey = typeof preset.roleKey === 'string' ? preset.roleKey.trim() : '';
+    const roleName = typeof preset.roleName === 'string' ? preset.roleName.trim() : '';
+    if (!roleKey || !roleName) {
+      return { ok: false, response: fail('PARAM_INVALID', 'content.rolePresets 项 roleKey/roleName 必填', 400) };
+    }
+    const codes = Array.isArray(preset.permissionCodes) ? preset.permissionCodes : [];
+    if (codes.some((item) => typeof item !== 'string' || !item.trim())) {
+      return { ok: false, response: fail('PARAM_INVALID', 'content.rolePresets[].permissionCodes 必须为非空字符串数组', 400) };
+    }
+    const reserved = codes.find((item) => RESERVED_PERMISSION_PREFIXES.some((prefix) => (item as string).startsWith(prefix)));
+    if (reserved !== undefined) {
+      return { ok: false, response: fail('PARAM_INVALID', `权限点 ${reserved as string} 命中保留前缀，已被拒绝`, 400) };
+    }
+  }
+  if (content.configEntries !== undefined && content.configEntries !== null && !Array.isArray(content.configEntries)) {
+    return { ok: false, response: fail('PARAM_INVALID', 'content.configEntries 必须为数组', 400) };
+  }
+  const configEntries = Array.isArray(content.configEntries) ? content.configEntries : [];
+  for (const entry of configEntries as unknown[]) {
+    if (!isRecordValue(entry)) {
+      return { ok: false, response: fail('PARAM_INVALID', 'content.configEntries 项必须为对象', 400) };
+    }
+    const configKey = typeof entry.configKey === 'string' ? entry.configKey.trim() : '';
+    if (!configKey) {
+      return { ok: false, response: fail('PARAM_INVALID', 'content.configEntries 项 configKey 必填', 400) };
+    }
+    if (entry.value !== undefined && entry.value !== null && typeof entry.value !== 'string') {
+      return { ok: false, response: fail('PARAM_INVALID', 'content.configEntries 项 value 必须为字符串', 400) };
+    }
+  }
+  return {
+    ok: true,
+    code,
+    name,
+    remark,
+    content: {
+      adminUsernamePrefix: typeof content.adminUsernamePrefix === 'string' && content.adminUsernamePrefix.trim() ? content.adminUsernamePrefix.trim() : undefined,
+      adminNickname: typeof content.adminNickname === 'string' && content.adminNickname.trim() ? content.adminNickname.trim() : undefined,
+      rolePresets: (content.rolePresets as Array<Record<string, unknown>>).map((preset) => ({
+        roleKey: String(preset.roleKey).trim(),
+        roleName: String(preset.roleName).trim(),
+        permissionCodes: (preset.permissionCodes as unknown[] ?? []).map(String),
+      })),
+      configEntries: configEntries.map((entry) => ({
+        configKey: String((entry as Record<string, unknown>).configKey).trim(),
+        value: String((entry as Record<string, unknown>).value ?? ''),
+      })),
+    },
+    defaultPackageId,
+  };
+}
+
+/** 模板行归一（content 可选键/adminUsernamePrefix 缺省不落 undefined 键，view 直出）。 */
+function templateViewOf(row: AdminTenantInitTemplateView): AdminTenantInitTemplateView {
+  return {
+    ...row,
+    content: {
+      adminUsernamePrefix: row.content.adminUsernamePrefix,
+      adminNickname: row.content.adminNickname,
+      rolePresets: row.content.rolePresets.map((preset) => ({ ...preset, permissionCodes: [...preset.permissionCodes] })),
+      configEntries: row.content.configEntries.map((entry) => ({ ...entry })),
+    },
+  };
 }
 
 /** 本人菜单树（确认② mock 过滤接线）：本人租户绑定套餐 → 实时过滤（∩ 套餐菜单集+祖先补全+BUTTON 级联）；
@@ -640,6 +766,70 @@ export const systemHandlers = [
   }),
   // REQ-20261122-102954 契约⑨/⑥：GET /tenants/tree 全量树形（含 status/level/套餐），平台侧视图
   http.get('/admin/v1/system/tenants/tree', () => ok(buildTenantTree())),
+  // REQ-20261122-233426 确认⑥：GET /tenants/usage-overview 平台运营视图（@IgnoreTenant 实时聚合
+  // 同形面，权限 system:tenant:usage-overview，mock 不校验权限头）——totalTenants/四态 statusCounts
+  // （口径同页面四视觉态派生：DISABLED 正交优先→enabled=expires 未到或无 expires→grace→expired）/
+  // packageDistribution（按绑定套餐聚合，未绑定聚合为 packageId null）/tenantUsages topN=20
+  // 按 storageBytes 降序（行字段=契约⑥原文：tenantId/tenantCode/tenantName/status/storageBytes/
+  // quotaBytes/quotaSource/userCount；用量口径=GET /tenants/{id}/usage 同一聚合源）。
+  http.get('/admin/v1/system/tenants/usage-overview', () => {
+    const now = Date.now();
+    const statusCounts = { enabled: 0, grace: 0, expired: 0, disabled: 0 };
+    const packageCounts = new Map<string, number>();
+    const usages: TenantUsageOverviewRow[] = [];
+    for (const tenant of store.tenants) {
+      // 四态派生（与前端 deriveTenantVisualState 同口径；statusCounts 键=契约⑥ enabled/grace/expired/disabled）
+      if (tenant.status === 'DISABLED') {
+        statusCounts.disabled += 1;
+      } else {
+        const expiresAt = tenant.expiresAt ? Date.parse(tenant.expiresAt) : null;
+        if (expiresAt === null || Number.isNaN(expiresAt) || expiresAt > now) {
+          statusCounts.enabled += 1;
+        } else {
+          const graceUntil = tenant.graceUntil ? Date.parse(tenant.graceUntil) : null;
+          if (graceUntil !== null && !Number.isNaN(graceUntil) && graceUntil > now) {
+            statusCounts.grace += 1;
+          } else {
+            statusCounts.expired += 1;
+          }
+        }
+      }
+      // 套餐分布聚合（未绑定聚合为 null 键；packageName 实时冗余）
+      const pkgKey = tenant.packageId ?? '';
+      packageCounts.set(pkgKey, (packageCounts.get(pkgKey) ?? 0) + 1);
+      // 用量行（=GET /tenants/{id}/usage 同一聚合源：种子基线+动态管理员；配额三级解析）
+      const seed = db.tenantUsageSeeds[tenant.id] ?? { storageBytes: 0, userCount: 0 };
+      const dynamicUsers = store.users
+        .filter((user) => (user as AdminUserView & { tenantCode?: string }).tenantCode === tenant.tenantCode).length;
+      const quota = resolveTenantQuota(tenant);
+      usages.push({
+        tenantId: tenant.id,
+        tenantCode: tenant.tenantCode,
+        tenantName: tenant.tenantName,
+        status: tenant.status,
+        storageBytes: seed.storageBytes,
+        quotaBytes: quota.bytes,
+        quotaSource: quota.source,
+        userCount: seed.userCount + dynamicUsers,
+      });
+    }
+    const packageDistribution = [...packageCounts.entries()]
+      .map(([pkgId, tenantCount]) => {
+        const pkg = pkgId ? store.tenantPackages.find((item) => item.id === pkgId) : undefined;
+        return { packageId: pkgId || null, packageName: pkg?.packageName ?? null, tenantCount };
+      })
+      .sort((a, b) => b.tenantCount - a.tenantCount);
+    const tenantUsages = usages
+      .slice()
+      .sort((a, b) => b.storageBytes - a.storageBytes)
+      .slice(0, 20);
+    return ok({
+      totalTenants: store.tenants.length,
+      statusCounts,
+      packageDistribution,
+      tenantUsages,
+    });
+  }),
   http.post('/admin/v1/system/tenants', async ({ request }) => {
     const body = await bodyOf(request);
     if (typeof body.tenantCode !== 'string' || typeof body.tenantName !== 'string') {
@@ -681,12 +871,18 @@ export const systemHandlers = [
   // REQ-20261122-102954 契约⑤⑨/AC-10：租户开通模板（init）——平台侧建子租户复用
   //  tenant_admin 角色+初始管理员+绑定链；mock 同形：层级/套餐校验与 create 一致，
   //  管理员归属新建租户编码（sys_user.tenant_id=tenant_code；视图不带 tenantId 列，mock 行以
-  //  tenantCode 旁路承载归属，供 dev 演示与契约自验）
+  //  tenantCode 旁路承载归属，供 dev 演示与契约自验）。
+  //  REQ-20261122-233426 确认③：可选 templateCode——命中模板=按模板 rolePresets 建角色并绑定
+  //  +默认套餐兜底+管理员前缀合成；未传/未命中=现行为逐字不变（tenant_admin 动态角色，兼容零回归）
   http.post('/admin/v1/system/tenants/init', async ({ request }) => {
     const body = await bodyOf(request);
     if (typeof body.tenantCode !== 'string' || typeof body.tenantName !== 'string') {
       return fail('TENANT_CODE_INVALID', '租户代码/名称缺失', 400);
     }
+    // 确认③：templateCode 未命中按现行为处理（不报错，mock 容忍）
+    const template = typeof body.templateCode === 'string' && body.templateCode.trim()
+      ? store.tenantInitTemplates.find((row) => row.code === (body.templateCode as string).trim()) ?? null
+      : null;
     const packaged = parseTenantPackageId(body, null);
     if (!packaged.ok) {
       return packaged.response;
@@ -702,37 +898,52 @@ export const systemHandlers = [
     if (parentRow && parentLevel >= TENANT_MAX_LEVEL) {
       return fail('TENANT_DEPTH_EXCEEDED', '租户层级超过上限（最多 3 层）', 400);
     }
+    // 命中模板且未显式指定套餐 → 模板默认套餐兜底（确认③「+默认套餐」）
+    const effectivePackageId = template?.defaultPackageId && body.packageId == null
+      ? template.defaultPackageId
+      : packaged.packageId;
     const created: AdminTenantView = {
       id: genId(), tenantCode: body.tenantCode, tenantName: body.tenantName,
       status: 'ENABLED', remark: (body.remark as string | undefined) ?? null,
       contactName: (body.contactName as string | null | undefined) ?? null,
       contactPhone: (body.contactPhone as string | null | undefined) ?? null,
       expiresAt: (body.expiresAt as string | null | undefined) ?? null,
-      packageId: packaged.packageId,
+      packageId: effectivePackageId,
       parentId: parent.parentId,
       level: parentRow ? parentLevel + 1 : 1,
       createdAt: nowIso(), version: '0',
     };
     store.tenants = [created, ...store.tenants];
-    // 开通模板（契约⑤）：tenant_admin 角色 + 初始管理员 + 角色绑定，管理员归属新建子租户编码
-    const tenantAdminRole: AdminRoleView = {
-      id: genId(), parentId: null,
-      roleCode: 'tenant_admin', roleName: `${created.tenantName}管理员`,
-      status: 'ENABLED', builtIn: false, remark: null,
-      dataScope: 'ALL', version: '0',
-    };
-    store.roles = [...store.roles, tenantAdminRole];
+    // 开通角色（契约⑤ tenant_admin 动态角色；确认③命中模板=按模板 rolePresets 显式建角色并绑定）
+    const presetRoles: AdminRoleView[] = template
+      ? template.content.rolePresets.map((preset) => ({
+        id: genId(), parentId: null,
+        roleCode: preset.roleKey, roleName: preset.roleName,
+        status: 'ENABLED', builtIn: false, remark: null,
+        dataScope: 'ALL', version: '0',
+      }))
+      : [{
+        id: genId(), parentId: null,
+        roleCode: 'tenant_admin', roleName: `${created.tenantName}管理员`,
+        status: 'ENABLED', builtIn: false, remark: null,
+        dataScope: 'ALL', version: '0',
+      }];
+    store.roles = [...store.roles, ...presetRoles];
     const adminUsername = typeof body.adminUsername === 'string' ? body.adminUsername.trim() : '';
+    // 确认③：adminUsername 优先模板前缀（命中模板且配置前缀 → 前缀+提交账号合成最终账号）
+    const composedUsername = template?.content.adminUsernamePrefix && adminUsername
+      ? `${template.content.adminUsernamePrefix}${adminUsername}`
+      : adminUsername;
     const adminNickname = typeof body.adminNickname === 'string' && body.adminNickname.trim()
       ? body.adminNickname.trim()
-      : `${created.tenantName}管理员`;
+      : template?.content.adminNickname ?? `${created.tenantName}管理员`;
     const initialAdmin: AdminUserView & { tenantCode: string } = {
-      id: genId(), username: adminUsername || `${created.tenantCode}-admin`,
+      id: genId(), username: composedUsername || `${created.tenantCode}-admin`,
       nickname: adminNickname,
       email: (body.adminEmail as string | null | undefined) ?? null,
       phone: (body.adminPhone as string | null | undefined) ?? null,
       status: 'ENABLED', builtIn: false,
-      roleIds: [tenantAdminRole.id], deptId: null, positionId: null,
+      roleIds: presetRoles.map((role) => role.id), deptId: null, positionId: null,
       createdAt: nowIso(), updatedAt: nowIso(), version: '0',
       tenantCode: created.tenantCode,
     };
@@ -962,6 +1173,77 @@ export const systemHandlers = [
     store.tenantPackages = store.tenantPackages.filter((pkg) => pkg.id !== id);
     delete store.packageMenuIds[id];
     delete store.packageCapabilities[id];
+    return empty();
+  }),
+
+  // ---- 租户开通模板（REQ-20261122-233426 确认②③④；权限点 system:tenant-template:*，mock 不校验权限头） ----
+  // GET 分页：keyword 对 code/name 模糊；排序 id asc；列表行自带完整 content（无 detail 端点）
+  http.get('/admin/v1/system/tenant-templates', ({ request }) => {
+    const rows = matchKeyword(store.tenantInitTemplates, keywordOf(request), (tpl: AdminTenantInitTemplateView) => [tpl.code, tpl.name])
+      .slice()
+      .sort((a, b) => Number(a.id) - Number(b.id))
+      .map(templateViewOf);
+    return page(slicePage(rows, pagingOf(request)), rows.length);
+  }),
+  // POST 创建：code uk 重码 → TENANT_TEMPLATE_DUPLICATE；content 非法（保留前缀/空角色集）→
+  // PARAM_INVALID（确认③保存时即拒，parseTemplateBody 内联校验）
+  http.post('/admin/v1/system/tenant-templates', async ({ request }) => {
+    const body = await bodyOf(request);
+    const parsed = parseTemplateBody(body);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+    if (store.tenantInitTemplates.some((tpl) => tpl.code === parsed.code)) {
+      return fail('TENANT_TEMPLATE_DUPLICATE', '模板编码已存在', 400);
+    }
+    const created: AdminTenantInitTemplateView = {
+      id: genId(),
+      code: parsed.code,
+      name: parsed.name,
+      remark: parsed.remark,
+      content: parsed.content,
+      defaultPackageId: parsed.defaultPackageId,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    store.tenantInitTemplates = [...store.tenantInitTemplates, created];
+    return ok(templateViewOf(created));
+  }),
+  // PUT 更新：校验同创建（重码排除自身）；模板变更不影响已开通租户（确认④快照语义，mock 无引用面）
+  http.put('/admin/v1/system/tenant-templates/:templateId', async ({ request, params }) => {
+    const id = String(params.templateId);
+    const target = store.tenantInitTemplates.find((tpl) => tpl.id === id);
+    if (!target) {
+      return fail('TENANT_TEMPLATE_NOT_FOUND', '模板不存在或已被删除', 404);
+    }
+    const body = await bodyOf(request);
+    const parsed = parseTemplateBody(body);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+    if (store.tenantInitTemplates.some((tpl) => tpl.id !== id && tpl.code === parsed.code)) {
+      return fail('TENANT_TEMPLATE_DUPLICATE', '模板编码已存在', 400);
+    }
+    const updated: AdminTenantInitTemplateView = {
+      ...target,
+      code: parsed.code,
+      name: parsed.name,
+      remark: parsed.remark,
+      content: parsed.content,
+      defaultPackageId: parsed.defaultPackageId,
+      updatedAt: nowIso(),
+    };
+    store.tenantInitTemplates = store.tenantInitTemplates.map((tpl) => (tpl.id === id ? updated : tpl));
+    return ok(templateViewOf(updated));
+  }),
+  // DELETE 删除：模板变更不影响已开通租户（快照语义）——无引用校验面，直接删行
+  http.delete('/admin/v1/system/tenant-templates/:templateId', ({ params }) => {
+    const id = String(params.templateId);
+    const target = store.tenantInitTemplates.find((tpl) => tpl.id === id);
+    if (!target) {
+      return fail('TENANT_TEMPLATE_NOT_FOUND', '模板不存在或已被删除', 404);
+    }
+    store.tenantInitTemplates = store.tenantInitTemplates.filter((tpl) => tpl.id !== id);
     return empty();
   }),
 

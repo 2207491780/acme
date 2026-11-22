@@ -273,6 +273,24 @@ export interface AdminTenantInitView extends AdminTenantView {
   adminUsername: string;
 }
 
+/** 租户开通请求（契约对齐 AdminTenantInitRequest；payload wire 口径同 tenantCreate）。
+ *  REQ-20261122-233426 确认③ 扩可选 templateCode：命中模板=按模板创建角色集+绑定授权+写配置
+ *  +默认套餐（adminUsername 优先模板前缀），跳过动态授权集计算；未传/未命中=现行为逐字不变。 */
+export interface AdminTenantInitRequest {
+  tenantCode: string;
+  tenantName: string;
+  adminUsername: string;
+  adminNickname?: string;
+  remark?: string;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  expiresAt?: string | null;
+  packageId?: number | null;
+  parentId?: string | null;
+  /** 开通模板编码（可空=不使用模板，走动态授权集现状）；未命中模板由后端按现状处理。 */
+  templateCode?: string | null;
+}
+
 /** 配额来源层级（REQ-20261122-150802 确认③解析链：租户覆盖 > 套餐默认 > 平台缺省）。 */
 export type TenantQuotaSource = 'TENANT_OVERRIDE' | 'PACKAGE' | 'PLATFORM_DEFAULT';
 
@@ -368,6 +386,117 @@ export const tenantPackageApi = {
   remove: (packageId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/tenant-packages/${packageId}`, { method: 'DELETE' }, { emptyAsSuccess: true }),
 };
+
+// ---- 租户开通模板 + 平台运营视图（REQ-20261122-233426 TENANT-5；V32 sys_tenant_init_template） ----
+
+/** 模板内容——角色预置（确认② rolePresets）：模板内 permissionCodes 仅允许非保留前缀
+ *  （保留域=system:tenant:/infra:audit:/system:tenant-package:，保存时后端校验拒绝）。 */
+export interface TenantInitTemplateRolePreset {
+  roleKey: string;
+  roleName: string;
+  permissionCodes: string[];
+}
+
+/** 模板内容——租户域配置项（确认② configEntries：开通时写入 sys_config 租户域）。 */
+export interface TenantInitTemplateConfigEntry {
+  configKey: string;
+  value: string;
+}
+
+/** 模板 content jsonb 形状（确认②原文）：{adminUsernamePrefix?, adminNickname?,
+ *  rolePresets:[{roleKey,roleName,permissionCodes[]}], configEntries:[{configKey,value}]}。 */
+export interface TenantInitTemplateContent {
+  adminUsernamePrefix?: string;
+  adminNickname?: string;
+  rolePresets: TenantInitTemplateRolePreset[];
+  configEntries: TenantInitTemplateConfigEntry[];
+}
+
+/** 租户开通模板视图（对齐 V32 sys_tenant_init_template：id/code uk/name/remark/content jsonb/
+ *  default_package_id?/审计列；id/defaultPackageId wire 字符串口径 FR-024，可空=未设置默认套餐）。 */
+export interface AdminTenantInitTemplateView {
+  id: string;
+  code: string;
+  name: string;
+  remark: string | null;
+  content: TenantInitTemplateContent;
+  /** 默认套餐 id（wire 字符串口径；null/缺失=未设置）。 */
+  defaultPackageId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 模板保存载荷（create/update 同形；code uk 重码 → TENANT_TEMPLATE_DUPLICATE；
+ *  content 非法（保留前缀/空角色集）→ PARAM_INVALID（确认③口径））。 */
+export interface TenantTemplateSavePayload {
+  code: string;
+  name: string;
+  remark?: string | null;
+  content: TenantInitTemplateContent;
+  defaultPackageId?: number | null;
+}
+
+/** 租户开通模板接口域（REQ-20261122-233426 确认④四端点；权限点 system:tenant-template:list/create/
+ *  update/delete；无 detail 端点——列表行自带完整 content 供编辑回显）。 */
+export const tenantTemplateApi = {
+  /** 模板分页（keyword 对 code/name 模糊匹配；signal 为可选取消信号，透传 apiFetch）。 */
+  page: (params: { page?: number; size?: number; keyword?: string } = {}, signal?: AbortSignal): Promise<PageResult<AdminTenantInitTemplateView>> =>
+    apiFetch<PageResult<AdminTenantInitTemplateView>>(`/admin/v1/system/tenant-templates?${buildQuery(params)}`, { signal }),
+  /** 新建模板（content 非法保存即拒，确认③；code uk）。 */
+  create: (payload: TenantTemplateSavePayload): Promise<AdminTenantInitTemplateView> =>
+    apiJson<AdminTenantInitTemplateView>('/admin/v1/system/tenant-templates', 'POST', payload),
+  /** 更新模板（校验同创建；模板变更不影响已开通租户——开通时快照语义，确认④）。 */
+  update: (templateId: string, payload: TenantTemplateSavePayload): Promise<AdminTenantInitTemplateView> =>
+    apiJson<AdminTenantInitTemplateView>(`/admin/v1/system/tenant-templates/${templateId}`, 'PUT', payload),
+  /** 删除模板。void 端点：emptyAsSuccess 兼容空体 2xx（tenantPackageApi.remove 同口径）。 */
+  remove: (templateId: string): Promise<void> =>
+    apiFetch<void>(`/admin/v1/system/tenant-templates/${templateId}`, { method: 'DELETE' }, { emptyAsSuccess: true }),
+};
+
+/** 运营概览四态计数（确认⑥ statusCounts{enabled,grace,expired,disabled}——口径同页面四视觉态：
+ *  enabled=启用中、grace=宽限期、expired=已过期、disabled=已停用，status 正交优先）。 */
+export interface TenantStatusCounts {
+  enabled: number;
+  grace: number;
+  expired: number;
+  disabled: number;
+}
+
+/** 运营概览套餐分布项（确认⑥ packageDistribution?；packageId/packageName null=未绑定套餐租户聚合）。 */
+export interface TenantPackageDistributionItem {
+  packageId: string | null;
+  packageName: string | null;
+  tenantCount: number;
+}
+
+/** 运营概览用量行（确认⑥ tenantUsages 字段原文：tenantId/tenantCode/tenantName/status/
+ *  storageBytes/quotaBytes/quotaSource/userCount；topN=20 按 storageBytes 降序）。 */
+export interface TenantUsageOverviewRow {
+  tenantId: string;
+  tenantCode: string;
+  tenantName: string;
+  status: 'ENABLED' | 'DISABLED';
+  /** 存储用量（字节，实时旁路聚合）。 */
+  storageBytes: number;
+  /** 有效存储配额（字节；0=不限；解析链=租户覆盖→套餐默认→平台缺省）。 */
+  quotaBytes: number;
+  quotaSource: TenantQuotaSource;
+  userCount: number;
+}
+
+/** 平台运营视图（确认⑥：GET /admin/v1/system/tenants/usage-overview，@IgnoreTenant 实时聚合，
+ *  权限=system:tenant:usage-overview；数据量小先实时，对齐 TENANT-4 实时口径）。 */
+export interface TenantUsageOverviewView {
+  totalTenants: number;
+  statusCounts: TenantStatusCounts;
+  /** 套餐分布（可选；缺失/空=后端未下发，前端回退四态分布图）。 */
+  packageDistribution?: TenantPackageDistributionItem[] | null;
+  tenantUsages: TenantUsageOverviewRow[];
+}
+
+/** 平台运营视图查询（确认⑥；signal 为可选取消信号，透传 apiFetch）。 */
+export const tenantUsageOverview = (signal?: AbortSignal): Promise<TenantUsageOverviewView> =>
+  apiFetch<TenantUsageOverviewView>('/admin/v1/system/tenants/usage-overview', { signal });
 
 /** 角色视图（契约对齐 AdminRoleView；id/version/parentId 序列化为字符串或空）。
  *  REQ-20261114-120104 扩展 dataScope 列（角色-数据范围模型，五档枚举）。 */
@@ -513,19 +642,9 @@ export const systemApi = {
     apiJson<AdminTenantView>('/admin/v1/system/tenants', 'POST', payload),
   /** 租户开通模板（REQ-20261122-102954 契约⑤⑨）：平台侧一次建租户+tenant_admin 角色+初始管理员+绑定；
    *  parentId 同 create（wire 字符串，null/缺省=顶层，父链超深 → TENANT_DEPTH_EXCEEDED）；
-   *  管理员归属新建租户编码（sys_user.tenant_id=tenant_code，username 全局唯一由后端校验）。 */
-  tenantInit: (payload: {
-    tenantCode: string;
-    tenantName: string;
-    adminUsername: string;
-    adminNickname?: string;
-    remark?: string;
-    contactName?: string | null;
-    contactPhone?: string | null;
-    expiresAt?: string | null;
-    packageId?: number | null;
-    parentId?: string | null;
-  }): Promise<AdminTenantInitView> =>
+   *  管理员归属新建租户编码（sys_user.tenant_id=tenant_code，username 全局唯一由后端校验）；
+   *  REQ-20261122-233426 载荷收敛为 AdminTenantInitRequest（扩可选 templateCode，确认③）。 */
+  tenantInit: (payload: AdminTenantInitRequest): Promise<AdminTenantInitView> =>
     apiJson<AdminTenantInitView>('/admin/v1/system/tenants/init', 'POST', payload),
   /** 租户改名/备注/联系人/有效期（version 乐观锁）；REQ-20261121-022910 增可选 packageId
    *  （number|null，null=解除绑定；向后兼容——不传即不改动既有绑定）；

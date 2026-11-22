@@ -76,6 +76,18 @@ public final class SystemPermissions {
     public static final String TENANT_QUERY = "system:tenant:query";
     public static final String TENANT_UPDATE = "system:tenant:update";
 
+    /**
+     * 租户开通初始化模板（REQ-20261122-233426 确认⑤；platform-system V32 种子，sys_permission
+     * 83~86——纯 API 权限点无菜单节点，挂靠租户管理菜单 id=7；保留域成员，不授予租户管理员）。
+     */
+    public static final String TENANT_TEMPLATE_LIST = "system:tenant-template:list";
+    public static final String TENANT_TEMPLATE_CREATE = "system:tenant-template:create";
+    public static final String TENANT_TEMPLATE_UPDATE = "system:tenant-template:update";
+    public static final String TENANT_TEMPLATE_DELETE = "system:tenant-template:delete";
+
+    /** 平台运营总览（REQ-20261122-233426 确认⑥；V32 种子 87——跨租户实时聚合旁路面）。 */
+    public static final String TENANT_USAGE_OVERVIEW = "system:tenant:usage-overview";
+
     /** 审计事件查询（infra 域 Admin 端点，权限目录平台级统一登记；platform-infra-audit 增补）。 */
     public static final String INFRA_AUDIT_LIST = "infra:audit:list";
 
