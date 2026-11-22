@@ -52,8 +52,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class REQ20261119051119ButtonMenuMigrationTest {
 
     /** 非 BUTTON 菜单基数＝V19 用至 12＋REQ-20261119-151640 V22 六 MENU 叶子（id 40~45）
-     *  ＋REQ-20261121-022910 V24 套餐管理 MENU 叶（id 46）＝19。 */
-    private static final long SEED_MENU_BASE_COUNT = 19L;
+     *  ＋REQ-20261121-022910 V24 套餐管理 MENU 叶（id 46）
+     *  ＋REQ-20261122-102730 V29 流程中心 DIRECTORY＋两 MENU 叶（id 50~52）＝22（跨 REQ 适配：BPM-3 V29 水位对齐）。 */
+    private static final long SEED_MENU_BASE_COUNT = 22L;
 
     /** 超管角色（V2 种子：role_id=1 / tenant 'default'，V19 绑定行续编先例）。 */
     private static final long SUPER_ADMIN_ROLE_ID = 1L;
@@ -121,7 +122,7 @@ class REQ20261119051119ButtonMenuMigrationTest {
                 .as("sys_permission 总数 = 68 基线 + V24 套餐域 4 点 + V26 调度域 5 点 + V27 工作流域 5 点")
                 .isEqualTo(82L);
 
-        // 总数 = 非 BUTTON 基数 18（原 12＋V22 六叶子）+ BUTTON（与 SystemIntegrationTest 的基数→N 联动口径一致）
+        // 总数 = 非 BUTTON 基数 22（原 12＋V22 六叶子＋V24 套餐叶 46＋V29 流程中心 50~52）+ BUTTON（与 SystemIntegrationTest 的基数→N 联动口径一致）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
                 .as("sys_menu 总数 = 种子基数 18（含 REQ-20261119-151640 V22 六叶子）+ BUTTON 数")
                 .isEqualTo(SEED_MENU_BASE_COUNT + buttonCount);

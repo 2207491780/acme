@@ -88,7 +88,8 @@ class SystemIntegrationTest {
         // 默认租户 / 超管 / super_admin / 82 权限点（68+4，V24 续编 69~72 套餐域；
         // V26 续编 73~77 调度中心域——无菜单节点，菜单归 JOB-3；
         // V27 续编 78~82 工作流域——无菜单节点，菜单归 BPM-3）/
-        // 49 菜单（12 + V20 BUTTON 节点 27 + V22 MENU 叶子 6 + V24 套餐管理叶 46＋BUTTON 47~49；
+        // 55 菜单（12 + V20 BUTTON 节点 27 + V22 MENU 叶子 6 + V24 套餐管理叶 46＋BUTTON 47~49
+        // + V29 流程中心 50~55（REQ-20261122-102730：DIRECTORY＋两 MENU 叶＋BUTTON×3，跨 REQ 适配 BPM-3 水位对齐）；
         // me.menus 语义不动，BUTTON 仅授权树投影）
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_tenant where tenant_code='default'", Long.class)).isEqualTo(1L);
@@ -99,10 +100,10 @@ class SystemIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_permission", Long.class)).isEqualTo(82L);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_menu", Long.class)).isEqualTo(49L);
+                "select count(*) from sys_menu", Long.class)).isEqualTo(55L);
         // REQ-20261119-051119 AC-1：BUTTON 节点入 sys_menu（permission_code=既有 API 码）且超管全绑
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_menu where menu_type='BUTTON'", Long.class)).isEqualTo(30L);
+                "select count(*) from sys_menu where menu_type='BUTTON'", Long.class)).isEqualTo(33L);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_menu where menu_type='BUTTON' "
                         + "and (permission_code is null or permission_code = '' "
@@ -112,7 +113,7 @@ class SystemIntegrationTest {
                 "select count(*) from sys_role_menu rm join sys_menu m on m.id = rm.menu_id "
                         + "where m.menu_type='BUTTON' and rm.role_id = "
                         + "(select id from sys_role where role_code='super_admin' and tenant_id='default')",
-                Long.class)).isEqualTo(30L);
+                Long.class)).isEqualTo(33L);
         // AC-1 权限点总数恒 82（V24 前 68 → V24 套餐域 69~72 → V26 调度中心域 73~77
         // → V27 工作流域 78~82，REQ-20261121-142316）
         assertThat(jdbcTemplate.queryForList(
@@ -204,12 +205,13 @@ class SystemIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_role_permission where id >= 77", Long.class)).isEqualTo(10L);
         // V20/V24 幂等（REQ-20261119-051119 / REQ-20261121-022910 确认⑥）：BUTTON 节点与超管绑定行
-        // 不因重放翻倍（BUTTON 仍 30）；role_menu id>=13 共 37 行＝BUTTON 绑定 27＋V22 叶子绑定 6
-        // ＋V24 套餐绑定 4（REQ-20261121-022910，id 46~49）
+        // 不因重放翻倍（BUTTON 33＝30＋V29 流程中心 BUTTON×3，跨 REQ 适配 BPM-3 水位对齐）；
+        // role_menu id>=13 共 43 行＝BUTTON 绑定 27＋V22 叶子绑定 6＋V24 套餐绑定 4（id 46~49）
+        // ＋V29 流程中心绑定 6（id 50~55，REQ-20261122-102730）
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_menu where menu_type='BUTTON'", Long.class)).isEqualTo(30L);
+                "select count(*) from sys_menu where menu_type='BUTTON'", Long.class)).isEqualTo(33L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_role_menu where id >= 13",
-                Long.class)).isEqualTo(37L);
+                Long.class)).isEqualTo(43L);
     }
 
     @Test

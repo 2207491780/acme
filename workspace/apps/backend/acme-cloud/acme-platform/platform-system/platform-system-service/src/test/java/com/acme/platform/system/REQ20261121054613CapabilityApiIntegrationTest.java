@@ -373,10 +373,10 @@ class REQ20261121054613CapabilityApiIntegrationTest {
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_permission", Long.class))
                 .as("V25 不新增权限点（V27 水位 82）").isEqualTo(82L);
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
-                .as("V25 不新增菜单（V24 水位 49）").isEqualTo(49L);
+                .as("V25 不新增菜单（V24 水位 49＋V29 流程中心 6=55，跨 REQ 适配 BPM-3 水位对齐）").isEqualTo(55L);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_menu where menu_type = 'BUTTON'", Long.class))
-                .as("V25 不新增 BUTTON（V24 水位 30）").isEqualTo(30L);
+                .as("V25 不新增 BUTTON（V24 水位 30＋V29 BUTTON×3=33，跨 REQ 适配 BPM-3 水位对齐）").isEqualTo(33L);
 
         // ③ 目录端点形状（§API）：全量启用列表、id asc、仅 ENABLED
         JsonNode catalog = capabilityCatalog();

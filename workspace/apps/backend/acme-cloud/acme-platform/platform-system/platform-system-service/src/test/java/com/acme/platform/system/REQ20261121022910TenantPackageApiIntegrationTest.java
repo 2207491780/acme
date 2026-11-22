@@ -652,7 +652,8 @@ class REQ20261121022910TenantPackageApiIntegrationTest {
         // ① V24 种子形状（确认⑥钉死）：菜单 46 叶 + 47~49 BUTTON；role_menu 46~49 绑 default 超管；
         //    权限 69~72（list/create/update/delete，GET/POST/PUT/DELETE）
         assertThat(jdbcTemplate.queryForObject("select count(*) from sys_menu", Long.class))
-                .as("V24 后菜单总数=45（V22 水位）+4（46~49）").isEqualTo(49L);
+                .as("菜单总数=45（V22 水位）+4（46~49，V24）+6（50~55，V29 流程中心，跨 REQ 适配 BPM-3 水位对齐）")
+                .isEqualTo(55L);
         var menu46 = jdbcTemplate.queryForMap(
                 "select menu_type, parent_id, path, permission_code, status from sys_menu where id = 46");
         assertThat(menu46.get("menu_type")).isEqualTo("MENU");
