@@ -234,13 +234,23 @@ export const infraApi = {
   /** 运行异常导出 URL（REQ-20261117-061017；xlsx 附件豁免信封，权限复用 infra:exception:list；
    *  同筛选参数；交 useExcelExport.exportFile(url) 走 downloadFile 二进制下载）。 */
   opExceptionExport: (filters: OpExceptionFilters = {}): string => opExceptionsExportUrl(filters),
-  /** 定时任务清单（REQ-20261117-061017；权限点 infra:job:list；非分页数组，行=JobView）。 */
+  /**
+   * 定时任务清单（REQ-20261117-061017；权限点 infra:job:list；非分页数组，行=JobView）。
+   * @deprecated REQ-20261122-023213：任务管理面已切调度中心 /admin/v1/scheduler/**（core api/scheduler.ts）。
+   * 旧 infra 面保留兼容（无前端消费后自然沉寂），删除归后续清理 REQ。
+   */
   jobList: (signal?: AbortSignal): Promise<JobView[]> =>
     apiFetch<JobView[]>(JOB_ENDPOINTS.base, { signal }),
-  /** 手动执行任务（REQ-20261117-061017；权限点 infra:job:run；产生 trigger_type=MANUAL 执行记录）。 */
+  /**
+   * 手动执行任务（REQ-20261117-061017；权限点 infra:job:run；产生 trigger_type=MANUAL 执行记录）。
+   * @deprecated REQ-20261122-023213：手动触发已切 POST /admin/v1/scheduler/jobs/{id}/trigger（schedulerApi.jobTrigger）。
+   */
   jobRun: (jobKey: string): Promise<void> =>
     apiFetch<void>(JOB_ENDPOINTS.run(jobKey), { method: 'POST' }, { emptyAsSuccess: true }),
-  /** 任务执行记录分页（REQ-20261117-061017；权限点 infra:job:list；后端按 started_at 倒序）。 */
+  /**
+   * 任务执行记录分页（REQ-20261117-061017；权限点 infra:job:list；后端按 started_at 倒序）。
+   * @deprecated REQ-20261122-023213：执行历史已切 GET /admin/v1/scheduler/executions（schedulerApi.executionPage，双轨写保留、页面只切读）。
+   */
   jobExecutions: (jobKey: string, page: number, size: number, signal?: AbortSignal): Promise<PageResult<JobExecutionView>> =>
     apiFetch<PageResult<JobExecutionView>>(
       `${JOB_ENDPOINTS.executions(jobKey)}?${buildQuery({ page, size })}`,

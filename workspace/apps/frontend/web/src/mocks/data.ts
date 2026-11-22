@@ -17,7 +17,10 @@ import type {
   AdminTenantPackageView,
   AdminTenantView,
   AdminUserView,
+  ExecutionView,
+  ExecutorView,
   FileView,
+  JobAdminView,
   JobExecutionView,
   JobView,
 } from '@acme/core';
@@ -68,6 +71,9 @@ export const me = {
     'system:message:list', 'system:message:read',
     'infra:audit:list', 'infra:file:list', 'infra:file:upload', 'infra:file:download', 'infra:file:delete',
     'infra:exception:list', 'infra:job:list', 'infra:job:run',
+    // REQ-20261122-023213（JOB-3）：调度中心权限点 73~77（V26 种子；73 列表/历史/执行器，
+    // 75 启停/触发/新建/编辑（契约⑤），76 删除；me.menus 动态形态由菜单种子 V28 下发）
+    'scheduler:job:list', 'scheduler:job:create', 'scheduler:job:update', 'scheduler:job:delete',
     'auth:loginlog:list', 'auth:online:list', 'auth:online:revoke',
   ],
   menus: [] as AdminMenuView[],
@@ -345,5 +351,95 @@ export const jobExecutions: JobExecutionView[] = [
     id: '6303', jobKey: 'exception-log-retention-cleanup', status: 'FAILED',
     startedAt: '2026-11-17T03:40:00Z', finishedAt: '2026-11-17T03:40:01Z',
     error: '模拟执行失败（fixture）', triggerType: 'SCHEDULE', durationMs: 900,
+  },
+];
+
+/**
+ * 调度中心任务定义 fixtures（REQ-20261122-023213 JOB-3）：形状对齐 core JobAdminView（17 字段，
+ * id/version wire 字符串）。V2 种子 4 行（JOB-2 裁决）：appName=platform-infra、全部 DISABLED、
+ * timeout 60s、misfire=FIRE_ONCE_NOW——cron=配置默认值，与 infra 运行时 acme.*.retention-cron 可能漂移。
+ */
+export const schedulerJobs: JobAdminView[] = [
+  {
+    id: '9101', jobKey: 'file-retention-cleanup', appName: 'platform-infra',
+    handler: 'fileRetentionCleanupJob', triggerType: 'CRON', cron: '0 0 3 * * *',
+    fixedRate: null, onceFireAt: null, param: null,
+    retryPolicy: { maxAttempts: 3, initialIntervalMs: 5000 },
+    shardTotal: 1, timeoutMs: 60000, misfirePolicy: 'FIRE_ONCE_NOW',
+    status: 'DISABLED', nextFireTime: null,
+    createdAt: '2026-11-22T00:00:00Z', version: '0',
+  },
+  {
+    id: '9102', jobKey: 'login-log-retention-cleanup', appName: 'platform-infra',
+    handler: 'loginLogRetentionCleanupJob', triggerType: 'CRON', cron: '0 30 3 * * *',
+    fixedRate: null, onceFireAt: null, param: null,
+    retryPolicy: { maxAttempts: 3, initialIntervalMs: 5000 },
+    shardTotal: 1, timeoutMs: 60000, misfirePolicy: 'FIRE_ONCE_NOW',
+    status: 'DISABLED', nextFireTime: null,
+    createdAt: '2026-11-22T00:00:00Z', version: '0',
+  },
+  {
+    id: '9103', jobKey: 'exception-log-retention-cleanup', appName: 'platform-infra',
+    handler: 'exceptionLogRetentionCleanupJob', triggerType: 'CRON', cron: '0 40 3 * * *',
+    fixedRate: null, onceFireAt: null, param: null,
+    retryPolicy: { maxAttempts: 3, initialIntervalMs: 5000 },
+    shardTotal: 1, timeoutMs: 60000, misfirePolicy: 'FIRE_ONCE_NOW',
+    status: 'DISABLED', nextFireTime: null,
+    createdAt: '2026-11-22T00:00:00Z', version: '0',
+  },
+  {
+    id: '9104', jobKey: 'audit-retention-cleanup', appName: 'platform-infra',
+    handler: 'auditRetentionCleanupJob', triggerType: 'CRON', cron: '0 40 4 * * *',
+    fixedRate: null, onceFireAt: null, param: null,
+    retryPolicy: { maxAttempts: 3, initialIntervalMs: 5000 },
+    shardTotal: 1, timeoutMs: 60000, misfirePolicy: 'FIRE_ONCE_NOW',
+    status: 'DISABLED', nextFireTime: null,
+    createdAt: '2026-11-22T00:00:00Z', version: '0',
+  },
+];
+
+/**
+ * 调度中心执行历史 fixtures（sch_job_execution 面）：状态覆盖 SUCCESS/FAILED/RUNNING/PENDING，
+ * 触发方式覆盖 SCHEDULE/MANUAL；fire_time 窗口过滤与倒序由 handler 承担。
+ */
+export const schedulerExecutions: ExecutionView[] = [
+  {
+    id: '9501', definitionId: '9101', jobKey: 'file-retention-cleanup', triggerType: 'SCHEDULE',
+    fireTime: '2026-11-21T03:00:00Z', state: 'SUCCESS', attempt: 0, shardIndex: null,
+    result: { deleted: 12 }, error: null, costMs: 2000, traceId: 'trace-sch-1',
+  },
+  {
+    id: '9502', definitionId: '9103', jobKey: 'exception-log-retention-cleanup', triggerType: 'SCHEDULE',
+    fireTime: '2026-11-21T03:40:00Z', state: 'FAILED', attempt: 1, shardIndex: null,
+    result: null, error: 'DISPATCH_TIMEOUT', costMs: 10000, traceId: 'trace-sch-2',
+  },
+  {
+    id: '9503', definitionId: '9104', jobKey: 'audit-retention-cleanup', triggerType: 'MANUAL',
+    fireTime: '2026-11-21T09:00:00Z', state: 'RUNNING', attempt: 0, shardIndex: null,
+    result: null, error: null, costMs: null, traceId: 'trace-sch-3',
+  },
+  {
+    id: '9504', definitionId: '9102', jobKey: 'login-log-retention-cleanup', triggerType: 'SCHEDULE',
+    fireTime: '2026-11-21T03:30:00Z', state: 'PENDING', attempt: 0, shardIndex: null,
+    result: null, error: null, costMs: null, traceId: 'trace-sch-4',
+  },
+  {
+    id: '9505', definitionId: '9101', jobKey: 'file-retention-cleanup', triggerType: 'RETRY',
+    fireTime: '2026-11-20T03:00:00Z', state: 'TIMEOUT', attempt: 2, shardIndex: 0,
+    result: null, error: 'TIMEOUT', costMs: 60000, traceId: 'trace-sch-5',
+  },
+];
+
+/** 调度中心执行器 fixtures（sch_executor_registry 面）：ONLINE/OFFLINE 样例（stale 30s 由后端判定）。 */
+export const schedulerExecutors: ExecutorView[] = [
+  {
+    appName: 'platform-infra', instanceId: 'uuid-infra-0001', host: '10.0.0.11', port: 9881,
+    handlers: ['file-retention-cleanup', 'login-log-retention-cleanup', 'exception-log-retention-cleanup', 'audit-retention-cleanup'],
+    heartbeatAt: '2026-11-22T02:59:50Z', status: 'ONLINE',
+  },
+  {
+    appName: 'platform-system', instanceId: 'uuid-system-0001', host: '10.0.0.12', port: 9882,
+    handlers: [],
+    heartbeatAt: '2026-11-22T02:40:00Z', status: 'OFFLINE',
   },
 ];

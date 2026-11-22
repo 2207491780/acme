@@ -32,4 +32,5 @@ export * from './api/auth';
 export * from './api/system';
 export * from './api/notify';
 export * from './api/infra';
+export * from './api/scheduler';
 export * from './api/audit';

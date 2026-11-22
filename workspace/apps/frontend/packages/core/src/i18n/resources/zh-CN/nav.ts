@@ -19,7 +19,7 @@ export const nav = {
     loginLogs: '登录日志',
     onlineUsers: '在线用户',
     opExceptions: '异常日志',
-    jobs: '定时任务',
+    jobs: '调度中心',
     files: '文件管理',
     settings: '设置',
     profile: '个人中心',
@@ -73,6 +73,8 @@ export const nav = {
     settings: '设置',
     openUserMenu: '打开用户菜单',
     create: '新建',
+    // 顶栏新建按钮的无障碍名（与页面内 CrudTable「新建」区分，避免同名按钮歧义）
+    createAria: '创建发布单',
   },
   userMenu: {
     rolesLabel: '角色：{{roles}}',

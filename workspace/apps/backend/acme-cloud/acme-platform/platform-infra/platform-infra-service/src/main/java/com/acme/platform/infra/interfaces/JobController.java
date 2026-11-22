@@ -22,7 +22,10 @@ import java.util.List;
  * 注册表查询（key/description/cron/enabled + 最近一次执行摘要）与手动触发
  * （ShedLock 互斥：执行中 JOB_ALREADY_RUNNING；未知 jobKey JOB_NOT_FOUND；成功返回执行记录 id）。
  * REQ-20261117-061017 §API：执行记录分页查询（started_at 倒序，权限点 infra:job:list）。
+ * @deprecated 已由调度中心 admin 面（/admin/v1/scheduler/**，REQ-20261122-023213）替代；
+ * 前端 JobsPage 已全切 scheduler 面，本面保留至后续清理 REQ 下线，行为与权限点零变更。
  */
+@Deprecated
 @RestController
 @RequestMapping("/admin/v1/infra/jobs")
 public class JobController {

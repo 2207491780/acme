@@ -19,7 +19,7 @@ export const nav = {
     loginLogs: 'Login Logs',
     onlineUsers: 'Online Users',
     opExceptions: 'Exception Logs',
-    jobs: 'Scheduled Jobs',
+    jobs: 'Scheduler Center',
     files: 'Files',
     settings: 'Settings',
     profile: 'Profile',
@@ -73,6 +73,8 @@ export const nav = {
     settings: 'Settings',
     openUserMenu: 'Open user menu',
     create: 'New',
+    // aria label for the header create button (disambiguated from in-page CrudTable "New")
+    createAria: 'Create release',
   },
   userMenu: {
     rolesLabel: 'Roles: {{roles}}',

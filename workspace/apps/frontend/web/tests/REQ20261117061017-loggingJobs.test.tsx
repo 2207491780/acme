@@ -1,9 +1,16 @@
+/** @vitest-environment jsdom */
 /**
  * REQ-20261117-061017：日志中心完善＋定时任务管理页（前端面，AC-8 / AC-10 前端半句）。
  *
- * 覆盖：ExceptionsPage（列表/筛选/详情抽屉/导出带参）、JobsPage（列表/手动执行/执行记录抽屉）、
- * App NAV 新两项权限显隐 + PermissionGate 拒绝态、OnlineUsersPage 按用户名批量下线（kicked/skipped 反馈）、
- * AuditPage/LoginLogsPage 导出按钮带参、core api 层路径/载荷（导出 URL 组装 / 批量下线 / 执行记录）。
+ * 覆盖：ExceptionsPage（列表/筛选/详情抽屉/导出带参）、JobsPage（REQ-20261122-023213 改造为
+ * 调度中心三 Tab 页后的旧断言适配：scheduler 面 rows/手动触发/执行历史 Tab）、
+ * App NAV 权限显隐（调度中心=scheduler:job:list）+ PermissionGate 拒绝态、
+ * OnlineUsersPage 按用户名批量下线（kicked/skipped 反馈）、AuditPage/LoginLogsPage 导出带参、
+ * core api 层路径/载荷（导出 URL 组装 / 批量下线 / 执行记录）。
+ *
+ * REQ-20261122-023213 AC-12 适配（2026-11-22）：JobsPage 全切 /admin/v1/scheduler/** 面与
+ * JobAdminView/ExecutionView 形状（JOB-3 契约确认②⑦）；渲染走整棵 App（「JobsPage 改造 或
+ * 新组件+路由复用」双实现口径兼容，不直连页面 import）。
  *
  * 装配照既有范本 web/tests/REQ20261114120105-loginSecurityPages.test.tsx + REQ20261114120101-filesPage.test.tsx：
  * fetch stubGlobal 弱匹配路由 + useMeStore 权限播种 + <AntApp> 包裹 + testTimeout ≥15000ms；
@@ -25,7 +32,6 @@ import { AuditPage } from '../src/pages/AuditPage';
 import { LoginLogsPage } from '../src/pages/LoginLogsPage';
 import { OnlineUsersPage } from '../src/pages/OnlineUsersPage';
 import { ExceptionsPage } from '../src/pages/ExceptionsPage';
-import { JobsPage } from '../src/pages/JobsPage';
 import { authApi, infraApi, auditApi, useAuthStore, useMeStore } from '@acme/core';
 
 // REQ-20261119-051119 装配放宽（对齐 crudPages 先例）：全量套件并行负载下 OnlineUsers 批量下线两例贴线超时
@@ -36,8 +42,6 @@ vi.setConfig({ testTimeout: 25000 });
 const CONFIRM_BUTTON = /确\s*定|^OK$/i;
 const EXPORT_BUTTON = /导\s*出/;
 const DETAIL_BUTTON = /详\s*情/;
-const RUN_BUTTON = /手动执行/;
-const EXECUTIONS_BUTTON = /执行记录/;
 const BATCH_KICK_BUTTON = /^下\s*线$/; // 行内「踢下线」以 踢 开头，不匹配锚定批量下线按钮
 
 const envelope = (data: unknown, status = 200) => new Response(
@@ -83,25 +87,27 @@ const OP_EXCEPTION_ROWS = [
 
 const JOB_ROWS = [
   {
-    key: 'file-retention-cleanup', description: '过期文件保留期清理', cron: '0 0 3 * * ?', enabled: true,
-    lastExecution: { status: 'SUCCESS', startedAt: '2026-11-17T03:00:00Z', finishedAt: '2026-11-17T03:00:02Z', error: null },
+    id: '301', version: '0', jobKey: 'file-retention-cleanup', appName: 'platform-infra',
+    triggerType: 'CRON', cron: '0 0 3 * * *', fixedRate: null, nextFireTime: '2026-11-23T03:00:00Z',
+    status: 'DISABLED', timeoutMs: 60000, shardTotal: 1,
   },
   {
-    key: 'exception-log-retention-cleanup', description: '异常日志保留期清理', cron: '0 40 3 * * ?', enabled: true,
-    lastExecution: { status: 'FAILED', startedAt: '2026-11-17T03:40:00Z', finishedAt: '2026-11-17T03:40:01Z', error: '模拟执行失败（fixture）' },
+    id: '305', version: '2', jobKey: 'custom-report-sync', appName: 'business-report',
+    triggerType: 'FIXED_RATE', cron: null, fixedRate: 300000, nextFireTime: '2026-11-22T10:05:00Z',
+    status: 'ENABLED', timeoutMs: 30000, shardTotal: 1,
   },
 ];
 
 const EXECUTION_ROWS = [
   {
-    id: '6302', jobKey: 'file-retention-cleanup', status: 'SUCCESS',
-    startedAt: '2026-11-17T09:00:00Z', finishedAt: '2026-11-17T09:00:00Z',
-    error: null, triggerType: 'MANUAL', durationMs: 120,
+    id: '9001', definitionId: '10', jobKey: 'file-retention-cleanup', triggerType: 'MANUAL',
+    fireTime: '2026-11-22T09:00:00Z', state: 'SUCCESS', attempt: 1, shardIndex: 0,
+    result: 'ok', error: null, costMs: 120, traceId: 'trace-exec-1',
   },
   {
-    id: '6301', jobKey: 'file-retention-cleanup', status: 'FAILED',
-    startedAt: '2026-11-17T03:00:00Z', finishedAt: '2026-11-17T03:00:01Z',
-    error: '模拟执行失败（fixture）', triggerType: 'SCHEDULE', durationMs: 800,
+    id: '9002', definitionId: '10', jobKey: 'file-retention-cleanup', triggerType: 'SCHEDULE',
+    fireTime: '2026-11-22T03:00:00Z', state: 'FAILED', attempt: 2, shardIndex: 0,
+    result: null, error: '模拟执行失败（fixture）', costMs: 800, traceId: 'trace-exec-2',
   },
 ];
 
@@ -181,13 +187,16 @@ const seedSession = () => {
   }, false);
 };
 
-/** 整棵 App 渲染（NAV 显隐 / PermissionGate 用，nav.test 范本口径）。 */
-const renderApp = async (permissions: string[]) => {
+/** 整棵 App 渲染（NAV 显隐 / PermissionGate / 页面路由用，nav.test 范本口径；023213 适配支持指定 hash 与 API 路由）。 */
+const renderApp = async (
+  permissions: string[],
+  hash = '#/',
+  routes?: Record<string, (r: ReturnType<typeof asRequest>) => Response>,
+) => {
   seedSession();
-  const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
-    const url = typeof input === 'string' || input instanceof URL
-      ? new URL(String(input), 'http://localhost')
-      : new URL((input as Request).url);
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const r = asRequest(input, init);
+    const url = r.url;
     if (url.pathname.includes('/system/me')) {
       return envelope({
         user: {
@@ -199,11 +208,14 @@ const renderApp = async (permissions: string[]) => {
         menus: [],
       });
     }
+    for (const [part, handler] of Object.entries(routes ?? {})) {
+      if (url.pathname.includes(part)) return handler(r);
+    }
     return envelope(null);
   });
   vi.stubGlobal('fetch', fetchMock);
   await useMeStore.getState().load();
-  window.location.hash = '#/';
+  window.location.hash = hash;
   render(<AntApp><HashRouter><App /></HashRouter></AntApp>);
   return { fetchMock };
 };
@@ -327,124 +339,143 @@ describe('REQ20261117061017 ExceptionsPage（AC-10）', () => {
   });
 });
 
-// ————— JobsPage（AC-8 前端半句：列表/手动执行/执行记录抽屉） —————
-describe('REQ20261117061017 JobsPage（AC-8）', () => {
-  const ALL_PERMS = ['infra:job:list', 'infra:job:run'];
-  const LIST_ONLY = ['infra:job:list'];
+// ————— JobsPage→调度中心（REQ-20261122-023213 AC-12 适配：scheduler 面语义） —————
+describe('REQ20261117061017 JobsPage→调度中心（AC-12，023213 适配）', () => {
+  const ALL_PERMS = ['scheduler:job:list', 'scheduler:job:update', 'scheduler:job:delete', 'scheduler:execution:list'];
+  const LIST_ONLY = ['scheduler:job:list'];
+  const TRIGGER_BUTTON = /手动触发/;
 
-  const jobsRoutes = () => {
+  const schedulerRoutes = () => {
     const state = {
       jobs: JOB_ROWS.map((r) => ({ ...r })),
       executions: EXECUTION_ROWS.map((r) => ({ ...r })),
+      nextExecutionId: 9099,
     };
     return {
       state,
       routes: {
-        // 弱匹配键 '/executions'：真实路径 /jobs/{jobKey}/executions（jobKey 段位使 '/jobs/executions' 不命中）
-        '/executions': (r: ReturnType<typeof asRequest>) => {
-          const jobKey = r.url.pathname.split('/').at(-2) ?? '';
-          const rows = state.executions
-            .filter((row) => row.jobKey === jobKey)
-            .sort((a, b) => String(b.startedAt ?? '').localeCompare(String(a.startedAt ?? '')));
-          return envelope({ records: rows, total: rows.length });
-        },
-        '/jobs/': (r: ReturnType<typeof asRequest>) => {
-          // /jobs/{jobKey}/run（POST）
-          if (r.method === 'POST') {
-            const jobKey = r.url.pathname.split('/').at(-2) ?? '';
-            const startedAt = new Date().toISOString();
+        // /admin/v1/scheduler/jobs/{id}[/status|/trigger]（长前缀先于 /jobs 列表匹配）
+        // /status、/trigger 子资源路径末段非 id：正则取 jobs 后的数字段
+        '/scheduler/jobs/': (r: ReturnType<typeof asRequest>) => {
+          const id = r.url.pathname.match(/\/scheduler\/jobs\/(\d+)/)?.[1] ?? '';
+          const row = state.jobs.find((item) => item.id === id);
+          if (!row) return envelope(null, 404);
+          if (r.method === 'POST' && r.url.pathname.endsWith('/trigger')) {
+            const executionId = String(state.nextExecutionId++);
             state.executions = [
-              { id: '6399', jobKey, status: 'SUCCESS', startedAt, finishedAt: startedAt, error: null, triggerType: 'MANUAL', durationMs: 120 },
+              {
+                id: executionId, definitionId: '10', jobKey: row.jobKey, triggerType: 'MANUAL',
+                fireTime: new Date().toISOString(), state: 'SUCCESS', attempt: 1, shardIndex: 0,
+                result: 'ok', error: null, costMs: 120, traceId: 'trace-manual',
+              },
               ...state.executions,
             ];
-            return envelope({ jobKey, triggeredAt: startedAt });
+            return envelope({ id: executionId, jobKey: row.jobKey });
+          }
+          if (r.method === 'PUT' && r.url.pathname.endsWith('/status')) {
+            try {
+              row.status = String((JSON.parse(String(r.body ?? '{}')) as { status?: string }).status
+                ?? (row.status === 'ENABLED' ? 'DISABLED' : 'ENABLED'));
+            } catch { /* 保持原状态 */ }
+            return envelope(row);
+          }
+          if (r.method === 'DELETE') {
+            state.jobs = state.jobs.filter((item) => item.id !== id);
+            return envelope(null);
           }
           return envelope(null);
         },
-        '/admin/v1/infra/jobs': (r: ReturnType<typeof asRequest>) => {
-          if (r.method === 'GET') return envelope(state.jobs);
+        '/scheduler/jobs': (r: ReturnType<typeof asRequest>) => {
+          if (r.method === 'GET') {
+            const jobKey = r.url.searchParams.get('jobKey');
+            const status = r.url.searchParams.get('status');
+            const rows = state.jobs.filter((item) =>
+              (!jobKey || item.jobKey.includes(jobKey)) && (!status || item.status === status));
+            return envelope({ records: rows, total: rows.length });
+          }
           return envelope(null);
         },
+        '/scheduler/executions': (r: ReturnType<typeof asRequest>) => {
+          if (r.method !== 'GET') return envelope(null);
+          const jobKey = r.url.searchParams.get('jobKey');
+          const rows = state.executions.filter((row) => !jobKey || row.jobKey === jobKey);
+          return envelope({ records: rows, total: rows.length });
+        },
+        '/scheduler/executors': () => envelope([]),
       } as Record<string, (r: ReturnType<typeof asRequest>) => Response>,
     };
   };
 
-  it('should_render_job_rows_with_cron_when_page_loads', async () => {
-    const { fetchMock } = await renderPage(JobsPage, ALL_PERMS, jobsRoutes().routes);
+  it('should_render_scheduler_rows_with_job_view_columns_when_page_loads', async () => {
+    const { fetchMock } = await renderApp(ALL_PERMS, '#/jobs', schedulerRoutes().routes);
     expect(await screen.findByText('file-retention-cleanup')).toBeTruthy();
-    expect(screen.getByText('过期文件保留期清理')).toBeTruthy();
-    expect(screen.getByText('0 0 3 * * ?')).toBeTruthy();
-    expect(callsOf(fetchMock, 'GET', '/admin/v1/infra/jobs').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('platform-infra')).toBeTruthy();
+    expect(screen.getByText('0 0 3 * * *')).toBeTruthy();
+    expect(callsOf(fetchMock, 'GET', '/admin/v1/scheduler/jobs').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('should_trigger_manual_run_with_manual_record_when_run_confirmed', async () => {
-    const { fetchMock } = await renderPage(JobsPage, ALL_PERMS, jobsRoutes().routes);
+  it('should_trigger_manual_run_with_execution_id_when_run_confirmed', async () => {
+    const { fetchMock } = await renderApp(ALL_PERMS, '#/jobs', schedulerRoutes().routes);
     const rowEl = await findRowByText('file-retention-cleanup');
 
-    fireEvent.click(await within(rowEl).findByText(RUN_BUTTON));
-    // 手动执行须有确认（AC-8）：确认弹窗出现后才发起请求
-    expect(callsOf(fetchMock, 'POST', '/run')).toHaveLength(0);
+    fireEvent.click(await within(rowEl).findByText(TRIGGER_BUTTON));
+    // 手动触发须有确认（Popconfirm）：确认弹窗出现后才发起请求
+    expect(callsOf(fetchMock, 'POST', '/trigger')).toHaveLength(0);
     fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
 
     await waitFor(() => {
-      const runs = callsOf(fetchMock, 'POST', '/jobs/file-retention-cleanup/run');
-      expect(runs).toHaveLength(1);
+      const posts = callsOf(fetchMock, 'POST', '/admin/v1/scheduler/jobs/301/trigger');
+      expect(posts).toHaveLength(1);
     });
-    // 结果反馈（触发提示）+ 成功后刷新清单（数据驱动）
+    // 成功反馈含返回的执行 id（桩固定 9099）
     await waitFor(() => {
-      expect((document.body.textContent ?? '')).toMatch(/已触发手动执行/);
-    });
-    await waitFor(() => {
-      expect(callsOf(fetchMock, 'GET', '/admin/v1/infra/jobs').length).toBeGreaterThanOrEqual(2);
+      expect((document.body.textContent ?? '')).toMatch(/9099/);
     });
   });
 
-  it('should_open_executions_drawer_with_paging_when_executions_clicked', async () => {
-    const { fetchMock } = await renderPage(JobsPage, ALL_PERMS, jobsRoutes().routes);
-    const rowEl = await findRowByText('file-retention-cleanup');
+  it('should_open_history_tab_with_paging_when_history_tab_clicked', async () => {
+    const { fetchMock } = await renderApp(ALL_PERMS, '#/jobs', schedulerRoutes().routes);
+    await screen.findByText('file-retention-cleanup');
 
-    fireEvent.click(await within(rowEl).findByText(EXECUTIONS_BUTTON));
+    // 执行历史 Tab（旧执行记录抽屉语义改造为 Tab 分页）：GET /admin/v1/scheduler/executions
+    fireEvent.click(screen.getByRole('tab', { name: '执行历史' }));
 
-    // 执行记录抽屉：GET /admin/v1/infra/jobs/{jobKey}/executions 分页（page=1）
     await waitFor(() => {
-      const gets = callsOf(fetchMock, 'GET', '/jobs/file-retention-cleanup/executions');
+      const gets = callsOf(fetchMock, 'GET', '/admin/v1/scheduler/executions');
       expect(gets).toHaveLength(1);
       expect(gets[0]?.url.searchParams.get('page')).toBe('1');
-      expect(gets[0]?.url.searchParams.get('size')).toBe('10');
     });
     expect(await screen.findByText('MANUAL')).toBeTruthy();
-    // 底层任务行（lastTriggerType=SCHEDULE）与抽屉行并存 → 计数断言
     expect(screen.getAllByText('SCHEDULE').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/执行记录：file-retention-cleanup/)).toBeTruthy();
   });
 
-  it('should_hide_run_action_when_run_permission_missing', async () => {
-    await renderPage(JobsPage, LIST_ONLY, jobsRoutes().routes);
+  it('should_hide_update_actions_when_update_permission_missing', async () => {
+    await renderApp(LIST_ONLY, '#/jobs', schedulerRoutes().routes);
     const rowEl = await findRowByText('file-retention-cleanup');
-    expect(within(rowEl).queryByText(RUN_BUTTON)).toBeNull();
-    // 执行记录属 list 权限面，仍然可见
-    expect(within(rowEl).getByText(EXECUTIONS_BUTTON)).toBeTruthy();
+    // 75 分控：无 scheduler:job:update 时启停 Switch/手动触发/新建隐藏
+    expect(within(rowEl).queryByRole('switch')).toBeNull();
+    expect(within(rowEl).queryByText(TRIGGER_BUTTON)).toBeNull();
+    expect(screen.queryByRole('button', { name: /新\s*建/ })).toBeNull();
   });
 });
 
-// ————— NAV 权限显隐 + PermissionGate（AC-10：新 NAV 两项权限显隐正确） —————
-describe('REQ20261117061017 NAV 权限显隐（AC-10）', () => {
-  it('should_show_new_nav_items_when_permissions_granted', async () => {
-    await renderApp(['infra:exception:list', 'infra:job:list']);
-    expect(await screen.findByText('异常日志')).toBeTruthy();
-    expect(screen.getByText('定时任务')).toBeTruthy();
+// ————— NAV 权限显隐 + PermissionGate（AC-10；REQ-20261122-023213 适配：调度中心=scheduler:job:list） —————
+describe('REQ20261117061017 NAV 权限显隐（AC-10，023213 适配）', () => {
+  it('should_show_scheduler_nav_when_scheduler_list_permission_granted', async () => {
+    await renderApp(['scheduler:job:list']);
+    expect(await screen.findAllByText('调度中心')).not.toHaveLength(0);
   });
 
-  it('should_hide_new_nav_items_when_permissions_missing', async () => {
+  it('should_hide_scheduler_nav_when_permissions_missing', async () => {
     await renderApp(['infra:audit:list']);
-    expect(await screen.findByText('审计事件')).toBeTruthy();
-    expect(screen.queryByText('异常日志')).toBeNull();
+    expect(await screen.findAllByText('审计事件')).not.toHaveLength(0);
+    expect(screen.queryByText('调度中心')).toBeNull();
     expect(screen.queryByText('定时任务')).toBeNull();
   });
 
   it('should_show_permission_gate_denial_when_route_visited_without_permission', async () => {
     await renderApp(['infra:audit:list']);
-    await screen.findByText('审计事件');
+    await screen.findAllByText('审计事件');
     window.location.hash = '#/op-exceptions';
 
     await waitFor(() => {

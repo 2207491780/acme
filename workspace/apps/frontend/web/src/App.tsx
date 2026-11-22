@@ -88,7 +88,8 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
   { path: '/online-users', icon: <TeamOutlined />, labelKey: 'nav.items.onlineUsers', permission: 'auth:online:list' },
   // 平台运营组（REQ-20261117-061017）：异常日志 / 定时任务，紧随审计与登录安全观测项之后
   { path: '/op-exceptions', icon: <BugOutlined />, labelKey: 'nav.items.opExceptions', permission: 'infra:exception:list' },
-  { path: '/jobs', icon: <ScheduleOutlined />, labelKey: 'nav.items.jobs', permission: 'infra:job:list' },
+  // 调度中心（REQ-20261122-023213 JOB-3）：复用 /jobs，权限点换 scheduler:job:list（73；菜单种子 V28 同步）
+  { path: '/jobs', icon: <ScheduleOutlined />, labelKey: 'nav.items.jobs', permission: 'scheduler:job:list' },
   // 文件管理（REQ-20261119-063129 契约⑥）：路由既有，NAV/i18n 条目补齐
   { path: '/files', icon: <FileOutlined />, labelKey: 'nav.items.files', permission: 'infra:file:list' },
   { path: '/settings', icon: <SettingOutlined />, labelKey: 'nav.items.settings' },
@@ -757,7 +758,12 @@ export function App() {
                 </Space>
               </Button>
             </Dropdown>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal({ type: 'release', id: null })}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => openModal({ type: 'release', id: null })}
+              aria-label={t('nav.header.createAria')}
+            >
               {!isMobile && t('nav.header.create')}
             </Button>
           </Header>

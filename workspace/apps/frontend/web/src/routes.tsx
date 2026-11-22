@@ -1,4 +1,6 @@
 import { lazy, type ComponentType, type ReactElement } from 'react';
+// 调度中心（REQ-20261122-023213 JOB-3）例外不 lazy：/jobs 三 Tab 随路由首绘同步挂载（运维常驻页）
+import { JobsPage } from './pages/JobsPage';
 
 /**
  * 页面路由常量（REQ-20261119-063129 契约①④）：App.tsx 的 Route 定义提取为唯一页面清单，
@@ -42,7 +44,6 @@ const LoginLogsPage = lazy(() => import('./pages/LoginLogsPage').then((m) => ({ 
 const OnlineUsersPage = lazy(() => import('./pages/OnlineUsersPage').then((m) => ({ default: m.OnlineUsersPage as PageComponent })));
 const FilesPage = lazy(() => import('./pages/FilesPage').then((m) => ({ default: m.FilesPage as PageComponent })));
 const ExceptionsPage = lazy(() => import('./pages/ExceptionsPage').then((m) => ({ default: m.ExceptionsPage as PageComponent })));
-const JobsPage = lazy(() => import('./pages/JobsPage').then((m) => ({ default: m.JobsPage as PageComponent })));
 const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings as PageComponent })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage as PageComponent })));
 
@@ -69,8 +70,8 @@ export const PAGE_ROUTES: PageRoute[] = [
   { path: '/files', labelKey: 'nav.items.files', permission: 'infra:file:list', element: <FilesPage /> },
   // 运行异常日志（REQ-20261117-061017）：权限点 infra:exception:list
   { path: '/op-exceptions', labelKey: 'nav.items.opExceptions', permission: 'infra:exception:list', element: <ExceptionsPage /> },
-  // 定时任务（REQ-20261117-061017）：权限点 infra:job:list（手动执行 infra:job:run 页内分控）
-  { path: '/jobs', labelKey: 'nav.items.jobs', permission: 'infra:job:list', element: <JobsPage /> },
+  // 调度中心（REQ-20261122-023213 JOB-3）：复用 /jobs 改造为三 Tab 管理页，权限点换 scheduler:job:list（73）
+  { path: '/jobs', labelKey: 'nav.items.jobs', permission: 'scheduler:job:list', element: <JobsPage /> },
   // 系统配置（REQ-20261116-230354）：GET 认证即可读，页面不设 PermissionGate；
   // 保存能力在页面内按 system:config:update fail-closed（AC-6）
   { path: '/system/config', labelKey: 'nav.items.systemConfig', element: <SystemConfigPage /> },
