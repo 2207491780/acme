@@ -23,7 +23,8 @@
 | 3 | 轮 3 全收口（THEME-3/JOB-2/BPM-2+JOB-3 提前） | **DONE** | |
 | 遗留 | 孤儿目录人工清理 | .worktrees 下 feat-req-20261120-213603-menu-filter、feat-req-20261121-071002-scheduler-core、feat-req-20261122-023441-bpm-designer 三个孤儿残留目录（Safe-Delete 钩子拒绝脚本删除，注册已注销、内容可弃）——需用户人工删除或授权 bypass | — |
 | 4+ | BPM-3 流程管理页 | II-DEV 三路并行（REQ-20261122-102730 契约 confirmed：/workflow 扩 Tab+待办中心独立页/V29 菜单种子无新权限点/TaskView 投影后端扩展禁 N+1/X6 只读工厂 readOnly flag/审批深化归 BPM-4） | REQ-20261122-102730 |
-| 4+ | TENANT-3 → BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动（TENANT-3 事实采集中） | |
+| 4+ | TENANT-3 子租户层级 | II-DEV 三路并行（REQ-20261122-102954 契约 confirmed：V30 parent_id+level/深度≤3+环检测/级联停用物化自身 status/零新旁路不穿透/init 模板建子租户/套餐独立绑定/配额口径留 TENANT-4；§6.3 三问按推荐钉死） | REQ-20261122-102954 |
+| 4+ | BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
 
