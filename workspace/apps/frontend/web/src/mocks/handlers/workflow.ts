@@ -87,6 +87,23 @@ function findTask(taskId: string): TaskView | undefined {
   return store.tasks.find((row) => row.id === taskId);
 }
 
+/** 委托落库记录判定（REQ-20261122-150750 契约⑤，与前端 ApprovalDetailDrawer 口径一致）：
+ *  DelegateTaskCommand 落 action=ENTER+detail.delegate（owner 记录）——
+ *  detail 为 JSON 字符串且含非空 delegate 字段即污染记录；detail 非 JSON（纯文本）视为非委托记录。 */
+function isDelegateEnterRecord(row: HistoryActivityView): boolean {
+  if (!row.detail) return false;
+  try {
+    const parsed: unknown = JSON.parse(row.detail);
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const delegate = (parsed as Record<string, unknown>).delegate;
+      return typeof delegate === 'string' && delegate !== '';
+    }
+  } catch {
+    // 非 JSON detail 非委托记录
+  }
+  return false;
+}
+
 export const workflowHandlers = [
   // 1) GET 列表：keyword（key/name 模糊）/status 精确 + 分页
   http.get('/admin/v1/workflow/process-definitions', ({ request }) => {
@@ -371,7 +388,9 @@ export const workflowHandlers = [
     return page(slicePage(rows, pagingOf(request)), rows.length);
   }),
 
-  // 17) POST 办结：CREATED/CLAIMED → COMPLETED + completeTime
+  // 17) POST 办结：CREATED/CLAIMED → COMPLETED + completeTime；
+  //     REQ-20261122-150750 契约⑦形状验证：TaskCompleteRequest{form?,comment?}——
+  //     form 非 object（含数组/null）拒 400 VALIDATION_FAILED，comment 非字符串拒（AC-7）
   http.post('/admin/v1/workflow/tasks/:taskId/complete', async ({ request, params }) => {
     const target = findTask(String(params.taskId));
     if (!target) {
@@ -380,14 +399,23 @@ export const workflowHandlers = [
     if (target.status !== 'CREATED' && target.status !== 'CLAIMED') {
       return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅待办任务可办结', 409, null);
     }
-    await bodyOf(request);
+    const body = await bodyOf(request);
+    if (body.form !== undefined && body.form !== null
+      && (typeof body.form !== 'object' || Array.isArray(body.form))) {
+      return failWithData(WORKFLOW_ERROR_CODES.VALIDATION_FAILED, 'form 必须是对象', 400, null);
+    }
+    if (body.comment !== undefined && body.comment !== null && typeof body.comment !== 'string') {
+      return failWithData(WORKFLOW_ERROR_CODES.VALIDATION_FAILED, 'comment 必须是字符串', 400, null);
+    }
     store.tasks = store.tasks.map((row) =>
       row.id === target.id ? { ...row, status: 'COMPLETED', completeTime: nowIso() } : row,
     );
     return empty();
   }),
 
-  // 18) POST 驳回：→ REJECTED + completeTime；targetNodeId 非法=400 XML_INVALID
+  // 18) POST 驳回：→ REJECTED + completeTime；targetNodeId 非法=400 XML_INVALID；
+  //     REQ-20261122-150750 契约⑤豁免同步真实语义：候选=历史 ENTER 且 detail.delegate 为空
+  //     （含 StartEvent 历史记录，剔除 'start-1' 字面豁免）
   http.post('/admin/v1/workflow/tasks/:taskId/reject', async ({ request, params }) => {
     const target = findTask(String(params.taskId));
     if (!target) {
@@ -399,8 +427,8 @@ export const workflowHandlers = [
     const body = await bodyOf(request);
     const targetNodeId = typeof body.targetNodeId === 'string' ? body.targetNodeId : null;
     if (targetNodeId) {
-      const known = (store.histories[target.instanceId] ?? []).some((row) => row.nodeId === targetNodeId && row.action === 'ENTER')
-        || targetNodeId === 'start-1';
+      const known = (store.histories[target.instanceId] ?? []).some((row) =>
+        row.action === 'ENTER' && row.nodeId === targetNodeId && !isDelegateEnterRecord(row));
       if (!known) {
         return failWithData(WORKFLOW_ERROR_CODES.XML_INVALID, `驳回目标节点 ${targetNodeId} 不存在`, 400, null);
       }

@@ -539,6 +539,13 @@ export const workflowTasks: TaskView[] = [
     createTime: '2026-11-21T09:30:00Z',
     definitionKey: 'expense-claim', definitionName: '报销申请', businessKey: 'EXP-20261121-001', initiator: 'admin',
   },
+  // REQ-20261122-150750（BPM-4）审批场景样例：被委托认领任务（委托链 owner→boss→admin 落 admin 办理面）
+  {
+    id: '9404', instanceId: '9306', nodeId: 'task-1', nodeName: '主管审批',
+    assignee: 'admin', status: 'CLAIMED', claimTime: '2026-11-22T04:20:00Z', completeTime: null,
+    createTime: '2026-11-22T04:10:00Z',
+    definitionKey: 'expense-claim', definitionName: '报销申请', businessKey: 'EXP-20261122-004', initiator: 'ops',
+  },
 ];
 
 /** BPM-3 实例 fixtures（契约对齐 ProcessInstanceView：wire 字符串 id；definitionName=契约⑤投影）。
@@ -582,6 +589,14 @@ export const workflowInstances: ProcessInstanceView[] = [
     variables: null,
     activeNodes: [], tasks: [],
   },
+  {
+    id: '9306', definitionId: '9002', definitionKey: 'expense-claim', definitionName: '报销申请',
+    businessKey: 'EXP-20261122-004', initiator: 'ops', status: 'RUNNING',
+    suspendReason: null, startTime: '2026-11-22T04:10:00Z', endTime: null,
+    variables: { amount: 660, reason: '委托审批样例' },
+    activeNodes: [{ nodeId: 'task-1', nodeName: '主管审批', nodeType: 'UserTask', enterAt: '2026-11-22T04:10:05Z' }],
+    tasks: [{ id: '9404', instanceId: '9306', nodeId: 'task-1', nodeName: '主管审批', assignee: 'admin', status: 'CLAIMED', claimTime: '2026-11-22T04:20:00Z', completeTime: null, createTime: '2026-11-22T04:10:00Z' }],
+  },
 ];
 
 /** BPM-3 历史链 fixtures（实例 id → HistoryActivityView 非分页 List；ENTER/LEAVE 配对可算停留时长，
@@ -597,6 +612,15 @@ export const workflowHistories: Record<string, HistoryActivityView[]> = {
     { id: '9605', nodeId: 'start-1', nodeType: 'StartEvent', action: 'ENTER', assignee: null, startAt: '2026-11-22T02:40:00Z', endAt: null, detail: null },
     { id: '9606', nodeId: 'start-1', nodeType: 'StartEvent', action: 'LEAVE', assignee: null, startAt: '2026-11-22T02:40:08Z', endAt: '2026-11-22T02:40:10Z', detail: null },
     { id: '9607', nodeId: 'task-1', nodeType: 'UserTask', action: 'ENTER', assignee: null, startAt: '2026-11-22T02:40:10Z', endAt: null, detail: null },
+  ],
+  // REQ-20261122-150750（BPM-4）审批场景历史：StartEvent ENTER 样例（驳回候选合法目标）
+  // + delegate ENTER 污染记录（detail.delegate=委托 owner 落库形态）——驳回候选口径修正用例锚点
+  '9306': [
+    { id: '9620', nodeId: 'start-1', nodeType: 'StartEvent', action: 'ENTER', assignee: null, startAt: '2026-11-22T04:10:00Z', endAt: null, detail: null },
+    { id: '9621', nodeId: 'start-1', nodeType: 'StartEvent', action: 'LEAVE', assignee: null, startAt: '2026-11-22T04:10:02Z', endAt: '2026-11-22T04:10:05Z', detail: null },
+    { id: '9622', nodeId: 'task-1', nodeType: 'UserTask', action: 'ENTER', assignee: 'boss', startAt: '2026-11-22T04:10:05Z', endAt: '2026-11-22T04:18:00Z', detail: '{"delegate":"boss","comment":"出差期间委托 boss 代审"}' },
+    { id: '9623', nodeId: 'task-1', nodeType: 'UserTask', action: 'LEAVE', assignee: 'boss', startAt: '2026-11-22T04:18:00Z', endAt: '2026-11-22T04:18:30Z', detail: null },
+    { id: '9624', nodeId: 'task-1', nodeType: 'UserTask', action: 'ENTER', assignee: 'admin', startAt: '2026-11-22T04:18:30Z', endAt: null, detail: null },
   ],
   '9303': [
     { id: '9608', nodeId: 'start-1', nodeType: 'StartEvent', action: 'ENTER', assignee: null, startAt: '2026-11-22T00:15:00Z', endAt: null, detail: null },

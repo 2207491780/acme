@@ -93,6 +93,7 @@ export const workflow = {
     title: 'Todo Center',
     segments: {
       todo: 'My Todos',
+      done: 'Done',
       initiated: 'Initiated by Me',
     },
     columns: {
@@ -121,18 +122,32 @@ export const workflow = {
     actions: {
       claim: 'Claim',
       unclaim: 'Unclaim',
-      complete: 'Complete',
+      complete: 'Handle',
       transfer: 'Transfer',
       delegate: 'Delegate',
+      view: 'View',
     },
     confirm: {
       claim: 'Claim this task? You will handle it after claiming.',
       unclaim: 'Unclaim this task? It will return to the claimable pool.',
     },
     drawer: {
-      title: 'Task Detail',
+      // REQ-20261122-150750 (BPM-4): task detail drawer upgraded to "Approval Detail" five blocks —
+      // task info / approval actions / instance context / history timeline / diagram.
+      title: 'Approval Detail',
       task: 'Task Info',
-      form: 'Complete',
+      approval: 'Approval Actions',
+      context: 'Instance Context',
+      history: 'History Timeline',
+      diagram: 'Diagram',
+      readonlyHint: 'This task is completed and can only be viewed (history and diagram are read-only)',
+      form: 'Handle',
+      formKey: 'Field',
+      formKeyPlaceholder: 'e.g. days',
+      formValue: 'Value',
+      formValuePlaceholder: 'e.g. 3',
+      addFormItem: 'Add Form Field',
+      removeFormItem: 'Remove',
       comment: 'Comment',
       commentPlaceholder: 'Optional comment',
       submitComplete: 'Submit Completion',

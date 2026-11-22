@@ -94,6 +94,7 @@ export const workflow = {
     title: '待办中心',
     segments: {
       todo: '我的待办',
+      done: '已办',
       initiated: '我发起',
     },
     columns: {
@@ -125,15 +126,29 @@ export const workflow = {
       complete: '办理',
       transfer: '转办',
       delegate: '委托',
+      view: '查看',
     },
     confirm: {
       claim: '确认认领该任务？认领后由本人办理。',
       unclaim: '确认取消认领？取消后任务回到待认领。',
     },
     drawer: {
-      title: '任务详情',
+      // REQ-20261122-150750（BPM-4）：任务详情 Drawer 升级「审批详情」五块——
+      // 任务信息/审批操作区/实例上下文/历史时间线/流程图；title 随 IA 升级更名
+      title: '审批详情',
       task: '任务信息',
+      approval: '审批操作区',
+      context: '实例上下文',
+      history: '历史时间线',
+      diagram: '流程图',
+      readonlyHint: '该任务已办结，仅支持查看历史与流程图',
       form: '办理',
+      formKey: '字段名',
+      formKeyPlaceholder: '如 days',
+      formValue: '字段值',
+      formValuePlaceholder: '如 3',
+      addFormItem: '添加表单字段',
+      removeFormItem: '移除',
       comment: '办理意见',
       commentPlaceholder: '填写办理意见（可选）',
       submitComplete: '提交办结',

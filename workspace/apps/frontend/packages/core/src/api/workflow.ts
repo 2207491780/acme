@@ -196,8 +196,11 @@ export interface TaskListFilters {
   status?: WorkflowTaskStatus;
 }
 
-/** 办理任务载荷（complete(form)：一期表单自由值，comment 为预留键）。 */
+/** 办理任务载荷（REQ-20261122-150750 契约⑦形状修正：后端 TaskCompleteRequest{form} wire 同形——
+ *  form=自由键值对象（落 wf_task.form_data jsonb），comment 独立；均为可选。
+ *  修正现网缺口：旧形状仅 {comment?} 且顶层直发被后端丢弃（form=null），本形状补齐 form 通道）。 */
 export interface TaskCompletePayload {
+  form?: Record<string, unknown>;
   comment?: string;
 }
 
@@ -321,7 +324,7 @@ export const taskApi = {
       { signal },
     ),
 
-  /** 办理任务（complete(form)；候选 ALL 策略 CREATED 可直办）。 */
+  /** 办理任务（REQ-20261122-150750 契约⑦：顶层 {form:{...},comment} 直发；候选 ALL 策略 CREATED 可直办）。 */
   complete: (taskId: string, payload: TaskCompletePayload = {}): Promise<void> =>
     apiFetch<void>(WORKFLOW_TASK_ENDPOINTS.complete(taskId), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }, { emptyAsSuccess: true }),
 

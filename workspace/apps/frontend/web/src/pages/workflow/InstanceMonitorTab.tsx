@@ -40,8 +40,9 @@ const INSTANCE_STATUSES: ProcessInstanceStatus[] = ['RUNNING', 'SUSPENDED', 'COM
 /** 实例状态 → AntD 预设名（单元格文本取状态域字面量）。 */
 const statusBadge = (status: ProcessInstanceStatus): string => TONE_ANTD[instanceStatusTone(status)];
 
-/** 历史动作 → 时间线分色（TONES 令牌单源：ENTER=info/LEAVE=success/REJECT_EDGE=danger/TIMER_FIRE=warning）。 */
-function historyActionColor(action: HistoryAction): string {
+/** 历史动作 → 时间线分色（TONES 令牌单源：ENTER=info/LEAVE=success/REJECT_EDGE=danger/TIMER_FIRE=warning）。
+ *  REQ-20261122-150750：审批详情 Drawer 历史块复用同一分色口径（导出共享）。 */
+export function historyActionColor(action: HistoryAction): string {
   switch (action) {
     case 'ENTER': return TONES.info;
     case 'LEAVE': return TONES.success;
@@ -66,8 +67,9 @@ const INSTANCE_MANAGE_PERM = 'workflow:instance:manage';
  * 摘要 / 活跃节点+任务树 / 变量摘要 / 历史时间线（action 分色）/
  * 流程图（readOnly 渲染定义 XML + activeNodes running 高亮 + REJECT_EDGE 边标红）。
  * 操作按钮按状态分控：RUNNING→挂起/终止；SUSPENDED→恢复（均 Auth 80）。
+ * REQ-20261122-150750：导出供待办中心「我发起·查看」入口复用（实例详情视角，AC-6）。
  */
-function InstanceDetailDrawer({ instanceId, open, onClose, onChanged }: {
+export function InstanceDetailDrawer({ instanceId, open, onClose, onChanged }: {
   instanceId: string | null;
   open: boolean;
   onClose: () => void;

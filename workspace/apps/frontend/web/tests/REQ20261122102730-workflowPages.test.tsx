@@ -65,7 +65,8 @@ const ACTION_COMPLETE = /^办\s*理$/;
 const ACTION_TRANSFER = /^转\s*办$/;
 const ACTION_DELEGATE = /^委\s*托$/;
 const DRAWER_INSTANCE = '实例详情';
-const DRAWER_TASK = '任务详情';
+// REQ-20261122-150750 契约② IA 变更：任务详情 Drawer 升级「审批详情」，行内操作收编 Drawer
+const DRAWER_APPROVAL = '审批详情';
 const MODAL_TRANSFER = '转办任务';
 const MODAL_DELEGATE = '委托任务';
 const SUBMIT_COMPLETE = /提\s*交\s*办\s*结/;
@@ -680,20 +681,31 @@ describe('REQ20261122102730 待办中心页（AC-5）', () => {
 describe('REQ20261122102730 任务操作（AC-6/7/8）', () => {
   it('should_claim_created_task_and_switch_actions_when_popconfirm_confirmed', async () => {
     const state = await renderTodoPage();
-    // CREATED 候选任务 → 认领（Popconfirm）
-    fireEvent.click(rowAction(rowOf('EXP-20261122-001'), ACTION_CLAIM));
+    // REQ-20261122-150750 契约②新 IA：行内仅「办理」单入口 → 审批详情 Drawer，认领收编 Drawer 操作区
+    fireEvent.click(rowAction(rowOf('EXP-20261122-001'), ACTION_COMPLETE));
+    const drawer = await waitFor(() => {
+      const el = drawerScope();
+      expect(within(el).getByText(DRAWER_APPROVAL), '审批详情 Drawer 应打开').toBeTruthy();
+      return el;
+    });
+    // CREATED 候选任务 → Drawer 操作区仅 claim（Popconfirm）
+    expect(within(drawer).getByRole('button', { name: ACTION_CLAIM })).toBeTruthy();
+    fireEvent.click(within(drawer).getByRole('button', { name: ACTION_CLAIM }));
     await confirmPopconfirm(/确认认领该任务/);
     await waitFor(() => {
       const claimPost = state.taskPosts.find((p) => p.url.pathname.endsWith('/9401/claim'));
       expect(claimPost, '认领端点应被调用').toBeTruthy();
     });
-    // CLAIMED + 操作面切换（取消认领/办理可见）
+    // CLAIMED + 操作面切换：列表刷新已认领；重开 Drawer 显取消认领/提交办结（claim 收敛）
+    // 注：ACTION_COMPLETE（办理）=行级入口锚点，Drawer 内办理提交按钮文案=提交办结（SUBMIT_COMPLETE）
     await expectRowStatus('EXP-20261122-001', TASK_STATUS_CLAIMED);
+    fireEvent.click(rowAction(rowOf('EXP-20261122-001'), ACTION_COMPLETE));
     await waitFor(() => {
-      const row = rowOf('EXP-20261122-001');
-      expect(within(row).getByRole('button', { name: ACTION_UNCLAIM })).toBeTruthy();
-      expect(within(row).getByRole('button', { name: ACTION_COMPLETE })).toBeTruthy();
+      const reopened = drawerScope();
+      expect(within(reopened).getByRole('button', { name: ACTION_UNCLAIM })).toBeTruthy();
+      expect(within(reopened).getByRole('button', { name: SUBMIT_COMPLETE })).toBeTruthy();
     });
+    expect(within(drawerScope()).queryByRole('button', { name: ACTION_CLAIM })).toBeNull();
   });
 
   it('should_hide_task_operate_actions_when_user_lacks_operate_permission', async () => {
@@ -712,7 +724,7 @@ describe('REQ20261122102730 任务操作（AC-6/7/8）', () => {
     // CLAIMED 任务 → 办理 Drawer → 表单提交 POST complete → 待办消失
     fireEvent.click(rowAction(rowOf('EXP-20261122-002'), ACTION_COMPLETE));
     await waitFor(() => {
-      expect(screen.getByText(DRAWER_TASK), '任务详情 Drawer 应打开').toBeTruthy();
+      expect(screen.getByText(DRAWER_APPROVAL), '审批详情 Drawer 应打开').toBeTruthy();
     });
     const commentInput = await waitFor(() => {
       const el = screen.getAllByPlaceholderText(COMMENT_PLACEHOLDER)[0];
@@ -770,7 +782,14 @@ describe('REQ20261122102730 任务操作（AC-6/7/8）', () => {
 
   it('should_transfer_task_when_assignee_submitted', async () => {
     const state = await renderTodoPage();
-    fireEvent.click(rowAction(rowOf('EXP-20261122-002'), ACTION_TRANSFER));
+    // REQ-20261122-150750 契约②⑥新 IA：转办收编审批详情 Drawer 操作区（CLAIMED 可见）→ AssigneeModal
+    fireEvent.click(rowAction(rowOf('EXP-20261122-002'), ACTION_COMPLETE));
+    const drawer = await waitFor(() => {
+      const el = drawerScope();
+      expect(within(el).getByText(DRAWER_APPROVAL), '审批详情 Drawer 应打开').toBeTruthy();
+      return el;
+    });
+    fireEvent.click(within(drawer).getByRole('button', { name: ACTION_TRANSFER }));
     await waitFor(() => {
       expect(screen.getByText(MODAL_TRANSFER), '转办弹层应打开').toBeTruthy();
     });
@@ -790,7 +809,14 @@ describe('REQ20261122102730 任务操作（AC-6/7/8）', () => {
 
   it('should_delegate_task_when_assignee_submitted', async () => {
     const state = await renderTodoPage();
-    fireEvent.click(rowAction(rowOf('EXP-20261122-002'), ACTION_DELEGATE));
+    // REQ-20261122-150750 契约②⑥新 IA：委托收编审批详情 Drawer 操作区（仅 CLAIMED 可见）→ AssigneeModal
+    fireEvent.click(rowAction(rowOf('EXP-20261122-002'), ACTION_COMPLETE));
+    const drawer = await waitFor(() => {
+      const el = drawerScope();
+      expect(within(el).getByText(DRAWER_APPROVAL), '审批详情 Drawer 应打开').toBeTruthy();
+      return el;
+    });
+    fireEvent.click(within(drawer).getByRole('button', { name: ACTION_DELEGATE }));
     await waitFor(() => {
       expect(screen.getByText(MODAL_DELEGATE), '委托弹层应打开').toBeTruthy();
     });
