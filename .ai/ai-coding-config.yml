@@ -11,9 +11,9 @@ engine:
   entryMode: stub
   # 是否在 sync/--check 扫描工具目录的孤儿派生文件（源已删、派生物残留）。关闭会削弱联动防线，默认开启。
   orphanDetection: true
-  # .ai/RULES.md 拼接后的字节预算上限（正整数）。默认 8192（8KB）；本项目放宽至 10KB（取舍见
-  # .ai-memory/decisions/2026-11-13-01-rules-budget.md）。当前字节/余量以 node .ai/sync.mjs --check 实测为准。
-  rulesBudgetBytes: 10240
+  # .ai/RULES.md 拼接后的字节预算上限（正整数）。默认 8192（8KB）；本项目放宽至 10.5KB（取舍见
+  # .ai-memory/decisions/2026-11-13-01-rules-budget.md、2026-11-22-01-rules-budget-10-5k.md）。当前字节/余量以 node .ai/sync.mjs --check 实测为准。
+  rulesBudgetBytes: 10752
   # team-leader 多代理契约开发流程的触发开关：auto（功能开发类任务自动触发）| always（所有开发任务一律走流程）| never（停用）。
   # 取值由 sync.mjs 注入所有入口存根触发段（不占 RULES.md 预算）；流程源见 .ai/skills/team-leader/ 与 .ai-memory/playbooks/multi-agent.md。
   # 取舍见 .ai-memory/decisions/2026-11-14-19-multi-agent-contract-workflow.md。
