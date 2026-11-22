@@ -22,9 +22,14 @@
 | 3+ | BPM-2 流程设计器 | **DONE**（合并 4aa192c（amend 修正）+合并树复验 typecheck/定向绿+双远端推送+分支回收；门禁 GATE_ALL_PASS web 70 文件/build 18.25s/desktop ✓；tester 50/50+校验规则三裁决；浏览器实测走查 PASS 截图取证 .ai-tmp/bpm2-designer-evidence.png；与 JOB-3 并行合流 TL 手解三文件冲突+合并树复验兜底） | REQ-20261122-023441 |
 | 3 | 轮 3 全收口（THEME-3/JOB-2/BPM-2+JOB-3 提前） | **DONE** | |
 | 遗留 | 孤儿目录人工清理 | .worktrees 下 feat-req-20261120-213603-menu-filter、feat-req-20261121-071002-scheduler-core、feat-req-20261122-023441-bpm-designer 三个孤儿残留目录（Safe-Delete 钩子拒绝脚本删除，注册已注销、内容可弃）——需用户人工删除或授权 bypass | — |
-| 4+ | BPM-3 流程管理页 | II-DEV 三路并行（REQ-20261122-102730 契约 confirmed：/workflow 扩 Tab+待办中心独立页/V29 菜单种子无新权限点/TaskView 投影后端扩展禁 N+1/X6 只读工厂 readOnly flag/审批深化归 BPM-4） | REQ-20261122-102730 |
-| 4+ | TENANT-3 子租户层级 | II-DEV 三路并行（REQ-20261122-102954 契约 confirmed：V30 parent_id+level/深度≤3+环检测/级联停用物化自身 status/零新旁路不穿透/init 模板建子租户/套餐独立绑定/配额口径留 TENANT-4；§6.3 三问按推荐钉死） | REQ-20261122-102954 |
-| 4+ | BPM-4/JOB-4/TENANT-4 → BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
+| 4 | BPM-3 流程管理页 | **DONE**（合并 cd7033a+合并树复验 typecheck/定向绿+双远端推送+回收；门禁 GATE_ALL_PASS web **74 文件全绿**/build 52.99s/desktop ✓；backend 58/58+V29 3/3；tester 46 例映射 AC-1~12；浏览器实测=只读画布 svg 1/nodes 4/edges 3+五块 Drawer+待办两子区；运行时重启一次四路续任无损） | REQ-20261122-102730 |
+| 4 | TENANT-3 子租户层级 | **DONE**（合并 1fc9076+合并树 V30 复验 exit=0+双远端推送+回收；backend 414/414 Skipped=0+层级 9/9 两路独立复验；frontend 9/9+typecheck 绿；tester 19 例映射；§6.3 三问推荐答案钉死；门禁注记=唯一红为已知负载敏感用例零代码交集放行） | REQ-20261122-102954 |
+| 4 | 轮 4 全收口（BPM-3+TENANT-3） | **DONE** | |
+| 5 | BPM-4 审批详情深化 | II-DEV（REQ-20261122-150750 纯前端；**并发 4 纪律下：bpm4-frontend-r4 在跑**；磁盘 10 处改动含 ApprovalDetailDrawer/core api/i18n/msm；tester bpm4-tester-r4 排队待派；多轮宿主中断史 r2/r3 零增量、r3 任内无前端增量） | REQ-20261122-150750 |
+| 5 | JOB-4 调度韧性 | II-DEV（REQ-20261122-150756 纯后端；**job4-backend-r4 在跑**；磁盘 16 处——r3 重大增量：V3__shard_fanout_index_and_definition_shardable.sql 已建+shardable 字段/扇出已落+告警接线+内部通知端点；InternalNotify IT 上轮 Skipped=4 待 Docker 真跑（Docker 已在线 29.3.1）；job4-tester-r4 排队） | REQ-20261122-150756 |
+| 5 | TENANT-4 生命周期+配额 | II-DEV（REQ-20261122-150802 双端；**tenant4-backend-r4 + tenant4-frontend-r4 在跑**；磁盘 38 处——V31+配额域全套+宽限 auth 链+前端四件套+TesterTest 类；遗留 tmp-req150802-smoke.test.tsx 待删；tenant4-tester-r4 排队） | REQ-20261122-150802 |
+| 5 | 并发队列 | 上限 4：在跑=job4-backend-r4/tenant4-backend-r4/bpm4-frontend-r4（vitest 终验中）/job4-tester-r4（新拉）；已完成=bpm4-tester-r4（20/20 全绿交付关闭）+tenant4-frontend-r4；排队=tenant4-tester-r4 | — |
+| 6+ | BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
 
 ## 关键执行事实（跨任务复用，勿重推导）
 
