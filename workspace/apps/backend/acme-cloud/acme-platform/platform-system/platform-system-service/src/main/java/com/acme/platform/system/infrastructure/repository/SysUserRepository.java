@@ -17,6 +17,12 @@ public interface SysUserRepository extends FlexRepository<SysUser> {
      */
     long countAllPlatformWide();
 
+    /**
+     * 按租户归属用户计数（REQ-20261122-150802 usage 运营视图，确认④）：跨租户平台口径——
+     * 租户过滤旁路由调用方用例 @IgnoreTenant 作用域承载（TenantBypassScope 嵌套旁路）。
+     */
+    long countByTenantId(String tenantId);
+
     boolean existsByUsername(String username);
 
     /** 登录画像定位（@IgnoreTenant 旁路内显式按全局唯一键查询）。 */

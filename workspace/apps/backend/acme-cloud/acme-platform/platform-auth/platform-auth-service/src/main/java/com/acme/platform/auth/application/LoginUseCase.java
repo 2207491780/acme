@@ -160,9 +160,9 @@ public class LoginUseCase {
 
     /**
      * 租户可登录性校验（REQ-20261117-025200 确认记录③）：by-code 实查租户目录——
-     * 非 ENABLED（停用级联第二道闸，与画像 effectiveStatus 同语义）或 expiresAt 非 null 且已过期
-     * 统一 LOGIN_FAILED（FR-005 不泄露租户状态差异）；目录查询失败 fail-closed 视为不可登录
-     * （登录面从严，WARN 记录）。
+     * 非 ENABLED（停用级联第二道闸，与画像 effectiveStatus 同语义）或派生已过期
+     * （expires 过且无有效宽限，REQ-20261122-150802 确认②宽限期内放行）统一 LOGIN_FAILED
+     * （FR-005 不泄露租户状态差异）；目录查询失败 fail-closed 视为不可登录（登录面从严，WARN 记录）。
      */
     private void verifyTenantLoginable(String tenantCode) {
         TenantInternalView tenant;
@@ -175,9 +175,21 @@ public class LoginUseCase {
         Instant now = Instant.now();
         if (tenant == null
                 || !EnableStatus.ENABLED.name().equals(tenant.status())
-                || (tenant.expiresAt() != null && tenant.expiresAt().isBefore(now))) {
+                || derivedExpired(now, tenant.expiresAt(), tenant.graceUntil())) {
             throw new BizException(AuthError.LOGIN_FAILED);
         }
+    }
+
+    /**
+     * 派生过期判定（REQ-20261122-150802 确认②四视觉态读时判定）：expires 未到或无 expires=启用中；
+     * expires 过且 grace 未过=宽限期（仍可登录，能力照旧）；grace 也过（或 expires 过且无 grace）=
+     * 已过期（派生自动过期，无定时任务）。
+     */
+    private static boolean derivedExpired(Instant now, Instant expiresAt, Instant graceUntil) {
+        if (expiresAt == null || !expiresAt.isBefore(now)) {
+            return false;
+        }
+        return graceUntil == null || !graceUntil.isAfter(now);
     }
 
     /** 互踢：旧活跃会话置 KICKED（事务）→ 撤销集写入（事务外，失败降级 WARN 不阻断登录）。 */

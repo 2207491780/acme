@@ -229,7 +229,10 @@ export interface AdminSystemConfigUpdate {
  *  REQ-20261117-025200 扩展联系人/联系电话/有效期（可空；expiresAt ISO-8601 字符串，null=长期）。
  *  REQ-20261121-022910 扩展绑定套餐（可空=不受限；packageId wire 字符串口径，packageName 冗余下发便于列表直显）。
  *  REQ-20261122-102954 扩展 parentId/level（子租户层级；parentId null/缺失=顶层，level 1=顶层上限 3；
- *  两字段可选=旧口径 wire 兼容，消费方按缺省 1/顶层降级）。 */
+ *  两字段可选=旧口径 wire 兼容，消费方按缺省 1/顶层降级）。
+ *  REQ-20261122-150802（TENANT-4）扩展 graceUntil/quotaStorageBytes：graceUntil=宽限期截止
+ *  （ISO-8601，null/缺失=未启用宽限；派生态=expires 过期且 grace 未过时仍可登录）；
+ *  quotaStorageBytes=解析后有效存储配额（字节；0=不限；解析链=租户覆盖→套餐默认→平台缺省）。 */
 export interface AdminTenantView {
   id: string;
   tenantCode: string;
@@ -240,6 +243,9 @@ export interface AdminTenantView {
   contactPhone: string | null;
   /** 有效期（ISO-8601 字符串；null=长期；过期租户登录被拒，存量允许过去时间）。 */
   expiresAt: string | null;
+  /** 宽限期截止（REQ-20261122-150802；ISO-8601 字符串；null/缺失=未启用宽限；
+   *  expires 过期且宽限未到=可登录（宽限期），宽限也过=派生过期）。 */
+  graceUntil?: string | null;
   /** 绑定套餐 id（REQ-20261121-022910；null/缺失=不受限，菜单下发与现状一致）。 */
   packageId?: string | null;
   /** 绑定套餐名称（冗余下发；未绑定/套餐已删=null）。 */
@@ -248,6 +254,9 @@ export interface AdminTenantView {
   parentId?: string | null;
   /** 层级（REQ-20261122-102954；1=顶层，上限 3；缺失=旧口径按 1 兜底）。 */
   level?: number;
+  /** 解析后有效存储配额（REQ-20261122-150802；字节；0=不限；解析链=租户覆盖→套餐默认→平台缺省；
+   *  可选=旧口径 wire 兼容，缺失按平台缺省兜底展示）。 */
+  quotaStorageBytes?: number | null;
   createdAt: string;
   version: string;
 }
@@ -264,6 +273,23 @@ export interface AdminTenantInitView extends AdminTenantView {
   adminUsername: string;
 }
 
+/** 配额来源层级（REQ-20261122-150802 确认③解析链：租户覆盖 > 套餐默认 > 平台缺省）。 */
+export type TenantQuotaSource = 'TENANT_OVERRIDE' | 'PACKAGE' | 'PLATFORM_DEFAULT';
+
+/** 租户用量视图（REQ-20261122-150802 契约⑦④：GET /tenants/{id}/usage 实时旁路聚合
+ *  （@IgnoreTenant）；list 不带 usage（裁决=重），仅此端点按需拉取。
+ *  quotaStorageBytes=解析后有效配额（字节；0=不限）；quotaSource=来源层级标注。 */
+export interface TenantUsageView {
+  /** 存储用量（字节；sys_file 未删 size 总和，实时口径）。 */
+  storageBytes: number;
+  /** 用户数（sys_user 归属租户计数）。 */
+  userCount: number;
+  /** 有效存储配额（字节；0=不限；解析链=租户覆盖→套餐默认→平台缺省）。 */
+  quotaStorageBytes: number;
+  /** 配额来源层级标注（用量 Modal 展示口径）。 */
+  quotaSource: TenantQuotaSource;
+}
+
 /** 租户套餐视图（REQ-20261121-022910 契约对齐 AdminTenantPackageView；id wire 字符串口径；
  *  menuCount=绑定菜单行数、tenantCount=绑定租户数由后端实时推导；审计列 createdAt/updatedAt。
  *  round 2 追认：后端框架乐观锁惯例——视图带 version；round 2 补：common-serialization
@@ -276,6 +302,9 @@ export interface AdminTenantPackageView {
   menuCount: number;
   /** 绑定该套餐的租户数。 */
   tenantCount: number;
+  /** 套餐默认存储配额（REQ-20261122-150802；字节；null/缺失=继承平台缺省；
+   *  低于租户覆盖优先级——解析链=租户覆盖→套餐默认→平台缺省）。 */
+  quotaStorageBytes?: number | null;
   /** 乐观锁版本（wire 字符串，Long→string；后端 AdminTenantPackageUpdate @NotNull version，编辑时随体回传）。 */
   version: string;
   createdAt: string;
@@ -501,13 +530,23 @@ export const systemApi = {
   /** 租户改名/备注/联系人/有效期（version 乐观锁）；REQ-20261121-022910 增可选 packageId
    *  （number|null，null=解除绑定；向后兼容——不传即不改动既有绑定）；
    *  REQ-20261122-102954 增可选 parentId（改父=后端重校验环+深度并重算后代 level；
-   *  环 → TENANT_CYCLE、深度超限 → TENANT_DEPTH_EXCEEDED）。 */
-  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; packageId?: number | null; parentId?: string | null; version: string }): Promise<AdminTenantView> =>
+   *  环 → TENANT_CYCLE、深度超限 → TENANT_DEPTH_EXCEEDED）；
+   *  REQ-20261122-150802 增可选 graceUntil（ISO-8601，null=清除宽限——update 收宽限字段，确认⑥）。 */
+  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; graceUntil?: string | null; packageId?: number | null; parentId?: string | null; version: string }): Promise<AdminTenantView> =>
     apiJson<AdminTenantView>(`/admin/v1/system/tenants/${tenantId}`, 'PUT', payload),
   /** 停用/启用租户（停用即"删除"，FR-007；REQ-20261122-102954 契约⑦：停用后端级联停用全部后代
    *  并逐租户撤会话，恢复父不自动恢复子——前端不重复提交级联）。 */
   tenantStatus: (tenantId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>
     apiJson<void>(`/admin/v1/system/tenants/${tenantId}/status`, 'PUT', { status }),
+  /** 租户用量（REQ-20261122-150802 契约⑦：GET /tenants/{id}/usage，权限 system:tenant:list；
+   *  实时旁路聚合 storageBytes/userCount + 有效配额/来源层级——用量 Modal 按需拉取，list 不带 usage）；
+   *  signal 为可选取消信号，透传 apiFetch。 */
+  tenantUsage: (tenantId: string, signal?: AbortSignal): Promise<TenantUsageView> =>
+    apiFetch<TenantUsageView>(`/admin/v1/system/tenants/${tenantId}/usage`, { signal }),
+  /** 租户覆盖配额（REQ-20261122-150802 契约⑦：PUT /tenants/{id}/quota，权限 system:tenant:update；
+   *  quotaStorageBytes 字节口径（0=不限），null=清除覆盖回落套餐默认/平台缺省；返回更新后租户视图）。 */
+  tenantQuota: (tenantId: string, quotaStorageBytes: number | null): Promise<AdminTenantView> =>
+    apiJson<AdminTenantView>(`/admin/v1/system/tenants/${tenantId}/quota`, 'PUT', { quotaStorageBytes }),
   /** 租户层级树（REQ-20261122-102954 契约⑨：GET /tenants/tree 全量树形平台侧下发，
    *  行字段同 AdminTenantView（status/level/套餐）+children 嵌套；parent 下拉与层级展示数据源。
    *  page/size 为可选分页参数：全量树不截断，仅用于统一列表请求携带分页口径（menuTree 同先例）；

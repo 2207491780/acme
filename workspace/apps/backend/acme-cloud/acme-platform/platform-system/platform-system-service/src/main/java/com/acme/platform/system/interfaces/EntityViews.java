@@ -124,32 +124,50 @@ public final class EntityViews {
     /**
      * 租户视图（REQ-20261117-025200 增补联系人 / 有效期透传；REQ-20261121-022910 增补套餐绑定；
      * REQ-20261122-102954 增补 parentId/level 层级字段，平铺响应 children 恒空列表）。
+     * quotaStorageBytes 不富化（null）；配额富化走 {@link #tenantView(SysTenant, Long)} 重载。
      */
     public static AdminTenantView tenantView(SysTenant tenant) {
+        return tenantView(tenant, null);
+    }
+
+    /**
+     * 租户视图（配额富化重载，REQ-20261122-150802 确认⑦「解析后有效值」）：quotaStorageBytes=
+     * 三级覆盖链解析后有效配额（0=不限）；未富化面传 null。
+     */
+    public static AdminTenantView tenantView(SysTenant tenant, Long quotaStorageBytes) {
         return new AdminTenantView(tenant.getId(), tenant.getTenantCode(), tenant.getTenantName(),
                 tenant.getStatus(), tenant.getRemark(), tenant.getContactName(), tenant.getContactPhone(),
-                tenant.getExpiresAt(), tenant.getCreatedAt(), tenant.getVersion(), tenant.getPackageId(),
-                tenant.getParentId(), tenant.getLevel(), List.of());
+                tenant.getExpiresAt(), tenant.getGraceUntil(), tenant.getCreatedAt(), tenant.getVersion(),
+                tenant.getPackageId(), quotaStorageBytes, tenant.getParentId(), tenant.getLevel(), List.of());
     }
 
     /**
      * 租户树（REQ-20261122-102954 tree 端点：全量目录 parent_id 组装，含 status/level/套餐；
-     * 根 parentId=null，环 / 孤儿显式失败与 deptTree 同款）。
+     * 根 parentId=null，环 / 孤儿显式失败与 deptTree 同款）。配额不富化；
+     * 富化树走 {@link #tenantTree(List, Map)} 重载。
      */
     public static List<AdminTenantView> tenantTree(List<SysTenant> allTenants) {
-        List<TreeNode<SysTenant>> roots = TreeBuilder.build(allTenants,
-                SysTenant::getId, SysTenant::getParentId);
-        return mapTenantNodes(roots);
+        return tenantTree(allTenants, Map.of());
     }
 
-    private static List<AdminTenantView> mapTenantNodes(List<TreeNode<SysTenant>> nodes) {
+    /** 租户树（配额富化重载，REQ-20261122-150802 确认⑦：quotaBytesByTenantId 按 tenant id 键控）。 */
+    public static List<AdminTenantView> tenantTree(List<SysTenant> allTenants,
+                                                   Map<Long, Long> quotaBytesByTenantId) {
+        List<TreeNode<SysTenant>> roots = TreeBuilder.build(allTenants,
+                SysTenant::getId, SysTenant::getParentId);
+        return mapTenantNodes(roots, quotaBytesByTenantId);
+    }
+
+    private static List<AdminTenantView> mapTenantNodes(List<TreeNode<SysTenant>> nodes,
+                                                        Map<Long, Long> quotaBytesByTenantId) {
         List<AdminTenantView> views = new ArrayList<>();
         for (TreeNode<SysTenant> node : nodes) {
             SysTenant tenant = node.payload();
             views.add(new AdminTenantView(tenant.getId(), tenant.getTenantCode(), tenant.getTenantName(),
                     tenant.getStatus(), tenant.getRemark(), tenant.getContactName(), tenant.getContactPhone(),
-                    tenant.getExpiresAt(), tenant.getCreatedAt(), tenant.getVersion(), tenant.getPackageId(),
-                    tenant.getParentId(), tenant.getLevel(), mapTenantNodes(node.children())));
+                    tenant.getExpiresAt(), tenant.getGraceUntil(), tenant.getCreatedAt(), tenant.getVersion(),
+                    tenant.getPackageId(), quotaBytesByTenantId.get(tenant.getId()),
+                    tenant.getParentId(), tenant.getLevel(), mapTenantNodes(node.children(), quotaBytesByTenantId)));
         }
         return views;
     }

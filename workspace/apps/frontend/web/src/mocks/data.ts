@@ -108,6 +108,8 @@ export const tenants: AdminTenantView[] = [
     packageId: null,
     // REQ-20261122-102954：顶层租户（parentId null=顶层，level 1）
     parentId: null, level: 1,
+    // REQ-20261122-150802：无有效期=派生启用中；无覆盖=继承平台缺省
+    graceUntil: null,
     createdAt: '2026-01-01T00:00:00Z', version: '0',
   },
   {
@@ -116,6 +118,7 @@ export const tenants: AdminTenantView[] = [
     // REQ-20261121-022910：绑定「基础版」套餐（演示租户套餐过滤样例；packageName 由 handler 实时装配）
     packageId: '1',
     parentId: null, level: 1,
+    graceUntil: null,
     createdAt: '2026-01-02T00:00:00Z', version: '0',
   },
   {
@@ -124,9 +127,55 @@ export const tenants: AdminTenantView[] = [
     contactName: null, contactPhone: null, expiresAt: null,
     packageId: null,
     parentId: '2', level: 2,
+    graceUntil: null,
     createdAt: '2026-01-03T00:00:00Z', version: '0',
   },
+  {
+    // REQ-20261122-150802 四态样例①宽限期：expires 已过且 grace_until 未到（仍可登录，派生宽限期）
+    id: '4', tenantCode: 'gamma', tenantName: 'Gamma 宽限样例', status: 'ENABLED', remark: null,
+    contactName: null, contactPhone: null,
+    expiresAt: '2026-06-01T00:00:00Z', graceUntil: '2026-12-31T23:59:59Z',
+    packageId: null,
+    parentId: null, level: 1,
+    createdAt: '2026-01-04T00:00:00Z', version: '0',
+  },
+  {
+    // REQ-20261122-150802 四态样例②已过期：expires 与 grace 均已过（派生过期，登录被拒）
+    id: '5', tenantCode: 'delta', tenantName: 'Delta 过期样例', status: 'ENABLED', remark: null,
+    contactName: null, contactPhone: null,
+    expiresAt: '2026-03-01T00:00:00Z', graceUntil: '2026-05-01T00:00:00Z',
+    packageId: null,
+    parentId: null, level: 1,
+    createdAt: '2026-01-05T00:00:00Z', version: '0',
+  },
+  {
+    // REQ-20261122-150802 四态样例③已停用：status=DISABLED（正交优先于派生态）
+    id: '6', tenantCode: 'epsilon', tenantName: 'Epsilon 停用样例', status: 'DISABLED', remark: null,
+    contactName: null, contactPhone: null, expiresAt: null, graceUntil: null,
+    packageId: null,
+    parentId: null, level: 1,
+    createdAt: '2026-01-06T00:00:00Z', version: '0',
+  },
 ];
+
+/** 租户用量种子（REQ-20261122-150802 契约④：GET /tenants/{id}/usage mock 聚合演示；
+ *  storageBytes=sys_file 未删 size 总和、userCount=sys_user 归属计数——handler 以种子为基线，
+ *  userCount 叠加 store.users 中 tenantCode 命中的动态行（init 开通租户管理员即时反映）。 */
+export const tenantUsageSeeds: Record<string, { storageBytes: number; userCount: number }> = {
+  '1': { storageBytes: 268_435_456, userCount: 12 },
+  '2': { storageBytes: 96_468_992, userCount: 5 },
+  '3': { storageBytes: 15_728_640, userCount: 2 },
+  '4': { storageBytes: 1_073_741_824, userCount: 3 },
+  '5': { storageBytes: 4_194_304, userCount: 1 },
+  '6': { storageBytes: 0, userCount: 0 },
+};
+
+/** 租户覆盖配额（REQ-20261122-150802 确认③解析链最高级：sys_tenant_quota mock 演示态；
+ *  tenantId → quotaStorageBytes 字节口径（0=不限）；缺行=无覆盖（回落套餐默认/平台缺省）。 */
+export const tenantQuotaOverrides: Record<string, number> = {
+  // beta-south：3 GiB 覆盖样例（用量 Modal 来源层级=租户覆盖演示）
+  '3': 3_221_225_472,
+};
 
 export const users: AdminUserView[] = [
   {
@@ -267,10 +316,13 @@ export const dictTypes: AdminDictTypeView[] = [
 export const tenantPackages: AdminTenantPackageView[] = [
   {
     id: '1', packageName: '基础版', remark: '仅系统管理/用户管理基础菜单', menuCount: 2, tenantCount: 1,
+    // REQ-20261122-150802：套餐默认存储配额 5 GiB（V31 quota_storage_bytes；null=继承平台缺省）
+    quotaStorageBytes: 5_368_709_120,
     version: '0', createdAt: '2026-01-03T00:00:00Z', updatedAt: '2026-01-03T00:00:00Z',
   },
   {
     id: '2', packageName: '全功能版', remark: null, menuCount: 7, tenantCount: 0,
+    quotaStorageBytes: null,
     version: '0', createdAt: '2026-01-04T00:00:00Z', updatedAt: '2026-01-04T00:00:00Z',
   },
 ];

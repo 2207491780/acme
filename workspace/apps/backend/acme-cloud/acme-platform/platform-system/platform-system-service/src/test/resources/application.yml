@@ -16,6 +16,10 @@ spring:
     schemas: public
 
 acme:
+  storage:
+    # 仅绑定租户配额平台缺省值（REQ-20261122-150802 确认③，AMB-2：缺省 1GiB 断言锚）；
+    # 适配器装配面关闭（同主配置口径，测试上下文无根目录/桶面）
+    enabled: false
   security:
     public-paths: []
     token:

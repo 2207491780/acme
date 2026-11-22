@@ -9,7 +9,7 @@ import {
   isSemanticColorOverrides,
   isThemeModeValue,
 } from '@acme/core';
-import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, RoleDataScope } from '@acme/core';
+import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, RoleDataScope, TenantQuotaSource, TenantUsageView } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
@@ -162,6 +162,9 @@ function filterMenusByPackage(nodes: AdminMenuView[], packageMenuIds: Set<number
 /** 审计可写集合：dev mock 的内存态允许增删改（仅内存，不落盘）。 */
 const store = {
   tenants: [...db.tenants],
+  /** 租户覆盖配额（REQ-20261122-150802 确认③：sys_tenant_quota 演示态；PUT /tenants/:id/quota 改写，
+   *  null 值=清除覆盖回落——实现为 delete 键）。 */
+  tenantQuotaOverrides: { ...db.tenantQuotaOverrides } as Record<string, number>,
   /** 租户套餐主行（REQ-20261121-022910）+ 套餐-菜单绑定（套餐 id → 菜单 id 全集）。
    *  REQ-20261121-054613 补：能力目录（平台级只读）+ 套餐-能力绑定（套餐 id → 能力码全集）。 */
   tenantPackages: [...db.tenantPackages] as AdminTenantPackageView[],
@@ -213,7 +216,27 @@ function tenantViewOf(tenant: AdminTenantView): AdminTenantView {
   const packageName = tenant.packageId
     ? store.tenantPackages.find((pkg) => pkg.id === tenant.packageId)?.packageName ?? null
     : null;
-  return { ...tenant, packageName };
+  return { ...tenant, packageName, quotaStorageBytes: resolveTenantQuota(tenant).bytes };
+}
+
+// ————— 租户配额解析链（REQ-20261122-150802 确认③：租户覆盖 > 套餐默认 > 平台缺省） —————
+
+/** 平台缺省存储配额（StorageProperties.defaultBytes 缺省 1 GiB；0=不限口径保留）。 */
+const PLATFORM_DEFAULT_QUOTA_BYTES = 1_073_741_824;
+
+/** 三级解析：租户覆盖（store.tenantQuotaOverrides）→ 绑定套餐 quotaStorageBytes → 平台缺省。 */
+function resolveTenantQuota(tenant: AdminTenantView): { bytes: number; source: TenantQuotaSource } {
+  const override = store.tenantQuotaOverrides[tenant.id];
+  if (override !== undefined) {
+    return { bytes: override, source: 'TENANT_OVERRIDE' };
+  }
+  const pkg = tenant.packageId
+    ? store.tenantPackages.find((item) => item.id === tenant.packageId)
+    : undefined;
+  if (pkg?.quotaStorageBytes != null) {
+    return { bytes: pkg.quotaStorageBytes, source: 'PACKAGE' };
+  }
+  return { bytes: PLATFORM_DEFAULT_QUOTA_BYTES, source: 'PLATFORM_DEFAULT' };
 }
 
 // ————— 租户层级（REQ-20261122-102954 契约②③⑨ mock 同形：level 1=顶层，上限 3；parentId wire 字符串口径） —————
@@ -760,10 +783,12 @@ export const systemHandlers = [
       ...target,
       tenantName: typeof body.tenantName === 'string' ? body.tenantName : target.tenantName,
       remark: (body.remark as string | null) ?? target.remark,
-      // 租户档案三新字段（REQ-20261117-025200）：随体透传（null=清空/长期）
+      // 租户档案三新字段（REQ-20261117-025200）：随体透传（null=清空/长期）；
+      // 宽限期（REQ-20261122-150802 确认⑥）：update 收 graceUntil（null=不启用宽限）
       contactName: (body.contactName as string | null | undefined) ?? null,
       contactPhone: (body.contactPhone as string | null | undefined) ?? null,
       expiresAt: (body.expiresAt as string | null | undefined) ?? null,
+      graceUntil: (body.graceUntil as string | null | undefined) ?? null,
       packageId: packaged.packageId,
       parentId: nextParentId,
       level: nextLevel,
@@ -785,6 +810,48 @@ export const systemHandlers = [
       : new Set<string>([id]);
     store.tenants = store.tenants.map((tenant) => (affected.has(tenant.id) ? { ...tenant, status: next } : tenant));
     return empty();
+  }),
+
+  // ---- 租户用量/配额（REQ-20261122-150802 契约⑦：usage 权限 system:tenant:list、quota 权限 system:tenant:update，mock 不校验权限头） ----
+  // GET usage：实时旁路聚合演示（@IgnoreTenant 同形面）——storageBytes=种子基线（sys_file 未删 size
+  // 总和演示值）；userCount=种子基线 + store.users 中 tenantCode 命中的动态行（init 开通即时反映）；
+  // quotaStorageBytes=三级解析链有效值 + quotaSource 来源层级标注
+  http.get('/admin/v1/system/tenants/:tenantId/usage', ({ params }) => {
+    const id = String(params.tenantId);
+    const tenant = store.tenants.find((row) => row.id === id);
+    if (!tenant) {
+      return fail('TENANT_NOT_FOUND', '租户不存在或已被删除', 404);
+    }
+    const seed = db.tenantUsageSeeds[id] ?? { storageBytes: 0, userCount: 0 };
+    const dynamicUsers = store.users.filter((user) => (user as AdminUserView & { tenantCode?: string }).tenantCode === tenant.tenantCode).length;
+    const quota = resolveTenantQuota(tenant);
+    const usage: TenantUsageView = {
+      storageBytes: seed.storageBytes,
+      userCount: seed.userCount + dynamicUsers,
+      quotaStorageBytes: quota.bytes,
+      quotaSource: quota.source,
+    };
+    return ok(usage);
+  }),
+  // PUT quota：租户覆盖配额（quotaStorageBytes 字节口径，0=不限）；null/缺省=清除覆盖（回落
+  // 套餐默认/平台缺省，确认③解析链）；非法值 → PARAM_INVALID；返回更新后租户视图（含解析有效值）
+  http.put('/admin/v1/system/tenants/:tenantId/quota', async ({ request, params }) => {
+    const body = await bodyOf(request);
+    const id = String(params.tenantId);
+    const tenant = store.tenants.find((row) => row.id === id);
+    if (!tenant) {
+      return fail('TENANT_NOT_FOUND', '租户不存在或已被删除', 404);
+    }
+    const bytes = body.quotaStorageBytes;
+    if (bytes != null && (typeof bytes !== 'number' || !Number.isInteger(bytes) || bytes < 0)) {
+      return fail('PARAM_INVALID', '配额参数非法：须为非负整数字节数或 null（清除覆盖）', 400);
+    }
+    if (bytes == null) {
+      delete store.tenantQuotaOverrides[id];
+    } else {
+      store.tenantQuotaOverrides[id] = bytes;
+    }
+    return ok(tenantViewOf(tenant));
   }),
 
   // ---- 服务能力目录（REQ-20261121-054613；读权限挂 system:tenant-package:list，mock 不校验权限头） ----

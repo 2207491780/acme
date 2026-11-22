@@ -79,6 +79,13 @@
             <groupId>com.acme</groupId>
             <artifactId>framework-tenant</artifactId>
         </dependency>
+        <!-- 租户配额平台缺省值绑定（REQ-20261122-150802 确认③：仅 StorageProperties 读
+            acme.storage.quota.default-bytes 单源；适配器装配面经 acme.storage.enabled=false 关闭，
+            对象存储仍归 platform-infra 文件域） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-storage</artifactId>
+        </dependency>
         <!-- zh/en 双语（NFR-007、Q-007 裁定 B） -->
         <dependency>
             <groupId>com.acme</groupId>

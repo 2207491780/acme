@@ -14,19 +14,21 @@ import java.time.Instant;
  * TENANT_PACKAGE_NOT_FOUND，契约 §API 租户更新扩展）。
  * REQ-20261122-102954 增补 parentId（可空=null 移至顶层；非空改父=沿 parent 链重校验环+深度，
  * 后代 level 整体重算，环报 TENANT_CYCLE / 深度超限报 TENANT_DEPTH_EXCEEDED）。
+ * REQ-20261122-150802 增补 graceUntil（可空=null 清除宽限；确认⑥管理面新增动作）。
  */
 public record AdminTenantUpdate(@NotBlank @Size(min = 1, max = 128) String tenantName,
                                 @Size(max = 255) String remark,
                                 @Size(max = 64) String contactName,
                                 @Size(max = 32) String contactPhone,
                                 Instant expiresAt,
+                                Instant graceUntil,
                                 @NotNull Long version,
                                 Long packageId,
                                 Long parentId) {
 
-    /** 兼容构造（REQ-20261122-102954 之前调用面）：parentId 缺省 null=不调整层级。 */
+    /** 兼容构造（REQ-20261122-102954 之前调用面）：graceUntil/parentId 缺省 null。 */
     public AdminTenantUpdate(String tenantName, String remark, String contactName, String contactPhone,
                              Instant expiresAt, Long version, Long packageId) {
-        this(tenantName, remark, contactName, contactPhone, expiresAt, version, packageId, null);
+        this(tenantName, remark, contactName, contactPhone, expiresAt, null, version, packageId, null);
     }
 }

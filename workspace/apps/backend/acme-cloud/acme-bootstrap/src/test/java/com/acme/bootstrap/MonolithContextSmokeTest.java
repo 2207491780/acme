@@ -10,6 +10,7 @@ import com.acme.bootstrap.local.LocalLoginLogStatsClient;
 import com.acme.bootstrap.local.LocalOnlineCountClient;
 import com.acme.bootstrap.local.LocalSystemConfigClient;
 import com.acme.bootstrap.local.LocalTenantClient;
+import com.acme.bootstrap.local.LocalTenantQuotaClient;
 import com.acme.bootstrap.local.LocalTenantSessionRevokeClient;
 import com.acme.framework.audit.support.AuditEvent;
 import com.acme.framework.audit.support.AuditEventSink;
@@ -23,6 +24,7 @@ import com.acme.platform.system.api.AuthorizationClient;
 import com.acme.platform.system.api.DataScopeClient;
 import com.acme.platform.system.api.SystemConfigClient;
 import com.acme.platform.system.api.TenantClient;
+import com.acme.platform.system.api.TenantQuotaClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -55,7 +57,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>AC-2：三 Flyway 实例各自迁移落位（platform_auth/platform_system/platform_infra 三 schema
  *       的表与 flyway_schema_history 各自独立）；上下文无缺失 bean（含 @MapperScan 三服务 mapper 面）；</li>
- *   <li>AC-4：10 个本地适配器 bean 存在且 @Primary（按类型解析全部命中本地短路实现），
+ *   <li>AC-4：11 个本地适配器 bean 存在且 @Primary（按类型解析全部命中本地短路实现），
  *       Feign 工厂 bean 定义惰性（lazy-attributes-resolution 实地验证，永不实例化）；</li>
  *   <li>AC-3：B 端登录 200（公开端点经 BootstrapAuthFilter 豁免）→ /me 携令牌 200
  *       （用户令牌验签→撤销检查→内部令牌注入→InternalTokenAuthFilter 上下文绑定全链）、
@@ -172,6 +174,8 @@ class MonolithContextSmokeTest {
                 .isInstanceOf(LocalLoginLogStatsClient.class);
         assertThat(beanFactory.getBean(AuditStatsClient.class))
                 .isInstanceOf(LocalAuditStatsClient.class);
+        assertThat(beanFactory.getBean(TenantQuotaClient.class))
+                .isInstanceOf(LocalTenantQuotaClient.class);
     }
 
     @Test
@@ -190,9 +194,10 @@ class MonolithContextSmokeTest {
                         .as("Feign 工厂 bean 应被降级为非 primary（本地适配器胜出）：%s", name).isFalse();
             }
         }
-        assertThat(feignDefinitions).as("五服务去重后共 12 个显式 clients 声明"
+        assertThat(feignDefinitions).as("五服务去重后共 13 个显式 clients 声明"
                 + "（scheduler/infra/workflow 复用 AuthorizationClient 同配置声明不新增；"
-                + "workflow 增补 SchedulerJobClient/WorkflowIdentityClient 两新契约）").isEqualTo(12);
+                + "workflow 增补 SchedulerJobClient/WorkflowIdentityClient 两新契约；"
+                + "infra 增补 TenantQuotaClient 配额契约 REQ-20261122-150802）").isEqualTo(13);
     }
 
     // ---------- AC-2：三 Flyway 实例各自迁移落位 ----------

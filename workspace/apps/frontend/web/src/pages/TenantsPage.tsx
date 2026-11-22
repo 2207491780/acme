@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App, Button, DatePicker, Form, Input, Popconfirm, Select, Space, Tag, TreeSelect, Typography } from 'antd';
+import { App, Button, DatePicker, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Tag, TreeSelect, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import { ApiError, Auth, formatDate, systemApi, tenantPackageApi, useCrud, useMeStore, type AdminTenantPackageView, type AdminTenantTreeNode, type AdminTenantView } from '@acme/core';
+import { ApiError, Auth, formatDate, systemApi, TONE_ANTD, tenantPackageApi, useCrud, useMeStore, type AdminTenantPackageView, type AdminTenantTreeNode, type AdminTenantView, type TenantQuotaSource, type TenantUsageView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 
@@ -13,6 +13,50 @@ const CODE_PATTERN = /^[a-z][a-z0-9_-]*$/;
 
 /** 层级深度上限（REQ-20261122-102954 契约②：1=顶层，level≤3）。 */
 const TENANT_MAX_LEVEL = 3;
+
+/** 1 GiB 字节数（配额 Modal GiB↔字节换算口径；后端平台缺省 1 GiB、0=不限）。 */
+const BYTES_PER_GIB = 1_073_741_824;
+
+/** 派生视觉态（REQ-20261122-150802 确认②：status 正交优先，其余按 expires/grace 读时派生）。 */
+type TenantVisualState = 'active' | 'grace' | 'expired' | 'disabled';
+
+/** 四态派生：已停用（status 正交优先）→ 启用中（expires 未到或无 expires）→ 宽限期
+ *  （expires 过且 grace 未过）→ 已过期（宽限也过，或 expires 过且无 grace）。 */
+function deriveTenantVisualState(record: AdminTenantView, now: number): TenantVisualState {
+  if (record.status === 'DISABLED') {
+    return 'disabled';
+  }
+  const expiresAt = record.expiresAt ? Date.parse(record.expiresAt) : null;
+  if (expiresAt === null || Number.isNaN(expiresAt) || expiresAt > now) {
+    return 'active';
+  }
+  const graceUntil = record.graceUntil ? Date.parse(record.graceUntil) : null;
+  return graceUntil !== null && !Number.isNaN(graceUntil) && graceUntil > now ? 'grace' : 'expired';
+}
+
+/** 四态 → AntD 预设色（UI-SPEC §2.2：语义标签取色走 TONE_ANTD，禁塞 hex）。
+ *  启用中=success/宽限期=warning/已过期=danger/已停用=muted。 */
+const TENANT_STATE_ANTD: Record<TenantVisualState, string> = {
+  active: TONE_ANTD.success,
+  grace: TONE_ANTD.warning,
+  expired: TONE_ANTD.danger,
+  disabled: TONE_ANTD.muted,
+};
+
+/** 字节数人类可读（1024 进制，B/KB/MB/GB/TB/PB；三位有效数字）。 */
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return '—';
+  }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  if (bytes === 0) {
+    return '0 B';
+  }
+  const index = Math.min(Math.floor(Math.log2(bytes) / 10), units.length - 1);
+  const value = bytes / 1024 ** index;
+  const text = value >= 100 ? Math.round(value).toString() : value >= 10 ? value.toFixed(1) : value.toFixed(2);
+  return `${text} ${units[index]}`;
+}
 
 /** 父租户下拉节点（TreeSelect treeData 形态；显式类型规避递归引用推断）。 */
 interface ParentTreeOption {
@@ -29,6 +73,8 @@ interface TenantFormValues {
   contactName?: string;
   contactPhone?: string;
   expiresAt?: Dayjs | null;
+  /** 宽限期截止（REQ-20261122-150802 确认⑥：update 收 graceUntil；表单态 Dayjs，清空=不启用宽限）。 */
+  graceUntil?: Dayjs | null;
   /** 绑定套餐（REQ-20261121-022910；表单态为套餐 id 字符串，清空=不受限，提交转 number|null）。 */
   packageId?: string;
   /** 父租户（REQ-20261122-102954；表单态为租户 id 字符串，清空=顶层，提交转 string|null）。 */
@@ -79,6 +125,69 @@ export function TenantsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<TenantFormValues>();
 
+  // 用量 Modal（REQ-20261122-150802 契约⑧：操作列「用量」按需拉取 usage 端点，list 不带 usage）
+  const [usageTarget, setUsageTarget] = useState<AdminTenantView | null>(null);
+  const [usage, setUsage] = useState<TenantUsageView | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const openUsage = (record: AdminTenantView) => {
+    setUsageTarget(record);
+    setUsage(null);
+    setUsageLoading(true);
+    systemApi.tenantUsage(record.id)
+      .then(setUsage)
+      .catch((ex: unknown) => {
+        message.error(ex instanceof ApiError ? ex.message : t('tenants.usage.loadFailed'));
+        setUsageTarget(null);
+      })
+      .finally(() => setUsageLoading(false));
+  };
+
+  // 配额 Modal（REQ-20261122-150802 契约⑧：PUT quota 覆盖+清除继承；表单态 GiB，提交换算字节）
+  const GIB_LABEL_SOURCE: Record<TenantQuotaSource, string> = {
+    TENANT_OVERRIDE: t('tenants.usage.quotaSourceTenant'),
+    PACKAGE: t('tenants.usage.quotaSourcePackage'),
+    PLATFORM_DEFAULT: t('tenants.usage.quotaSourcePlatform'),
+  };
+  const [quotaTarget, setQuotaTarget] = useState<AdminTenantView | null>(null);
+  const [quotaUsage, setQuotaUsage] = useState<TenantUsageView | null>(null);
+  const [quotaSubmitting, setQuotaSubmitting] = useState(false);
+  const [quotaForm] = Form.useForm<{ quotaGiB?: number }>();
+  const openQuota = (record: AdminTenantView) => {
+    setQuotaTarget(record);
+    setQuotaUsage(null);
+    quotaForm.resetFields();
+    // 当前有效配额/来源展示 + 租户覆盖回显（仅覆盖态回填 GiB；继承态留空提示回落）
+    systemApi.tenantUsage(record.id)
+      .then((data) => {
+        setQuotaUsage(data);
+        if (data.quotaSource === 'TENANT_OVERRIDE' && data.quotaStorageBytes > 0) {
+          quotaForm.setFieldsValue({ quotaGiB: data.quotaStorageBytes / BYTES_PER_GIB });
+        }
+      })
+      .catch((ex: unknown) => {
+        message.error(ex instanceof ApiError ? ex.message : t('tenants.quota.loadFailed'));
+      });
+  };
+  const submitQuota = async () => {
+    if (!quotaTarget) {
+      return;
+    }
+    const { quotaGiB } = await quotaForm.validateFields();
+    // 留空=清除覆盖（null 提交回落套餐默认/平台缺省）；0=不限（0 字节口径）
+    const bytes = quotaGiB == null ? null : Math.round(quotaGiB * BYTES_PER_GIB);
+    setQuotaSubmitting(true);
+    try {
+      await systemApi.tenantQuota(quotaTarget.id, bytes);
+      message.success(t('tenants.quota.saved'));
+      setQuotaTarget(null);
+      crud.reload();
+    } catch (ex: unknown) {
+      message.error(ex instanceof ApiError ? ex.message : t('tenants.quota.loadFailed'));
+    } finally {
+      setQuotaSubmitting(false);
+    }
+  };
+
   const openCreate = () => {
     setEditing(null);
     form.resetFields();
@@ -94,6 +203,7 @@ export function TenantsPage() {
       contactName: record.contactName ?? undefined,
       contactPhone: record.contactPhone ?? undefined,
       expiresAt: record.expiresAt ? dayjs(record.expiresAt) : undefined,
+      graceUntil: record.graceUntil ? dayjs(record.graceUntil) : undefined,
       packageId: record.packageId ?? undefined,
       parentId: record.parentId ?? undefined,
     });
@@ -158,6 +268,8 @@ export function TenantsPage() {
           tenantName: values.tenantName,
           remark: values.remark,
           ...profile,
+          // 宽限期（REQ-20261122-150802 确认⑥）：update 收 graceUntil（Dayjs→ISO，清空=null 不启用）
+          graceUntil: values.graceUntil ? values.graceUntil.toISOString() : null,
           packageId,
           parentId,
           version: editing.version,
@@ -228,21 +340,34 @@ export function TenantsPage() {
       },
     },
     {
-      title: t('tenants.columns.status'), dataIndex: 'status', key: 'status', minWidth: 100,
-      render: (status: AdminTenantView['status']) => (
-        <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>
-      ),
+      // 生命周期四视觉态（REQ-20261122-150802 契约⑧）：status+expires/grace 派生合成，
+      // 取色走 TONE_ANTD 预设名（UI-SPEC §2.2）；文案 t(`tenants.states.*`)
+      title: t('tenants.columns.status'), dataIndex: 'status', key: 'status', minWidth: 110,
+      render: (_, record) => {
+        const state = deriveTenantVisualState(record, Date.now());
+        return <Tag color={TENANT_STATE_ANTD[state]}>{t(`tenants.states.${state}`)}</Tag>;
+      },
     },
     { title: t('tenants.columns.contact'), dataIndex: 'contactName', key: 'contactName', minWidth: 120, ellipsis: true, render: (v: string | null) => v ?? '—' },
     { title: t('tenants.columns.expiresAt'), dataIndex: 'expiresAt', key: 'expiresAt', minWidth: 180, render: (v: string | null) => formatDate(v) },
+    // 宽限期截止（REQ-20261122-150802）：null=未启用宽限
+    { title: t('tenants.columns.graceUntil'), dataIndex: 'graceUntil', key: 'graceUntil', minWidth: 180, render: (v: string | null | undefined) => (v ? formatDate(v) : '—') },
     { title: t('tenants.columns.remark'), dataIndex: 'remark', key: 'remark', minWidth: 200, ellipsis: true, render: (v: string | null) => v ?? '—' },
     { title: t('tenants.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', minWidth: 180, render: (v: string) => formatDate(v) },
     {
-      title: t('tenants.columns.actions'), key: 'actions', minWidth: 180, fixed: 'right',
+      title: t('tenants.columns.actions'), key: 'actions', minWidth: 260, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
           <Auth code="system:tenant:update">
             <Button size="small" onClick={() => openEdit(record)}>{t('common.actions.edit')}</Button>
+          </Auth>
+          {/* 用量（REQ-20261122-150802 契约⑧：usage 端点按需拉取，权限挂 system:tenant:list 读面） */}
+          <Auth code="system:tenant:list">
+            <Button size="small" onClick={() => openUsage(record)}>{t('tenants.actions.usage')}</Button>
+          </Auth>
+          {/* 配额（REQ-20261122-150802 契约⑧：PUT quota 覆盖/清除继承，权限=更新面） */}
+          <Auth code="system:tenant:update">
+            <Button size="small" onClick={() => openQuota(record)}>{t('tenants.actions.quota')}</Button>
           </Auth>
           <Auth code="system:tenant:update">
             <Popconfirm
@@ -348,12 +473,74 @@ export function TenantsPage() {
         <Form.Item name="expiresAt" label={t('tenants.form.expiresAt')} extra={t('tenants.form.expiresAtExtra')}>
           <DatePicker style={{ width: '100%' }} allowClear placeholder={t('common.validation.optional')} />
         </Form.Item>
+        {/* 宽限期截止（REQ-20261122-150802 确认⑥⑧）：update 收 graceUntil（创建载荷不含，仅编辑态展示）；清空=不启用宽限 */}
+        {editing ? (
+          <Form.Item name="graceUntil" label={t('tenants.form.graceUntil')} extra={t('tenants.form.graceUntilExtra')}>
+            <DatePicker style={{ width: '100%' }} allowClear placeholder={t('common.validation.optional')} />
+          </Form.Item>
+        ) : null}
         {editing ? (
           <Text type="secondary" style={{ fontSize: 12 }}>
             {t('common.validation.optimisticLock', { version: editing.version })}{t('common.validation.optimisticLockConflict')}
           </Text>
         ) : null}
       </CrudFormModal>
+
+      {/* 用量 Modal（REQ-20261122-150802 契约⑧）：storageBytes 人类可读/userCount/有效配额值/来源层级标注 */}
+      <Modal
+        open={usageTarget !== null}
+        title={usageTarget ? t('tenants.usage.title', { code: usageTarget.tenantCode }) : ''}
+        footer={[
+          <Button key="close" onClick={() => setUsageTarget(null)}>{t('tenants.usage.close')}</Button>,
+        ]}
+        onCancel={() => setUsageTarget(null)}
+        width={520}
+      >
+        {usage ? (
+          <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label={t('tenants.usage.storageUsed')}>{formatBytes(usage.storageBytes)}</Descriptions.Item>
+            <Descriptions.Item label={t('tenants.usage.userCount')}>{usage.userCount}</Descriptions.Item>
+            <Descriptions.Item label={t('tenants.usage.quota')}>
+              {usage.quotaStorageBytes === 0 ? t('tenants.usage.unlimited') : formatBytes(usage.quotaStorageBytes)}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('tenants.usage.quotaSource')}>{GIB_LABEL_SOURCE[usage.quotaSource]}</Descriptions.Item>
+          </Descriptions>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>{usageLoading ? <Spin /> : null}</div>
+        )}
+      </Modal>
+
+      {/* 配额 Modal（REQ-20261122-150802 契约⑧）：PUT 覆盖（GiB↔字节换算）+ 留空=清除继承回落 */}
+      <Modal
+        open={quotaTarget !== null}
+        title={quotaTarget ? t('tenants.quota.title', { code: quotaTarget.tenantCode }) : ''}
+        confirmLoading={quotaSubmitting}
+        onOk={() => void submitQuota()}
+        onCancel={() => setQuotaTarget(null)}
+        width={520}
+      >
+        {quotaUsage ? (
+          <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+            {t('tenants.quota.current')}：
+            {quotaUsage.quotaStorageBytes === 0 ? t('tenants.usage.unlimited') : formatBytes(quotaUsage.quotaStorageBytes)}
+            {' · '}{t('tenants.quota.currentSource')}：{GIB_LABEL_SOURCE[quotaUsage.quotaSource]}
+            {quotaUsage.quotaSource !== 'TENANT_OVERRIDE'
+              ? ` · ${t('tenants.quota.inheritHint', { source: GIB_LABEL_SOURCE[quotaUsage.quotaSource] })}`
+              : ''}
+          </Text>
+        ) : null}
+        <Form form={quotaForm} layout="vertical">
+          <Form.Item name="quotaGiB" label={t('tenants.quota.override')} extra={t('tenants.quota.quotaExtra')}>
+            <InputNumber
+              min={0}
+              precision={2}
+              style={{ width: '100%' }}
+              placeholder={t('tenants.quota.overridePlaceholder')}
+              addonAfter="GiB"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </>
   );
 }

@@ -37,6 +37,8 @@ import java.util.List;
  * REQ-20261122-102954：层级扩展——create/update 收 parentId（环检测 TENANT_CYCLE+深度校验
  * TENANT_DEPTH_EXCEEDED≤3+改父后代 level 递归重算）；updateStatus 停用级联后代（afterCommit
  * 逐租户撤会话；恢复父不自动恢复子）；tree 数据源（listAll，平台侧旁路）。
+ * REQ-20261122-150802：update 收 graceUntil（null=清除宽限，确认⑥）；登录下拉派生宽限保留
+ * （listEnabled 宽限期内租户保留，确认②）。
  */
 @Service
 public class TenantUseCase {
@@ -94,7 +96,9 @@ public class TenantUseCase {
 
     /**
      * 启用租户清单（登录页下拉数据源，login-tenant-select；平台级跨租户查询，显式旁路声明）。
-     * REQ-20261117-025200 确认记录③：排除已过期租户（expiresAt 非 null 且 &lt;= now）。
+     * REQ-20261117-025200 确认记录③：排除已过期租户；REQ-20261122-150802 确认②：宽限期内
+     * 仍可登录（确认②宽限期=派生可登录态）——下拉保留宽限内租户（expires 过且 grace 未过），
+     * 宽限也过才排除（派生自动过期，无定时任务）。
      */
     @IgnoreTenant("login-tenant-directory")
     public List<SysTenant> listEnabled() {
@@ -103,8 +107,20 @@ public class TenantUseCase {
                 .orderBy(SysTenant::getTenantCode, true);
         Instant now = Instant.now();
         return tenantRepository.findAll(wrapper).stream()
-                .filter(tenant -> tenant.getExpiresAt() == null || tenant.getExpiresAt().isAfter(now))
+                .filter(tenant -> !isDerivedExpired(tenant, now))
                 .toList();
+    }
+
+    /**
+     * 派生过期判定（REQ-20261122-150802 确认②四视觉态读时判定，无定时任务）：
+     * expires 未到或无 expires=启用中；expires 过且 grace 未过=宽限期（仍可登录，确认②）；
+     * grace 也过（或 expires 过且无 grace）=已过期。
+     */
+    static boolean isDerivedExpired(SysTenant tenant, Instant now) {
+        if (tenant.getExpiresAt() == null || !tenant.getExpiresAt().isBefore(now)) {
+            return false;
+        }
+        return tenant.getGraceUntil() == null || !tenant.getGraceUntil().isAfter(now);
     }
 
     @Transactional
@@ -119,6 +135,7 @@ public class TenantUseCase {
         tenant.setContactName(request.contactName());
         tenant.setContactPhone(request.contactPhone());
         tenant.setExpiresAt(request.expiresAt());
+        tenant.setGraceUntil(request.graceUntil());
         tenant.setPackageId(request.packageId());
         applyParentOnUpdate(tenant, request.parentId());
         return tenantRepository.save(tenant);

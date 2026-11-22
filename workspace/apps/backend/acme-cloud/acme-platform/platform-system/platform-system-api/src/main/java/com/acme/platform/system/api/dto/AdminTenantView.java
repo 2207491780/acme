@@ -10,6 +10,7 @@ import java.util.List;
  * REQ-20261117-025200 增补联系人 / 有效期三字段（可空语义：null=未配置 / 长期有效）。
  * REQ-20261122-102954 增补层级字段（parentId 可空=null 顶层；level 1=顶层，上限 3，确认②⑨），
  * children 供 tree 端点嵌套返回（平铺 list/detail 响应恒为空列表，与 AdminDeptView 同款）。
+ * REQ-20261122-150802 增补 graceUntil（确认②⑥）/quotaStorageBytes（解析后有效值，确认⑦）。
  *
  * @param id           租户 ID（wire 字符串化雪花 ID）
  * @param tenantCode   租户代码（全局唯一，不可改）
@@ -22,12 +23,16 @@ import java.util.List;
  * @param createdAt    创建时间
  * @param version      乐观锁版本（wire 字符串化）
  * @param packageId    绑定套餐 ID（可空=null 不受套餐限制；REQ-20261121-022910 确认⑦租户管理页套餐列）
+ * @param graceUntil   宽限期止点（可空=NULL 未配置宽限；宽限期内仍可登录，REQ-20261122-150802 确认②⑥）
+ * @param quotaStorageBytes 解析后有效存储配额字节（三级覆盖链租户覆盖→套餐→平台缺省；0=不限；
+ *                         REQ-20261122-150802 确认⑦「解析后有效值」；null=未富化面）
  * @param parentId     父租户 ID（可空=null 顶层；REQ-20261122-102954 确认⑨）
  * @param level        层级（1=顶层，上限 3；REQ-20261122-102954 确认②）
  * @param children     子租户（tree 端点嵌套；平铺响应恒空列表）
  */
 public record AdminTenantView(Long id, String tenantCode, String tenantName, EnableStatus status,
                               String remark, String contactName, String contactPhone, Instant expiresAt,
-                              Instant createdAt, Long version, Long packageId,
-                              Long parentId, Integer level, List<AdminTenantView> children) {
+                              Instant graceUntil, Instant createdAt, Long version, Long packageId,
+                              Long quotaStorageBytes, Long parentId, Integer level,
+                              List<AdminTenantView> children) {
 }

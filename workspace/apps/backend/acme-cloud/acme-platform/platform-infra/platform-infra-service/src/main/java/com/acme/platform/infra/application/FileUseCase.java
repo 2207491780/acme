@@ -15,8 +15,12 @@ import com.acme.platform.infra.api.dto.FileView;
 import com.acme.platform.infra.domain.SysFile;
 import com.acme.platform.infra.infrastructure.redis.UploadTicketStore;
 import com.acme.platform.infra.infrastructure.repository.SysFileRepository;
+import com.acme.platform.system.api.TenantQuotaClient;
 import com.mybatisflex.core.query.QueryColumn;
 import com.mybatisflex.core.query.QueryWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -62,13 +66,25 @@ public class FileUseCase {
     private final ObjectStorage storage;
     private final StorageProperties storageProperties;
     private final UploadTicketStore ticketStore;
+    private final TenantQuotaClient tenantQuotaClient;
 
+    private static final Logger log = LoggerFactory.getLogger(FileUseCase.class);
+
+    @Autowired
     public FileUseCase(SysFileRepository repository, ObjectStorage storage,
-                       StorageProperties storageProperties, UploadTicketStore ticketStore) {
+                       StorageProperties storageProperties, UploadTicketStore ticketStore,
+                       TenantQuotaClient tenantQuotaClient) {
         this.repository = repository;
         this.storage = storage;
         this.storageProperties = storageProperties;
         this.ticketStore = ticketStore;
+        this.tenantQuotaClient = tenantQuotaClient;
+    }
+
+    /** 兼容构造（REQ-20261122-150802 之前调用面）：配额解析缺席=恒用平台缺省值（旧行为）。 */
+    public FileUseCase(SysFileRepository repository, ObjectStorage storage,
+                       StorageProperties storageProperties, UploadTicketStore ticketStore) {
+        this(repository, storage, storageProperties, ticketStore, null);
     }
 
     /**
@@ -246,14 +262,35 @@ public class FileUseCase {
         checkQuota(size);
     }
 
-    /** 租户配额（确认③）：未删行 size 总和 + 本次 ≤ quota.defaultBytes（0=不限）；并发上传下为近似护栏。 */
+    /**
+     * 租户配额（确认③收编 REQ-20261122-150802）：配额值改走三级覆盖链解析（TenantQuotaClient →
+     * platform-system /internal/v1/tenants/quota：租户覆盖→套餐→平台缺省，解析在提供方完成）——
+     * 解析缺席（兼容构造）或失败（下游不可达/未知租户）回落平台缺省（StorageProperties.defaultBytes，
+     * 旧行为兼容）；0=不限语义保留；未删行 size 总和 + 本次 ≤ quota；并发上传下为近似护栏。
+     */
     private void checkQuota(long incomingSize) {
-        long quota = storageProperties.getQuota().getDefaultBytes();
+        long quota = resolveTenantQuotaOrDefault();
         if (quota <= 0) {
             return;
         }
         if (repository.sumActiveSize() + incomingSize > quota) {
             throw new BizException(InfraError.STORAGE_QUOTA_EXCEEDED);
+        }
+    }
+
+    /** 三级覆盖链解析（确认③）：非租户上下文（平台面上传）与解析失败统一回落平台缺省。 */
+    private long resolveTenantQuotaOrDefault() {
+        long platformDefault = storageProperties.getQuota().getDefaultBytes();
+        TenantContext tenant = TenantContext.get();
+        if (tenantQuotaClient == null || tenant == null || tenant.tenantId() == null
+                || tenant.tenantId().isBlank()) {
+            return platformDefault;
+        }
+        try {
+            return tenantQuotaClient.resolveQuota(tenant.tenantId().trim()).payload().quotaStorageBytes();
+        } catch (RuntimeException ex) {
+            log.warn("租户配额解析失败，回落平台缺省（旧行为兼容）：tenantId={}", tenant.tenantId(), ex);
+            return platformDefault;
         }
     }
 

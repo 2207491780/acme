@@ -29,6 +29,15 @@ public class SysUserRepositoryImpl extends FlexRepositorySupport<SysUser> implem
     }
 
     @Override
+    public long countByTenantId(String tenantId) {
+        // 按租户归属计数（REQ-20261122-150802 usage 运营视图，确认④）：独立无排序 QueryWrapper
+        // （防 ORDER BY 泄入 count），deleted=false 随默认查询面注入；租户过滤旁路由调用方
+        // TenantQuotaUseCase.usage 的 @IgnoreTenant 作用域承载（12.4.2 声明不扩散旁路使用面）
+        return mapper().selectCountByQuery(
+                QueryWrapper.create().where(SysUser::getTenantId).eq(tenantId));
+    }
+
+    @Override
     public boolean existsByUsername(String username) {
         return exists(QueryWrapper.create().where(SysUser::getUsername).eq(username));
     }

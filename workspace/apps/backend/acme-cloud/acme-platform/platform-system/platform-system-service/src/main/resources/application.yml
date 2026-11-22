@@ -47,6 +47,12 @@ server:
   port: 9881
 
 acme:
+  storage:
+    # 仅绑定租户配额平台缺省值（REQ-20261122-150802 确认③：acme.storage.quota.default-bytes
+    # 与 platform-infra 同键单源，缺省 1GiB、0=不限）；存储适配器（LocalObjectStorage 等）归
+    # platform-infra 文件域——本服务关闭 StorageAutoConfiguration 装配面，仅保留配置绑定
+    # （StorageQuotaBindingConfiguration 承载属性 bean 注册）
+    enabled: false
   security:
     # 公开端点豁免（架构设计 6.2）：探针与指标面（14.2.1/14.2.2）直连放行——kubelet / 监控直连服务端口，
     # 网关不路由故无对外暴露；REQ-20261114-120102 增补 /ws/system/**：WS 握手经 NotifyHandshakeInterceptor

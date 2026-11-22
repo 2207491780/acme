@@ -112,8 +112,10 @@ public class TenantSwitchUseCase {
     }
 
     /**
-     * 目标租户可切换性校验（ENABLED 且未过期；未知/停用/过期/下游不可达统一
+     * 目标租户可切换性校验（ENABLED 且未派生过期；未知/停用/过期/下游不可达统一
      * TENANT_SWITCH_FAILED，不泄露目标租户存在性差异——与 FR-005 统一失败口径同型）。
+     * REQ-20261122-150802 确认②：宽限期内目标（expires 过且 grace 未过）视为可登录派生态，
+     * 与登录闸门同一派生口径放行。
      */
     private TenantInternalView requireSwitchableTarget(String targetTenantCode) {
         TenantInternalView target;
@@ -127,10 +129,21 @@ public class TenantSwitchUseCase {
         Instant now = Instant.now();
         if (target == null
                 || !EnableStatus.ENABLED.name().equals(target.status())
-                || (target.expiresAt() != null && target.expiresAt().isBefore(now))) {
+                || derivedExpired(now, target.expiresAt(), target.graceUntil())) {
             throw new BizException(AuthError.TENANT_SWITCH_FAILED);
         }
         return target;
+    }
+
+    /**
+     * 派生过期判定（REQ-20261122-150802 确认②，与 LoginUseCase.verifyTenantLoginable 同口径）：
+     * expires 过且 grace 未过=宽限期（仍可用）；grace 也过（或 expires 过且无 grace）=已过期。
+     */
+    private static boolean derivedExpired(Instant now, Instant expiresAt, Instant graceUntil) {
+        if (expiresAt == null || !expiresAt.isBefore(now)) {
+            return false;
+        }
+        return graceUntil == null || !graceUntil.isAfter(now);
     }
 
     /** 展示主体（username/nickname 富化，复用既有批量画像查询；缺失按空串兜底不阻断签发）。 */

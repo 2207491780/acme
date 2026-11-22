@@ -11,6 +11,7 @@ import java.time.Instant;
  * 租户（7.2.1：平台级表，不标租户列、不参与过滤——租户目录自身；无软删，停用代替删除 FR-007）。
  * REQ-20261117-025200 增补联系人 / 有效期三列（均可空；expiresAt 过期租户登录拒绝与下拉排除，确认记录③）。
  * REQ-20261121-022910 增补 package_id（可空=NULL 不受限；非空=菜单下发 ∩ 套餐菜单集，确认②读时过滤）。
+ * REQ-20261122-150802 增补 grace_until（可空=NULL 未配置宽限；宽限期内仍可登录，确认②派生扩展）。
  */
 @Table("sys_tenant")
 public class SysTenant extends AuditBase {
@@ -42,6 +43,14 @@ public class SysTenant extends AuditBase {
     /** 绑定套餐 ID（可空=null 不受套餐限制；REQ-20261121-022910，逻辑校验无 FK，确认③）。 */
     @Column("package_id")
     private Long packageId;
+
+    /**
+     * 宽限期止点（可空=未配置宽限；REQ-20261122-150802 确认②）：生命周期保留双态+派生扩展——
+     * 宽限期（expires_at&lt;now≤grace_until）内仍可登录、能力照旧；宽限也过=派生自动过期
+     * （无定时任务，读时判定）。
+     */
+    @Column("grace_until")
+    private Instant graceUntil;
 
     /** 父租户 ID（可空=null 顶层；逻辑引用 sys_tenant.id，无 FK，REQ-20261122-102954 确认②）。 */
     @Column("parent_id")
@@ -113,6 +122,14 @@ public class SysTenant extends AuditBase {
 
     public void setExpiresAt(Instant expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public Instant getGraceUntil() {
+        return graceUntil;
+    }
+
+    public void setGraceUntil(Instant graceUntil) {
+        this.graceUntil = graceUntil;
     }
 
     public Long getPackageId() {

@@ -6,6 +6,7 @@ import com.acme.platform.infra.config.LoginLogRetentionProperties;
 import com.acme.platform.infra.internal.client.LoginLogCleanupClient;
 import com.acme.platform.system.api.AuthorizationClient;
 import com.acme.platform.system.api.DataScopeClient;
+import com.acme.platform.system.api.TenantQuotaClient;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -20,7 +21,8 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 @SpringBootApplication
 @EnableConfigurationProperties({LoginLogRetentionProperties.class,
         ExceptionLogRetentionProperties.class, AuditRetentionProperties.class})
-@EnableFeignClients(clients = {AuthorizationClient.class, DataScopeClient.class, LoginLogCleanupClient.class})
+@EnableFeignClients(clients = {AuthorizationClient.class, DataScopeClient.class, TenantQuotaClient.class,
+        LoginLogCleanupClient.class})
 public class PlatformInfraApplication {
 
     public static void main(String[] args) {
