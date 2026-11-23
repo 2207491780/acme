@@ -21,8 +21,8 @@
 | 3+ | JOB-3 调度中心管理页 | **DONE**（合并 95e5eaa 快进+合并树 V28 复验 exit=0+双远端推送+工作树/分支回收；门禁 GATE_ALL_PASS：web 69 文件/mobile 14/build/desktop ✓；51 例映射 AC-1~12；并行 flake 串行判别绿；交付裁决入契约） | REQ-20261122-023213 |
 | 3+ | BPM-2 流程设计器 | **DONE**（合并 4aa192c（amend 修正）+合并树复验 typecheck/定向绿+双远端推送+分支回收；门禁 GATE_ALL_PASS web 70 文件/build 18.25s/desktop ✓；tester 50/50+校验规则三裁决；浏览器实测走查 PASS 截图取证 .ai-tmp/bpm2-designer-evidence.png；与 JOB-3 并行合流 TL 手解三文件冲突+合并树复验兜底） | REQ-20261122-023441 |
 | 3 | 轮 3 全收口（THEME-3/JOB-2/BPM-2+JOB-3 提前） | **DONE** | |
-| 遗留 | 孤儿目录人工清理 | .worktrees 下 feat-req-20261120-213603-menu-filter、feat-req-20261121-071002-scheduler-core、feat-req-20261122-023441-bpm-designer 三个孤儿残留目录（Safe-Delete 钩子拒绝脚本删除，注册已注销、内容可弃）——需用户人工删除或授权 bypass | — |
-| 遗留 | 已合并本地分支删除待指令 | feat/req-20261122-150756-scheduler-resilience、feat/req-20261122-150802-tenant-lifecycle-quota 两个分支已合并入主线并推送（内容零丢失），worktree.mjs remove 按授权分级不自动删——需用户指令后 `git branch -d` | — |
+| 遗留 | 孤儿目录人工清理 | ~~menu-filter/scheduler-core/bpm-designer 三孤儿目录~~（2026-11-23 用户授权 bypass 后删除完毕，git worktree list 已无残留注册） | — |
+| 遗留 | 已合并本地分支删除待指令 | ~~JOB-4/TENANT-4/TENANT-5 三分支~~（2026-11-23 用户已授权删除，tip 均为合并点零丢失）；BPM-5（233425）/THEME-4（233427）合并后同口径待删 | — |
 | 4 | BPM-3 流程管理页 | **DONE**（合并 cd7033a+合并树复验 typecheck/定向绿+双远端推送+回收；门禁 GATE_ALL_PASS web **74 文件全绿**/build 52.99s/desktop ✓；backend 58/58+V29 3/3；tester 46 例映射 AC-1~12；浏览器实测=只读画布 svg 1/nodes 4/edges 3+五块 Drawer+待办两子区；运行时重启一次四路续任无损） | REQ-20261122-102730 |
 | 4 | TENANT-3 子租户层级 | **DONE**（合并 1fc9076+合并树 V30 复验 exit=0+双远端推送+回收；backend 414/414 Skipped=0+层级 9/9 两路独立复验；frontend 9/9+typecheck 绿；tester 19 例映射；§6.3 三问推荐答案钉死；门禁注记=唯一红为已知负载敏感用例零代码交集放行） | REQ-20261122-102954 |
 | 4 | 轮 4 全收口（BPM-3+TENANT-3） | **DONE** | |
