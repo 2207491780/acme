@@ -15,9 +15,9 @@
     <description>
         BPM 工作流域服务实现与启动入口（REQ-20261121-142316；docs/bpm-engine-design-2026-11-21
         §2~§7 架构终稿）。装配：core / jackson / trace / web / mybatis-flex / security / tenant / feign
-        / i18n；内核自研零新增依赖（BPMN 解析 JDK DOM、表达式 Spring SpEL SimpleEvaluationContext、
-        定时兜底 ScheduledExecutorService、委托下发 RestClient）。
-        未用不声明——cache / lock / stream / job / gateway / audit / storage / excel / doc 不引入。
+        / stream / i18n；内核自研零新增依赖（BPMN 解析 JDK DOM、表达式 Spring SpEL
+        SimpleEvaluationContext、定时兜底 ScheduledExecutorService、委托下发 RestClient）。
+        未用不声明——cache / lock / job / gateway / audit / storage / excel / doc 不引入。
     </description>
 
     <dependencies>
@@ -69,6 +69,12 @@
         <dependency>
             <groupId>com.acme</groupId>
             <artifactId>framework-feign</artifactId>
+        </dependency>
+        <!-- 流程事件流（REQ-20261122-233425 确认④：KafkaWorkflowEventPublisher 经 MessageSender
+            发 EventEnvelopes 信封；单体聚合形态 classpath 无 stream——Logging 兜底条件装配） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-stream</artifactId>
         </dependency>
         <!-- zh/en 双语（NFR-007） -->
         <dependency>
@@ -160,6 +166,12 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!-- 事件流出站 binder（REQ-20261122-233425 确认④；binder 由使用方引入，Modules.md 3.5——
+            acme.workflow.events 出站面 platform-infra 同款选型） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-stream-binder-kafka</artifactId>
+        </dependency>
         <!-- 健康探针与指标（14.2） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -200,6 +212,13 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- 事件流集成测试（REQ-20261122-233425 确认⑦：Kafka 容器断言 envelope 与 topic——版本随
+            parent spring-boot-dependencies 口径） -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-kafka</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

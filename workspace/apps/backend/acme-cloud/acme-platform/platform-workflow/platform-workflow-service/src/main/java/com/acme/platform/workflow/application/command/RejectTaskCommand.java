@@ -116,6 +116,12 @@ public class RejectTaskCommand implements WorkflowCommand<Long> {
             edgeDetail.put("comment", payload.comment());
         }
         historyRecorder.rejectEdge(runtime, targetNodeId, edgeDetail);
+        // 驳回事件（BPM-5 增补埋点：reject 不产生 TASK_COMPLETED——业务侧驳回终态回写锚点）
+        context.recordEvent(new com.acme.platform.workflow.kernel.WorkflowEvent(
+                com.acme.platform.workflow.kernel.WorkflowEvent.TASK_REJECTED, runtime.tenantId(),
+                instance.getDefinitionId(), model.getProcessKey(), instance.getId(), task.getNodeId(),
+                instance.getBusinessKey(), context.now(), Map.of(
+                        "taskId", String.valueOf(task.getId()), "rejectedTo", targetNodeId)));
         executionEngine.rejectToNode(runtime, execution, targetNodeId, Map.of(
                 "taskId", String.valueOf(task.getId()), "rejectedTo", targetNodeId));
         executionEngine.drive(runtime);

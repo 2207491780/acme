@@ -16,6 +16,7 @@ import com.acme.framework.storage.support.StorageError;
 import com.acme.framework.stream.support.StreamError;
 import com.acme.framework.tenant.support.TenantError;
 import com.acme.framework.tx.support.TxError;
+import com.acme.framework.workflow.support.WorkflowServiceTaskError;
 import com.acme.framework.web.support.WebError;
 import org.junit.jupiter.api.Test;
 
@@ -44,7 +45,7 @@ class FrameworkErrorI18nTest {
                         GatewayError.values(), FlexError.values(), TenantError.values(), CacheError.values(),
                         LockError.values(), StreamError.values(), FeignError.values(), JobError.values(),
                         IdempotentError.values(), ExcelError.values(), StorageError.values(),
-                        RateLimitError.values(), TxError.values())
+                        RateLimitError.values(), WorkflowServiceTaskError.values(), TxError.values())
                 .flatMap(Arrays::stream)
                 .toList();
     }

@@ -50,7 +50,8 @@ public class SuspendInstanceCommand implements WorkflowCommand<Long> {
         context.persist(() -> support.saveInstance(instance));
         context.recordEvent(new com.acme.platform.workflow.kernel.WorkflowEvent(
                 com.acme.platform.workflow.kernel.WorkflowEvent.INSTANCE_SUSPENDED,
-                instance.getTenantId(), null, instance.getId(), null, context.now(),
+                instance.getTenantId(), instance.getDefinitionId(), null, instance.getId(), null,
+                instance.getBusinessKey(), context.now(),
                 java.util.Map.of("reason", instance.getSuspendReason())));
         return instance.getId();
     }

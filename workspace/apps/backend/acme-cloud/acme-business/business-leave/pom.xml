@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-business</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>business-leave</artifactId>
+    <packaging>jar</packaging>
+    <name>business-leave</name>
+    <description>
+        请假审批业务域试点（REQ-20261122-233425 确认⑤；BPM 端到端第一个业务模块）：leave_request
+        请假单（APPLYING→APPROVING→FILED→DONE/REJECTED）+ 申请端点（POST /admin/v1/leave/requests，
+        经 WorkflowRuntimeClient 启动流程绑 businessKey）+ HR 备案 ServiceTask 委托 handler
+        （framework-workflow SDK SPI）+ 流程事件自消费（INSTANCE_COMPLETED 按 businessKey 回写终态）。
+        交付形态=bootstrap 单体聚合（BusinessLeaveConfiguration 显式聚合；standalone 服务化与部署
+        清单不在本期——契约确认项 BPM-6 前不部署）。
+    </description>
+
+    <dependencies>
+        <!-- workflow 契约（4.4.2 仅经 *-api）：运行时客户端 + 事件载荷 + 任务视图 -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-workflow-api</artifactId>
+        </dependency>
+        <!-- framework 按需（Modules.md 3.1）：BPM 集成 SDK（ServiceTask handler SPI+接收端点自动装配）、
+            消息消费（EventEnvelopes 解析）、数据访问与租户 -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-workflow</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-stream</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-mybatis-flex</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-tenant</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-core</artifactId>
+        </dependency>
+        <!-- 实引用直接声明（Modules.md 2.2.3） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-contract</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-util</artifactId>
+        </dependency>
+
+        <!-- Web 运行时面（注解与校验；运行容器由聚合方携带——bootstrap 单体聚合） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.validator</groupId>
+            <artifactId>hibernate-validator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- 测试域（16 章；SDK handler 路由/用例单测） -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

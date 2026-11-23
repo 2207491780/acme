@@ -1,5 +1,6 @@
 package com.acme.bootstrap;
 
+import com.acme.business.leave.BusinessLeaveConfiguration;
 import com.acme.platform.auth.PlatformAuthApplication;
 import com.acme.platform.auth.config.AuthTokenProperties;
 import com.acme.platform.auth.config.LoginGuardProperties;
@@ -10,6 +11,7 @@ import com.acme.platform.infra.config.ExceptionLogRetentionProperties;
 import com.acme.platform.scheduler.PlatformSchedulerApplication;
 import com.acme.platform.system.PlatformSystemApplication;
 import com.acme.platform.workflow.PlatformWorkflowApplication;
+import com.acme.platform.workflow.api.WorkflowRuntimeClient;
 import org.apache.ibatis.annotations.Mapper;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -18,6 +20,7 @@ import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProce
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
@@ -34,7 +37,10 @@ import org.springframework.context.annotation.Import;
  * platform-scheduler 入聚合（tick 循环在单体形态随 Spring 启动，ShedLock 同款；
  * 下发线程池/RestClient bean 装配但单体无执行器注册时零下发行为）。
  * REQ-20261121-142316：platform-workflow 入聚合（第五 schema platform_workflow；定时兜底/
- * 注册重试线程随 Spring 启动，跨域 Feign——workflow 身份目录/调度注册——经本地适配器短路）。</p>
+ * 注册重试线程随 Spring 启动，跨域 Feign——workflow 身份目录/调度注册——经本地适配器短路）。
+ * REQ-20261122-233425：business-leave 请假试点入聚合（第六 schema business_leave，
+ * BusinessLeaveConfiguration 显式聚合——business 包不在 scanBasePackages 扫描面；workflow
+ * 运行时契约 WorkflowRuntimeClient 经聚合面 @EnableFeignClients 显式登记 + 本地适配器短路）。</p>
  *
  * <p>{@code @MapperScan("com.acme.platform")}：mybatis-flex starter 的自动 mapper 注册按
  * AutoConfigurationPackages（主应用包 com.acme.bootstrap）扫描，单体主包不含 mapper 接口——
@@ -57,7 +63,11 @@ import org.springframework.context.annotation.Import;
 @SpringBootApplication(scanBasePackages = {"com.acme.bootstrap", "com.acme.platform"})
 @MapperScan(basePackages = "com.acme.platform", annotationClass = Mapper.class)
 @Import({PlatformAuthApplication.class, PlatformSystemApplication.class, PlatformInfraApplication.class,
-        PlatformSchedulerApplication.class, PlatformWorkflowApplication.class})
+        PlatformSchedulerApplication.class, PlatformWorkflowApplication.class,
+        BusinessLeaveConfiguration.class})
+// REQ-20261122-233425 确认⑥：workflow 运行时契约（business-leave 经 SDK 消费）显式登记——
+// 工厂 bean 惰性 + LocalWorkflowRuntimeClient @Primary 短路，分布式语义不变
+@EnableFeignClients(clients = WorkflowRuntimeClient.class)
 @EnableConfigurationProperties({AuthTokenProperties.class, LoginGuardProperties.class,
         LoginLogRetentionProperties.class, ExceptionLogRetentionProperties.class,
         AuditRetentionProperties.class})

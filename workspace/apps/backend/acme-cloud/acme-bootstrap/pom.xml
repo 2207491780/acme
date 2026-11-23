@@ -47,6 +47,12 @@
             <groupId>com.acme</groupId>
             <artifactId>platform-workflow-service</artifactId>
         </dependency>
+        <!-- 请假审批业务试点聚合（REQ-20261122-233425 确认⑤：第六 schema business_leave，
+            BusinessLeaveConfiguration 显式聚合；BPM 集成 SDK ServiceTask 委托端到端） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>business-leave</artifactId>
+        </dependency>
         <!-- 边缘认证面（确认④）：UserTokenAccessVerifier（用户令牌验签）与 JwsInternalTokenIssuer
             （内部令牌签发，经 InternalTokenIssuer bean）；trace 模块为 services 已传递的过滤链基线，
             audit 为本地审计 sink 的 SPI 载体（显式声明防隐式依赖） -->
@@ -105,6 +111,13 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- 事件流 e2e（REQ-20261122-233425 确认⑦：bootstrap 形态 business-leave 端到端经 Kafka 容器；
+            版本随 parent spring-boot-dependencies 口径） -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-kafka</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

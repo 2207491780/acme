@@ -91,7 +91,8 @@ public class CompleteTaskCommand implements WorkflowCommand<Long> {
         context.persist(() -> taskRepository.save(task));
         context.recordEvent(new com.acme.platform.workflow.kernel.WorkflowEvent(
                 com.acme.platform.workflow.kernel.WorkflowEvent.TASK_COMPLETED, runtime.tenantId(),
-                model.getProcessKey(), instance.getId(), task.getNodeId(), context.now(),
+                instance.getDefinitionId(), model.getProcessKey(), instance.getId(), task.getNodeId(),
+                instance.getBusinessKey(), context.now(),
                 Map.of("taskId", String.valueOf(task.getId()))));
         Map<String, Object> leaveDetail = new LinkedHashMap<>();
         leaveDetail.put("taskId", String.valueOf(task.getId()));

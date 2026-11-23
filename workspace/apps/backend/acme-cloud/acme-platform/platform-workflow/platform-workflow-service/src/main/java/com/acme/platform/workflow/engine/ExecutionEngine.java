@@ -145,7 +145,8 @@ public class ExecutionEngine implements EngineOperations {
         log.warn("排他网关无路由（execution 挂起）：instance={} node={} reason={}",
                 execution.getInstanceId(), execution.getNodeId(), reason);
         runtime.recordEvent(new WorkflowEvent(WorkflowEvent.INSTANCE_SUSPENDED, runtime.tenantId(),
-                runtime.model().getProcessKey(), runtime.instance().getId(), execution.getNodeId(),
+                runtime.instance().getDefinitionId(), runtime.model().getProcessKey(),
+                runtime.instance().getId(), execution.getNodeId(), runtime.instance().getBusinessKey(),
                 runtime.now(), Map.of("reason", reason)));
     }
 
@@ -265,7 +266,8 @@ public class ExecutionEngine implements EngineOperations {
             }
             taskRepository.save(created);
             runtime.recordEvent(new WorkflowEvent(WorkflowEvent.TASK_CREATED, runtime.tenantId(),
-                    runtime.model().getProcessKey(), runtime.instance().getId(), node.id(),
+                    runtime.instance().getDefinitionId(), runtime.model().getProcessKey(),
+                    runtime.instance().getId(), node.id(), runtime.instance().getBusinessKey(),
                     runtime.now(), Map.of("taskId", String.valueOf(created.getId()))));
         });
         scheduleAttachedTimers(runtime, execution, node);
@@ -368,7 +370,8 @@ public class ExecutionEngine implements EngineOperations {
         runtime.persist(() -> instanceRepository.save(instance));
         cancelAllActiveWork(runtime);
         runtime.recordEvent(new WorkflowEvent(WorkflowEvent.INSTANCE_COMPLETED, runtime.tenantId(),
-                runtime.model().getProcessKey(), instance.getId(), atEndExecution.getNodeId(),
+                instance.getDefinitionId(), runtime.model().getProcessKey(), instance.getId(),
+                atEndExecution.getNodeId(), instance.getBusinessKey(),
                 runtime.now(), Map.of()));
     }
 
@@ -380,7 +383,8 @@ public class ExecutionEngine implements EngineOperations {
         runtime.persist(() -> instanceRepository.save(instance));
         cancelAllActiveWork(runtime);
         runtime.recordEvent(new WorkflowEvent(WorkflowEvent.INSTANCE_TERMINATED, runtime.tenantId(),
-                runtime.model().getProcessKey(), instance.getId(), null, runtime.now(), Map.of()));
+                instance.getDefinitionId(), runtime.model().getProcessKey(), instance.getId(),
+                null, instance.getBusinessKey(), runtime.now(), Map.of()));
     }
 
     /** 实例挂起（NO_ASSIGNEE_RESOLVED / SERVICE_TASK_FAILED / 运维挂起共用面）。 */
@@ -390,7 +394,8 @@ public class ExecutionEngine implements EngineOperations {
         instance.setSuspendReason(reason);
         runtime.persist(() -> instanceRepository.save(instance));
         runtime.recordEvent(new WorkflowEvent(WorkflowEvent.INSTANCE_SUSPENDED, runtime.tenantId(),
-                runtime.model().getProcessKey(), instance.getId(), null, runtime.now(),
+                instance.getDefinitionId(), runtime.model().getProcessKey(), instance.getId(),
+                null, instance.getBusinessKey(), runtime.now(),
                 Map.of("reason", reason, "errorCode", errorCodeAnchor)));
     }
 
@@ -425,7 +430,8 @@ public class ExecutionEngine implements EngineOperations {
                 "timerJobId", String.valueOf(timerJob.getId()),
                 "hostNodeId", timerJob.getNodeId()));
         runtime.recordEvent(new WorkflowEvent(WorkflowEvent.TIMER_FIRED, runtime.tenantId(),
-                runtime.model().getProcessKey(), runtime.instance().getId(), boundary.id(),
+                runtime.instance().getDefinitionId(), runtime.model().getProcessKey(),
+                runtime.instance().getId(), boundary.id(), runtime.instance().getBusinessKey(),
                 runtime.now(), Map.of("hostNodeId", timerJob.getNodeId())));
         interruptHost(runtime, boundary, timerJob);
     }
@@ -549,7 +555,8 @@ public class ExecutionEngine implements EngineOperations {
         historyRecorder.record(runtime, node.id(), node.type().name(),
                 com.acme.platform.workflow.api.dto.HistoryActivityView.ACTION_LEAVE, null, detail);
         runtime.recordEvent(new WorkflowEvent(WorkflowEvent.SERVICE_TASK_FAILED, runtime.tenantId(),
-                runtime.model().getProcessKey(), runtime.instance().getId(), node.id(),
+                runtime.instance().getDefinitionId(), runtime.model().getProcessKey(),
+                runtime.instance().getId(), node.id(), runtime.instance().getBusinessKey(),
                 runtime.now(), detail));
     }
 

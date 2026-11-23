@@ -10,8 +10,17 @@ public final class WorkflowPayloads {
     private WorkflowPayloads() {
     }
 
-    /** 启动流程实例（POST /process-instances）。 */
-    public record StartInstance(Long definitionId, String businessKey, Map<String, Object> variables) {
+    /**
+     * 启动流程实例（POST /process-instances + internal POST /process-instances；BPM-5 增补
+     * initiatorUserId——internal 面业务发起人显式入参，Admin 面经 3 参兼容构造走 UserContext）。
+     */
+    public record StartInstance(Long definitionId, String businessKey, Map<String, Object> variables,
+                                String initiatorUserId) {
+
+        /** Admin 面兼容构造（initiator 取当前登录用户上下文）。 */
+        public StartInstance(Long definitionId, String businessKey, Map<String, Object> variables) {
+            this(definitionId, businessKey, variables, null);
+        }
     }
 
     /** 任务办结（POST /tasks/{taskId}/complete）。 */

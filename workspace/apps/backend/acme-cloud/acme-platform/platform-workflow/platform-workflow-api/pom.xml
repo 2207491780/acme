@@ -16,7 +16,9 @@
         BPM 工作流域服务契约（REQ-20261121-142316；docs/bpm-engine-design-2026-11-21 §2/§4/§7 协议）：
         定义/实例/任务三域 Admin DTO、internal fire/callback 协议 DTO、域共享枚举与错误码常量
         （服务间唯一编译期依赖入口，M-11 禁实现与 Web/ORM）。ServiceTask 委托协议与定时联动
-        协议的入参形态在 BPM-1 契约钉死（BPM-5/BPM-6 消费）。
+        协议的入参形态在 BPM-1 契约钉死（BPM-5/BPM-6 消费）。REQ-20261122-233425 增补：
+        WorkflowRuntimeClient 运行时契约（internal 启动/详情/变量写）与 WorkflowEventEnvelope
+        事件载荷（acme.workflow.events 消费面）。
     </description>
 
     <dependencies>
@@ -33,6 +35,16 @@
         <dependency>
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+        <!-- WorkflowRuntimeClient Feign 契约（REQ-20261122-233425 确认②③；spring-web 注解面经其传递属契约声明面） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-openfeign-core</artifactId>
+        </dependency>
+        <!-- 服务间响应信封（ContractResult 消费解码；4.4.2 api→api 单向无环——system-api 仅依赖 common-*） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-system-api</artifactId>
         </dependency>
 
         <!-- 测试域 -->

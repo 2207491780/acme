@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.acme</groupId>
+        <artifactId>acme-framework</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>framework-workflow</artifactId>
+    <packaging>jar</packaging>
+    <name>framework-workflow</name>
+    <description>
+        BPM 集成 SDK 模块（REQ-20261122-233425 确认②）：WorkflowServiceTaskHandler SPI + serviceRef
+        注册表路由 + ServiceTask 委托接收端点（Spring Boot 自动装配）+ 引擎 internal callback 自动回调
+        （X-Acme-Token sub=业务服务名）。四包形态 config/support；业务侧 pom 直接引入即装配。
+        下发协议 DTO 按冻结字段名镜像解码（framework 禁依赖 platform 服务模块 4.4.4，wire 契约
+        事实源=platform-workflow-api ServiceTaskDispatchPayload，消费侧不得单方变更字段名）。
+    </description>
+
+    <dependencies>
+        <!-- Modules.md 3.1 直接依赖 core（第 3 层）；实引用直接声明（Modules.md 2.2.3） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-contract</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-core</artifactId>
+        </dependency>
+        <!-- 自动回调内部令牌签发接缝（optional：使用方服务装配面已显式携带，同 framework-job 先例） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-security</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <!-- 接收端点 @RestController 面与回调 RestClient（optional 不传递：web 运行时由使用方服务自带，
+            Boot 4 模块化；无 servlet 形态仅保留注册表本地语义） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-web-server</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- 回调 base-url 缺省时经 LoadBalancer 按 workflow 服务名寻址（optional：纯本地形态直连配置） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- 测试域（framework-job 先例） -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- 接收端点 MVC 切片测试运行面（spring-web 注解面 + Jackson 解码；framework-job 先例） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-tomcat</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jackson</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

@@ -12,6 +12,18 @@ spring:
         enabled: false
       discovery:
         enabled: false
+    stream:
+      # 流程事件流出站（REQ-20261122-233425 确认④；本模块 IT 无 Kafka 容器——发送失败由
+      # 发布器消化告警，producer max.block.ms 收敛防止异步线程长阻塞）
+      bindings:
+        workflowEventOut-out-0:
+          destination: acme.workflow.events
+          content-type: application/json
+      kafka:
+        binder:
+          brokers: ${KAFKA_ADDR:127.0.0.1:9092}
+          producer-properties:
+            max.block.ms: 2000
   flyway:
     enabled: true
     # locations 继承主 yml（REQ-20261118-002130 确认①）：workflow 自 V1 起，per-service 子目录；
@@ -19,6 +31,10 @@ spring:
     locations: classpath:db/migration/workflow
     default-schema: public
     schemas: public
+
+logging:
+  level:
+    com.acme.platform.workflow: DEBUG
 
 acme:
   workflow:
@@ -66,3 +82,8 @@ management:
         # 不注册——membership 校验 fail-fast；生产口径归主 yml）
         readiness:
           include: readinessState,db
+  health:
+    binders:
+      # 测试域无 Kafka broker（binder 健康指标会为占位 broker 空转 AdminClient 并周期重试拉取
+      # 元数据，干扰负载敏感用例——显式关闭；事件发布失败由发布器消化告警，单体同款键先例）
+      enabled: false

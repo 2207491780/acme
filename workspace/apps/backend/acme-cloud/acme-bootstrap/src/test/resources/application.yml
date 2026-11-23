@@ -21,6 +21,25 @@ spring:
       definition: ""
     stream:
       enabled: false
+      # 事件流出/入站绑定（REQ-20261122-233425，镜像主 yml：stream 关闭态键面惰性无害，
+      # tester E2E 等开启 stream 的测试域直接生效；主 yml 被本文件遮蔽故须在此重申）
+      bindings:
+        workflowEventOut-out-0:
+          destination: acme.workflow.events
+          content-type: application/json
+        leaveEventIn-in-0:
+          destination: acme.workflow.events
+          group: acme-monolith
+          content-type: application/json
+      kafka:
+        binder:
+          brokers: ${KAFKA_ADDR:127.0.0.1:9092}
+        bindings:
+          leaveEventIn-in-0:
+            consumer:
+              # 死信通道（13.2.2 必配；DlqConfigValidator 启动校验）
+              enable-dlq: true
+              dlq-name: acme.workflow.events-dlq
     openfeign:
       lazy-attributes-resolution: true
   flyway:
@@ -33,6 +52,26 @@ spring:
 acme:
   stream:
     enabled: false
+  workflow:
+    service-task:
+      # BPM 集成 SDK（REQ-20261122-233425 确认⑥，镜像主 yml）：单体聚合内 SDK 接收端点——
+      # 引擎下发经 localhost 直连，SDK 自动回调同机 internal 面。
+      # ⚠️ 占位符解析时序：@Value 构造期与 @ConfigurationProperties 绑定期（均早于 Web 启动）
+      # 同样烘焙 ${local.server.port} 为字面 :0——含 RANDOM_PORT 运行期占位符的键值只能经
+      # Environment 发送期原始读取+解析消费（WorkflowServiceTaskCallbackClient.resolveBase /
+      # LeavePilotProcessDeployer 部署期惰性读取口径），禁经 bean 值/@Value 链消费
+      callback-base-url: http://127.0.0.1:${local.server.port:${server.port}}
+      # 自动回调主体（X-Acme-Token sub=业务服务名；聚合内试点业务域=business-leave）
+      service-name: business-leave
+      # 单体聚合形态 handler 与引擎同 JVM——异步受理（状态链序可观测：APPROVING=审批办结后、
+      # FILED=HR 备案落库时），handler 异常不反噬下发；分布式形态缺省同步
+      receive-async: true
+      receive-initial-delay-ms: 600
+      receive-callback-delay-ms: 1000
+  leave:
+    # 试点 handler 注册键=试点 BPMN serviceRef（LeaveFileServiceTaskHandler 收集器时点解析 +
+    # LeavePilotProcessDeployer 部署期解析——同键单源；local.server.port 运行期可达）
+    service-ref: http://127.0.0.1:${local.server.port:${server.port}}
   flex:
     id:
       worker-id: 1

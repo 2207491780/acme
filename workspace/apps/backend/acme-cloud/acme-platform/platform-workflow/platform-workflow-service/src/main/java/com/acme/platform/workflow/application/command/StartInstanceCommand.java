@@ -46,8 +46,13 @@ public class StartInstanceCommand implements WorkflowCommand<Long> {
         model = definition.getStatus() == WorkflowDefinitionStatus.DEPLOYED
                 ? support.loadModel(definition.getId()) : null;
         tenantId = support.requireTenant();
-        var user = com.acme.common.context.UserContext.get();
-        initiator = user == null ? null : user.userId();
+        // initiator：internal 面显式入参（BPM-5 确认③）优先；Admin 面取当前登录用户上下文
+        if (payload.initiatorUserId() != null && !payload.initiatorUserId().isBlank()) {
+            initiator = payload.initiatorUserId();
+        } else {
+            var user = com.acme.common.context.UserContext.get();
+            initiator = user == null ? null : user.userId();
+        }
     }
 
     @Override
@@ -81,7 +86,8 @@ public class StartInstanceCommand implements WorkflowCommand<Long> {
         context.persist(() -> {
             support.saveInstance(instance);
             context.recordEvent(new WorkflowEvent(WorkflowEvent.INSTANCE_STARTED, tenantId,
-                    model.getProcessKey(), instance.getId(), model.getStartElementId(), context.now(),
+                    definition.getId(), model.getProcessKey(), instance.getId(),
+                    model.getStartElementId(), payload.businessKey(), context.now(),
                     Map.of("businessKey", payload.businessKey())));
         });
         var runtime = support.buildRuntime(context, model, instance, tenantId);

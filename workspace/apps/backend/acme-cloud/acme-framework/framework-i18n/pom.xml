@@ -162,6 +162,12 @@
             <artifactId>framework-ratelimit</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- BPM 集成 SDK 错误码（WorkflowServiceTaskError，SYS-13 段；FrameworkErrorI18nTest 白名单） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>framework-workflow</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>com.acme</groupId>
             <artifactId>framework-tx</artifactId>

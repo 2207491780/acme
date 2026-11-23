@@ -21,7 +21,9 @@
     </description>
 
     <modules>
-        <!-- 业务域当前为空壳：business-content 已下线；新增业务域按「business-** 模块清单由本 POM 自管」追加 -->
+        <!-- 业务域模块清单由本 POM 自管（5.3.2）；business-content 已下线 -->
+        <!-- 请假审批试点（REQ-20261122-233425 确认⑤：BPM 集成 SDK + ServiceTask 委托 + 事件流消费端到端） -->
+        <module>business-leave</module>
     </modules>
 
     <build>

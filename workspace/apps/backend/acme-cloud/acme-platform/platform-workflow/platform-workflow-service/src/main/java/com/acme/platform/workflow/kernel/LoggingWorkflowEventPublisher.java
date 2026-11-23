@@ -2,13 +2,13 @@ package com.acme.platform.workflow.kernel;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 /**
- * logging no-op 事件发布实现（REQ-20261121-142316 交付边界：Kafka 事件流归 BPM-5——framework-stream
- * 装配随其契约接入，本实现仅日志留痕，保证事件钩子链路在 MVP 即可观测）。
+ * logging no-op 事件发布实现（REQ-20261121-142316 引入；REQ-20261122-233425 确认④起 Kafka
+ * 实现替换为缺省——本实现降级为兜底 bean：framework-stream 缺席（单体）/使用方显式注入
+ * 自定义 WorkflowEventPublisher 时装配（WorkflowConfiguration 条件序），保证事件钩子链路
+ * 在无 MQ 形态仍可观测）。
  */
-@Component("loggingWorkflowEventPublisher")
 public class LoggingWorkflowEventPublisher implements WorkflowEventPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(LoggingWorkflowEventPublisher.class);

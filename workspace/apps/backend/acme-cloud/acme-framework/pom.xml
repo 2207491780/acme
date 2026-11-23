@@ -29,6 +29,8 @@
         <module>framework-stream</module>
         <module>framework-feign</module>
         <module>framework-job</module>
+        <!-- BPM 集成 SDK（REQ-20261122-233425 确认②：ServiceTask 委托消费 + 接收端点自动装配） -->
+        <module>framework-workflow</module>
         <!-- P5 按需模块（Modules.md 3.2/3.3；架构设计 2.2） -->
         <module>framework-idempotent</module>
         <module>framework-excel</module>

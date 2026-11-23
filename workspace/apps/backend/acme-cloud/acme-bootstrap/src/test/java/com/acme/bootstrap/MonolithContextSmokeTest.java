@@ -12,6 +12,7 @@ import com.acme.bootstrap.local.LocalSystemConfigClient;
 import com.acme.bootstrap.local.LocalTenantClient;
 import com.acme.bootstrap.local.LocalTenantQuotaClient;
 import com.acme.bootstrap.local.LocalTenantSessionRevokeClient;
+import com.acme.bootstrap.local.LocalWorkflowRuntimeClient;
 import com.acme.framework.audit.support.AuditEvent;
 import com.acme.framework.audit.support.AuditEventSink;
 import com.acme.platform.auth.api.LoginLogStatsClient;
@@ -25,6 +26,7 @@ import com.acme.platform.system.api.DataScopeClient;
 import com.acme.platform.system.api.SystemConfigClient;
 import com.acme.platform.system.api.TenantClient;
 import com.acme.platform.system.api.TenantQuotaClient;
+import com.acme.platform.workflow.api.WorkflowRuntimeClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -57,7 +59,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>AC-2：三 Flyway 实例各自迁移落位（platform_auth/platform_system/platform_infra 三 schema
  *       的表与 flyway_schema_history 各自独立）；上下文无缺失 bean（含 @MapperScan 三服务 mapper 面）；</li>
- *   <li>AC-4：11 个本地适配器 bean 存在且 @Primary（按类型解析全部命中本地短路实现），
+ *   <li>AC-4：12 个本地适配器 bean 存在且 @Primary（按类型解析全部命中本地短路实现；
  *       Feign 工厂 bean 定义惰性（lazy-attributes-resolution 实地验证，永不实例化）；</li>
  *   <li>AC-3：B 端登录 200（公开端点经 BootstrapAuthFilter 豁免）→ /me 携令牌 200
  *       （用户令牌验签→撤销检查→内部令牌注入→InternalTokenAuthFilter 上下文绑定全链）、
@@ -99,7 +101,8 @@ class MonolithContextSmokeTest {
         registry.add("spring.datasource.url", () -> {
             String separator = POSTGRES.getJdbcUrl().contains("?") ? "&" : "?";
             return POSTGRES.getJdbcUrl() + separator
-                    + "currentSchema=platform_auth,platform_system,platform_infra,platform_scheduler";
+                    + "currentSchema=platform_auth,platform_system,platform_infra,platform_scheduler,"
+                    + "platform_workflow,business_leave";
         });
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -176,6 +179,9 @@ class MonolithContextSmokeTest {
                 .isInstanceOf(LocalAuditStatsClient.class);
         assertThat(beanFactory.getBean(TenantQuotaClient.class))
                 .isInstanceOf(LocalTenantQuotaClient.class);
+        // REQ-20261122-233425 确认⑥：workflow 运行时契约本地短路（12 号适配器）
+        assertThat(beanFactory.getBean(WorkflowRuntimeClient.class))
+                .isInstanceOf(LocalWorkflowRuntimeClient.class);
     }
 
     @Test
@@ -194,10 +200,13 @@ class MonolithContextSmokeTest {
                         .as("Feign 工厂 bean 应被降级为非 primary（本地适配器胜出）：%s", name).isFalse();
             }
         }
-        assertThat(feignDefinitions).as("五服务去重后共 13 个显式 clients 声明"
+        assertThat(feignDefinitions).as("五服务去重后共 14 个显式 clients 声明"
                 + "（scheduler/infra/workflow 复用 AuthorizationClient 同配置声明不新增；"
                 + "workflow 增补 SchedulerJobClient/WorkflowIdentityClient 两新契约；"
-                + "infra 增补 TenantQuotaClient 配额契约 REQ-20261122-150802）").isEqualTo(13);
+                + "infra 增补 TenantQuotaClient 配额契约 REQ-20261122-150802；"
+                + "bootstrap 聚合配置增补 WorkflowRuntimeClient 运行时契约 REQ-20261122-233425 确认⑥"
+                + "——business-leave 无独立 @EnableFeignClients 数组，SDK client 登记在聚合配置）")
+                .isEqualTo(14);
     }
 
     // ---------- AC-2：三 Flyway 实例各自迁移落位 ----------
@@ -208,13 +217,16 @@ class MonolithContextSmokeTest {
         assertThat(tableExists("platform_auth", "flyway_schema_history")).isTrue();
         assertThat(tableExists("platform_system", "flyway_schema_history")).isTrue();
         assertThat(tableExists("platform_infra", "flyway_schema_history")).isTrue();
-        // 业务表落位抽核（各域代表表：凭据 / 用户 / 审计与锁表）
+        // 业务表落位抽核（各域代表表：凭据 / 用户 / 审计与锁表 / workflow 引擎表 / leave 请假单）
         assertThat(tableExists("platform_auth", "auth_credential")).isTrue();
         assertThat(tableExists("platform_auth", "sys_login_log")).isTrue();
         assertThat(tableExists("platform_system", "sys_user")).isTrue();
         assertThat(tableExists("platform_system", "sys_config")).isTrue();
         assertThat(tableExists("platform_infra", "acme_op_audit")).isTrue();
         assertThat(tableExists("platform_infra", "shedlock_locks")).isTrue();
+        // REQ-20261122-233425 确认⑤：leave 业务域 V1 落位（business_leave schema 独占）
+        assertThat(tableExists("business_leave", "leave_request")).isTrue();
+        assertThat(tableExists("business_leave", "flyway_schema_history")).isTrue();
         // 三 schema 无串位：auth 域迁移不在 system/infra 落表（search_path 合流污染防回归）
         assertThat(tableExists("platform_auth", "sys_user")).isFalse();
         assertThat(tableExists("platform_system", "auth_credential")).isFalse();

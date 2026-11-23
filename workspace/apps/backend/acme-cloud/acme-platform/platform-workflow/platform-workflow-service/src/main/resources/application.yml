@@ -20,6 +20,16 @@ spring:
           enabled: true
       config:
         namespace: ${NACOS_NAMESPACE:}
+    stream:
+      # 流程事件流出站（REQ-20261122-233425 确认④：KafkaWorkflowEventPublisher 动态目标，
+      # topic 归发布方约定 13.2.3——通知中心 BPM-6 复用本 topic 消费）
+      bindings:
+        workflowEventOut-out-0:
+          destination: acme.workflow.events
+          content-type: application/json
+      kafka:
+        binder:
+          brokers: ${KAFKA_ADDR:127.0.0.1:9092}
   datasource:
     # 每服务独占 schema（12.1.1）与独立账号（12.1.3；本地开发取值对应 .dev-stack）
     url: jdbc:postgresql://${PG_HOST:localhost}:${PG_PORT:5432}/${PG_DB:acme}?currentSchema=platform_workflow

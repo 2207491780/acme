@@ -150,6 +150,12 @@
                 <artifactId>framework-job</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <!-- BPM 集成 SDK（REQ-20261122-233425 确认②：framework-workflow 新模块登记） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>framework-workflow</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <!-- P5 按需模块（Modules.md 3.2；架构设计 2.3） -->
             <dependency>
                 <groupId>com.acme</groupId>
@@ -259,6 +265,12 @@
             <dependency>
                 <groupId>com.acme</groupId>
                 <artifactId>business-content-service</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- 请假审批试点增补登记（REQ-20261122-233425 确认⑤：bootstrap 单体聚合部署单元） -->
+            <dependency>
+                <groupId>com.acme</groupId>
+                <artifactId>business-leave</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- 单体打包形态部署单元（REQ-20261118-002130 确认②：聚合三服务实现的启动单元） -->
