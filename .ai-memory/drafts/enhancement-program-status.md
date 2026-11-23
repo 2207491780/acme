@@ -30,7 +30,11 @@
 | 5 | JOB-4 调度韧性 | **DONE**（ZCode 会话续任收口：合并 c082d5e 快进+合并树定向复验绿+双远端推送+工作树回收；门禁 GATE_ALL_PASS：全 reactor 两段全绿（首跑至 infra 前+resume scheduler 04:34/workflow/bootstrap/business）+CoreIT 先行 3 连跑 17×3；REQ 16 例全绿；打回 round1=JOB-1 CoreIT 夹具竞态（diagnostic 归因非实现回归→A2 水位口径用例修复）；告警终裁仅 sys_message 落地） | REQ-20261122-150756 |
 | 5 | TENANT-4 生命周期+配额 | **DONE**（ZCode 会话续任收口：合并 9733200 快进（rebase 冲突 4 文件=两侧同值注释措辞，取主线 f14f80f 版零损失）+合并树定向复验绿+post-rebase 定向绿；门禁 GATE_ALL_PASS：后端单次全量 reactor 0 失败（REQ IT 7/7+TT 4/4+infra 闭环 2/2+FileUseCaseTest 41/41+单体冒烟 6/6）+前端 typecheck/build/desktop 绿+core 321+mobile 102+web 637/639（唯 2 红=JOB-3 已知并行 flake 串行 19/19 判别绿披露）；打回 2 轮=①infra @EnableFeignClients 漏登记 TenantQuotaClient（22 上下文全灭）+bootstrap LocalTenantQuotaClient 适配器②tester TS 类型 5 错；AC-3 infra 闭环腿 AMB-3 关闭） | REQ-20261122-150802 |
 | 5 | 并发队列 | 全部关闭（BPM-4/JOB-4/TENANT-4 成员随轮收口；TL 串行 mvn 纪律全程执行：J4 三连跑→J4 resume→T4 定向→T4 全量→双树复验） | — |
-| 6+ | BPM-5/TENANT-5/THEME-4 → BPM-6/JOB-5 | 待启动 | |
+| 6 | BPM-5 集成 SDK+试点 | **DONE**（ZCode 会话续任收口：合并 f759e9f 快进+合并树复验绿+双远端推送+回收；门禁=两段式全 reactor+引擎 48/48+E2E 2/2 真跑；**打回四轮**：①测试域 yml 键面缺失（handler 注册键错→404=HANDLER_NOT_FOUND+事件 topic 错位零消费）→补键+收集器 WebServerInitializedEvent 稳态重登记 ②回调基址 @ConfigurationProperties 绑定期烘焙 :0→Environment 惰性解析 ③i18n SYS-13 孤儿键→allCodes 登记 ④HR 备案 600ms 定时 vs Kafka 冷启动消费竞态→A1 有界等待（修复前三测三点绿红绿实证）；偏差十项裁决入册；交付=framework-workflow 新模块+internal 3 端点+Kafka 事件流+business-leave 请假试点全链） | REQ-20261122-233425 |
+| 6 | TENANT-5 开通模板+运营视图 | **DONE**（ZCode 会话续任收口：合并 55ecd04 快进+合并树复验绿+双远端推送+回收；后端全 reactor 0 失败+前端四项绿；V32 模板表+权限种子挂靠既有菜单保 55/33 水位+init 快照语义+usage-overview；AMB 六项裁决；水位适配独立 commit 披露制） | REQ-20261122-233426 |
+| 6 | THEME-4 布局/页签/半深色/widget | **DONE**（ZCode 会话续任收口：合并 5eaadee 快进+合并树复验 45/45 绿+双远端推送+回收；backend reactor r3 全绿+前端四项绿+预算放宽 6 文件 65 例两轮复验+browser-use 五路径走查 PASS 11 图取证（三布局热切换/持久化水合/卡片页签/半深色/widget 显隐恢复全显）；schema v4+dnd-kit 入列；前端回归批三轮归因（负载说→闲置复跑推翻→主树对照 1.7x 慢相→预算边际+僵尸级联）） | REQ-20261122-233427 |
+| 6 | 轮 6 全收口（BPM-5+TENANT-5+THEME-4） | **DONE**（三分支已删、工作树全回收、台账回写） | |
+| 遗留 | 孤儿目录人工清理 | ~~三孤儿目录~~（已删）；2026-11-23 用户授权 bypass 后全部清理完毕 | — |
 
 ## 关键执行事实（跨任务复用，勿重推导）
 
@@ -42,3 +46,7 @@
 - 后端 Maven 不在 PATH（见 flex-test-assembly.md 构建与运行节，backend-dev 知道）；前端 pnpm 在 workspace/apps/frontend。
 - **-rf 坑④变体（轮 5 实证）**：`mvn test -rf :模块` 切断 reactor 后，上游依赖从本地仓库解析——上游含本轮新增类（如新 Feign client）时本地旧 jar 会引爆 NoClassDefFoundError（JOB-2 坑④同根）。定向自验一律 `-am`（既有口径）；resume 补跑时若上游有新增类，改单次全量 reactor 或先让上游 `-am` 跑过。
 - **vitest 并行负载 flake 判别口径沿用**：重 jsdom 文件（如 schedulerAdminPage）在全量并行下 25-30s 超时假红，串行 `--no-file-parallelism` 判别绿=非回归（轮 3 JOB-3/轮 5 TENANT-4 两度实证），披露放行不进打回循环。
+- **THEME-4 前端超时三课（2026-11-23，轮 6）**：①「串行判别」必须升级为「**闲置**串行判别」——串行只消 vitest 扇出、不消机器负载，判别时 TL 自身后台任务即负载源（A/B 对照：主树同用例 34s vs 历史基线 20.3s=1.7x 慢相）；②重 jsdom 交互用例超时会产生**僵尸窗口级联污染**：超时不中止 async fn，僵尸续跑写入跨用例残留（customAccent 例隔离单测 9s 绿实证）——同文件多例红先隔离单测判别再定罪；③预算放宽口径=max(实测×2.5, 现预算×2) 且重交互 ≥60s、逐文件披露（appearanceDrawer 20→45s 先例延续）；文件内**单例超时实参**要随文件级 setConfig 同步放宽（preferencesDrawer :542 30s 卡点）。
+- **多代理并发 Kafka 宿主端口互斥（轮 6）**：Testcontainers 固定宿主端口（9092）的 IT 与其他 Kafka IT/全 reactor 并行会互踢致 AdminClient 空集群死循环挂起——Kafka 用户严格串行，全 reactor 不与任何容器 IT 并行。
+- **@ConfigurationProperties 占位符烘焙坑（轮 6 BPM-5）**：绑定早于 Web 启动，`${local.server.port:${server.port}}` 在绑定期即被消化成字面 `:0`（RANDOM_PORT）且 late-resolve 无占位符可救——跨服务基址类配置一律 Environment.getProperty 取原始串+发送期 resolvePlaceholders（LeavePilotProcessDeployer 模式）；@Value 构造期与 @ConfigurationProperties 绑定期同罪。
+- **运行时崩溃续任口径（轮 6 实证×2）**：ZCode 运行时崩溃会连带杀死后台任务/子代理/Docker Desktop（管道消失）——恢复顺序=清孤儿 JVM（powershell 按 classworlds 特征过滤，勿杀 VSCode 语言服务器家族）→拉起 Docker Desktop 轮询就绪→核对磁盘改动在位→续跑；只读代理崩溃零损失直接重派。
