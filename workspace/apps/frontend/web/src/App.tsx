@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, App as AntApp, Badge, Button, Drawer, Dropdown, Grid, Input, Layout, Menu, Space, Watermark } from 'antd';
+import { Alert, App as AntApp, Badge, Button, Dropdown, Grid, Input, Menu, Space, Watermark } from 'antd';
 import type { InputRef, MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
@@ -24,7 +24,6 @@ import {
   IdcardOutlined,
   LockOutlined,
   LogoutOutlined,
-  MenuFoldOutlined,
   MenuOutlined,
   MoonOutlined,
   NotificationOutlined,
@@ -41,10 +40,11 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, resolveAccentColor, resolveSemanticColors, resolveThemeMode, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type TenantSummary, type TimezonePref } from '@acme/core';
+import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, resolveAccentColor, resolveSemanticColors, resolveThemeMode, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type LayoutMode, type TenantSummary, type TimezonePref, type TopbarWidgetKey } from '@acme/core';
 import dayjs from 'dayjs';
 import { PAGE_ROUTES, findPageRoute, tabPathOf } from './routes';
 import { Avatar } from './components/Avatar';
+import { AppLayout } from './components/AppLayout';
 import { useTabsStore } from './store/tabsStore';
 import { useStore } from './store/useStore';
 import { detectPlatform, download } from './utils/dom';
@@ -66,8 +66,6 @@ import { SaveViewModal } from './components/SaveViewModal';
 import { AppFormModal } from './components/AppFormModal';
 import { LockScreenOverlay } from './components/LockScreenOverlay';
 import { useFullscreen } from './hooks/useFullscreen';
-
-const { Sider, Header, Content } = Layout;
 
 const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: string }[] = [
   { path: '/', icon: <DashboardOutlined />, labelKey: 'nav.items.dashboard' },
@@ -105,6 +103,17 @@ const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: strin
 
 /** 静态 NAV 图标映射（页签条图标兜底；动态菜单 icon 优先）。 */
 const NAV_ICONS = new Map<string, ReactNode>(NAV.map((entry) => [entry.path, entry.icon]));
+
+/** mixed 顶栏一级菜单（REQ-20261122-233427 确认③）：剔除目录 children（深层级归左侧 72px
+ *  图标轨直达），目录降为纯一级条目（不导航、不弹子级，仅入口标记）。 */
+function stripTopLevelChildren(items: MenuProps['items']): MenuProps['items'] {
+  return (items ?? []).map((item) => {
+    if (item && 'children' in item && item.children && item.type !== 'group') {
+      return { key: String(item.key ?? ''), icon: item.icon, label: item.label };
+    }
+    return item;
+  });
+}
 
 /** 顶栏语言菜单展示名（复用 i18n 资源包 nav.userMenu.language*，语言名以自身语言展示）。 */
 const LOCALE_LABEL_KEYS: Record<AppLocale, string> = {
@@ -235,6 +244,14 @@ export function App() {
       root.dataset.surface = surface.join(' ');
     } else {
       delete root.dataset.surface;
+    }
+    // 半深色（REQ-20261122-233427 确认⑤）：浅色模式 + siderTone=dark → html[data-chrome="dark"]
+    // （global.css 变量子树镜像暗色中性盘子，作用域仅 .ant-layout-sider/.ant-layout-header）；
+    // 暗色模式下 siderTone 无效 → 移除属性回落现状。
+    if (resolvedMode === 'light' && preferences.siderTone === 'dark') {
+      root.dataset.chrome = 'dark';
+    } else {
+      delete root.dataset.chrome;
     }
   }, [resolvedMode, preferences]);
 
@@ -606,253 +623,284 @@ export function App() {
     </div>
   );
 
+  // —— 布局三模式装配（REQ-20261122-233427 确认③；layoutMode 读偏好，AppLayout 承担编排，
+  //     sidebar=现状逐字；top=顶栏主导航+全宽内容；mixed=顶栏一级+72px 图标轨）——
+  const layoutMode: LayoutMode = preferences.layoutMode ?? 'sidebar';
+
+  // 顶栏横向主导航（仅 top/mixed 桌面注入 AppLayout；top=全量菜单横向化、目录为弹出子菜单；
+  // mixed=仅一级且目录不弹子级——深层级归左侧 72px 图标轨直达）
+  const horizontalNav = isMobile ? null : (
+    <Menu
+      mode="horizontal"
+      selectedKeys={[current]}
+      items={layoutMode === 'mixed' ? stripTopLevelChildren(menuItems) : menuItems}
+      onClick={({ key }) => {
+        // 叶子直达；目录不导航（AntD 横向目录 title 不触发 onClick，mixed 一级为入口标记）
+        if (leafPaths.has(key)) {
+          go(key);
+        }
+      }}
+      style={{ width: '100%', minWidth: 0, border: 'none' }}
+    />
+  );
+
+  // —— 顶栏 widget 开关（REQ-20261122-233427 确认②⑥）：个人偏好级条件渲染，缺省全显=现状
+  //     逐字；导航开合钮/运行时徽标/用户菜单为固定结构不属开关域（与租户级水印/页脚正交）
+  const topbarWidgets = preferences.topbarWidgets;
+  const widgetOn = (key: TopbarWidgetKey): boolean => topbarWidgets?.[key] ?? true;
+
+  const headerWidgets = (
+    <>
+      {widgetOn('search') && (
+        <Input
+          ref={searchRef}
+          allowClear
+          prefix={<SearchOutlined style={{ color: 'var(--muted)' }} />}
+          placeholder={t('nav.header.searchPlaceholder')}
+          value={query.search}
+          onChange={(e) => onSearch(e.target.value)}
+          style={{ flex: 1, maxWidth: 420 }}
+          suffix={
+            !isMobile ? (
+              <kbd
+                style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '1px 6px' }}
+                title={t('nav.commandPalette.open')}
+              >
+                Ctrl K
+              </kbd>
+            ) : undefined
+          }
+        />
+      )}
+      <div style={{ flex: 1 }} />
+      {!isMobile && (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 12,
+            color: 'var(--text-2)',
+            padding: '6px 12px',
+            borderRadius: 999,
+            border: '1px solid var(--border)',
+            background: 'var(--surface)',
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--acid)' }} />
+          {runtimeLabel}
+        </span>
+      )}
+      {widgetOn('bell') && <NotificationBell />}
+      {widgetOn('lang') && (
+        <Dropdown
+          menu={{
+            items: SUPPORTED_LOCALES.map((value) => ({ key: `locale-${value}`, label: t(LOCALE_LABEL_KEYS[value]) })),
+            selectedKeys: [`locale-${locale}`],
+            onClick: onUserMenuClick,
+          }}
+        >
+          <Button type="text" aria-label={t('nav.header.language')} style={{ paddingInline: 8 }}>
+            <Space size={6}>
+              <GlobalOutlined />
+              {!isMobile && <span style={{ fontSize: 12 }}>{locale === 'zh-CN' ? '中' : 'EN'}</span>}
+            </Space>
+          </Button>
+        </Dropdown>
+      )}
+      {widgetOn('timezone') && (
+        <Dropdown
+          menu={{
+            items: SUPPORTED_TIMEZONES.map((value) => ({
+              key: value,
+              label:
+                value === 'system'
+                  ? t('settings.timezone.system')
+                  : value === 'UTC'
+                    ? 'UTC'
+                    : `${t(`settings.timezone.zones.${value}`)} (UTC${dayjs().tz(value).format('Z')})`,
+            })),
+            selectedKeys: [timezone],
+            onClick: ({ key }) => setTimezone(key as TimezonePref),
+          }}
+        >
+          <Button type="text" aria-label={t('nav.header.timezone')} style={{ paddingInline: 8 }}>
+            <Space size={6}>
+              <FieldTimeOutlined />
+              {!isMobile && (
+                <span style={{ fontSize: 12 }}>
+                  UTC{dayjs().tz(effectiveTimezone()).format('Z').slice(0, 3)}
+                </span>
+              )}
+            </Space>
+          </Button>
+        </Dropdown>
+      )}
+      {/* 偏好抽屉入口（REQ-20261121-010725 AC-5）：带已选强调色圆点提示 */}
+      {widgetOn('appearance') && (
+        <Button
+          type="text"
+          onClick={() => setPrefsOpen(true)}
+          aria-label={t('settings.preferences.open')}
+          style={{ position: 'relative', paddingInline: 8 }}
+        >
+          <BgColorsOutlined />
+          <span
+            aria-hidden
+            style={{
+              position: 'absolute',
+              top: 5,
+              right: 4,
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: accentHex,
+              border: '1px solid var(--surface)',
+            }}
+          />
+        </Button>
+      )}
+      {widgetOn('themeToggle') && (
+        <Button
+          type="text"
+          icon={resolvedMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+          onClick={toggleThemeMode}
+          aria-label={t('nav.header.toggleTheme')}
+        />
+      )}
+      {widgetOn('lock') && (
+        <Button
+          type="text"
+          icon={<LockOutlined />}
+          onClick={() => useLockStore.getState().lock()}
+          aria-label={t('nav.header.lockScreen')}
+        />
+      )}
+      {widgetOn('fullscreen') && (
+        <Button
+          type="text"
+          icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+          onClick={() => (isFullscreen ? exitFullscreen() : enterFullscreen())}
+          aria-label={isFullscreen ? t('nav.header.exitFullscreen') : t('nav.header.enterFullscreen')}
+        />
+      )}
+      {widgetOn('settings') && (
+        <Button
+          type="text"
+          icon={<SettingOutlined />}
+          onClick={() => go('/settings')}
+          aria-label={t('nav.header.settings')}
+        />
+      )}
+      <Dropdown
+        menu={{
+          items: userMenuItems,
+          onClick: onUserMenuClick,
+        }}
+        onOpenChange={(open) => {
+          // 菜单展开时才拉取目标租户目录（公开端点，轻量）；仅超管需要
+          if (open && isSuperAdmin) {
+            loadSwitchTargets();
+          }
+        }}
+      >
+        <Button type="text" aria-label={t('nav.header.openUserMenu')} style={{ paddingInline: 6 }}>
+          <Space size={6}>
+            {/* 个人中心（REQ-20261119-082531 契约⑦）：用户区头像（avatarUrl 或昵称首字符） */}
+            <Avatar avatarUrl={me?.user.avatarUrl} name={displayName} size={26} />
+            {!isMobile && <DownOutlined style={{ fontSize: 10, color: 'var(--muted)' }} />}
+          </Space>
+        </Button>
+      </Dropdown>
+      {widgetOn('release') && (
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => openModal({ type: 'release', id: null })}
+          aria-label={t('nav.header.createAria')}
+        >
+          {!isMobile && t('nav.header.create')}
+        </Button>
+      )}
+    </>
+  );
+
+  // 页签条（REQ-20261119-063129 契约③＋THEME-4 确认④四风格）：Header 下方自绘条；
+  // 逃生口模式下不渲染
+  const tabBarNode = tabsDisabled ? null : (
+    <TabBar
+      iconOf={tabIconOf}
+      tabStyle={preferences.tabStyle}
+      onSelect={handleTabSelect}
+      onClose={handleTabClose}
+      onRefresh={handleTabRefresh}
+      onTogglePin={handleTabTogglePin}
+      onCloseOthers={handleTabCloseOthers}
+      onCloseRight={handleTabCloseRight}
+      onCloseAll={handleTabCloseAll}
+    />
+  );
+
+  const contentBody = (
+    <>
+      {(storageError || storageConflict) && (
+        <Alert
+          type="warning"
+          showIcon
+          role="alert"
+          style={{ marginBottom: 16 }}
+          message={storageError ? t('nav.storage.unsaved') : t('nav.storage.conflict')}
+          description={storageError ? t('nav.storage.unsavedDesc') : t('nav.storage.conflictDesc')}
+          action={<Button onClick={() => download('acme-unsaved-backup.json', JSON.stringify(useStore.getState().state, null, 2))}>{t('nav.storage.export')}</Button>}
+        />
+      )}
+      {/* 渲染与 router 脱钩（REQ-20261119-063129 契约①）：常规=TabKeepAlive 按 tabsStore
+          已开页签渲染（keepalive）；逃生口（契约⑦ window.__ACME_TABS_DISABLED__）=单页路由
+          渲染（PAGE_ROUTES 逐页 PageBoundary+PermissionGate），仅供个别测试装配隔离。 */}
+      {tabsDisabled ? (
+        <Routes>
+          {PAGE_ROUTES.map((route) => (
+            <Route
+              key={route.path}
+              path={route.routePath ?? route.path}
+              element={(
+                <PageBoundary>
+                  {route.permission
+                    ? <PermissionGate permission={route.permission}><DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh></PermissionGate>
+                    : <DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh>}
+                </PageBoundary>
+              )}
+            />
+          ))}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      ) : (
+        <TabKeepAlive />
+      )}
+      {/* 应用内页脚版权（REQ-20261117-025200，AC-10）：租户配置 footerVisible 且文案非空才渲染
+          （文案空串/null 一律不渲染空标签）；普通文档流不遮挡内容，水印覆盖属预期 */}
+      {footerVisible && footerCopyright ? <footer className="app-foot">{footerCopyright}</footer> : null}
+    </>
+  );
+
   const shell = (
     <>
-      <Layout style={{ height: '100vh', overflow: 'hidden' }}>
-        {!isMobile && (
-          <Sider
-            collapsible
-            trigger={null}
-            collapsed={collapsed}
-            width={248}
-            collapsedWidth={72}
-            style={{ position: 'sticky', top: 0, height: '100vh' }}
-          >
-            {renderNav(!collapsed)}
-          </Sider>
-        )}
-        <Layout style={{ height: '100%', minWidth: 0, overflow: 'hidden' }}>
-          <Header style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 20, flexShrink: 0 }}>
-            <Button
-              type="text"
-              icon={isMobile || collapsed ? <MenuOutlined /> : <MenuFoldOutlined />}
-              onClick={() => (isMobile ? setMobileNav(true) : setCollapsed((c) => !c))}
-              aria-label={t('nav.header.toggleNav')}
-            />
-            <Input
-              ref={searchRef}
-              allowClear
-              prefix={<SearchOutlined style={{ color: 'var(--muted)' }} />}
-              placeholder={t('nav.header.searchPlaceholder')}
-              value={query.search}
-              onChange={(e) => onSearch(e.target.value)}
-              style={{ flex: 1, maxWidth: 420 }}
-              suffix={
-                !isMobile ? (
-                  <kbd
-                    style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '1px 6px' }}
-                    title={t('nav.commandPalette.open')}
-                  >
-                    Ctrl K
-                  </kbd>
-                ) : undefined
-              }
-            />
-            <div style={{ flex: 1 }} />
-            {!isMobile && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontSize: 12,
-                  color: 'var(--text-2)',
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: '1px solid var(--border)',
-                  background: 'var(--surface)',
-                }}
-              >
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--acid)' }} />
-                {runtimeLabel}
-              </span>
-            )}
-            <NotificationBell />
-            <Dropdown
-              menu={{
-                items: SUPPORTED_LOCALES.map((value) => ({ key: `locale-${value}`, label: t(LOCALE_LABEL_KEYS[value]) })),
-                selectedKeys: [`locale-${locale}`],
-                onClick: onUserMenuClick,
-              }}
-            >
-              <Button type="text" aria-label={t('nav.header.language')} style={{ paddingInline: 8 }}>
-                <Space size={6}>
-                  <GlobalOutlined />
-                  {!isMobile && <span style={{ fontSize: 12 }}>{locale === 'zh-CN' ? '中' : 'EN'}</span>}
-                </Space>
-              </Button>
-            </Dropdown>
-            <Dropdown
-              menu={{
-                items: SUPPORTED_TIMEZONES.map((value) => ({
-                  key: value,
-                  label:
-                    value === 'system'
-                      ? t('settings.timezone.system')
-                      : value === 'UTC'
-                        ? 'UTC'
-                        : `${t(`settings.timezone.zones.${value}`)} (UTC${dayjs().tz(value).format('Z')})`,
-                })),
-                selectedKeys: [timezone],
-                onClick: ({ key }) => setTimezone(key as TimezonePref),
-              }}
-            >
-              <Button type="text" aria-label={t('nav.header.timezone')} style={{ paddingInline: 8 }}>
-                <Space size={6}>
-                  <FieldTimeOutlined />
-                  {!isMobile && (
-                    <span style={{ fontSize: 12 }}>
-                      UTC{dayjs().tz(effectiveTimezone()).format('Z').slice(0, 3)}
-                    </span>
-                  )}
-                </Space>
-              </Button>
-            </Dropdown>
-            {/* 偏好抽屉入口（REQ-20261121-010725 AC-5）：带已选强调色圆点提示 */}
-            <Button
-              type="text"
-              onClick={() => setPrefsOpen(true)}
-              aria-label={t('settings.preferences.open')}
-              style={{ position: 'relative', paddingInline: 8 }}
-            >
-              <BgColorsOutlined />
-              <span
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  top: 5,
-                  right: 4,
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: accentHex,
-                  border: '1px solid var(--surface)',
-                }}
-              />
-            </Button>
-            <Button
-              type="text"
-              icon={resolvedMode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
-              onClick={toggleThemeMode}
-              aria-label={t('nav.header.toggleTheme')}
-            />
-            <Button
-              type="text"
-              icon={<LockOutlined />}
-              onClick={() => useLockStore.getState().lock()}
-              aria-label={t('nav.header.lockScreen')}
-            />
-            <Button
-              type="text"
-              icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-              onClick={() => (isFullscreen ? exitFullscreen() : enterFullscreen())}
-              aria-label={isFullscreen ? t('nav.header.exitFullscreen') : t('nav.header.enterFullscreen')}
-            />
-            <Button
-              type="text"
-              icon={<SettingOutlined />}
-              onClick={() => go('/settings')}
-              aria-label={t('nav.header.settings')}
-            />
-            <Dropdown
-              menu={{
-                items: userMenuItems,
-                onClick: onUserMenuClick,
-              }}
-              onOpenChange={(open) => {
-                // 菜单展开时才拉取目标租户目录（公开端点，轻量）；仅超管需要
-                if (open && isSuperAdmin) {
-                  loadSwitchTargets();
-                }
-              }}
-            >
-              <Button type="text" aria-label={t('nav.header.openUserMenu')} style={{ paddingInline: 6 }}>
-                <Space size={6}>
-                  {/* 个人中心（REQ-20261119-082531 契约⑦）：用户区头像（avatarUrl 或昵称首字符） */}
-                  <Avatar avatarUrl={me?.user.avatarUrl} name={displayName} size={26} />
-                  {!isMobile && <DownOutlined style={{ fontSize: 10, color: 'var(--muted)' }} />}
-                </Space>
-              </Button>
-            </Dropdown>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => openModal({ type: 'release', id: null })}
-              aria-label={t('nav.header.createAria')}
-            >
-              {!isMobile && t('nav.header.create')}
-            </Button>
-          </Header>
-          {/* 页签条（REQ-20261119-063129 契约③）：Header 下方自绘 pill 条；逃生口模式下不渲染 */}
-          {!tabsDisabled && (
-            <TabBar
-              iconOf={tabIconOf}
-              onSelect={handleTabSelect}
-              onClose={handleTabClose}
-              onRefresh={handleTabRefresh}
-              onTogglePin={handleTabTogglePin}
-              onCloseOthers={handleTabCloseOthers}
-              onCloseRight={handleTabCloseRight}
-              onCloseAll={handleTabCloseAll}
-            />
-          )}
-          {/* 内容区视口内自滚：minHeight 0 解除 flex 子项最小尺寸约束，整页高度不随内容撑大。
-              内容包裹层 .content-body 承载内容宽度档位（REQ-20261121-043502 确认⑥）：
-              fluid=不限宽现状；compact=定宽居中（global.css .content-body[data-width]）。 */}
-          <Content ref={contentRef} style={{ padding: isMobile ? '16px 14px 60px' : '24px 30px 60px', flex: 1, minHeight: 0, overflow: 'auto' }}>
-            <div className="content-body" data-width={preferences.contentWidth}>
-              {(storageError || storageConflict) && (
-                <Alert
-                  type="warning"
-                  showIcon
-                  role="alert"
-                  style={{ marginBottom: 16 }}
-                  message={storageError ? t('nav.storage.unsaved') : t('nav.storage.conflict')}
-                  description={storageError ? t('nav.storage.unsavedDesc') : t('nav.storage.conflictDesc')}
-                  action={<Button onClick={() => download('acme-unsaved-backup.json', JSON.stringify(useStore.getState().state, null, 2))}>{t('nav.storage.export')}</Button>}
-                />
-              )}
-              {/* 渲染与 router 脱钩（REQ-20261119-063129 契约①）：常规=TabKeepAlive 按 tabsStore
-                  已开页签渲染（keepalive）；逃生口（契约⑦ window.__ACME_TABS_DISABLED__）=单页路由
-                  渲染（PAGE_ROUTES 逐页 PageBoundary+PermissionGate），仅供个别测试装配隔离。 */}
-              {tabsDisabled ? (
-                <Routes>
-                  {PAGE_ROUTES.map((route) => (
-                    <Route
-                      key={route.path}
-                      path={route.routePath ?? route.path}
-                      element={(
-                        <PageBoundary>
-                          {route.permission
-                            ? <PermissionGate permission={route.permission}><DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh></PermissionGate>
-                            : <DateTimePrefsRefresh>{route.element}</DateTimePrefsRefresh>}
-                        </PageBoundary>
-                      )}
-                    />
-                  ))}
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              ) : (
-                <TabKeepAlive />
-              )}
-              {/* 应用内页脚版权（REQ-20261117-025200，AC-10）：租户配置 footerVisible 且文案非空才渲染
-                  （文案空串/null 一律不渲染空标签）；普通文档流不遮挡内容，水印覆盖属预期 */}
-              {footerVisible && footerCopyright ? <footer className="app-foot">{footerCopyright}</footer> : null}
-            </div>
-          </Content>
-        </Layout>
-      </Layout>
-
-      <Drawer
-        placement="left"
-        open={mobileNav}
-        onClose={() => setMobileNav(false)}
-        width={260}
-        closable={false}
-        styles={{ body: { padding: 0 } }}
-      >
-        {renderNav(true)}
-      </Drawer>
+      <AppLayout
+        layoutMode={layoutMode}
+        isMobile={isMobile}
+        collapsed={collapsed}
+        onToggleCollapsed={() => setCollapsed((c) => !c)}
+        mobileNavOpen={mobileNav}
+        onMobileNavOpen={() => setMobileNav(true)}
+        onMobileNavClose={() => setMobileNav(false)}
+        renderSiderNav={renderNav}
+        horizontalNav={layoutMode === 'top' || layoutMode === 'mixed' ? horizontalNav : null}
+        headerWidgets={headerWidgets}
+        tabBar={tabBarNode}
+        content={contentBody}
+        contentRef={contentRef}
+        contentWidth={preferences.contentWidth}
+      />
 
       <ReleaseDrawer />
       <ReleaseFormModal />

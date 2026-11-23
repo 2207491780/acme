@@ -22,7 +22,7 @@ import { cleanup, render, waitFor } from '@testing-library/react';
 import { App as AntApp } from 'antd';
 import { HashRouter } from 'react-router-dom';
 import { App } from '../src/App';
-import { useAuthStore, useMeStore, migrateSettings, DEFAULT_PREFERENCES, type ThemePreferences } from '@acme/core';
+import { useAuthStore, useMeStore, migrateSettings, DEFAULT_PREFERENCES, PREFERENCES_VERSION, type ThemePreferences } from '@acme/core';
 import { useStore } from '../src/store/useStore';
 
 vi.setConfig({ testTimeout: 20000 });
@@ -63,7 +63,7 @@ const mePayload = () => ({
   menus: [],
 });
 
-/** 与默认完全可区分的后端 blob 偏好（v3 全字段）。 */
+/** 与默认完全可区分的后端 blob 偏好（v3 全字段 + v4 四字段非默认，REQ-20261122-233427 适配）。 */
 const backendPrefs = (over: Partial<ThemePreferences> = {}): ThemePreferences => ({
   mode: 'dark',
   accent: 'emerald',
@@ -75,6 +75,13 @@ const backendPrefs = (over: Partial<ThemePreferences> = {}): ThemePreferences =>
   weakMode: true,
   contentWidth: 'compact',
   semanticColors: { success: '#22c55e', warning: null, danger: '#c2410c' },
+  layoutMode: 'top',
+  tabStyle: 'card',
+  siderTone: 'dark',
+  topbarWidgets: {
+    search: false, bell: false, lang: true, timezone: false, appearance: true,
+    themeToggle: false, lock: true, fullscreen: false, settings: true, release: false,
+  },
   ...over,
 });
 
@@ -203,7 +210,7 @@ describe('REQ20261121200415 后端权威覆盖本地（AC-7）', () => {
     await waitFor(() => {
       expect(settingsOf().preferences).toEqual(expected);
     });
-    expect(settingsOf().schemaVersion).toBe(3);
+    expect(settingsOf().schemaVersion).toBe(PREFERENCES_VERSION);
   });
 
   it('should_keep_local_preferences_when_backend_theme_preference_null', async () => {
@@ -251,7 +258,7 @@ describe('REQ20261121200415 防抖上行（AC-8）', () => {
     const body = parseBody(puts[0]?.body);
     const themePreference = body['themePreference'] as Record<string, unknown> | undefined;
     expect(themePreference, 'PUT 应上行 themePreference 域').toBeDefined();
-    expect(themePreference?.['schemaVersion']).toBe(3);
+    expect(themePreference?.['schemaVersion']).toBe(PREFERENCES_VERSION);
     expect(themePreference?.['preferences']).toEqual(bursts[2]);
     // 按域 upsert 口径：不上行 messagePush 实值（null=不动该域；缺省等价 null，红则 TL 裁决）
     expect(body['messagePush'] === undefined || body['messagePush'] === null).toBe(true);

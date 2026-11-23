@@ -31,7 +31,9 @@ import { TenantPackagesPage } from '../src/pages/TenantPackagesPage';
 
 // testTimeout 45s（TL round-3 余量口径：全量 4-worker 并行时本文件曾抖到超时，pitfall 15
 // 抖动判别口径保余量；隔离实测 ~20.3s）
-vi.setConfig({ testTimeout: 45000 });
+// testTimeout 125s（TL round-2 预算放宽，判定链闭环后披露制：theme4-idle-rerun.log 失败用例闲置实测
+// 49.7s；新预算=max(实测×2.5, 现预算×2)=124268→125s，重交互用例 ≥60s 口径；断言/行为零改动）
+vi.setConfig({ testTimeout: 125000 });
 
 // ————— 行为常量（crudPages/tenantEnhance 口径：两字按钮 autoInsertSpace 兼容） —————
 const ADD_BUTTON = /新\s*[建增]/;

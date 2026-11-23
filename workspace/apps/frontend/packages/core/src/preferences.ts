@@ -1,8 +1,21 @@
 import { ACCENTS, ACCENT_ORDER, ON_ACCENT, type SemanticColorOverrides } from './theme';
-import type { Accent, ContentWidth, Density, RadiusScale, Settings, Theme } from './types';
+import type {
+  Accent,
+  ContentWidth,
+  Density,
+  LayoutMode,
+  RadiusScale,
+  Settings,
+  SiderTone,
+  TabStyle,
+  Theme,
+  TopbarWidgetKey,
+  TopbarWidgets,
+} from './types';
 
 /**
- * 主题偏好引擎（REQ-20261121-010725 THEME-1；REQ-20261121-043502 THEME-2 v3）：
+ * 主题偏好引擎（REQ-20261121-010725 THEME-1；REQ-20261121-043502 THEME-2 v3；
+ * REQ-20261122-233427 THEME-4 v4）：
  * 偏好 schema/默认值/运行时校验/版本迁移/系统主题解析。
  * 框架无关（不引 React）；system 模式的 matchMedia 监听归端侧（web/src/hooks）。
  * 外部输入一律运行时校验：非法字段逐项降级默认、不抛错、不覆盖既有合法字段（编码规范红线）。
@@ -29,15 +42,23 @@ export interface ThemePreferences {
   contentWidth: ContentWidth;
   /** 语义色覆盖（THEME-2 v3）：success/warning/danger 各自 null=TONES 基线（解析见 theme.resolveSemanticColors）。 */
   semanticColors: SemanticColorOverrides;
+  /** 布局模式（THEME-4 v4 确认②③）：sidebar=现状；top=顶栏主导航；mixed=顶栏一级+图标轨。 */
+  layoutMode: LayoutMode;
+  /** 页签风格（THEME-4 v4 确认④）：line=现状；card/chrome/plain 见 TabBar。 */
+  tabStyle: TabStyle;
+  /** 侧栏色调（THEME-4 v4 确认⑤）：auto=现状；dark=浅色模式半深色（暗色模式无效）。 */
+  siderTone: SiderTone;
+  /** 顶栏 widget 显隐（THEME-4 v4 确认②⑥）：键位全集布尔开关，缺省全显；与租户级水印/页脚正交。 */
+  topbarWidgets: TopbarWidgets;
   /** 扩展偏好域（REQ-20261121-200415 THEME-3 契约⑤）：仅当存在注册域时出现；
    *  键=注册键（经 spec.parse 降级）或未注册透传键（原样存储，不做结构解释）。 */
   extensions?: Record<string, unknown>;
 }
 
 /** 偏好子结构版本号：写入 settings.schemaVersion，无版本标记的旧 settings 经 migrateSettings 迁移。 */
-export const PREFERENCES_VERSION = 3;
+export const PREFERENCES_VERSION = 4;
 
-/** 出厂默认偏好（恢复默认/校验降级的基准；mode=light 为契约钉死值；v3 新字段默认=现状外观）。 */
+/** 出厂默认偏好（恢复默认/校验降级的基准；mode=light 为契约钉死值；新版本字段默认=现状外观）。 */
 export const DEFAULT_PREFERENCES: ThemePreferences = {
   mode: 'light',
   accent: 'cyan',
@@ -49,6 +70,22 @@ export const DEFAULT_PREFERENCES: ThemePreferences = {
   weakMode: false,
   contentWidth: 'fluid',
   semanticColors: { success: null, warning: null, danger: null },
+  // —— v4 字段（REQ-20261122-233427 确认②）：默认=现状外观（sidebar/line/auto/全显）——
+  layoutMode: 'sidebar',
+  tabStyle: 'line',
+  siderTone: 'auto',
+  topbarWidgets: {
+    search: true,
+    bell: true,
+    lang: true,
+    timezone: true,
+    appearance: true,
+    themeToggle: true,
+    lock: true,
+    fullscreen: true,
+    settings: true,
+    release: true,
+  },
 };
 
 const THEME_MODES: ThemeMode[] = ['light', 'dark', 'system'];
@@ -56,6 +93,14 @@ const DENSITIES: Density[] = ['comfortable', 'compact'];
 const RADII_SCALES: RadiusScale[] = ['small', 'medium', 'large', 'full'];
 const CONTENT_WIDTHS: ContentWidth[] = ['fluid', 'compact'];
 const SEMANTIC_KEYS: (keyof SemanticColorOverrides)[] = ['success', 'warning', 'danger'];
+// —— v4 枚举域（REQ-20261122-233427 确认②）——
+const LAYOUT_MODES: LayoutMode[] = ['sidebar', 'top', 'mixed'];
+const TAB_STYLES: TabStyle[] = ['line', 'card', 'chrome', 'plain'];
+const SIDER_TONES: SiderTone[] = ['auto', 'dark'];
+const TOPBAR_WIDGET_KEYS: TopbarWidgetKey[] = [
+  'search', 'bell', 'lang', 'timezone', 'appearance',
+  'themeToggle', 'lock', 'fullscreen', 'settings', 'release',
+];
 
 // —— 扩展偏好注册机制（REQ-20261121-200415 THEME-3 契约⑤）——
 
@@ -126,6 +171,32 @@ export function isContentWidth(value: unknown): value is ContentWidth {
   return CONTENT_WIDTHS.some((w) => w === value);
 }
 
+// —— v4 校验器（REQ-20261122-233427 确认②；供 parse-state fail-closed 与 msm 校验同口径复用）——
+
+export function isLayoutMode(value: unknown): value is LayoutMode {
+  return LAYOUT_MODES.some((m) => m === value);
+}
+
+export function isTabStyle(value: unknown): value is TabStyle {
+  return TAB_STYLES.some((s) => s === value);
+}
+
+export function isSiderTone(value: unknown): value is SiderTone {
+  return SIDER_TONES.some((s) => s === value);
+}
+
+export function isTopbarWidgetKey(value: unknown): value is TopbarWidgetKey {
+  return TOPBAR_WIDGET_KEYS.some((k) => k === value);
+}
+
+/** 顶栏 widget 开关结构校验（THEME-4 确认②）：键位须为 WidgetKey 子集、值须为布尔。 */
+export function isTopbarWidgets(value: unknown): value is TopbarWidgets {
+  if (!isRecord(value)) return false;
+  return Object.entries(value).every(
+    ([key, item]) => isTopbarWidgetKey(key) && typeof item === 'boolean',
+  );
+}
+
 /** 语义色覆盖形状校验：success/warning/danger 三键均须为 null 或合法 hex（供 parse-state fail-closed 复用）。 */
 export function isSemanticColorOverrides(value: unknown): value is SemanticColorOverrides {
   if (!isRecord(value)) return false;
@@ -168,6 +239,19 @@ function normalizeSemanticColors(value: unknown): SemanticColorOverrides {
   };
 }
 
+/**
+ * 顶栏 widget 开关归一化（THEME-4 v4 确认②）：整段缺省/非法 → 缺省全显；逐键仅接受
+ * WidgetKey 子集内的布尔值（未知键剔除、非法值/缺键降级 true），每次产出独立对象避免共享引用。
+ */
+function normalizeTopbarWidgets(value: unknown): TopbarWidgets {
+  const raw = isRecord(value) ? value : {};
+  const widgets = {} as TopbarWidgets;
+  for (const key of TOPBAR_WIDGET_KEYS) {
+    widgets[key] = typeof raw[key] === 'boolean' ? (raw[key] as boolean) : true;
+  }
+  return widgets;
+}
+
 /** 逐字段校验并归一化偏好：非法字段降级默认、合法字段原样保留，永不抛错。 */
 export function validateThemePreferences(input: unknown): ThemePreferences {
   const raw = isRecord(input) ? input : {};
@@ -187,6 +271,11 @@ export function validateThemePreferences(input: unknown): ThemePreferences {
     weakMode: typeof raw.weakMode === 'boolean' ? raw.weakMode : DEFAULT_PREFERENCES.weakMode,
     contentWidth: isContentWidth(raw.contentWidth) ? raw.contentWidth : DEFAULT_PREFERENCES.contentWidth,
     semanticColors: normalizeSemanticColors(raw.semanticColors),
+    // —— v4 字段（REQ-20261122-233427 确认②）：未知枚举/非法开关逐项降级默认，不抛错 ——
+    layoutMode: isLayoutMode(raw.layoutMode) ? raw.layoutMode : DEFAULT_PREFERENCES.layoutMode,
+    tabStyle: isTabStyle(raw.tabStyle) ? raw.tabStyle : DEFAULT_PREFERENCES.tabStyle,
+    siderTone: isSiderTone(raw.siderTone) ? raw.siderTone : DEFAULT_PREFERENCES.siderTone,
+    topbarWidgets: normalizeTopbarWidgets(raw.topbarWidgets),
   };
   // 扩展域（THEME-3 契约⑤）：仅当存在注册域时出现 extensions 键（AC-5）
   if (PREFERENCE_EXTENSION_REGISTRY.size > 0) {
@@ -196,11 +285,13 @@ export function validateThemePreferences(input: unknown): ThemePreferences {
 }
 
 /**
- * 旧 settings → 当前版本 preferences 的无损迁移（REQ-20261121-010725 确认③；THEME-2 v2→v3）：
+ * 旧 settings → 当前版本 preferences 的无损迁移（REQ-20261121-010725 确认③；THEME-2 v2→v3；
+ * THEME-4 v3→v4）：
  * - 无版本标记（v1 时代扁平形状）直迁当前版本：theme('dark'|'light')→mode（旧「深色 Switch」
  *   语义；dark:boolean 旧语义同样接受，theme 优先）、accent/density/motion→同名偏好字段；
- * - v2 blob（schemaVersion=2）→ v3：旧字段无损保留，v3 新字段补默认（radius=medium/
- *   gray=false/weak=false/width=fluid/semantic 全 null），不抛错；
+ * - v2/v3 blob（schemaVersion=2/3）→ v4：旧字段无损保留，新版本字段补默认（v3 组 radius=medium/
+ *   gray=false/weak=false/width=fluid/semantic 全 null；v4 组 layoutMode=sidebar/tabStyle=line/
+ *   siderTone=auto/topbarWidgets 全显），不抛错；
  * - 迁移结果写入版本标记 schemaVersion = PREFERENCES_VERSION；
  * - 已带当前版本标记的新形状仅做逐字段校验归一化（migrated=false）；
  * - null/undefined/非法输入返回默认 settings，不抛错（migrated=false，无数据可迁移）。
@@ -212,8 +303,9 @@ export function migrateSettings(raw: unknown): { settings: Settings; migrated: b
   }
   const prefs: ThemePreferences = {
     ...DEFAULT_PREFERENCES,
-    // v3 子结构独立拷贝：避免 settings.preferences.semanticColors 与出厂默认共享引用被就地改写
+    // 子结构独立拷贝：避免 settings.preferences 的嵌套对象与出厂默认共享引用被就地改写
     semanticColors: { ...DEFAULT_PREFERENCES.semanticColors },
+    topbarWidgets: { ...DEFAULT_PREFERENCES.topbarWidgets },
   };
   if (isRecord(raw.preferences)) {
     Object.assign(prefs, validateThemePreferences(raw.preferences));

@@ -7,6 +7,7 @@ import { buildTheme, ACCENTS, ACCENT_ORDER } from '../src/theme';
 // 4 个 @deprecated 投影字段已物理删除，preferences 唯一事实源。
 // REQ-20261121-043502（AC-10 回归口径适配）：偏好模型 v3 —— fixture 补 v3 字段默认
 // （radius=medium/gray=false/weak=false/width=fluid/语义色全 null），schemaVersion=PREFERENCES_VERSION。
+// REQ-20261122-233427（THEME-4 v4 适配）：fixture 补 v4 四字段默认（sidebar/line/auto/全显）。
 const preferences = (over: Partial<ThemePreferences> = {}): ThemePreferences => ({
   mode: 'dark',
   accent: 'cyan',
@@ -18,6 +19,13 @@ const preferences = (over: Partial<ThemePreferences> = {}): ThemePreferences => 
   weakMode: false,
   contentWidth: 'fluid',
   semanticColors: { success: null, warning: null, danger: null },
+  layoutMode: 'sidebar',
+  tabStyle: 'line',
+  siderTone: 'auto',
+  topbarWidgets: {
+    search: true, bell: true, lang: true, timezone: true, appearance: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+  },
   ...over,
 });
 const settingsOf = (over: Partial<ThemePreferences> = {}): Settings => {

@@ -20,7 +20,7 @@ import {
   type ThemePreferences,
 } from '../src';
 
-/** 合法基线偏好（照 010725 范本 validPreferences 口径，v3 全字段）。 */
+/** 合法基线偏好（照 010725 范本 validPreferences 口径，v3 全字段 + v4 四字段默认）。 */
 const validPreferences = (over: Partial<ThemePreferences> | Record<string, unknown> = {}): ThemePreferences => ({
   mode: 'dark',
   accent: 'emerald',
@@ -32,6 +32,13 @@ const validPreferences = (over: Partial<ThemePreferences> | Record<string, unkno
   weakMode: false,
   contentWidth: 'fluid',
   semanticColors: { success: null, warning: null, danger: null },
+  layoutMode: 'sidebar',
+  tabStyle: 'line',
+  siderTone: 'auto',
+  topbarWidgets: {
+    search: true, bell: true, lang: true, timezone: true, appearance: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+  },
   ...(over as Partial<ThemePreferences>),
 });
 
@@ -151,8 +158,8 @@ describe('REQ20261121200415 扩展注册机制（AC-5）', () => {
 
 describe('REQ20261121200415 扩展与版本常量（AC-5 前置锚）', () => {
   it('should_keep_version_and_defaults_pinned_when_extension_registry_active', () => {
-    // 注册机制不得改变版本常量与默认值事实源（防双源漂移，契约④⑤）
-    expect(PREFERENCES_VERSION).toBe(3);
+    // 注册机制不得改变版本常量与默认值事实源（防双源漂移，契约④⑤；v4 适配=REQ-20261122-233427 确认②）
+    expect(PREFERENCES_VERSION).toBe(4);
     expect(DEFAULT_PREFERENCES).toEqual({
       mode: 'light',
       accent: 'cyan',
@@ -164,6 +171,13 @@ describe('REQ20261121200415 扩展与版本常量（AC-5 前置锚）', () => {
       weakMode: false,
       contentWidth: 'fluid',
       semanticColors: { success: null, warning: null, danger: null },
+      layoutMode: 'sidebar',
+      tabStyle: 'line',
+      siderTone: 'auto',
+      topbarWidgets: {
+        search: true, bell: true, lang: true, timezone: true, appearance: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+      },
     });
   });
 });

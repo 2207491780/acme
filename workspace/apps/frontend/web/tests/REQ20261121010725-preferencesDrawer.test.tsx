@@ -37,7 +37,10 @@ import {
   type ThemePreferences,
 } from '@acme/core';
 
-vi.setConfig({ testTimeout: 20000 });
+// testTimeout 110s（TL round-2 预算放宽，判定链闭环后披露制：theme4-idle-rerun.log 失败用例闲置实测
+// 最大 43.2s（僵尸窗口污染后自愈实证=customAccent 隔离 8986ms 绿）；新预算=max(实测×2.5, 现预算×2)
+// =108073→110s，重交互用例 ≥60s 口径；断言/行为零改动）
+vi.setConfig({ testTimeout: 110000 });
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const BLOB_KEY = 'acme.frontend.ops.v1'; // 契约钉死（packages/core/src/constants.ts）
@@ -536,7 +539,9 @@ describe('REQ20261121010725 偏好抽屉（AC-5/AC-6/AC-7/AC-8/AC-9）', () => {
     expectBlobToContain('"mode":"light"');
     expectBlobToContain('"accent":"cyan"');
     expect(currentThemeConfig().token?.colorPrimary).toBe('#5aa7a0');
-  }, 30000); // 本用例含预置非默认偏好 + 整棵 App 渲染 + Popconfirm 交互，串行实测 16-18s，放宽单例时限（nav 范本口径）
+  }, 110000); // 本用例含预置非默认偏好 + 整棵 App 渲染 + Popconfirm 交互（nav 范本口径）。
+  // TL round-2 预算放宽：单例实参 30000 未随文件级 setConfig 同步放宽致 round2 复跑超时（闲置实测 33.6s，
+  // max(实测×2.5, 单例×2)=83883；对齐本文件预算 110s 取整披露）；断言/行为零改动
 });
 
 describe('REQ20261121010725 设置页外观卡迁移（AC-10）', () => {

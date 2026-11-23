@@ -30,7 +30,7 @@ import {
   type ThemePreferences,
 } from '../src';
 
-/** 合法基线偏好（可按字段覆盖；over 允许注入非法值供降级用例使用）。v3 字段补默认（043502 口径）。 */
+/** 合法基线偏好（可按字段覆盖；over 允许注入非法值供降级用例使用）。v3/v4 字段补默认（043502/233427 口径）。 */
 const validPreferences = (over: Partial<ThemePreferences> | Record<string, unknown> = {}): ThemePreferences => ({
   mode: 'dark',
   accent: 'emerald',
@@ -42,6 +42,13 @@ const validPreferences = (over: Partial<ThemePreferences> | Record<string, unkno
   weakMode: false,
   contentWidth: 'fluid',
   semanticColors: { success: null, warning: null, danger: null },
+  layoutMode: 'sidebar',
+  tabStyle: 'line',
+  siderTone: 'auto',
+  topbarWidgets: {
+    search: true, bell: true, lang: true, timezone: true, appearance: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+  },
   ...(over as Partial<ThemePreferences>),
 });
 
@@ -76,8 +83,8 @@ const expectNoProjections = (
 
 describe('REQ20261121010725 core 偏好引擎 schema（AC-1/AC-2）', () => {
   it('should_normalize_valid_preferences_when_parsed', () => {
-    // 版本与默认值常量（TL 钉死面；043502 v3 适配：版本 3 + 新字段默认）
-    expect(PREFERENCES_VERSION).toBe(3);
+    // 版本与默认值常量（TL 钉死面；043502 v3 + 233427 v4 适配：版本 4 + 新字段默认=现状外观）
+    expect(PREFERENCES_VERSION).toBe(4);
     expect(DEFAULT_PREFERENCES).toEqual({
       mode: 'light',
       accent: 'cyan',
@@ -89,6 +96,13 @@ describe('REQ20261121010725 core 偏好引擎 schema（AC-1/AC-2）', () => {
       weakMode: false,
       contentWidth: 'fluid',
       semanticColors: { success: null, warning: null, danger: null },
+      layoutMode: 'sidebar',
+      tabStyle: 'line',
+      siderTone: 'auto',
+      topbarWidgets: {
+        search: true, bell: true, lang: true, timezone: true, appearance: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+      },
     });
 
     // 合法全量输入：三态 mode + 合法 hex 色值 + 密度 + 动效 → 归一化通过且输出类型正确
@@ -164,12 +178,17 @@ describe('REQ20261121010725 legacy 迁移（AC-3）', () => {
     const legacy = { dark: true, accent: 'violet', density: 'compact', motion: false };
     const migrated = migrateSettings(legacy);
     expect(migrated.migrated).toBe(true);
-    // 版本标记写入 + 新 shape（内嵌 preferences）逐字段映射正确（043502：v1 扁平直迁 v3，新字段补默认）
-    expect(migrated.settings.schemaVersion).toBe(3);
+    // 版本标记写入 + 新 shape（内嵌 preferences）逐字段映射正确（043502/233427：v1 扁平直迁当前版本，新字段补默认）
+    expect(migrated.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(migrated.settings.preferences).toEqual({
       mode: 'dark', accent: 'violet', customAccent: null, density: 'compact', motionEnabled: false,
       radius: 'medium', grayMode: false, weakMode: false, contentWidth: 'fluid',
       semanticColors: { success: null, warning: null, danger: null },
+      layoutMode: 'sidebar', tabStyle: 'line', siderTone: 'auto',
+      topbarWidgets: {
+        search: true, bell: true, lang: true, timezone: true, appearance: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+      },
     });
     // 无损：投影字段零残留（THEME-3 ⑧：Settings 仅 schemaVersion+preferences）
     expectNoProjections(migrated.settings as unknown as SettingsWithProjections, migrated.settings.preferences);
@@ -177,11 +196,16 @@ describe('REQ20261121010725 legacy 迁移（AC-3）', () => {
     // dark:false → mode 'light'
     const lightLegacy = migrateSettings({ dark: false, accent: 'cyan', density: 'comfortable', motion: true });
     expect(lightLegacy.migrated).toBe(true);
-    expect(lightLegacy.settings.schemaVersion).toBe(3);
+    expect(lightLegacy.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(lightLegacy.settings.preferences).toEqual({
       mode: 'light', accent: 'cyan', customAccent: null, density: 'comfortable', motionEnabled: true,
       radius: 'medium', grayMode: false, weakMode: false, contentWidth: 'fluid',
       semanticColors: { success: null, warning: null, danger: null },
+      layoutMode: 'sidebar', tabStyle: 'line', siderTone: 'auto',
+      topbarWidgets: {
+        search: true, bell: true, lang: true, timezone: true, appearance: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+      },
     });
     expectNoProjections(lightLegacy.settings as unknown as SettingsWithProjections, lightLegacy.settings.preferences);
   });
@@ -199,11 +223,11 @@ describe('REQ20261121010725 legacy 迁移（AC-3）', () => {
   });
 
   it('should_keep_current_settings_without_migration_when_version_current', () => {
-    // 已是当前版本：preferences 原样保留，不重复迁移（043502：当前版本=3）
+    // 已是当前版本：preferences 原样保留，不重复迁移（043502/233427：当前版本=PREFERENCES_VERSION）
     const current = defaultSettingsShape();
     const result = migrateSettings(current);
     expect(result.migrated).toBe(false);
-    expect(result.settings.schemaVersion).toBe(3);
+    expect(result.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(result.settings.preferences).toEqual(current.preferences);
     expectNoProjections(result.settings as unknown as SettingsWithProjections, result.settings.preferences);
   });

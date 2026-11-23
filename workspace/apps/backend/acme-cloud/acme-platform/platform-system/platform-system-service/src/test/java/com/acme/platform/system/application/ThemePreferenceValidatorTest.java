@@ -12,7 +12,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * {@link ThemePreferenceValidator} 结构校验器单元测试（REQ-20261121-200415 确认记录③ fail-closed
- * 矩阵，字段集与 core preferences.ts 同形——t3-frontend 2026-11-21 字段表；纯 JUnit 无 Spring）。
+ * 矩阵，字段集与 core preferences.ts 同形——t3-frontend 2026-11-21 字段表；THEME-4
+ * REQ-20261122-233427 确认记录② v4 新增键 layoutMode/tabStyle/siderTone/topbarWidgets
+ * 合法/非法矩阵同文件承载；纯 JUnit 无 Spring）。
  * 端到端两域语义（upsert/原数据不动/缺省回显）由 {@code REQ20261121200415PreferenceTwoDomainIntegrationTest}
  * 承载（Testcontainers PG）。
  */
@@ -172,6 +174,78 @@ class ThemePreferenceValidatorTest {
                 "semanticColors", "dark")))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("semanticColors");
+    }
+
+    // ---------- THEME-4 v4 新增键（REQ-20261122-233427 确认记录②） ----------
+
+    @Test
+    void should_pass_when_v4_new_fields_present() {
+        assertThatCode(() -> ThemePreferenceValidator.validate(Map.of(
+                "schemaVersion", 4,
+                "preferences", Map.of(
+                        "mode", "dark",
+                        "layoutMode", "mixed",
+                        "tabStyle", "card",
+                        "siderTone", "dark",
+                        "topbarWidgets", Map.of(
+                                "search", true, "bell", false, "lang", true, "timezone", false,
+                                "appearance", true, "themeToggle", true, "lock", false,
+                                "fullscreen", true, "settings", true, "release", false)))))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void should_pass_when_v4_blob_without_new_fields() {
+        assertThatCode(() -> ThemePreferenceValidator.validate(Map.of(
+                "schemaVersion", 4, "preferences", Map.of("mode", "dark"))))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void should_pass_when_topbar_widgets_empty_or_partial_subset() {
+        assertThatCode(() -> ThemePreferenceValidator.validate(
+                badBlob("topbarWidgets", Map.of("bell", false, "fullscreen", true))))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> ThemePreferenceValidator.validate(badBlob("topbarWidgets", Map.of())))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void should_reject_when_new_enum_fields_bad_value() {
+        Map<String, String> badValues = Map.of(
+                "layoutMode", "floating",
+                "tabStyle", "ribbon",
+                "siderTone", "light");
+        for (Map.Entry<String, String> bad : badValues.entrySet()) {
+            assertThatThrownBy(() -> ThemePreferenceValidator.validate(badBlob(bad.getKey(), bad.getValue())))
+                    .as("偏好键 %s 坏枚举应拒绝".formatted(bad.getKey()))
+                    .isInstanceOf(BizException.class)
+                    .hasMessageContaining(bad.getKey());
+        }
+    }
+
+    @Test
+    void should_reject_when_topbar_widgets_not_object() {
+        assertThatThrownBy(() -> ThemePreferenceValidator.validate(badBlob("topbarWidgets", "all")))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("topbarWidgets");
+    }
+
+    @Test
+    void should_reject_when_topbar_widgets_unknown_key() {
+        assertThatThrownBy(() -> ThemePreferenceValidator.validate(badBlob("topbarWidgets",
+                Map.of("search", true, "themeSwitch", true))))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("未知偏好键")
+                .hasMessageContaining("topbarWidgets.themeSwitch");
+    }
+
+    @Test
+    void should_reject_when_topbar_widgets_value_not_boolean() {
+        assertThatThrownBy(() -> ThemePreferenceValidator.validate(badBlob("topbarWidgets",
+                Map.of("bell", "yes"))))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("topbarWidgets.bell");
     }
 
     // ---------- extensions 结构 ----------

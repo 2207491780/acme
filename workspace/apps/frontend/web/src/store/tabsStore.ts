@@ -9,6 +9,7 @@ import { create } from 'zustand';
  * - closeTab：pinned/permanent 不可关；关激活页切相邻（优先右侧，无右侧取左侧）；
  * - closeOthers/closeRight/closeAll：pinned/permanent 一律保留；
  * - togglePin：固定前置（pinned 排 permanent 页签之后）且不可关；permanent 不可 unpin（无意义）；
+ * - reorder：拖拽排序（REQ-20261122-233427 确认④）——仅重排顺序，集合成员不变，走既有持久化；
  * - seedDashboardPermanent：首页常驻（契约⑩）——dashboard 页签 permanent 常驻首位；
  *   仅改内存态不写存储（登出 clear 移除存储键后重建种子不入盘，AC-7 存储清理语义不变）；
  * - refreshKeys：会话态重挂计数（右键刷新 → key++），不持久化；
@@ -48,6 +49,9 @@ export interface TabsState extends TabsPersistShape {
   closeRight: (path: string) => string | null;
   closeAll: () => string | null;
   togglePin: (path: string) => void;
+  /** 拖拽排序（REQ-20261122-233427 确认④）：active 移动到 over 位置（数组语义，成员不变——
+   *  permanent/pinned 均可拖且始终留在集合内）；顺序走既有 persist 持久化，激活态不变。 */
+  reorder: (activePath: string, overPath: string) => void;
   /** 首页常驻（契约⑩）：dashboard 页签 permanent 常驻首位（初始/登出重建/还原归一化时调用）。 */
   seedDashboardPermanent: () => void;
   setActive: (path: string) => void;
@@ -187,6 +191,18 @@ export const useTabsStore = create<TabsState>()((set, get) => ({
           ...toggled.filter((tab) => !tab.permanent && tab.path !== path),
         ]
       : toggled;
+    set({ tabs: nextTabs });
+    persist(nextTabs, get().activePath);
+  },
+
+  reorder: (activePath, overPath) => {
+    const { tabs } = get();
+    const from = tabs.findIndex((tab) => tab.path === activePath);
+    const to = tabs.findIndex((tab) => tab.path === overPath);
+    if (from < 0 || to < 0 || from === to) return; // 未知成员/原位：不重排
+    const nextTabs = [...tabs];
+    const [moved] = nextTabs.splice(from, 1);
+    nextTabs.splice(to, 0, moved!);
     set({ tabs: nextTabs });
     persist(nextTabs, get().activePath);
   },

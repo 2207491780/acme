@@ -9,15 +9,18 @@ import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
 
 /**
- * themePreference 结构校验器（REQ-20261121-200415 确认记录③，fail-closed；字段集与前端 core
- * preferences.ts 严格同形——t3-frontend 2026-11-21 字段表；契约③文本中 motion/radiusScale/
- * semanticColorOverrides/followSystem 为 stale 名，core 真实键为 motionEnabled/radius/
- * semanticColors，followSystem 不存在）：
+ * themePreference 结构校验器（REQ-20261121-200415 确认记录③ + THEME-4 REQ-20261122-233427
+ * 确认记录② schema v4，fail-closed；字段集与前端 core preferences.ts 严格同形——t3-frontend
+ * 2026-11-21 字段表；契约③文本中 motion/radiusScale/semanticColorOverrides/followSystem 为
+ * stale 名，core 真实键为 motionEnabled/radius/semanticColors，followSystem 不存在）：
  * <ul>
- *   <li>顶层键白名单：schemaVersion(int，不钉死=3，迁移归前端 migrateSettings)/
- *       preferences(object)/extensions(object 可省)；</li>
+ *   <li>顶层键白名单：schemaVersion(int，不钉死版本——v3/v4 皆合法，迁移归前端
+ *       migrateSettings)/preferences(object)/extensions(object 可省)；</li>
  *   <li>preferences 逐键白名单 + 类型 + 枚举 + hex（仅显式存在时校验——缺省键合法，
  *       与 core validateThemePreferences 宽容缺省口径一致）；</li>
+ *   <li>THEME-4 v4 新增偏好键：layoutMode/tabStyle/siderTone（枚举）与 topbarWidgets
+ *       （Record&lt;WidgetKey,boolean&gt;：键白名单、未知 widget 键按既有未知偏好键同口径
+ *       拒绝）——沿用「显式存在才校验」，未传新字段的 v4 与 v3 载荷均合法；</li>
  *   <li>semanticColors 三键 success/warning/danger 值 hex|null，多余键容忍透传
  *       （core isSemanticColorOverrides every 只查三键口径）；</li>
  *   <li>extensions 仅整体结构校验（object；单键 ≤16KB、总 ≤64KB 序列化计量在用例侧），
@@ -48,6 +51,20 @@ final class ThemePreferenceValidator {
 
     /** contentWidth 档位（THEME-2 v3）。 */
     private static final Set<String> CONTENT_WIDTHS = Set.of("fluid", "compact");
+
+    /** layoutMode 布局三态（THEME-4 v4 确认记录②，缺省 sidebar=现行为）。 */
+    private static final Set<String> LAYOUT_MODES = Set.of("sidebar", "top", "mixed");
+
+    /** tabStyle 页签四风格（THEME-4 v4 确认记录②④，line=现行为缺省）。 */
+    private static final Set<String> TAB_STYLES = Set.of("line", "card", "chrome", "plain");
+
+    /** siderTone 半深色档（THEME-4 v4 确认记录②⑤，auto=现行为；dark 仅 light 模式生效，联动归前端）。 */
+    private static final Set<String> SIDER_TONES = Set.of("auto", "dark");
+
+    /** topbarWidgets widget 键白名单（THEME-4 v4 确认记录②，10 键；未知键拒绝）。 */
+    static final Set<String> TOPBAR_WIDGET_KEYS = Set.of(
+            "search", "bell", "lang", "timezone", "appearance",
+            "themeToggle", "lock", "fullscreen", "settings", "release");
 
     /** semanticColors 语义色覆盖键白名单（仅三键；muted/info/violet 不可覆盖——THEME-2 确认⑤）。 */
     private static final Set<String> SEMANTIC_KEYS = Set.of("success", "warning", "danger");
@@ -94,19 +111,25 @@ final class ThemePreferenceValidator {
 
     /**
      * 偏好键规则表（key → 校验闭包；与 core ThemePreferences 字段集一一对应：
-     * mode/accent/customAccent/density/motionEnabled/radius/grayMode/weakMode/contentWidth/semanticColors）。
+     * v3 十键 mode/accent/customAccent/density/motionEnabled/radius/grayMode/weakMode/
+     * contentWidth/semanticColors + THEME-4 v4 四键 layoutMode/tabStyle/siderTone/topbarWidgets；
+     * >10 键用 ofEntries）。
      */
-    private static final Map<String, BiConsumer<String, Object>> PREFERENCE_RULES = Map.of(
-            "mode", (k, v) -> requireEnum(k, v, MODES),
-            "accent", (k, v) -> requireEnum(k, v, ACCENTS),
-            "customAccent", (k, v) -> requireHexOrNull(k, v),
-            "density", (k, v) -> requireEnum(k, v, DENSITIES),
-            "motionEnabled", (k, v) -> requireBoolean(k, v),
-            "radius", (k, v) -> requireEnum(k, v, RADII),
-            "grayMode", (k, v) -> requireBoolean(k, v),
-            "weakMode", (k, v) -> requireBoolean(k, v),
-            "contentWidth", (k, v) -> requireEnum(k, v, CONTENT_WIDTHS),
-            "semanticColors", (k, v) -> requireSemanticColors(k, v)
+    private static final Map<String, BiConsumer<String, Object>> PREFERENCE_RULES = Map.ofEntries(
+            Map.entry("mode", (k, v) -> requireEnum(k, v, MODES)),
+            Map.entry("accent", (k, v) -> requireEnum(k, v, ACCENTS)),
+            Map.entry("customAccent", (k, v) -> requireHexOrNull(k, v)),
+            Map.entry("density", (k, v) -> requireEnum(k, v, DENSITIES)),
+            Map.entry("motionEnabled", (k, v) -> requireBoolean(k, v)),
+            Map.entry("radius", (k, v) -> requireEnum(k, v, RADII)),
+            Map.entry("grayMode", (k, v) -> requireBoolean(k, v)),
+            Map.entry("weakMode", (k, v) -> requireBoolean(k, v)),
+            Map.entry("contentWidth", (k, v) -> requireEnum(k, v, CONTENT_WIDTHS)),
+            Map.entry("semanticColors", (k, v) -> requireSemanticColors(k, v)),
+            Map.entry("layoutMode", (k, v) -> requireEnum(k, v, LAYOUT_MODES)),
+            Map.entry("tabStyle", (k, v) -> requireEnum(k, v, TAB_STYLES)),
+            Map.entry("siderTone", (k, v) -> requireEnum(k, v, SIDER_TONES)),
+            Map.entry("topbarWidgets", (k, v) -> requireTopbarWidgets(k, v))
     );
 
     private static void requireEnum(String key, Object value, Set<String> allowed) {
@@ -144,6 +167,26 @@ final class ThemePreferenceValidator {
                 continue;
             }
             requireHexOrNull(key + "." + tone, entry.getValue());
+        }
+    }
+
+    /**
+     * topbarWidgets（THEME-4 v4 确认记录②）：object、键⊆{@link #TOPBAR_WIDGET_KEYS}
+     * （未知 widget 键按既有未知偏好键同口径拒绝，与顶层/偏好未知键 fail-closed 一致）、
+     * 值必须 boolean；空对象/部分子集/缺省键均合法（缺省全显与重置语义归前端）。
+     */
+    private static void requireTopbarWidgets(String key, Object value) {
+        if (!(value instanceof Map<?, ?> widgets)) {
+            throw invalid("偏好键 %s 必须是 JSON 对象".formatted(key));
+        }
+        for (Map.Entry<?, ?> entry : widgets.entrySet()) {
+            String widgetKey = String.valueOf(entry.getKey());
+            if (!TOPBAR_WIDGET_KEYS.contains(widgetKey)) {
+                throw invalid("未知偏好键: " + key + "." + widgetKey);
+            }
+            if (!(entry.getValue() instanceof Boolean)) {
+                throw invalid("偏好键 %s.%s 必须是布尔值".formatted(key, widgetKey));
+            }
         }
     }
 

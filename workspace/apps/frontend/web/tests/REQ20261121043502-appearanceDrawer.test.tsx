@@ -43,7 +43,9 @@ import {
 
 // testTimeout 45s（TL 门禁前置微修：满载并行时 AC-7 用例曾抖到 21s 超 20s 时限，隔离实测 14.3s；
 // 按仓库抖动口径保余量，对齐 TENANT-1 packagesPage 45s / THEME-1 drawer 单例 30s 先例，pitfalls #15）
-vi.setConfig({ testTimeout: 45000 });
+// testTimeout 140s（TL round-2 预算放宽，判定链闭环后披露制：theme4-idle-rerun.log 失败用例闲置实测
+// 最大 55.5s；新预算=max(实测×2.5, 现预算×2)=138710→140s，重交互用例 ≥60s 口径；断言/行为零改动）
+vi.setConfig({ testTimeout: 140000 });
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const BLOB_KEY = 'acme.frontend.ops.v1'; // 契约钉死（packages/core/src/constants.ts）

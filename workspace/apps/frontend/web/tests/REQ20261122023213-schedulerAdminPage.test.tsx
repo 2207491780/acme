@@ -37,7 +37,9 @@ import { HashRouter } from 'react-router-dom';
 import { App } from '../src/App';
 import { useAuthStore, useMeStore } from '@acme/core';
 
-vi.setConfig({ testTimeout: 25000 });
+// testTimeout 160s（TL round-2 预算放宽，判定链闭环后披露制：theme4-idle-rerun.log 失败用例闲置实测
+// 最大 63.95s；新预算=max(实测×2.5, 现预算×2)=159885→160s，重交互用例 ≥60s 口径；断言/行为零改动）
+vi.setConfig({ testTimeout: 160000 });
 
 // ————— 行为常量（范本口径：两字按钮 autoInsertSpace 兼容 + 文案宽容正则） —————
 const CONFIRM_BUTTON = /确\s*(定|认)|^OK$/i;

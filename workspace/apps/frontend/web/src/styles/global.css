@@ -318,6 +318,32 @@ tr.dragging { opacity: 0.45; }
 .tab-preview-action { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 8px; border: none; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 12px; font-family: inherit; cursor: pointer; transition: background 0.2s, color 0.2s; }
 .tab-preview-action:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 
+/* 页签 4 风格（REQ-20261122-233427 确认④）：容器 data-tab-style（TabBar 挂偏好 tabStyle）；
+   line=上方既有规则（缺省，现状逐字），card/chrome/plain 按容器属性覆写；
+   store/行为面零回归（pin/关闭/溢出滚动/预览卡），色值一律走变量层镜像 core，无硬编码 */
+/* card：卡片块 + 活动底色 */
+.tabbar[data-tab-style='card'] { gap: 6px; padding: 0 8px; align-items: center; }
+.tabbar[data-tab-style='card'] .tabbar-tab { height: 28px; margin-block: 4px; padding: 0 12px; border-radius: 8px; border: 1px solid transparent; }
+.tabbar[data-tab-style='card'] .tabbar-tab:hover { background: var(--surface-2); border-color: var(--border); }
+.tabbar[data-tab-style='card'] .tabbar-tab-active { background: var(--surface-2); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.tabbar[data-tab-style='card'] .tabbar-tab-active::after { height: 0; }
+.tabbar[data-tab-style='card'] .tabbar-tab + .tabbar-tab::before { display: none; }
+/* chrome：梯形标签页隐喻（clip-path 梯形；活动签与内容区同底色相连） */
+.tabbar[data-tab-style='chrome'] { gap: 2px; padding: 6px 8px 0; align-items: flex-end; background: var(--bg-1); }
+.tabbar[data-tab-style='chrome'] .tabbar-tab { height: 30px; padding: 0 14px; clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 100%, 0 100%); }
+.tabbar[data-tab-style='chrome'] .tabbar-tab:hover { background: var(--surface-2); }
+.tabbar[data-tab-style='chrome'] .tabbar-tab-active { background: var(--bg-0); }
+.tabbar[data-tab-style='chrome'] .tabbar-tab-active::after { height: 0; }
+.tabbar[data-tab-style='chrome'] .tabbar-tab + .tabbar-tab::before { display: none; }
+/* plain：纯文字 + 分隔线（隐藏图标与底边指示线；既有相邻分隔符保留） */
+.tabbar[data-tab-style='plain'] { background: transparent; }
+.tabbar[data-tab-style='plain'] .tabbar-tab { padding: 0 12px; }
+.tabbar[data-tab-style='plain'] .tabbar-tab > .anticon:first-child { display: none; }
+.tabbar[data-tab-style='plain'] .tabbar-tab:hover { background: transparent; }
+.tabbar[data-tab-style='plain'] .tabbar-tab-active::after { height: 0; }
+/* 拖拽排序（确认④）：dnd-kit sortable 进行中单签提层 */
+.tabbar-tab-dragging { z-index: 3; opacity: 0.85; box-shadow: var(--shadow-pop); }
+
 /* 命令面板（REQ-20261119-063129 契约⑤）：三节列表（页面/页签/快捷操作），行可点目标 ≥44px */
 .command-palette-section { padding: 10px 8px 4px; font-size: 11px; font-weight: 600; letter-spacing: 2.4px; text-transform: uppercase; color: var(--muted); }
 .command-palette-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 6px 10px; border: none; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
@@ -336,3 +362,38 @@ tr.dragging { opacity: 0.45; }
    kbd 徽标视觉语言对齐 Header Ctrl K 徽标（mono 11px + 发丝描边） */
 .command-palette-hints { display: flex; align-items: center; gap: 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
 .command-palette-hints kbd { font-family: var(--mono); font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; background: var(--surface-2); }
+
+/* 半深色（REQ-20261122-233427 确认⑤）：浅色模式 + siderTone=dark 时 App 挂 html[data-chrome="dark"]，
+   侧栏/顶栏子树镜像暗色中性盘子（DARK_NEUTRALS，文本/边框反向适配；页面主体保持亮色不变）。
+   变量重定义仅作用于 .ant-layout-sider/.ant-layout-header 子树——既有玻璃底/发丝描边规则自动取暗值；
+   独立段落锚于「命令面板」之后（既有红线测试按 段注释 切片断言页签条段零硬编码色值，暗盘子
+   镜像值与其余 :root 段同为 core 常量镜像）。 */
+:root[data-chrome='dark'] .ant-layout-sider,
+:root[data-chrome='dark'] .ant-layout-header {
+  --glass-sider: rgba(29, 33, 39, 0.85);
+  --glass-header: rgba(20, 22, 26, 0.8);
+  --surface: #1d2127;
+  --surface-2: #242932;
+  --surface-3: #2c323c;
+  --text: #e8eaed;
+  --text-2: #b6bcc6;
+  --muted: #8b929e;
+  --border: rgba(255, 255, 255, 0.08);
+}
+/* 半深色 AntD 组件面（cssinjs 不走变量层）：双栏内文本类组件反向适配（AntD 5 :where 包裹低特异性，
+   本组规则以更高特异性覆盖）；弹层（Dropdown 菜单等）挂 body 不受影响，保持亮色页面口径；
+   primary 钮排除（ON_ACCENT 前景契约不覆盖） */
+:root[data-chrome='dark'] .ant-layout-header .ant-btn:not(.ant-btn-primary) { color: var(--text); }
+:root[data-chrome='dark'] .ant-layout-header .ant-input-affix-wrapper,
+:root[data-chrome='dark'] .ant-layout-header .ant-input {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--surface);
+}
+:root[data-chrome='dark'] .ant-layout-header .ant-input::placeholder { color: var(--muted); }
+:root[data-chrome='dark'] .ant-layout-sider .ant-menu-item,
+:root[data-chrome='dark'] .ant-layout-sider .ant-menu-submenu-title { color: var(--text-2); }
+:root[data-chrome='dark'] .ant-layout-sider .ant-menu-item:hover,
+:root[data-chrome='dark'] .ant-layout-sider .ant-menu-submenu-title:hover { color: var(--text); }
+:root[data-chrome='dark'] .ant-layout-sider .sidebar-foot { color: var(--muted); }
+:root[data-chrome='dark'] .ant-layout-sider .sidebar-foot strong { color: var(--text-2); }

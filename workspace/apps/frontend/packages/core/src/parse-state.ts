@@ -5,9 +5,13 @@ import {
   isContentWidth,
   isDensityValue,
   isHexColor,
+  isLayoutMode,
   isRadiusScale,
   isSemanticColorOverrides,
+  isSiderTone,
+  isTabStyle,
   isThemeModeValue,
+  isTopbarWidgets,
   type ThemePreferences,
 } from './preferences';
 import { seedState } from './seed';
@@ -169,6 +173,11 @@ function normalizeStoredSettings(raw: unknown, base: Settings): Settings | null 
     if ('weakMode' in p && typeof p.weakMode !== 'boolean') return null;
     if ('contentWidth' in p && !isContentWidth(p.contentWidth)) return null;
     if ('semanticColors' in p && !isSemanticColorOverrides(p.semanticColors)) return null;
+    // v4 字段（REQ-20261122-233427 确认②）：fail-closed 同口径；缺省沿用种子默认（迁移无损）。
+    if ('layoutMode' in p && !isLayoutMode(p.layoutMode)) return null;
+    if ('tabStyle' in p && !isTabStyle(p.tabStyle)) return null;
+    if ('siderTone' in p && !isSiderTone(p.siderTone)) return null;
+    if ('topbarWidgets' in p && !isTopbarWidgets(p.topbarWidgets)) return null;
     if (isThemeModeValue(p.mode)) prefs.mode = p.mode;
     if (isAccentKey(p.accent)) prefs.accent = p.accent;
     if (p.customAccent === null || isHexColor(p.customAccent)) prefs.customAccent = p.customAccent;
@@ -179,6 +188,10 @@ function normalizeStoredSettings(raw: unknown, base: Settings): Settings | null 
     if (typeof p.weakMode === 'boolean') prefs.weakMode = p.weakMode;
     if (isContentWidth(p.contentWidth)) prefs.contentWidth = p.contentWidth;
     if (isSemanticColorOverrides(p.semanticColors)) prefs.semanticColors = p.semanticColors;
+    if (isLayoutMode(p.layoutMode)) prefs.layoutMode = p.layoutMode;
+    if (isTabStyle(p.tabStyle)) prefs.tabStyle = p.tabStyle;
+    if (isSiderTone(p.siderTone)) prefs.siderTone = p.siderTone;
+    if (isTopbarWidgets(p.topbarWidgets)) prefs.topbarWidgets = { ...p.topbarWidgets };
   } else {
     // legacy 扁平形状（schemaVersion 前的 blob）：theme('dark'|'light')→mode（dark:boolean 同口径
     // 兜底，theme 优先），accent/density/motion 同名映射（确认记录③④ 旧语义）

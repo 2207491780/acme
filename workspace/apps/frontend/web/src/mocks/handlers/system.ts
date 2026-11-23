@@ -5,9 +5,13 @@ import {
   isContentWidth,
   isDensityValue,
   isHexColor,
+  isLayoutMode,
   isRadiusScale,
   isSemanticColorOverrides,
+  isSiderTone,
+  isTabStyle,
   isThemeModeValue,
+  isTopbarWidgets,
 } from '@acme/core';
 import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantInitTemplateView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, RoleDataScope, TenantQuotaSource, TenantUsageOverviewRow, TenantUsageView } from '@acme/core';
 import * as db from '../data';
@@ -538,12 +542,15 @@ function meCapabilities(): string[] {
   return store.packageCapabilities[packageId] ?? [];
 }
 
-// ————— themePreference 校验拒绝矩阵（REQ-20261121-200415 契约③⑫；与后端结构校验器同口径）—————
+// ————— themePreference 校验拒绝矩阵（REQ-20261121-200415 契约③⑫；REQ-20261122-233427 v4 同形；
+// 与后端结构校验器同口径）—————
 
 const PREFERENCE_BLOB_TOP_KEYS = ['schemaVersion', 'preferences', 'extensions'];
 const PREFERENCE_KEYS = [
   'mode', 'accent', 'customAccent', 'density', 'motionEnabled', 'radius', 'grayMode',
   'weakMode', 'contentWidth', 'semanticColors', 'extensions',
+  // —— v4 字段（THEME-4 确认②）：布局/页签/半深色/顶栏开关四域 ——
+  'layoutMode', 'tabStyle', 'siderTone', 'topbarWidgets',
 ];
 const EXT_KEY_LIMIT_BYTES = 16 * 1024;
 const EXT_TOTAL_LIMIT_BYTES = 64 * 1024;
@@ -608,6 +615,13 @@ function validateThemePreferenceBlob(blob: unknown): string | null {
   if ('contentWidth' in p && !isContentWidth(p.contentWidth)) return 'contentWidth 枚举非法';
   if ('semanticColors' in p && !isSemanticColorOverrides(p.semanticColors)) {
     return 'semanticColors 必须为 null/合法 hex 三键对象';
+  }
+  // —— v4 字段（REQ-20261122-233427 确认②）：枚举/开关结构逐键校验（校验器取自 core，同口径）——
+  if ('layoutMode' in p && !isLayoutMode(p.layoutMode)) return 'layoutMode 枚举非法';
+  if ('tabStyle' in p && !isTabStyle(p.tabStyle)) return 'tabStyle 枚举非法';
+  if ('siderTone' in p && !isSiderTone(p.siderTone)) return 'siderTone 枚举非法';
+  if ('topbarWidgets' in p && !isTopbarWidgets(p.topbarWidgets)) {
+    return 'topbarWidgets 必须为 WidgetKey 布尔开关对象';
   }
   return null;
 }

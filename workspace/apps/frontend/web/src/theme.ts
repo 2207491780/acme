@@ -5,6 +5,7 @@ import {
   FONT_FAMILY,
   FONT_SIZE,
   resolveAccentColor,
+  resolveChromePalette,
   resolveOnAccent,
   resolvePalette,
   resolveRadiusTokenSet,
@@ -58,6 +59,10 @@ export function buildTheme(settings: Settings, systemPrefersDark?: boolean): The
   const radiusScale = p.radius ?? 'medium';
   const radiusToken =
     radiusScale === 'medium' ? { borderRadius: d.radius } : resolveRadiusTokenSet(radiusScale);
+  // 半深色（REQ-20261122-233427 确认⑤）：浅色模式 + siderTone=dark 时侧栏/顶栏取暗色中性
+  // 盘子派生（亮页面 × 深双栏）；暗色模式下无效（chrome=页面同源盘子，与现状逐字一致）。
+  const halfDark = mode === 'light' && p.siderTone === 'dark';
+  const chrome = resolveChromePalette(mode, p.siderTone);
   return {
     algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     token: {
@@ -89,8 +94,9 @@ export function buildTheme(settings: Settings, systemPrefersDark?: boolean): The
         headerHeight: 64,
         headerPadding: '0 24px',
         bodyBg: 'transparent',
-        siderBg: 'transparent',
-        headerBg: 'transparent',
+        // 半深色注入面（确认⑤）：非半深色保持 transparent（global.css 玻璃变量接管，现状不变）
+        siderBg: halfDark ? chrome.sider.glassSider : 'transparent',
+        headerBg: halfDark ? chrome.header.glassHeader : 'transparent',
       },
       Menu: {
         itemBg: 'transparent',

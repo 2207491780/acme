@@ -14,14 +14,15 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
-import { DEFAULT_PREFERENCES, STORAGE_KEY, type ThemePreferences } from '@acme/core';
+import { DEFAULT_PREFERENCES, PREFERENCES_VERSION, STORAGE_KEY, type ThemePreferences } from '@acme/core';
 
 vi.setConfig({ testTimeout: 20000 });
 
 type StoreMod = typeof import('../src/store/useStore');
 type SettingsLike = { schemaVersion?: number; preferences?: Record<string, unknown> };
 
-/** 测试用自定义偏好（与默认完全可区分；显式类型标注防 string→联合 TS2322）。 */
+/** 测试用自定义偏好（与默认完全可区分；显式类型标注防 string→联合 TS2322）。
+ *  v4 适配（REQ-20261122-233427）：补 v4 四字段（取非默认值保持可区分语义）。 */
 const CUSTOM_PREFS: ThemePreferences = {
   mode: 'dark',
   accent: 'emerald',
@@ -33,6 +34,13 @@ const CUSTOM_PREFS: ThemePreferences = {
   weakMode: true,
   contentWidth: 'compact',
   semanticColors: { success: '#22c55e', warning: null, danger: '#c2410c' },
+  layoutMode: 'top',
+  tabStyle: 'chrome',
+  siderTone: 'dark',
+  topbarWidgets: {
+    search: false, bell: false, lang: true, timezone: false, appearance: true,
+    themeToggle: false, lock: true, fullscreen: false, settings: true, release: false,
+  },
 };
 
 /** blob 内 settings 段（容忍 zustand persist 信封包裹，其余严格）。 */
@@ -71,6 +79,11 @@ describe('REQ20261121010725 持久化键（契约钉死）', () => {
       mode: 'light', accent: 'cyan', customAccent: null, density: 'comfortable', motionEnabled: true,
       radius: 'medium', grayMode: false, weakMode: false, contentWidth: 'fluid',
       semanticColors: { success: null, warning: null, danger: null },
+      layoutMode: 'sidebar', tabStyle: 'line', siderTone: 'auto',
+      topbarWidgets: {
+        search: true, bell: true, lang: true, timezone: true, appearance: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+      },
     });
   });
 });
@@ -116,7 +129,7 @@ describe('REQ20261121010725 偏好重载恢复（AC-6 刷新保持 / AC-8 重载
     holder['settings'] = { dark: true, accent: 'violet', density: 'compact', motion: false };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(blob));
 
-    // 重载：无版本 legacy settings 应被迁移接线无损映射为新 shape（043502：直迁 v3，新字段补默认）
+    // 重载：无版本 legacy settings 应被迁移接线无损映射为新 shape（043502/233427：直迁当前版本，新字段补默认）
     vi.resetModules();
     const reloaded = (await import('../src/store/useStore')) as StoreMod;
     await waitFor(() => {
@@ -124,8 +137,13 @@ describe('REQ20261121010725 偏好重载恢复（AC-6 刷新保持 / AC-8 重载
         mode: 'dark', accent: 'violet', customAccent: null, density: 'compact', motionEnabled: false,
         radius: 'medium', grayMode: false, weakMode: false, contentWidth: 'fluid',
         semanticColors: { success: null, warning: null, danger: null },
+        layoutMode: 'sidebar', tabStyle: 'line', siderTone: 'auto',
+        topbarWidgets: {
+          search: true, bell: true, lang: true, timezone: true, appearance: true,
+          themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+        },
       });
     });
-    expect(readReloadedSettings(reloaded)?.schemaVersion).toBe(3);
+    expect(readReloadedSettings(reloaded)?.schemaVersion).toBe(PREFERENCES_VERSION);
   });
 });

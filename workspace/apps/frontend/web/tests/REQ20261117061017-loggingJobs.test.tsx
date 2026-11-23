@@ -36,7 +36,10 @@ import { authApi, infraApi, auditApi, useAuthStore, useMeStore } from '@acme/cor
 
 // REQ-20261119-051119 装配放宽（对齐 crudPages 先例）：全量套件并行负载下 OnlineUsers 批量下线两例贴线超时
 // （隔离/受控负载下均 5-8s 通过，断言不变，仅预算 15000→25000）。
-vi.setConfig({ testTimeout: 25000 });
+// testTimeout 102s（TL round-2 预算放宽，判定链闭环后披露制：theme4-idle-rerun.log 失败用例闲置实测
+// 40.6s（手动触发执行 ID 确认流）；新预算=max(实测×2.5, 现预算×2)=101518→102s，重交互用例 ≥60s 口径；
+// 断言/行为零改动）
+vi.setConfig({ testTimeout: 102000 });
 
 // ————— 行为常量（范本口径：两字按钮 autoInsertSpace 兼容） —————
 const CONFIRM_BUTTON = /确\s*定|^OK$/i;

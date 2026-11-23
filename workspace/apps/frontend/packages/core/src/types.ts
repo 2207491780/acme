@@ -19,6 +19,27 @@ export type Density = 'comfortable' | 'compact';
 export type RadiusScale = 'small' | 'medium' | 'large' | 'full';
 /** 内容宽度档位（REQ-20261121-043502 THEME-2 v3）：fluid=现状不限宽；compact=内容区定宽居中。 */
 export type ContentWidth = 'fluid' | 'compact';
+/** 布局模式（REQ-20261122-233427 THEME-4 v4 确认②③）：sidebar=侧边导航（现状）；
+ *  top=顶栏主导航+全宽内容；mixed=顶栏一级横向导航+左侧 72px 图标轨。 */
+export type LayoutMode = 'sidebar' | 'top' | 'mixed';
+/** 页签风格（THEME-4 v4 确认④）：line=VS Code 线条（现状缺省）；card=卡片块；chrome=梯形标签页；plain=纯文字+分隔线。 */
+export type TabStyle = 'line' | 'card' | 'chrome' | 'plain';
+/** 侧栏色调（THEME-4 v4 确认⑤）：auto=跟随主题（现状）；dark=浅色模式下侧栏/顶栏取暗色中性盘子派生半深色（暗色模式无效）。 */
+export type SiderTone = 'auto' | 'dark';
+/** 顶栏 widget 键位（THEME-4 v4 确认②，缺省全显）：与租户级水印/页脚控制正交（个人偏好级）。 */
+export type TopbarWidgetKey =
+  | 'search'
+  | 'bell'
+  | 'lang'
+  | 'timezone'
+  | 'appearance'
+  | 'themeToggle'
+  | 'lock'
+  | 'fullscreen'
+  | 'settings'
+  | 'release';
+/** 顶栏 widget 显隐开关（THEME-4 v4 确认②）：键位全集固定，布尔缺省 true=显示。 */
+export type TopbarWidgets = Record<TopbarWidgetKey, boolean>;
 export type Accent =
   | 'cyan'
   | 'blue'

@@ -11,10 +11,14 @@ import {
   TONES,
   type ContentWidth,
   type Density,
+  type LayoutMode,
   type RadiusScale,
   type SemanticColorKey,
+  type SiderTone,
+  type TabStyle,
   type ThemeMode,
   type ThemePreferences,
+  type TopbarWidgetKey,
 } from '@acme/core';
 import { useStore } from '../store/useStore';
 
@@ -22,11 +26,12 @@ const { Text } = Typography;
 const { useApp } = AntApp;
 
 /**
- * 偏好抽屉（REQ-20261121-010725；REQ-20261121-043502 外观能力包）：右上角 360px 抽屉，分组渲染
- * 主题模式（三态 Segmented）/ 强调色（12 预设网格 + ColorPicker 自定义）/ 密度（2 档）/
- * 外观（圆角四档 Segmented / 内容宽度两档 Segmented / 灰度 Switch / 色弱 Switch）/
- * 动效（Switch）/ 语义色（success/warning/danger 三行：2 预设 + ColorPicker + 清除）/
- * 恢复默认（Popconfirm 二次确认）。
+ * 偏好抽屉（REQ-20261121-010725；REQ-20261121-043502 外观能力包；REQ-20261122-233427 THEME-4
+ * 确认⑥布局分组）：右上角 360px 抽屉，分组渲染主题模式（三态 Segmented）/ 强调色（12 预设网格
+ * + ColorPicker 自定义）/ 密度（2 档）/ 外观（圆角四档 Segmented / 内容宽度两档 Segmented /
+ * 灰度 Switch / 色弱 Switch）/ 布局（layoutMode 三选 / tabStyle 四选 / siderTone 二选 /
+ * topbarWidgets 开关组 + 恢复全显）/ 动效（Switch）/ 语义色（success/warning/danger 三行：
+ * 2 预设 + ColorPicker + 清除）/ 恢复默认（Popconfirm 二次确认）。
  * 所有修改即时生效并即时持久化（UPDATE_SETTINGS patch preferences，无「保存」按钮）；
  * mask=false：打开不阻塞页面交互（契约交互规格）。Settings 页外观卡已由本抽屉替代（AC-10）。
  */
@@ -52,6 +57,20 @@ const SEMANTIC_ROWS: { key: SemanticColorKey; labelKey: string }[] = [
   { key: 'danger', labelKey: 'settings.preferences.semanticDanger' },
 ];
 
+/** 顶栏 widget 开关行（REQ-20261122-233427 确认②枚举与顺序；文案走 settings.preferences.layout.widget* 键域）。 */
+const TOPBAR_WIDGET_ROWS: { key: TopbarWidgetKey; labelKey: string }[] = [
+  { key: 'search', labelKey: 'settings.preferences.layout.widgetSearch' },
+  { key: 'bell', labelKey: 'settings.preferences.layout.widgetBell' },
+  { key: 'lang', labelKey: 'settings.preferences.layout.widgetLang' },
+  { key: 'timezone', labelKey: 'settings.preferences.layout.widgetTimezone' },
+  { key: 'appearance', labelKey: 'settings.preferences.layout.widgetAppearance' },
+  { key: 'themeToggle', labelKey: 'settings.preferences.layout.widgetThemeToggle' },
+  { key: 'lock', labelKey: 'settings.preferences.layout.widgetLock' },
+  { key: 'fullscreen', labelKey: 'settings.preferences.layout.widgetFullscreen' },
+  { key: 'settings', labelKey: 'settings.preferences.layout.widgetSettings' },
+  { key: 'release', labelKey: 'settings.preferences.layout.widgetRelease' },
+];
+
 export function PreferencesDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const { message } = useApp();
@@ -74,6 +93,22 @@ export function PreferencesDrawer({ open, onClose }: { open: boolean; onClose: (
         [key]: hex,
       },
     });
+
+  // 顶栏 widget 单键写入（THEME-4 确认②⑥）：topbarWidgets 全记录替换（缺省键位兜底 true）
+  const setWidget = (key: TopbarWidgetKey, checked: boolean) =>
+    update({
+      topbarWidgets: {
+        ...DEFAULT_PREFERENCES.topbarWidgets,
+        ...preferences.topbarWidgets,
+        [key]: checked,
+      },
+    });
+
+  // 重置=恢复缺省全显（THEME-4 确认⑥）
+  const resetWidgets = () => {
+    update({ topbarWidgets: { ...DEFAULT_PREFERENCES.topbarWidgets } });
+    message.success(t('settings.preferences.layout.widgetsResetDone'));
+  };
 
   const resetToDefaults = () => {
     dispatch({ type: 'UPDATE_SETTINGS', patch: { preferences: { ...DEFAULT_PREFERENCES } } });
@@ -214,6 +249,82 @@ export function PreferencesDrawer({ open, onClose }: { open: boolean; onClose: (
                 aria-label={t('settings.preferences.weakMode')}
               />
             </div>
+          </div>
+        </div>
+      </Group>
+
+      {/* 布局组（REQ-20261122-233427 THEME-4 确认⑥）：layoutMode 三选 / tabStyle 四选 /
+          siderTone 二选 / topbarWidgets 开关组 + 恢复全显，全部即时生效 + 持久化。
+          各控件独立 wrapper：分组标签向上找最近 .ant-segmented 时互不串组（同外观组口径）。 */}
+      <Group title={t('settings.preferences.layout.group')} desc={t('settings.preferences.layout.groupDesc')}>
+        <div>
+          <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.preferences.layout.layoutMode')}</Text>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>{t('settings.preferences.layout.layoutModeDesc')}</Text>
+          <div style={{ marginTop: 8 }}>
+            <Segmented<LayoutMode>
+              block
+              value={preferences.layoutMode}
+              onChange={(value) => update({ layoutMode: value })}
+              options={[
+                { value: 'sidebar', label: t('settings.preferences.layout.layoutModeSidebar') },
+                { value: 'top', label: t('settings.preferences.layout.layoutModeTop') },
+                { value: 'mixed', label: t('settings.preferences.layout.layoutModeMixed') },
+              ]}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.preferences.layout.tabStyle')}</Text>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>{t('settings.preferences.layout.tabStyleDesc')}</Text>
+          <div style={{ marginTop: 8 }}>
+            <Segmented<TabStyle>
+              block
+              value={preferences.tabStyle}
+              onChange={(value) => update({ tabStyle: value })}
+              options={[
+                { value: 'line', label: t('settings.preferences.layout.tabStyleLine') },
+                { value: 'card', label: t('settings.preferences.layout.tabStyleCard') },
+                { value: 'chrome', label: t('settings.preferences.layout.tabStyleChrome') },
+                { value: 'plain', label: t('settings.preferences.layout.tabStylePlain') },
+              ]}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.preferences.layout.siderTone')}</Text>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>{t('settings.preferences.layout.siderToneDesc')}</Text>
+          <div style={{ marginTop: 8 }}>
+            <Segmented<SiderTone>
+              block
+              value={preferences.siderTone}
+              onChange={(value) => update({ siderTone: value })}
+              options={[
+                { value: 'auto', label: t('settings.preferences.layout.siderToneAuto') },
+                { value: 'dark', label: t('settings.preferences.layout.siderToneDark') },
+              ]}
+            />
+          </div>
+        </div>
+        {/* 顶栏 widget 开关组（确认②⑥）：个人偏好级显隐；重置=恢复缺省全显 */}
+        <div style={{ marginTop: 14 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.preferences.layout.widgets')}</Text>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>{t('settings.preferences.layout.widgetsDesc')}</Text>
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {TOPBAR_WIDGET_ROWS.map(({ key, labelKey }) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{t(labelKey)}</Text>
+                  <Switch
+                    checked={preferences.topbarWidgets?.[key] ?? true}
+                    onChange={(checked) => setWidget(key, checked)}
+                    aria-label={t(labelKey)}
+                  />
+                </div>
+              ))}
+            </div>
+            <Button size="small" onClick={resetWidgets} style={{ marginTop: 10 }}>
+              {t('settings.preferences.layout.widgetsReset')}
+            </Button>
           </div>
         </div>
       </Group>

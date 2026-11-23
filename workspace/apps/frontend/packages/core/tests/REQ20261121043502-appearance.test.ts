@@ -41,7 +41,18 @@ const V3_DEFAULTS = {
   semanticColors: { success: null, warning: null, danger: null },
 };
 
-/** 合法基线偏好（v2 五字段 + v3 五字段；over 允许注入非法值供降级用例使用）。 */
+/** v4 默认值（REQ-20261122-233427 确认②：sidebar/line/auto/顶栏全显=现状外观）。 */
+const V4_DEFAULTS = {
+  layoutMode: 'sidebar' as const,
+  tabStyle: 'line' as const,
+  siderTone: 'auto' as const,
+  topbarWidgets: {
+    search: true, bell: true, lang: true, timezone: true, appearance: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+  },
+};
+
+/** 合法基线偏好（v2 五字段 + v3 五字段 + v4 四字段；over 允许注入非法值供降级用例使用）。 */
 const validPreferences = (over: Partial<ThemePreferences> | Record<string, unknown> = {}): ThemePreferences => ({
   mode: 'dark',
   accent: 'emerald',
@@ -53,6 +64,7 @@ const validPreferences = (over: Partial<ThemePreferences> | Record<string, unkno
   weakMode: false,
   contentWidth: 'fluid',
   semanticColors: { success: null, warning: null, danger: null },
+  ...V4_DEFAULTS,
   ...(over as Partial<ThemePreferences>),
 });
 
@@ -87,19 +99,16 @@ const expectNoProjections = (
 
 describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
   it('should_expose_v3_defaults_when_version_bumped_to_three', () => {
-    // 版本与默认值（TL 钉死面：v2 五字段不变 + v3 五字段默认）
-    expect(PREFERENCES_VERSION).toBe(3);
+    // 版本与默认值（TL 钉死面：v2 五字段不变 + v3 五字段默认 + v4 四字段默认=现状外观）
+    expect(PREFERENCES_VERSION).toBe(4);
     expect(DEFAULT_PREFERENCES).toEqual({
       mode: 'light',
       accent: 'cyan',
       customAccent: null,
       density: 'comfortable',
       motionEnabled: true,
-      radius: 'medium',
-      grayMode: false,
-      weakMode: false,
-      contentWidth: 'fluid',
-      semanticColors: { success: null, warning: null, danger: null },
+      ...V3_DEFAULTS,
+      ...V4_DEFAULTS,
     });
 
     // 合法 v3 全量输入归一化通过
@@ -115,7 +124,7 @@ describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
   });
 
   it('should_migrate_v2_preferences_to_v3_losslessly_when_version_missing', () => {
-    // v2 blob（schemaVersion=2 + 五字段 preferences）→ v3：旧字段无损、新字段补默认、版本同步=3
+    // v2 blob（schemaVersion=2 + 五字段 preferences）→ 当前版本：旧字段无损、新版本字段补默认
     const v2Blob = {
       schemaVersion: 2,
       preferences: {
@@ -128,7 +137,7 @@ describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
     };
     const migrated = migrateSettings(v2Blob);
     expect(migrated.migrated).toBe(true);
-    expect(migrated.settings.schemaVersion).toBe(3);
+    expect(migrated.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(migrated.settings.preferences).toEqual({
       mode: 'dark',
       accent: 'violet',
@@ -136,6 +145,7 @@ describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
       density: 'compact',
       motionEnabled: false,
       ...V3_DEFAULTS,
+      ...V4_DEFAULTS,
     });
     // 投影字段零残留（THEME-3 ⑧）
     expectNoProjections(migrated.settings as unknown as SettingsWithProjections, migrated.settings.preferences);
@@ -144,7 +154,7 @@ describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
     // （fixture 用 dark：THEME-3 ⑧ 后无投影，mode 三态经 preferences 直存）
     const partialV2 = migrateSettings({ schemaVersion: 2, preferences: { mode: 'dark', accent: 'ruby' } });
     expect(partialV2.migrated).toBe(true);
-    expect(partialV2.settings.schemaVersion).toBe(3);
+    expect(partialV2.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(partialV2.settings.preferences).toEqual({
       mode: 'dark',
       accent: 'ruby',
@@ -152,15 +162,16 @@ describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
       density: 'comfortable',
       motionEnabled: true,
       ...V3_DEFAULTS,
+      ...V4_DEFAULTS,
     });
     expectNoProjections(partialV2.settings as unknown as SettingsWithProjections, partialV2.settings.preferences);
   });
 
   it('should_migrate_v1_legacy_flat_settings_directly_to_v3_when_no_version_present', () => {
-    // v1（legacy 扁平无版本，THEME-1 前语义：dark/accent/density/motion）→ v3 直迁
+    // v1（legacy 扁平无版本，THEME-1 前语义：dark/accent/density/motion）→ 当前版本直迁
     const legacy = migrateSettings({ dark: true, accent: 'violet', density: 'compact', motion: false });
     expect(legacy.migrated).toBe(true);
-    expect(legacy.settings.schemaVersion).toBe(3);
+    expect(legacy.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(legacy.settings.preferences).toEqual({
       mode: 'dark',
       accent: 'violet',
@@ -168,16 +179,18 @@ describe('REQ20261121043502 core 偏好引擎 v3 schema（AC-1/AC-2）', () => {
       density: 'compact',
       motionEnabled: false,
       ...V3_DEFAULTS,
+      ...V4_DEFAULTS,
     });
     expectNoProjections(legacy.settings as unknown as SettingsWithProjections, legacy.settings.preferences);
 
     // dark:false → light 直迁
     const lightLegacy = migrateSettings({ dark: false, accent: 'cyan', density: 'comfortable', motion: true });
     expect(lightLegacy.migrated).toBe(true);
-    expect(lightLegacy.settings.schemaVersion).toBe(3);
+    expect(lightLegacy.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(lightLegacy.settings.preferences).toEqual({
       mode: 'light', accent: 'cyan', customAccent: null, density: 'comfortable', motionEnabled: true,
       ...V3_DEFAULTS,
+      ...V4_DEFAULTS,
     });
 
     // 带 schemaVersion:1 标记的扁平输入：直迁 v3 不抛错（宽容口径：标记变体不阻断迁移）
@@ -272,11 +285,11 @@ describe('REQ20261121043502 语义色解析回退（AC-4）', () => {
 
 describe('REQ20261121043502 当前版本 blob 不重复迁移（迁移口径回归）', () => {
   it('should_keep_current_v3_settings_without_migration_when_version_current', () => {
-    // 已是 v3：preferences 原样保留，不重复迁移
+    // 已是当前版本：preferences 原样保留，不重复迁移
     const current = defaultSettingsShape();
     const result = migrateSettings(current);
     expect(result.migrated).toBe(false);
-    expect(result.settings.schemaVersion).toBe(3);
+    expect(result.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(result.settings.preferences).toEqual(current.preferences);
     expectNoProjections(result.settings as unknown as SettingsWithProjections, result.settings.preferences);
 

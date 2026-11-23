@@ -30,7 +30,7 @@ const expectNoProjections = (settings: Record<string, unknown>): void => {
   }
 };
 
-/** v3 全字段基线（可覆盖）。 */
+/** v3 全字段基线（可覆盖）。v4 适配（REQ-20261122-233427）：补 v4 默认字段（schema 升版后类型全集）。 */
 const v3Preferences = (over: Partial<ThemePreferences> = {}): ThemePreferences => ({
   mode: 'dark',
   accent: 'violet',
@@ -42,6 +42,13 @@ const v3Preferences = (over: Partial<ThemePreferences> = {}): ThemePreferences =
   weakMode: false,
   contentWidth: 'fluid',
   semanticColors: { success: null, warning: null, danger: null },
+  layoutMode: 'sidebar',
+  tabStyle: 'line',
+  siderTone: 'auto',
+  topbarWidgets: {
+    search: true, bell: true, lang: true, timezone: true, appearance: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+  },
   ...over,
 });
 
@@ -66,7 +73,7 @@ describe('REQ20261121200415 legacy blob 迁移无损（AC-6）', () => {
     const migrated = migrateSettings(v1Blob);
 
     expect(migrated.migrated).toBe(true);
-    expect(migrated.settings.schemaVersion).toBe(3);
+    expect(migrated.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(migrated.settings.preferences).toEqual(
       v3Preferences({ mode: 'dark', accent: 'emerald', customAccent: null, motionEnabled: false }),
     );
@@ -86,7 +93,7 @@ describe('REQ20261121200415 legacy blob 迁移无损（AC-6）', () => {
     const migrated = migrateSettings(v2Blob);
 
     expect(migrated.migrated).toBe(true);
-    expect(migrated.settings.schemaVersion).toBe(3);
+    expect(migrated.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     // 无损：v2 preferences 逐字段保留 + v3 新字段补默认（043502 口径）
     expect(migrated.settings.preferences).toEqual(
       v3Preferences({ mode: 'light', accent: 'cyan', customAccent: null, density: 'comfortable', motionEnabled: true }),
@@ -107,7 +114,7 @@ describe('REQ20261121200415 legacy blob 迁移无损（AC-6）', () => {
     const migrated = migrateSettings(v3WithProjections);
 
     // 无损：preferences 原样保留；投影字段不再存在（AC-6 v3 投影形态输入面）
-    expect(migrated.settings.schemaVersion).toBe(3);
+    expect(migrated.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     expect(migrated.settings.preferences).toEqual(v3Preferences());
     expectNoProjections(migrated.settings as unknown as Record<string, unknown>);
   });
@@ -133,7 +140,7 @@ describe('REQ20261121200415 legacy blob 迁移无损（AC-6）', () => {
 
     expect(extensions['migrationProbe']).toEqual({ on: true });
     expect(extensions['foreignDomain']).toEqual(foreign);
-    expect(migrated.settings.schemaVersion).toBe(3);
+    expect(migrated.settings.schemaVersion).toBe(PREFERENCES_VERSION);
     // 核心偏好字段无损
     expect(migrated.settings.preferences).toMatchObject(v3Preferences());
   });

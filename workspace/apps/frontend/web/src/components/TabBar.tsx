@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type HTMLAttributes, type MouseEvent, type ReactNode, type TouchEvent } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CloseOutlined,
@@ -11,6 +11,21 @@ import {
 import { Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
+import {
+  DndContext,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import type { TabStyle } from '@acme/core';
 import { findPageRoute } from '../routes';
 import { useTabsStore, type TabItem } from '../store/tabsStore';
 import { ARROW_STEP_RATIO, edgeState, isOverflowing, wheelDeltaToScroll } from './tabbarScroll';
@@ -18,11 +33,20 @@ import { TabPreviewCard } from './TabPreviewCard';
 
 /**
  * 自绘页签条（REQ-20261119-063129 契约③＋迭代轮次 1 契约⑨⑩；REQ-20261120-104022 滚动增强＋
- * hover 结构化预览卡）：Header 下方独立紧凑条（高 36px，VS Code/Chrome 惯例：活动指示=底边
- * 2px accent 线、hover elevated 轻提亮；样式对齐 UI-SPEC，令牌取 CSS 变量层镜像）；
- * 不使用 antd Tabs（惰性挂载与保活相反、无右键事件）。
+ * hover 结构化预览卡；REQ-20261122-233427 THEME-4 确认④四风格＋拖拽排序）：Header 下方独立
+ * 紧凑条（高 36px），不使用 antd Tabs（惰性挂载与保活相反、无右键事件）。
  *
- * REQ-20261120-104022 新增（判定逻辑唯一实现在 tabbarScroll.ts 纯函数，组件只消费）：
+ * 页签 4 风格（THEME-4 确认④）：容器挂 data-tab-style（line=现状 VS Code 风【缺省逐字】/
+ * card=卡片块/chrome=梯形标签页/plain=纯文字+分隔线），样式覆写收敛 global.css；同一 store/
+ * 行为面（pin/关闭/溢出滚动/预览卡）零回归——风格只改外观不改交互。
+ *
+ * 拖拽排序（THEME-4 确认④，@dnd-kit/core+@dnd-kit/sortable）：DndContext+SortableContext
+ * （横向排序策略）包裹页签列表，单签经 useSortable 挂把手（不消费 attributes，保留 role="tab"
+ * 语义）；拖拽结束写回 tabsStore.reorder（仅重排顺序，成员不变——permanent/pinned 均可拖且
+ * 始终留在集合内），持久化随 tabsStore 既有 persist 机制生效。激活约束：鼠标位移 6px 起拖
+ * （点选不受影响），触屏 250ms 长按起拖、快速滑动保留原生横向滚动（溢出滚动零回归）。
+ *
+ * REQ-20261120-104022（判定逻辑唯一实现在 tabbarScroll.ts 纯函数，组件只消费）：
  * - 相邻页签 1px 分隔符：纯 CSS `.tabbar-tab + .tabbar-tab::before`（不新增 DOM 节点），
  *   hover/激活签的相邻分隔符淡出（AC-1/2）；
  * - 溢出滚动：两端步进箭头（步长≈可视宽 80%，到头 disabled）＋垂直滚轮横向滚动
@@ -50,6 +74,12 @@ const PREVIEW_EXIT_MS = 200;
 const PREVIEW_GAP_PX = 6;
 /** 预览卡最大宽度（px，与 .tab-preview-layer max-width 一致；用于视口右缘钳制）。 */
 const PREVIEW_MAX_WIDTH_PX = 320;
+/** 拖拽激活位移（px，鼠标传感器：位移达到才起拖，短距点选不受影响）。 */
+const DRAG_MOUSE_DISTANCE_PX = 6;
+/** 拖拽激活长按（ms，触屏传感器：按住才起拖，快速滑动保留原生滚动）。 */
+const DRAG_TOUCH_DELAY_MS = 250;
+/** 拖拽激活容差（px，触屏长按窗口内允许的位移）。 */
+const DRAG_TOUCH_TOLERANCE_PX = 8;
 
 /** 页签 label 解析（契约②优先级）：动态菜单 menuName 快照 > labelKey 映射 > path。 */
 export function resolveTabLabel(tab: TabItem, t: (key: string) => string): string {
@@ -91,6 +121,135 @@ interface TabPreviewState {
   closing: boolean;
 }
 
+interface SortableTabProps {
+  tab: TabItem;
+  active: boolean;
+  icon: ReactNode;
+  onSelect: (path: string) => void;
+  onClose: (path: string) => void;
+  onRefresh: (path: string) => void;
+  onTogglePin: (path: string) => void;
+  onCloseOthers: (path: string) => void;
+  onCloseRight: (path: string) => void;
+  onCloseAll: () => void;
+  schedulePreviewOpen: (tab: TabItem, rect: DOMRect) => void;
+  schedulePreviewClose: () => void;
+}
+
+/**
+ * 单个可拖拽页签（THEME-4 确认④）：useSortable 提供把手监听/位移动画/拖拽态；
+ * 刻意不消费 sortable attributes（会覆写 role="button"/tabIndex，破坏既有 role="tab"
+ * 语义与行为面）——仅接 ref/事件监听/transform 样式。
+ */
+const SortableTab = memo(function SortableTab({
+  tab,
+  active,
+  icon,
+  onSelect,
+  onClose,
+  onRefresh,
+  onTogglePin,
+  onCloseOthers,
+  onCloseRight,
+  onCloseAll,
+  schedulePreviewOpen,
+  schedulePreviewClose,
+}: SortableTabProps) {
+  const { t } = useTranslation();
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: tab.path });
+
+  const contextMenu = (item: TabItem): MenuProps => ({
+    items: [
+      { key: 'refresh', icon: <ReloadOutlined />, label: t('nav.tabs.refresh') },
+      // permanent（首页常驻）与 pinned 均不可关（契约③⑩）；permanent 固定/取消固定无意义
+      { key: 'close', icon: <CloseOutlined />, label: t('nav.tabs.close'), disabled: item.pinned || item.permanent },
+      {
+        key: 'pin',
+        icon: item.pinned ? <PushpinFilled /> : <PushpinOutlined />,
+        label: item.pinned ? t('nav.tabs.unpin') : t('nav.tabs.pin'),
+        disabled: item.permanent,
+      },
+      { key: 'closeOthers', label: t('nav.tabs.closeOthers') },
+      { key: 'closeRight', label: t('nav.tabs.closeRight') },
+      { type: 'divider' },
+      { key: 'closeAll', label: t('nav.tabs.closeAll') },
+    ],
+    onClick: ({ key, domEvent }) => {
+      domEvent.stopPropagation();
+      if (key === 'refresh') onRefresh(item.path);
+      if (key === 'close') onClose(item.path);
+      if (key === 'pin') onTogglePin(item.path);
+      if (key === 'closeOthers') onCloseOthers(item.path);
+      if (key === 'closeRight') onCloseRight(item.path);
+      if (key === 'closeAll') onCloseAll();
+    },
+  });
+
+  // 关闭/固定按钮不作为拖拽把手：按下即阻断冒泡，防「按住关闭钮拖动」既起拖又误关闭
+  const suppressDragStart = {
+    onMouseDown: (event: MouseEvent) => event.stopPropagation(),
+    onTouchStart: (event: TouchEvent) => event.stopPropagation(),
+  };
+
+  return (
+    <Dropdown trigger={['contextMenu']} menu={contextMenu(tab)}>
+      <div
+        ref={setNodeRef}
+        // dnd-kit 监听（onMouseDown/onTouchStart）桥接到既有 DOM 结构；静态断言桥接，无运行时语义
+        {...(listeners as HTMLAttributes<HTMLDivElement> | undefined)}
+        className={
+          active
+            ? `tabbar-tab tabbar-tab-active${isDragging ? ' tabbar-tab-dragging' : ''}`
+            : `tabbar-tab${isDragging ? ' tabbar-tab-dragging' : ''}`
+        }
+        role="tab"
+        aria-selected={active}
+        aria-label={resolveTabLabel(tab, t)}
+        data-tab-path={tab.path}
+        onClick={() => onSelect(tab.path)}
+        // hover 预览卡（AC-10/14）：仅非活动签进入 150ms 候选；原生 title 已移除（AC-16）
+        onPointerEnter={active ? undefined : (event) => schedulePreviewOpen(tab, event.currentTarget.getBoundingClientRect())}
+        onPointerLeave={schedulePreviewClose}
+        // sortable 位移（横向策略只产 x 位移）：闲置为 undefined，不覆盖 CSS 过渡
+        style={{
+          transform: transform ? `translate3d(${transform.x ?? 0}px, ${transform.y ?? 0}px, 0)` : undefined,
+          transition,
+        }}
+      >
+        {icon}
+        <span className="tabbar-label">{resolveTabLabel(tab, t)}</span>
+        {tab.permanent ? null : tab.pinned ? (
+          <button
+            type="button"
+            className="tabbar-pin"
+            aria-label={t('nav.tabs.unpin')}
+            onClick={(event) => {
+              event.stopPropagation();
+              onTogglePin(tab.path);
+            }}
+            {...suppressDragStart}
+          >
+            <PushpinFilled />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="tabbar-close"
+            aria-label={t('nav.tabs.close')}
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose(tab.path);
+            }}
+            {...suppressDragStart}
+          >
+            <CloseOutlined />
+          </button>
+        )}
+      </div>
+    </Dropdown>
+  );
+});
+
 interface TabListProps {
   tabs: TabItem[];
   activePath: string | null;
@@ -108,7 +267,8 @@ interface TabListProps {
 
 /**
  * 页签列表（memo 化子树）：预览卡浮出/关闭只改 TabBar 本地 state，本子树 props 不变即整体
- * 跳过重渲染（性能红线：出现/消失不触发页签列表 re-render）。
+ * 跳过重渲染（性能红线：出现/消失不触发页签列表 re-render）。每签委托 SortableTab（拖拽
+ * 状态局部化：isDragging 变化只重渲染对应单签）。
  */
 const TabList = memo(function TabList({
   tabs,
@@ -124,83 +284,26 @@ const TabList = memo(function TabList({
   schedulePreviewOpen,
   schedulePreviewClose,
 }: TabListProps) {
-  const { t } = useTranslation();
-
-  const contextMenu = (tab: TabItem): MenuProps => ({
-    items: [
-      { key: 'refresh', icon: <ReloadOutlined />, label: t('nav.tabs.refresh') },
-      // permanent（首页常驻）与 pinned 均不可关（契约③⑩）；permanent 固定/取消固定无意义
-      { key: 'close', icon: <CloseOutlined />, label: t('nav.tabs.close'), disabled: tab.pinned || tab.permanent },
-      {
-        key: 'pin',
-        icon: tab.pinned ? <PushpinFilled /> : <PushpinOutlined />,
-        label: tab.pinned ? t('nav.tabs.unpin') : t('nav.tabs.pin'),
-        disabled: tab.permanent,
-      },
-      { key: 'closeOthers', label: t('nav.tabs.closeOthers') },
-      { key: 'closeRight', label: t('nav.tabs.closeRight') },
-      { type: 'divider' },
-      { key: 'closeAll', label: t('nav.tabs.closeAll') },
-    ],
-    onClick: ({ key, domEvent }) => {
-      domEvent.stopPropagation();
-      if (key === 'refresh') onRefresh(tab.path);
-      if (key === 'close') onClose(tab.path);
-      if (key === 'pin') onTogglePin(tab.path);
-      if (key === 'closeOthers') onCloseOthers(tab.path);
-      if (key === 'closeRight') onCloseRight(tab.path);
-      if (key === 'closeAll') onCloseAll();
-    },
-  });
-
   return (
     <>
       {tabs.map((tab) => {
         if (!findPageRoute(tab.path)) return null;
-        const label = resolveTabLabel(tab, t);
-        const active = tab.path === activePath;
         return (
-          <Dropdown key={tab.path} trigger={['contextMenu']} menu={contextMenu(tab)}>
-            <div
-              className={active ? 'tabbar-tab tabbar-tab-active' : 'tabbar-tab'}
-              role="tab"
-              aria-selected={active}
-              aria-label={label}
-              data-tab-path={tab.path}
-              onClick={() => onSelect(tab.path)}
-              // hover 预览卡（AC-10/14）：仅非活动签进入 150ms 候选；原生 title 已移除（AC-16）
-              onPointerEnter={active ? undefined : (event) => schedulePreviewOpen(tab, event.currentTarget.getBoundingClientRect())}
-              onPointerLeave={schedulePreviewClose}
-            >
-              {iconOf(tab.path)}
-              <span className="tabbar-label">{label}</span>
-              {tab.permanent ? null : tab.pinned ? (
-                <button
-                  type="button"
-                  className="tabbar-pin"
-                  aria-label={t('nav.tabs.unpin')}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onTogglePin(tab.path);
-                  }}
-                >
-                  <PushpinFilled />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="tabbar-close"
-                  aria-label={t('nav.tabs.close')}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onClose(tab.path);
-                  }}
-                >
-                  <CloseOutlined />
-                </button>
-              )}
-            </div>
-          </Dropdown>
+          <SortableTab
+            key={tab.path}
+            tab={tab}
+            active={tab.path === activePath}
+            icon={iconOf(tab.path)}
+            onSelect={onSelect}
+            onClose={onClose}
+            onRefresh={onRefresh}
+            onTogglePin={onTogglePin}
+            onCloseOthers={onCloseOthers}
+            onCloseRight={onCloseRight}
+            onCloseAll={onCloseAll}
+            schedulePreviewOpen={schedulePreviewOpen}
+            schedulePreviewClose={schedulePreviewClose}
+          />
         );
       })}
     </>
@@ -210,6 +313,8 @@ const TabList = memo(function TabList({
 export interface TabBarProps {
   /** path → 图标（动态菜单 icon 优先，静态 NAV 兜底；不可序列化故由 App 渲染时注入）。 */
   iconOf: (path: string) => ReactNode;
+  /** 页签风格（THEME-4 确认④；缺省 line=现状外观）。 */
+  tabStyle?: TabStyle;
   onSelect: (path: string) => void;
   onClose: (path: string) => void;
   onRefresh: (path: string) => void;
@@ -219,7 +324,7 @@ export interface TabBarProps {
   onCloseAll: () => void;
 }
 
-export function TabBar({ iconOf, onSelect, onClose, onRefresh, onTogglePin, onCloseOthers, onCloseRight, onCloseAll }: TabBarProps) {
+export function TabBar({ iconOf, tabStyle, onSelect, onClose, onRefresh, onTogglePin, onCloseOthers, onCloseRight, onCloseAll }: TabBarProps) {
   const { t } = useTranslation();
   const tabs = useTabsStore((s) => s.tabs);
   const activePath = useTabsStore((s) => s.activePath);
@@ -288,6 +393,8 @@ export function TabBar({ iconOf, onSelect, onClose, onRefresh, onTogglePin, onCl
   const previewRef = useRef<TabPreviewState | null>(null);
   const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 拖拽进行中标记（ref 不进 React state：拖拽路径上的页签不开预览卡，无重渲染开销）
+  const draggingRef = useRef(false);
 
   const applyPreview = useCallback((next: TabPreviewState | null) => {
     previewRef.current = next;
@@ -298,6 +405,7 @@ export function TabBar({ iconOf, onSelect, onClose, onRefresh, onTogglePin, onCl
   // 开卡数据现取（round 2 加固）：定时器触发点按 path 从 store 现取最新 TabItem
   // （pointerenter 闭包快照在 pinned/label 漂移场景陈旧）；页签已关则不开卡。
   const schedulePreviewOpen = useCallback((tab: TabItem, rect: DOMRect) => {
+    if (draggingRef.current) return; // 拖拽排序进行中：路径上的页签不开预览卡
     clearTimer(closeTimerRef);
     clearTimer(openTimerRef);
     const current = previewRef.current;
@@ -346,7 +454,7 @@ export function TabBar({ iconOf, onSelect, onClose, onRefresh, onTogglePin, onCl
     }
   }, [applyPreview]);
 
-  // 立即关闭（点击卡内操作后 AC-13 / 活动签变化时）
+  // 立即关闭（点击卡内操作后 AC-13 / 活动签变化时 / 拖拽开始时）
   const closePreviewNow = useCallback(() => {
     clearTimer(openTimerRef);
     clearTimer(closeTimerRef);
@@ -402,54 +510,88 @@ export function TabBar({ iconOf, onSelect, onClose, onRefresh, onTogglePin, onCl
     clearTimer(closeTimerRef);
   }, []);
 
+  // —— 拖拽排序（THEME-4 确认④）：鼠标位移起拖 / 触屏长按起拖（保溢出滚动手势） ——
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: DRAG_MOUSE_DISTANCE_PX } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: DRAG_TOUCH_DELAY_MS, tolerance: DRAG_TOUCH_TOLERANCE_PX },
+    }),
+  );
+  const handleDragStart = useCallback(() => {
+    draggingRef.current = true;
+    closePreviewNow(); // 拖拽开始即弃卡（fixed 卡不随签漂移）
+  }, [closePreviewNow]);
+  const handleDragCancel = useCallback(() => {
+    draggingRef.current = false;
+  }, []);
+  // 拖拽结束：仅重排顺序（store reorder 内含持久化）；permanent/pinned 均可拖且始终留在集合内
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    draggingRef.current = false;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    useTabsStore.getState().reorder(String(active.id), String(over.id));
+  }, []);
+
   return (
     <div className="tabbar-wrap">
-      <div
-        ref={containerRef}
-        className="tabbar"
-        role="tablist"
-        aria-label={t('nav.tabs.label')}
-        onScroll={() => {
-          scheduleSync();
-          schedulePreviewClose(); // 滚动即弃卡（fixed 定位卡不随签漂移，防悬挂错位）
-        }}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
-        <TabList
-          tabs={tabs}
-          activePath={activePath}
-          iconOf={iconOf}
-          onSelect={onSelect}
-          onClose={onClose}
-          onRefresh={onRefresh}
-          onTogglePin={onTogglePin}
-          onCloseOthers={onCloseOthers}
-          onCloseRight={onCloseRight}
-          onCloseAll={onCloseAll}
-          schedulePreviewOpen={schedulePreviewOpen}
-          schedulePreviewClose={schedulePreviewClose}
-        />
-      </div>
-      {/* 端点渐变阴影（AC-17）＋步进箭头（AC-4/6/7）：DOM 常驻、显隐/禁用由 rAF 判定翻转（AC-18） */}
-      <span ref={leftShadowRef} className="tabbar-shadow tabbar-shadow-left" aria-hidden="true" />
-      <span ref={rightShadowRef} className="tabbar-shadow tabbar-shadow-right" aria-hidden="true" />
-      <button
-        ref={leftArrowRef}
-        type="button"
-        className="tabbar-arrow tabbar-arrow-left"
-        aria-label={t('nav.tabs.scrollStart')}
-        onClick={handleArrowClick('left')}
-      >
-        <LeftOutlined />
-      </button>
-      <button
-        ref={rightArrowRef}
-        type="button"
-        className="tabbar-arrow tabbar-arrow-right"
-        aria-label={t('nav.tabs.scrollEnd')}
-        onClick={handleArrowClick('right')}
-      >
-        <RightOutlined />
-      </button>
+        <div
+          ref={containerRef}
+          className="tabbar"
+          role="tablist"
+          aria-label={t('nav.tabs.label')}
+          data-tab-style={tabStyle ?? 'line'}
+          onScroll={() => {
+            scheduleSync();
+            schedulePreviewClose(); // 滚动即弃卡（fixed 定位卡不随签漂移，防悬挂错位）
+          }}
+        >
+          <SortableContext items={tabs.map((tab) => tab.path)} strategy={horizontalListSortingStrategy}>
+            <TabList
+              tabs={tabs}
+              activePath={activePath}
+              iconOf={iconOf}
+              onSelect={onSelect}
+              onClose={onClose}
+              onRefresh={onRefresh}
+              onTogglePin={onTogglePin}
+              onCloseOthers={onCloseOthers}
+              onCloseRight={onCloseRight}
+              onCloseAll={onCloseAll}
+              schedulePreviewOpen={schedulePreviewOpen}
+              schedulePreviewClose={schedulePreviewClose}
+            />
+          </SortableContext>
+        </div>
+        {/* 端点渐变阴影（AC-17）＋步进箭头（AC-4/6/7）：DOM 常驻、显隐/禁用由 rAF 判定翻转（AC-18）；
+            须与 .tabbar 保持同级（.tabbar-overflowing ~ .tabbar-arrow 兄弟选择器依赖） */}
+        <span ref={leftShadowRef} className="tabbar-shadow tabbar-shadow-left" aria-hidden="true" />
+        <span ref={rightShadowRef} className="tabbar-shadow tabbar-shadow-right" aria-hidden="true" />
+        <button
+          ref={leftArrowRef}
+          type="button"
+          className="tabbar-arrow tabbar-arrow-left"
+          aria-label={t('nav.tabs.scrollStart')}
+          onClick={handleArrowClick('left')}
+        >
+          <LeftOutlined />
+        </button>
+        <button
+          ref={rightArrowRef}
+          type="button"
+          className="tabbar-arrow tabbar-arrow-right"
+          aria-label={t('nav.tabs.scrollEnd')}
+          onClick={handleArrowClick('right')}
+        >
+          <RightOutlined />
+        </button>
+      </DndContext>
       {/* 预览卡（AC-10）：Portal 挂 body；弹层容器承担 fixed 定位与出现/消失 opacity/transform 过渡 */}
       {preview
         ? createPortal(

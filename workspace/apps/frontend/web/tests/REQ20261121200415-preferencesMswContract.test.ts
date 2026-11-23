@@ -73,7 +73,7 @@ afterEach(() => {
   useAuthStore.getState().clear();
 });
 
-/** 合法 v3 偏好（与 core ThemePreferences 字段集对齐；可覆盖注入合法变体）。 */
+/** 合法偏好（与 core ThemePreferences 字段集对齐；可覆盖注入合法变体）。v4 适配=REQ-20261122-233427 确认②。 */
 const validPrefs = (over: Partial<ThemePreferences> = {}): ThemePreferences => ({
   mode: 'dark',
   accent: 'emerald',
@@ -85,6 +85,13 @@ const validPrefs = (over: Partial<ThemePreferences> = {}): ThemePreferences => (
   weakMode: false,
   contentWidth: 'fluid',
   semanticColors: { success: null, warning: null, danger: null },
+  layoutMode: 'sidebar',
+  tabStyle: 'line',
+  siderTone: 'auto',
+  topbarWidgets: {
+    search: true, bell: true, lang: true, timezone: true, appearance: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+  },
   ...over,
 });
 

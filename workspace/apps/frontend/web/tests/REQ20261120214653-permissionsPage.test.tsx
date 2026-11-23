@@ -39,7 +39,9 @@ import { App as AntApp } from 'antd';
 import { i18n, useAuthStore, useMeStore } from '@acme/core';
 import { PermissionsPage } from '../src/pages/PermissionsPage';
 
-vi.setConfig({ testTimeout: 25000 });
+// testTimeout 77s（TL round-2 预算放宽，判定链闭环后披露制：theme4-idle-rerun.log 失败用例闲置实测
+// 最大 30.8s；新预算=max(实测×2.5, 现预算×2)=76878→77s，重交互用例 ≥60s 口径；断言/行为零改动）
+vi.setConfig({ testTimeout: 77000 });
 
 // ————— 行为常量 —————
 const PERMS_PATH_PART = '/permissions';

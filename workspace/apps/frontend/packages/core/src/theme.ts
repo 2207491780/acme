@@ -1,4 +1,15 @@
-import type { Accent, Density, Env, Health, Platform, RadiusScale, Status, Theme, Tone } from './types';
+import type {
+  Accent,
+  Density,
+  Env,
+  Health,
+  Platform,
+  RadiusScale,
+  SiderTone,
+  Status,
+  Theme,
+  Tone,
+} from './types';
 import { clamp, statusTone } from './utils';
 
 // 设计令牌唯一事实源。Web(Ant Design) 与 Mobile(React Native) 主题均从此派生，
@@ -192,6 +203,28 @@ export const LIGHT_NEUTRALS: NeutralPalette = {
 
 export function resolvePalette(theme: Theme): NeutralPalette {
   return theme === 'light' ? LIGHT_NEUTRALS : DARK_NEUTRALS;
+}
+
+/**
+ * 侧栏/顶栏 chrome 盘子解析（REQ-20261122-233427 确认⑤ 半深色）：
+ * - siderTone=auto 或暗色模式 → 双栏取页面同源中性盘子（现状行为，逐字不变）；
+ * - 浅色模式 + siderTone=dark → 侧栏/顶栏取 DARK_NEUTRALS 子集派生「亮页面 × 深双栏」组合：
+ *   底色用暗色 glass 面，文本/边框直接复用暗色盘子的浅色文本与发丝描边（反向适配），
+ *   页面主体中性色不受影响；暗色模式下 siderTone 无效（本就暗，原样返回）。
+ * 消费面：web buildTheme components.Layout.{siderBg,headerBg} 注入 + global.css 变量镜像
+ * （html data-chrome 挂载点由端侧接线）；不改令牌常量结构（无双轴重构）。
+ */
+export interface ShellChromePalette {
+  sider: NeutralPalette;
+  header: NeutralPalette;
+}
+
+export function resolveChromePalette(theme: Theme, siderTone: SiderTone | undefined): ShellChromePalette {
+  const neutral = resolvePalette(theme);
+  if (theme === 'light' && siderTone === 'dark') {
+    return { sider: DARK_NEUTRALS, header: DARK_NEUTRALS };
+  }
+  return { sider: neutral, header: neutral };
 }
 
 export const SPACING = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } as const;
