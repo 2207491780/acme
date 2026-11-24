@@ -1,13 +1,12 @@
 package com.acme.platform.infra;
 
-import com.acme.common.context.Channel;
 import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
-import com.acme.framework.core.support.AuthenticatedSubject;
-import com.acme.framework.core.support.ClientContextDraft;
-import com.acme.framework.security.interceptor.InternalTokenAuthFilter;
-import com.acme.framework.security.support.InternalTokenIssuer;
-import com.acme.framework.security.support.InternalTokenVerifier;
+import com.acme.common.core.BizException;
+import com.acme.framework.job.support.JobError;
+import com.acme.framework.job.support.TaskRegistry;
+import com.acme.framework.job.support.TaskTrigger;
+import com.acme.platform.infra.domain.JobExecution;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,38 +16,23 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.List;
-import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
  * REQ-20261114-120105 AC-7（infra 侧）：login-log-retention-cleanup 任务注册 + 手动触发受理
- * （platform-infra；Testcontainers PG+Redis，照抄 {@code REQ20261114071607JobScheduleIntegrationTest}
- * 装配口径；无 Docker 自动跳过）。
+ * （platform-infra；Testcontainers PG+Redis 装配；无 Docker 自动跳过）。
  *
  * <p>口径说明（TL 裁决确认记录④⑦：C 方案——infra 注册任务、Feign 调 auth 内部端点、表访问收敛 auth）：</p>
  * <ul>
@@ -57,7 +41,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *   <li>触发链路已钉死（TL 回填，确认记录⑧）：异步执行（TaskTrigger，不同步传播）；Feign 失败时
  *       执行记录仍回填 FAILED+finished_at——本文件 finished_at 轮询断言满足，无需桩件；
  *       清理行为正确性由 auth 侧文件兜底覆盖。</li>
- *   <li>注册表 key 字段名（jobKey/key）与执行表列名（finished_at）按既有 job 域先例（AMB-1）。</li>
+ *   <li>注册表断言经 TaskRegistry.find（@JobHandler 收集面）；执行表列名（finished_at）
+ *       按既有 job 域先例（AMB-1）。</li>
  * </ul>
  */
 @Testcontainers(disabledWithoutDocker = true)
@@ -70,8 +55,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "acme.security.token.hmac-secret=req120105-cleanup-secret-012345678"
 })
 class REQ20261114120105LoginLogCleanupIntegrationTest {
-
-    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     private static final String JOB_KEY = "login-log-retention-cleanup";
     private static final Duration TRIGGER_SETTLE = Duration.ofSeconds(10);
@@ -109,16 +92,13 @@ class REQ20261114120105LoginLogCleanupIntegrationTest {
     }
 
     @Autowired
-    private WebApplicationContext webContext;
-
-    @Autowired
-    private InternalTokenVerifier tokenVerifier;
-
-    @Autowired
-    private InternalTokenIssuer tokenIssuer;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TaskRegistry taskRegistry;
+
+    @Autowired
+    private TaskTrigger taskTrigger;
 
     @MockitoBean
     private com.acme.platform.infra.infrastructure.client.AuthorizationGateway authorizationGateway;
@@ -140,14 +120,8 @@ class REQ20261114120105LoginLogCleanupIntegrationTest {
     @MockitoBean
     private com.acme.platform.infra.internal.client.LoginLogCleanupClient cleanupClient;
 
-    private MockMvc mvc;
-
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.webAppContextSetup(webContext)
-                .addFilters(new InternalTokenAuthFilter(tokenVerifier, List.of()))
-                .build();
-        doAnswer(invocation -> null).when(authorizationGateway).requirePermission(anyString());
         when(cleanupClient.purgeCleanup()).thenReturn(
                 new com.acme.platform.system.api.ContractResult<>(true, "0", null, 0));
     }
@@ -164,29 +138,17 @@ class REQ20261114120105LoginLogCleanupIntegrationTest {
     // ---------- AC-7 前置：任务注册表含 login-log-retention-cleanup ----------
 
     @Test
-    void should_listLoginLogRetentionCleanup_when_queryJobRegistry() {
-        JsonNode body = call(get("/admin/v1/infra/jobs"));
-
-        assertThat(body.path("code").asText()).isEqualTo("0");
-        JsonNode data = body.path("data");
-        assertThat(data.isArray()).isTrue();
-        boolean registered = false;
-        for (JsonNode job : data) {
-            if (JOB_KEY.equals(job.path("jobKey").asText(null))
-                    || JOB_KEY.equals(job.path("key").asText(null))) {
-                registered = true;
-            }
-        }
-        assertThat(registered).as("任务注册表应含 " + JOB_KEY + "（key 字段名 AMB-1）").isTrue();
+    void should_registerLoginLogRetentionCleanup_when_queryTaskRegistry() {
+        assertThat(taskRegistry.find(JOB_KEY))
+                .as("任务注册表应含 " + JOB_KEY + "（@JobHandler 收集面）").isPresent();
     }
 
     // ---------- AC-7：手动触发受理（执行记录落库；清理行为断言在 auth 侧文件，见类注释） ----------
 
     @Test
-    void should_acceptTriggerAndRecordExecution_when_loginLogRetentionCleanupRun() {
-        JsonNode body = triggerRun();
+    void should_acceptTriggerAndRecordExecution_when_loginLogRetentionCleanupRun() throws Exception {
+        triggerJob(JOB_KEY);
 
-        assertThat(body.path("code").asText()).as("手动触发应受理成功").isEqualTo("0");
         awaitTrue(TRIGGER_SETTLE, () -> {
             Long finished = jdbcTemplate.queryForObject(
                     "select count(*) from sys_job_execution where finished_at is not null", Long.class);
@@ -196,22 +158,21 @@ class REQ20261114120105LoginLogCleanupIntegrationTest {
 
     // ---------- 支撑 ----------
 
-    private JsonNode triggerRun() {
-        return call(post("/admin/v1/infra/jobs/{jobKey}/run", JOB_KEY));
-    }
-
-    private JsonNode call(MockHttpServletRequestBuilder request) {
-        try {
-            MvcResult result = mvc.perform(request
-                            .header("X-Acme-Channel", "B")
-                            .header("X-Acme-Token", tokenIssuer.issue(
-                                    new AuthenticatedSubject("1", "default", Channel.B, Set.of("super_admin"))))
-                            .requestAttr(ClientContextDraft.ATTRIBUTE_NAME,
-                                    new ClientContextDraft(null, "dev-1", "1.0")))
-                    .andReturn();
-            return JSON.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
-        } catch (Exception ex) {
-            throw new IllegalStateException("请求失败：" + request, ex);
+    /** 直接触发任务（TaskTrigger 与调度同径互斥，REQ-20261121-200724 确认⑦；旧 HTTP 面已随接口清理下线）；
+     *  TASK_RUNNING 短窗重试。 */
+    private void triggerJob(String jobKey) throws InterruptedException {
+        long deadline = System.nanoTime() + TRIGGER_SETTLE.toNanos();
+        while (true) {
+            try {
+                taskTrigger.trigger(jobKey, JobExecution.TRIGGER_MANUAL);
+                return;
+            } catch (BizException ex) {
+                if (JobError.TASK_RUNNING == ex.errorCode() && System.nanoTime() < deadline) {
+                    Thread.sleep(200L);
+                } else {
+                    throw ex;
+                }
+            }
         }
     }
 

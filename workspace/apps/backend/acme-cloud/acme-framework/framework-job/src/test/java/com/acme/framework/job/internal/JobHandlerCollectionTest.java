@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * {@code @JobHandler} 收集面（REQ-20261121-200724 确认③）：执行器清单登记 + TaskRegistry 兼容视图
- * （JobUseCase.list 零破坏）+ 同方法双注解冲突显式失败 + jobKey 冲突显式失败。
+ * （本地触发消费）+ 同方法双注解冲突显式失败 + jobKey 冲突显式失败。
  */
 class JobHandlerCollectionTest {
 

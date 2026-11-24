@@ -7,10 +7,13 @@ import com.acme.common.core.BizException;
 import com.acme.common.core.ErrorCode;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
+import com.acme.framework.job.support.JobError;
+import com.acme.framework.job.support.TaskTrigger;
 import com.acme.framework.security.interceptor.InternalTokenAuthFilter;
 import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.InternalTokenVerifier;
 import com.acme.framework.web.event.OpExceptionCapturedEvent;
+import com.acme.platform.infra.domain.JobExecution;
 import com.acme.platform.infra.infrastructure.client.AuthorizationGateway;
 import com.acme.platform.infra.infrastructure.redis.OpExceptionDedupStore;
 import org.junit.jupiter.api.AfterEach;
@@ -58,7 +61,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
  * REQ-20261117-061017 异常日志中心 + 定时任务执行记录（platform-infra）服务域集成测试
@@ -67,8 +69,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *
  * <p>覆盖：AC-1（事件→sys_op_exception 异步落库＋同键 60s 去重）、AC-2（BizException 业务失败不落）、
  * AC-3（列表分页/筛选/详情含 stackSummary/缺权限统一拒绝）、AC-4（两个 retention job 硬删超期软删行、
- * 保留未超期）、AC-6（op-exceptions/export 与 audit-events/export 下载语义）、
- * AC-8（jobs/{jobKey}/executions 分页倒序＋手动触发 MANUAL 记录）。</p>
+ * 保留未超期）、AC-6（op-exceptions/export 与 audit-events/export 下载语义）。</p>
  *
  * <p>口径说明（契约歧义/并行实现假设就地标注，TL 裁决后同步调整）：</p>
  * <ul>
@@ -94,10 +95,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *   <li>AMB-6 去重键 service+exceptionType+path 60s（Redis SETNX TTL）：测试以同键二次发布＋异键
  *       第三次发布表达，不操纵 Redis TTL；二次发布后短暂驻留观察（1.2s）内不产生第二行。</li>
  *   <li>AMB-7 retention job key 字面量取确认②：exception-log-retention-cleanup / audit-retention-cleanup；
- *       默认保留 14/30 天；触发为异步（TaskTrigger），断言经行数轮询（finished_at 先例
- *       REQ20261114120105LoginLogCleanupIntegrationTest）。</li>
- *   <li>AMB-8 JobExecutionView wire 字段（jobKey/status/startedAt/finishedAt/error/triggerType/durationMs）
- *       双兼容取值；倒序断言经 startedAt 文本序（同序列化格式内可比）。</li>
+ *       默认保留 14/30 天；触发为异步（TaskTrigger 直接触发，HTTP 面已随旧接口清理下线），
+ *       断言经行数轮询（finished_at 先例 REQ20261114120105LoginLogCleanupIntegrationTest）。</li>
  *   <li>堆栈摘要截断：AC-1 仅要求「截断发生」（存库长度严格小于输入长度，输入 1024），
  *       截断阈值数值契约未给（审计侧 512 先例），不作精确断言。</li>
  *   <li>权限拒绝口径：业务失败以 Result.code≠0 表达（勿断言 4xx；infra 域 requirePermission 桩件），
@@ -112,7 +111,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "acme.stream.enabled=false",
         "acme.audit.enabled=false",
         "acme.security.token.hmac-secret=req061017-opex-secret-0123456789",
-        // 类内任务触发用例共享同一任务锁：归零锁最短持有（同 JobScheduleIntegrationTest 口径），
+        // 类内任务触发用例共享同一任务锁：归零锁最短持有（同既有 job 域集成测试口径），
         // 否则上一用例完成后 60s 内的下一次手动触发会落 JOB_ALREADY_RUNNING
         "acme.job.lock-at-least-for=PT0S"
 })
@@ -176,6 +175,10 @@ class REQ20261117061017OpExceptionIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    /** 任务触发面（REQ-20261121-200724 确认⑦：@JobHandler 与调度同径互斥；旧 HTTP 面已下线）。 */
+    @Autowired
+    private TaskTrigger taskTrigger;
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
@@ -289,7 +292,7 @@ class REQ20261117061017OpExceptionIntegrationTest {
 
         eventPublisher.publishEvent(new OpExceptionCapturedEvent(
                 "platform-infra", "req061017-key-b", null, "t-1", "1",
-                "POST", "/admin/v1/infra/jobs/file-retention-cleanup/run", 500,
+                "POST", "/admin/v1/infra/files/99998", 500,
                 "java.lang.IllegalStateException", "boom", longStack(120), Instant.now()));
 
         awaitTrue(ASYNC_SETTLE, () -> opExceptionCount() == 2L);
@@ -303,10 +306,6 @@ class REQ20261117061017OpExceptionIntegrationTest {
         JsonNode fileMissing = call(get("/admin/v1/infra/files/{id}", "99999"));
         assertThat(fileMissing.path("success").asBoolean()).isFalse();
         assertThat(fileMissing.path("code").asText()).isEqualTo("FILE_NOT_FOUND");
-
-        // 既有端点业务失败（BizException）：任务不存在 JOB_NOT_FOUND
-        JsonNode jobMissing = call(post("/admin/v1/infra/jobs/{jobKey}/run", "req061017-no-job"));
-        assertThat(jobMissing.path("success").asBoolean()).isFalse();
 
         sleep(SILENT_OBSERVE_MILLIS);
         assertThat(opExceptionCount())
@@ -397,9 +396,7 @@ class REQ20261117061017OpExceptionIntegrationTest {
                 get("/admin/v1/infra/op-exceptions"),
                 get("/admin/v1/infra/op-exceptions/{exceptionId}", "910201"),
                 get("/admin/v1/infra/op-exceptions/export"),
-                get("/admin/v1/infra/audit-events/export"),
-                get("/admin/v1/infra/jobs/{jobKey}/executions", "file-retention-cleanup"),
-                post("/admin/v1/infra/jobs/{jobKey}/run", "exception-log-retention-cleanup"));
+                get("/admin/v1/infra/audit-events/export"));
 
         for (AbstractMockHttpServletRequestBuilder<?> endpoint : endpoints) {
             JsonNode body = call(endpoint);
@@ -422,9 +419,7 @@ class REQ20261117061017OpExceptionIntegrationTest {
         seedOpExceptionAt(910303, "platform-demo-a", "req061017-ret-3", "/demo/ret/3",
                 "java.lang.IllegalStateException", false, "now() - interval '20 days'", "seed-stack");
 
-        JsonNode triggered = call(post("/admin/v1/infra/jobs/{jobKey}/run",
-                "exception-log-retention-cleanup"));
-        assertThat(triggered.path("code").asText()).as("手动触发应受理成功").isEqualTo("0");
+        triggerJobAndWait("exception-log-retention-cleanup", 1);
 
         awaitTrue(ASYNC_SETTLE, () -> softDeletedOpExceptionCount() == 1L);
 
@@ -443,9 +438,7 @@ class REQ20261117061017OpExceptionIntegrationTest {
         seedAuditRow(910401, "req061017-audit-exp", true, "now() - interval '40 days'");
         seedAuditRow(910402, "req061017-audit-keep", true, "now() - interval '5 days'");
 
-        JsonNode triggered = call(post("/admin/v1/infra/jobs/{jobKey}/run",
-                "audit-retention-cleanup"));
-        assertThat(triggered.path("code").asText()).isEqualTo("0");
+        triggerJobAndWait("audit-retention-cleanup", 1);
 
         awaitTrue(ASYNC_SETTLE, () -> softDeletedAuditCount() == 1L);
 
@@ -488,37 +481,6 @@ class REQ20261117061017OpExceptionIntegrationTest {
         assertXlsxDownload(result, 3); // 2 数据行 + 1 表头行（AMB-5）
         assertThat(result.getResponse().getHeader("X-Export-Truncated"))
                 .isNotEqualTo("true");
-    }
-
-    // ---------- AC-8：jobs/{jobKey}/executions 分页倒序 + 手动触发 MANUAL 记录 ----------
-
-    @Test
-    void should_listManualExecutionsDescending_when_jobRunTwiceAndQueried() throws Exception {
-        triggerJobAndWait("file-retention-cleanup", 1);
-        triggerJobAndWait("file-retention-cleanup", 2);
-
-        JsonNode page = call(get("/admin/v1/infra/jobs/{jobKey}/executions", "file-retention-cleanup")
-                .param("page", "1").param("size", "50"));
-
-        assertThat(page.path("code").asText()).isEqualTo("0");
-        List<JsonNode> records = recordList(page);
-        assertThat(records).as("两次手动触发应产生两条执行记录").hasSize(2);
-        for (JsonNode record : records) {
-            assertThat(textOf(record, "jobKey", "job_key")).isEqualTo("file-retention-cleanup");
-            assertThat(textOf(record, "triggerType", "trigger_type"))
-                    .as("手动触发记录 trigger_type=TRIGGER_MANUAL（REQ-20261121-200724 确认⑦归一）")
-                    .isEqualTo("TRIGGER_MANUAL");
-            assertThat(textOf(record, "startedAt", "started_at")).isNotBlank();
-        }
-        // 倒序（started_at desc，AMB-8 文本序比较）
-        String first = textOf(records.getFirst(), "startedAt", "started_at");
-        String second = textOf(records.get(1), "startedAt", "started_at");
-        assertThat(first.compareTo(second)).as("执行记录应按 started_at 倒序").isGreaterThanOrEqualTo(0);
-
-        // 分页：size=1 → 单条
-        List<JsonNode> sized = recordList(call(get("/admin/v1/infra/jobs/{jobKey}/executions",
-                "file-retention-cleanup").param("page", "1").param("size", "1")));
-        assertThat(sized).hasSize(1);
     }
 
     // ---------- 支撑 ----------
@@ -614,17 +576,22 @@ class REQ20261117061017OpExceptionIntegrationTest {
                 id, eventId, deleted);
     }
 
-    /** 手动触发任务并轮询等待执行完成（异步 TaskTrigger，AMB-7）。 */
+    /** 直接触发任务（TaskTrigger 与调度同径互斥，REQ-20261121-200724 确认⑦；旧 HTTP 面已随接口清理下线）
+     *  并轮询等待执行完成（异步语义，AMB-7）；TASK_RUNNING 短窗重试（类内跨用例锁释放竞态容忍）。 */
     private void triggerJobAndWait(String jobKey, int expectedExecutions) throws Exception {
-        // 触发 + JOB_ALREADY_RUNNING 短窗重试（类内跨用例锁释放竞态容忍；PT0S 下窗口毫秒级闭合）
         long deadline = System.nanoTime() + ASYNC_SETTLE.toNanos();
-        JsonNode triggered = call(post("/admin/v1/infra/jobs/{jobKey}/run", jobKey));
-        while ("JOB_ALREADY_RUNNING".equals(triggered.path("code").asText(null))
-                && System.nanoTime() < deadline) {
-            Thread.sleep(200L);
-            triggered = call(post("/admin/v1/infra/jobs/{jobKey}/run", jobKey));
+        while (true) {
+            try {
+                taskTrigger.trigger(jobKey, JobExecution.TRIGGER_MANUAL);
+                break;
+            } catch (BizException ex) {
+                if (JobError.TASK_RUNNING == ex.errorCode() && System.nanoTime() < deadline) {
+                    Thread.sleep(200L);
+                } else {
+                    throw ex;
+                }
+            }
         }
-        assertThat(triggered.path("code").asText()).as("手动触发应受理成功").isEqualTo("0");
         awaitTrue(ASYNC_SETTLE, () -> {
             Long finished = jdbcTemplate.queryForObject(
                     "select count(*) from sys_job_execution "
@@ -632,6 +599,13 @@ class REQ20261117061017OpExceptionIntegrationTest {
                     Long.class, jobKey);
             return finished != null && finished >= expectedExecutions;
         });
+        String triggerType = jdbcTemplate.queryForObject(
+                "select trigger_type from sys_job_execution where job_key = ? "
+                        + "order by started_at desc limit 1",
+                String.class, jobKey);
+        assertThat(triggerType)
+                .as("手动触发记录 trigger_type=TRIGGER_MANUAL（REQ-20261121-200724 确认⑦归一）")
+                .isEqualTo("TRIGGER_MANUAL");
     }
 
     private void assertXlsxDownload(MvcResult result, int expectedTotalRows) throws IOException {

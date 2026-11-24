@@ -21,7 +21,7 @@ import java.lang.reflect.Method;
  * 任务收集（internal，FR-026 + REQ-20261121-200724 确认③）：上下文刷新后扫描 {@code @AcmeTask} /
  * {@code @JobHandler} 方法登记注册表——{@code @AcmeTask} 仅本地语义；{@code @JobHandler} 额外登记
  * {@link JobHandlerRegistry}（执行器清单 + 下发定位）并写 {@link TaskRegistry} 兼容视图
- * （JobUseCase.list 零破坏）；
+ * （本地 TaskTrigger 触发消费）；
  * 以 ApplicationListener 收集（不作 BeanPostProcessor，消除提前拉取装配 bean 的启动告警）；
  * 登记代理本体（触发经代理调用走完整切面链，10.2）。
  */
@@ -88,7 +88,7 @@ public class TaskRegistryCollector implements ApplicationListener<ContextRefresh
                             bean,
                             method,
                             targetClass.getSimpleName() + "#" + method.getName()));
-                    // 兼容视图（确认③）：JobUseCase.list / TaskTrigger 本地触发零破坏；
+                    // 兼容视图（确认③）：TaskTrigger 本地触发等本地消费面零破坏；
                     // 互斥口径与旧 @AcmeTask 相同（GLOBAL + 默认锁持有窗口），经 JobHandlerExecutionAspect 生效
                     target.register(new TaskDefinition(
                             handler.jobKey(),

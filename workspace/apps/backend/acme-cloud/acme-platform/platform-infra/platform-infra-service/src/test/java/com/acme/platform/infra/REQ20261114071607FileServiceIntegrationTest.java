@@ -138,7 +138,7 @@ class REQ20261114071607FileServiceIntegrationTest {
     @MockitoBean
     private AuthorizationGateway authorizationGateway;
 
-    /** ShedLock 行清理 + 内存注册表同步（同 JobScheduleIntegrationTest 口径：只删行不清缓存
+    /** ShedLock 行清理 + 内存注册表同步（同既有 job 域集成测试口径：只删行不清缓存
      *  会让下一次获取跳过 INSERT 直走 UPDATE，0 行 → 误判锁被持）。 */
     @Autowired
     private net.javacrumbs.shedlock.core.LockProvider lockProvider;
@@ -318,9 +318,7 @@ class REQ20261114071607FileServiceIntegrationTest {
                 multipart("/admin/v1/infra/files").file(new MockMultipartFile(
                         "file", "a.txt", "text/plain", "x".getBytes(StandardCharsets.UTF_8))),
                 get("/admin/v1/infra/files/{id}/content", "1"),
-                delete("/admin/v1/infra/files/{id}", "1"),
-                get("/admin/v1/infra/jobs"),
-                post("/admin/v1/infra/jobs/{jobKey}/run", "file-retention-cleanup"));
+                delete("/admin/v1/infra/files/{id}", "1"));
 
         for (AbstractMockHttpServletRequestBuilder<?> endpoint : endpoints) {
             JsonNode body = bodyOf(call(endpoint));

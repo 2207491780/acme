@@ -2,15 +2,13 @@ import { http, HttpResponse } from 'msw';
 import * as db from '../data';
 import { bodyOf, empty, excelBinary, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
-/** 基础设施域 handler：文件服务 / Excel demo 导入导出 / 审计事件查询导出 / 运行异常三段 / 定时任务与执行记录。
+/** 基础设施域 handler：文件服务 / Excel demo 导入导出 / 审计事件查询导出 / 运行异常三段。
  *  resolver 内联（msw 2.x Params 泛型按路径逐 handler 推断，不抽公共别名）。 */
 
 const store = {
   files: [...db.files],
   auditEvents: [...db.auditEvents],
   opExceptions: [...db.opExceptions],
-  jobs: [...db.jobs],
-  jobExecutions: [...db.jobExecutions],
 };
 
 let nextId = 5800;
@@ -196,42 +194,4 @@ export const infraHandlers = [
   }),
   // ————— 审计事件导出（REQ-20261117-061017）：xlsx 附件（豁免信封；上限/截断头在后端） —————
   http.get('/admin/v1/infra/audit-events/export', () => excelBinary('audit-events.xlsx')),
-  // ————— 定时任务（REQ-20261117-061017）：清单 / 手动执行（MANUAL 记录）/ 执行记录分页倒序 —————
-  http.get('/admin/v1/infra/jobs', () => ok(store.jobs)),
-  http.post('/admin/v1/infra/jobs/:jobKey/run', ({ params }) => {
-    const jobKey = String(params.jobKey);
-    const known = store.jobs.find((job) => job.key === jobKey);
-    if (!known) {
-      return fail('JOB_NOT_FOUND', '任务不存在', 404);
-    }
-    const startedAt = nowIso();
-    const executionId = genId();
-    store.jobExecutions = [
-      {
-        id: executionId,
-        jobKey,
-        status: 'SUCCESS',
-        startedAt,
-        finishedAt: startedAt,
-        error: null,
-        triggerType: 'MANUAL',
-        durationMs: 120,
-      },
-      ...store.jobExecutions,
-    ];
-    // mock 语义：手动执行成功即刷新任务最近摘要（契约对齐后端 JobView.lastExecution 嵌套形状）
-    store.jobs = store.jobs.map((job) => (job.key === jobKey ? {
-      ...job,
-      lastExecution: { status: 'SUCCESS', startedAt, finishedAt: startedAt, error: null },
-    } : job));
-    // 契约对齐后端：run 返回 Result<Long 执行记录 id（wire string）>
-    return ok(executionId);
-  }),
-  http.get('/admin/v1/infra/jobs/:jobKey/executions', ({ request, params }) => {
-    const jobKey = String(params.jobKey);
-    const rows = store.jobExecutions
-      .filter((row) => row.jobKey === jobKey)
-      .sort((a, b) => String(b.startedAt ?? '').localeCompare(String(a.startedAt ?? '')));
-    return page(slicePage(rows, pagingOf(request)), rows.length);
-  }),
 ];

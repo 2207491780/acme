@@ -6,7 +6,7 @@
  * 调度中心三 Tab 页后的旧断言适配：scheduler 面 rows/手动触发/执行历史 Tab）、
  * App NAV 权限显隐（调度中心=scheduler:job:list）+ PermissionGate 拒绝态、
  * OnlineUsersPage 按用户名批量下线（kicked/skipped 反馈）、AuditPage/LoginLogsPage 导出带参、
- * core api 层路径/载荷（导出 URL 组装 / 批量下线 / 执行记录）。
+ * core api 层路径/载荷（导出 URL 组装 / 批量下线）。
  *
  * REQ-20261122-023213 AC-12 适配（2026-11-22）：JobsPage 全切 /admin/v1/scheduler/** 面与
  * JobAdminView/ExecutionView 形状（JOB-3 契约确认②⑦）；渲染走整棵 App（「JobsPage 改造 或
@@ -17,11 +17,9 @@
  * 关闭态断言一律数据驱动（071607 裁决⑪）；下载链路 stub URL.createObjectURL（filesPage A-31 口径）。
  *
  * 【口径说明（契约/DTO 推导）】
- *   - DTO 形状 = 契约 §API（AdminOpExceptionView / JobExecutionView / BatchKickView；JobView=JobController
- *     list 组装 TaskDefinition+描述+cron+最近摘要，wire camelCase）；id wire string。
+ *   - DTO 形状 = 契约 §API（AdminOpExceptionView / BatchKickView）；id wire string。
  *   - 导出 = useExcelExport → downloadFile（apiFetchRaw 二进制），断言导出端点 GET + 筛选参数透传。
  *   - 批量下线 = DELETE /admin/v1/auth/online-users?username=（query 参数），反馈含 kicked/skipped 计数。
- *   - 执行记录 = GET /admin/v1/infra/jobs/{jobKey}/executions 分页倒序（排序在后端，断言分页参数与路径）。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -639,18 +637,6 @@ describe('REQ20261117061017 core api 路径与载荷', () => {
     expect(deletes[0]?.url.searchParams.get('username')).toBe('bob');
   });
 
-  it('should_call_jobs_executions_endpoint_with_paging_when_jobExecutions_called', async () => {
-    const fetchMock = vi.fn(async () => envelope({ records: [], total: 0 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await infraApi.jobExecutions('file-retention-cleanup', 2, 10);
-
-    const gets = callsOf(fetchMock, 'GET', '/admin/v1/infra/jobs/file-retention-cleanup/executions');
-    expect(gets).toHaveLength(1);
-    expect(gets[0]?.url.searchParams.get('page')).toBe('2');
-    expect(gets[0]?.url.searchParams.get('size')).toBe('10');
-  });
-
   it('should_call_op_exception_detail_endpoint_when_opExceptionGet_called', async () => {
     const fetchMock = vi.fn(async () => envelope(OP_EXCEPTION_ROWS[0]));
     vi.stubGlobal('fetch', fetchMock);
@@ -660,15 +646,5 @@ describe('REQ20261117061017 core api 路径与载荷', () => {
     expect(view.exceptionType).toBe('java.lang.IllegalStateException');
     const gets = callsOf(fetchMock, 'GET', '/admin/v1/infra/op-exceptions/6201');
     expect(gets).toHaveLength(1);
-  });
-
-  it('should_post_job_run_endpoint_when_jobRun_called', async () => {
-    const fetchMock = vi.fn(async () => envelope({ jobKey: 'file-retention-cleanup' }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await infraApi.jobRun('file-retention-cleanup');
-
-    const posts = callsOf(fetchMock, 'POST', '/admin/v1/infra/jobs/file-retention-cleanup/run');
-    expect(posts).toHaveLength(1);
   });
 });

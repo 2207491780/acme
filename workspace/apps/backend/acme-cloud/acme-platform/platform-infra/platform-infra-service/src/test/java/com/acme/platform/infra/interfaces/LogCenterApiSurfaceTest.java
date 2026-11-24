@@ -37,17 +37,6 @@ class LogCenterApiSurfaceTest {
         assertThat(permissionOf(export)).isEqualTo(SystemPermissions.INFRA_EXCEPTION_LIST);
     }
 
-    // ---------- Job 执行记录端点（GET /admin/v1/infra/jobs/{jobKey}/executions） ----------
-
-    @Test
-    void jobExecutionsShouldLockPathAndListPermission_when_endpointDeclared() throws Exception {
-        Method executions = JobController.class.getMethod("executions", String.class, Integer.class,
-                Integer.class);
-        assertThat(executions.getAnnotation(GetMapping.class)).as("executions 应为 @GetMapping").isNotNull();
-        assertThat(getValue(executions)).containsExactly("/{jobKey}/executions");
-        assertThat(permissionOf(executions)).isEqualTo(SystemPermissions.INFRA_JOB_LIST);
-    }
-
     // ---------- 审计导出端点（GET /admin/v1/infra/audit-events/export） ----------
 
     @Test

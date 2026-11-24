@@ -22,8 +22,6 @@ import type {
   ExecutorView,
   FileView,
   JobAdminView,
-  JobExecutionView,
-  JobView,
   LeaveRequestView,
   ProcessDefinitionView,
   ProcessInstanceView,
@@ -477,41 +475,6 @@ export const opExceptions: AdminOpExceptionView[] = [
     message: '数据访问还原失败',
     stackSummary: 'org.springframework.dao.DataAccessException: 数据访问还原失败\n\tat com.acme.system.UserQueryUseCase.list(UserQueryUseCase.java:88)',
     occurredAt: '2026-11-17T05:00:00Z',
-  },
-];
-
-/** 定时任务 fixtures（REQ-20261117-061017：契约对齐后端 JobView record——key/enabled/嵌套 lastExecution）。 */
-export const jobs: JobView[] = [
-  {
-    key: 'file-retention-cleanup', description: '过期文件保留期清理', cron: '0 0 3 * * ?', enabled: true,
-    lastExecution: { status: 'SUCCESS', startedAt: '2026-11-17T03:00:00Z', finishedAt: '2026-11-17T03:00:02Z', error: null },
-  },
-  {
-    key: 'exception-log-retention-cleanup', description: '异常日志保留期清理', cron: '0 40 3 * * ?', enabled: true,
-    lastExecution: { status: 'FAILED', startedAt: '2026-11-17T03:40:00Z', finishedAt: '2026-11-17T03:40:01Z', error: '模拟执行失败（fixture）' },
-  },
-  {
-    key: 'audit-retention-cleanup', description: '审计日志保留期清理', cron: '0 40 4 * * ?', enabled: true,
-    lastExecution: null,
-  },
-];
-
-/** 任务执行记录 fixtures（REQ-20261117-061017：执行记录抽屉 dev mock；started_at 倒序由 handler 排序）。 */
-export const jobExecutions: JobExecutionView[] = [
-  {
-    id: '6301', jobKey: 'file-retention-cleanup', status: 'SUCCESS',
-    startedAt: '2026-11-17T03:00:00Z', finishedAt: '2026-11-17T03:00:02Z',
-    error: null, triggerType: 'SCHEDULE', durationMs: 2000,
-  },
-  {
-    id: '6302', jobKey: 'file-retention-cleanup', status: 'FAILED',
-    startedAt: '2026-11-16T03:00:00Z', finishedAt: '2026-11-16T03:00:01Z',
-    error: '模拟执行失败（fixture）', triggerType: 'SCHEDULE', durationMs: 800,
-  },
-  {
-    id: '6303', jobKey: 'exception-log-retention-cleanup', status: 'FAILED',
-    startedAt: '2026-11-17T03:40:00Z', finishedAt: '2026-11-17T03:40:01Z',
-    error: '模拟执行失败（fixture）', triggerType: 'SCHEDULE', durationMs: 900,
   },
 ];
 

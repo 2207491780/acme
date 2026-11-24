@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 
 /**
  * 调度任务声明（REQ-20261121-200724 确认③）：标记「可被调度中心调度的任务」——启动收集进
- * {@link TaskRegistry} 兼容视图（JobUseCase.list 零破坏）与 {@link JobHandlerRegistry} 执行器清单，
+ * {@link TaskRegistry} 兼容视图（本地 TaskTrigger 触发消费）与 {@link JobHandlerRegistry} 执行器清单，
  * 并接收调度中心下发指令（framework-job 执行器 SDK 自动装配）。
  *
  * <p>与 {@link AcmeTask} 的关系：两注解共存过渡（删除归后续清理 REQ）。同一方法不得同时标注

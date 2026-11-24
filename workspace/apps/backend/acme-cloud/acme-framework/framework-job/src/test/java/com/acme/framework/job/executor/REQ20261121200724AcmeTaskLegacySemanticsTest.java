@@ -32,8 +32,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 本地 TaskTrigger 触发照常执行、重复注册显式失败（既有语义，JOB-2 迁移不得改变）。
  *
  * <p>「不进 handlers 不接单」腿见 {@link REQ20261121200724ExecutorSdkIntegrationTest}
- * （注册请求 handlers 排除断言）；infra 服务面 sys_job_execution 双写腿见
- * platform-infra-service REQ20261121200724JobMigrationZeroBreakTest。
+ * （注册请求 handlers 排除断言）；infra 服务面 sys_job_execution 双写语义由 retention 集成测试
+ * （TaskTrigger 触发路径）持续覆盖。
  * 装配照抄本模块 JobSwitchTest 先例（ApplicationContextRunner + DataSource 桩件 + KeyComposer）。</p>
  */
 class REQ20261121200724AcmeTaskLegacySemanticsTest {
