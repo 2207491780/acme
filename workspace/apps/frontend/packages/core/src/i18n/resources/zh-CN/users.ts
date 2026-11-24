@@ -24,6 +24,7 @@ export const users = {
   actions: {
     edit: '编辑',
     assignRoles: '分配角色',
+    resetPassword: '重置密码',
     delete: '删除',
     deleteConfirm: '确认删除用户 {{name}}？',
     builtIn: '内置',
@@ -60,6 +61,15 @@ export const users = {
     submitNote: '提交即全量覆盖该用户的角色绑定；权限码随下次令牌签发生效。',
     success: '用户 {{name}} 角色已更新',
     failed: '角色绑定失败，请稍后重试',
+  },
+  resetPassword: {
+    title: '重置密码：{{name}}',
+    newPassword: '新密码',
+    passwordRequired: '请输入新密码',
+    passwordLength: '密码长度须在 1~64 位之间',
+    submitNote: '重置成功后该用户全部活跃会话将被撤销（强制下线），新密码随下次登录生效。',
+    success: '密码已重置，该用户将被强制下线',
+    policyViolated: '密码不符合策略（1~64 位非空），请调整后重试',
   },
   deleted: '用户 {{name}} 已删除',
 };

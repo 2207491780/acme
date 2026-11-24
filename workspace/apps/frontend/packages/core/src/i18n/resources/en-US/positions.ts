@@ -31,8 +31,13 @@ export const positions = {
     created: 'Position created',
     updated: 'Position updated',
   },
+  status: {
+    enabledDone: 'Position enabled',
+    disabledDone: 'Position disabled',
+  },
   errors: {
     loadFailed: 'Failed to load positions',
+    statusFailed: 'Failed to update the position status, please try again later',
     deleteFailed: 'Failed to delete the position, please try again later',
     positionInUse: 'The position is referenced by users and cannot be deleted',
   },

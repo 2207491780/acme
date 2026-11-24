@@ -13,12 +13,24 @@ export const files = {
     actions: 'Actions',
   },
   actions: {
+    detail: 'Detail',
     download: 'Download',
     delete: 'Delete',
     deleteConfirm: 'Confirm deletion of file {{name}}?',
     upload: 'Upload file',
     exportExcel: 'Export Excel sample',
     importExcel: 'Import Excel sample',
+  },
+  detail: {
+    title: 'File detail',
+    id: 'File ID',
+    originalName: 'File name',
+    size: 'Size',
+    contentType: 'Content-Type',
+    url: 'Access URL',
+    bizType: 'Business domain',
+    bizId: 'Business ID',
+    createdAt: 'Uploaded at',
   },
   toast: {
     downloaded: 'Excel sample exported',
@@ -44,6 +56,8 @@ export const files = {
   },
   errors: {
     loadFailed: 'Failed to load files',
+    detailFailed: 'Failed to load file detail',
+    fileNotFound: 'File not found or already deleted',
     quotaExceeded: 'Tenant storage quota exceeded; free up space or ask the administrator to raise the quota',
     imageInvalid: 'Invalid image or image size exceeds the limit; please use a compliant image',
     ticketInvalid: 'Direct upload ticket has expired; please upload again',

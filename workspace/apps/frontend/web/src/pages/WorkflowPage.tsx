@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { App, Button, Card, Drawer, Form, Input, Popconfirm, Select, Space, Tabs, Tag, Typography } from 'antd';
+import { App, Button, Card, Descriptions, Drawer, Form, Input, Popconfirm, Select, Space, Spin, Tabs, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +47,25 @@ function DefinitionsTab(): ReactElement {
   const [createOpen, setCreateOpen] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [form] = Form.useForm<{ key: string; name: string }>();
+
+  // 定义详情抽屉（REQ-20261124-213008 范式 E：workflowApi.get 详情、独立 Descriptions 数据面，
+  // 不复用 XML 查看抽屉的数据面）
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<ProcessDefinitionView | null>(null);
+
+  const openDetail = async (record: ProcessDefinitionView) => {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      setDetail(await workflowApi.get(record.id));
+    } catch (ex: unknown) {
+      message.error(systemErrorMessage(ex, t('workflow.list.errors.detailFailed')));
+      setDetailOpen(false);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
   const openCreate = () => {
     form.resetFields();
@@ -113,6 +132,9 @@ function DefinitionsTab(): ReactElement {
       title: t('workflow.list.columns.actions'), key: 'actions', minWidth: 210, fixed: 'right',
       render: (_, record) => (
         <Space size={4}>
+          <Button size="small" onClick={() => void openDetail(record)}>
+            {t('workflow.list.actions.detail')}
+          </Button>
           <Button size="small" onClick={() => navigate(`/workflow/designer/${record.id}`)}>
             {t('workflow.list.actions.design')}
           </Button>
@@ -188,6 +210,28 @@ function DefinitionsTab(): ReactElement {
             <Button onClick={() => setCreateOpen(false)}>{t('workflow.list.create.cancel')}</Button>
           </Space>
         </Form>
+      </Drawer>
+      <Drawer
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        title={t('workflow.list.detail.title')}
+        width={480}
+        destroyOnHidden
+      >
+        {detailLoading ? (
+          <div style={{ padding: 32, textAlign: 'center' }}><Spin /></div>
+        ) : detail ? (
+          <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label={t('workflow.list.detail.key')}><Text code>{detail.key}</Text></Descriptions.Item>
+            <Descriptions.Item label={t('workflow.list.detail.name')}>{detail.name}</Descriptions.Item>
+            <Descriptions.Item label={t('workflow.list.detail.version')}><Tag>v{detail.version}</Tag></Descriptions.Item>
+            <Descriptions.Item label={t('workflow.list.detail.status')}>
+              <Tag color={TONE_ANTD[statusToneOf(detail.status)]} style={{ color: statusColor(detail.status) }}>{t(`workflow.list.status.${detail.status}`)}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label={t('workflow.list.detail.createdAt')}>{formatDate(detail.createdAt)}</Descriptions.Item>
+            <Descriptions.Item label={t('workflow.list.detail.deployedAt')}>{detail.deployedAt ? formatDate(detail.deployedAt) : '—'}</Descriptions.Item>
+          </Descriptions>
+        ) : null}
       </Drawer>
     </>
   );

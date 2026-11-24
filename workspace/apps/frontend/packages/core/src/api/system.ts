@@ -512,6 +512,12 @@ export interface AdminRoleView {
   version: string;
 }
 
+/** 角色树节点（REQ-20261124-213008 契约④：GET /system/roles/tree 全量树形下发——
+ *  行字段同 AdminRoleView，children 递归嵌套；根节点 parentId 归一 null）。 */
+export interface AdminRoleTreeNode extends AdminRoleView {
+  children: AdminRoleTreeNode[];
+}
+
 /** 权限点视图（契约对齐 AdminPermissionView；平台级目录全租户统一）。 */
 export interface AdminPermissionView {
   id: string;
@@ -695,11 +701,21 @@ export const systemApi = {
   /** 绑定角色（全量覆盖语义）。 */
   userBindRoles: (userId: string, roleIds: string[]): Promise<void> =>
     apiJson<void>(`/admin/v1/system/users/${userId}/roles`, 'PUT', { roleIds: roleIds.map(Number) }),
+  /** 管理端重置用户密码（REQ-20261124-213008 契约①；权限点 auth:credential:manage）：
+   *  PUT /auth/credentials/users/{userId}/password（body {password}，1~64 非空），
+   *  upsert 凭据并撤销该用户全部活跃会话；策略违反 → PASSWORD_POLICY_VIOLATED。Result<Void>。 */
+  userPasswordReset: (userId: string, password: string): Promise<void> =>
+    apiJson<void>(`/admin/v1/auth/credentials/users/${userId}/password`, 'PUT', { password }),
 
   // ---- 角色管理（ROLE_* / ROLE_GRANT 权限码，P3） ----
   /** 角色分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */
   roleList: (page = 1, size = 100, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminRoleView>> =>
     apiFetch<PageResult<AdminRoleView>>(`/admin/v1/system/roles?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
+  /** 角色层级树（REQ-20261124-213008 契约④）：GET /system/roles/tree 全量树形下发，
+   *  节点=AdminRoleView 行字段 + children 递归（根 parentId=null）；权限点 system:role:list（与列表同点）。
+   *  signal 为可选取消信号，透传 apiFetch。 */
+  roleTree: (signal?: AbortSignal): Promise<AdminRoleTreeNode[]> =>
+    apiFetch<AdminRoleTreeNode[]>('/admin/v1/system/roles/tree', { signal }),
   /** 新建角色（roleCode 模式与租户代码同型；parentId 空为顶级）。 */
   roleCreate: (payload: { parentId?: number | null; roleCode: string; roleName: string; remark?: string }): Promise<AdminRoleView> =>
     apiJson<AdminRoleView>('/admin/v1/system/roles', 'POST', { ...payload, parentId: payload.parentId ?? null }),
@@ -800,6 +816,9 @@ export const systemApi = {
   /** 岗位改名/编码/状态（version 乐观锁）。 */
   positionUpdate: (positionId: string, payload: { positionCode: string; positionName: string; status?: 'ENABLED' | 'DISABLED'; version: string }): Promise<AdminPositionView> =>
     apiJson<AdminPositionView>(`/admin/v1/system/positions/${positionId}`, 'PUT', payload),
+  /** 启用/停用岗位（REQ-20261124-213008 契约③；权限点 system:position:update；body {status}，Result<Void>）。 */
+  positionStatus: (positionId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>
+    apiJson<void>(`/admin/v1/system/positions/${positionId}/status`, 'PUT', { status }),
   /** 删除岗位（被用户引用由后端拒绝：POSITION_IN_USE）。 */
   positionDelete: (positionId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/positions/${positionId}`, { method: 'DELETE' }),

@@ -2,18 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { App, Button, Checkbox, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import {
-  ApiError,
-  Auth,
-  formatDate,
-  systemApi,
-  useCrud,
-  useDeptTree,
-  useMeStore,
-  type AdminPositionView,
-  type AdminRoleView,
-  type AdminUserView,
-} from '@acme/core';
+import { ApiError, Auth, formatDate, systemApi, useCrud, useDeptTree, useMeStore, type AdminPositionView, type AdminRoleView, type AdminUserView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 import { FilterField } from '../components/FilterPanel';
@@ -48,6 +37,10 @@ interface RoleBindValues {
   roleIds: string[];
 }
 
+interface ResetPasswordValues {
+  password: string;
+}
+
 /** 用户管理（p2-admin）：分页/搜索/新建/编辑/启停/删除/角色绑定。
  *  通用 CRUD 范本：headless 状态机走 @acme/core useCrud，展示层为 CrudTable + CrudFormModal。
  *  角色选择器来自角色目录（/system/roles 首页大页）；内置账号（builtIn）禁止删除。
@@ -74,10 +67,12 @@ export function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminUserView | null>(null);
   const [binding, setBinding] = useState<AdminUserView | null>(null);
+  const [resettingPwd, setResettingPwd] = useState<AdminUserView | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [createForm] = Form.useForm<UserCreateValues>();
   const [editForm] = Form.useForm<UserEditValues>();
   const [bindForm] = Form.useForm<RoleBindValues>();
+  const [pwdForm] = Form.useForm<ResetPasswordValues>();
 
   // 部门/岗位选择器数据源（REQ-20261114-120104）：部门树经 useDeptTree 模块缓存共享；
   // 岗位目录一次大页拉取（读路径降级为空选项，无独立权限门禁）。
@@ -127,6 +122,34 @@ export function UsersPage() {
   const openBind = (record: AdminUserView) => {
     setBinding(record);
     bindForm.setFieldsValue({ roleIds: [...record.roleIds] });
+  };
+
+  /** 打开重置密码弹窗（REQ-20261124-213008 范式 A；权限显隐见行内 Auth）：打开前清空输入。 */
+  const openResetPassword = (record: AdminUserView) => {
+    setResettingPwd(record);
+    pwdForm.resetFields();
+  };
+
+  /** 提交重置密码：成功提示并关闭弹窗；策略违反（PASSWORD_POLICY_VIOLATED）转译可读提示，
+   *  弹窗保持打开、输入保留（不 resetFields）；其余错误沿用统一转译。 */
+  const submitResetPassword = async () => {
+    if (!resettingPwd) return;
+    const values = await pwdForm.validateFields();
+    setSubmitting(true);
+    try {
+      await systemApi.userPasswordReset(resettingPwd.id, values.password);
+      message.success(t('users.resetPassword.success'));
+      setResettingPwd(null);
+      pwdForm.resetFields();
+    } catch (ex: unknown) {
+      if (ex instanceof ApiError && ex.code === 'PASSWORD_POLICY_VIOLATED') {
+        message.error(t('users.resetPassword.policyViolated'));
+      } else {
+        message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const submitCreate = async () => {
@@ -240,6 +263,9 @@ export function UsersPage() {
           </Auth>
           <Auth code="system:user:assign-role">
             <Button size="small" onClick={() => openBind(record)}>{t('users.actions.assignRoles')}</Button>
+          </Auth>
+          <Auth code="auth:credential:manage">
+            <Button size="small" onClick={() => openResetPassword(record)}>{t('users.actions.resetPassword')}</Button>
           </Auth>
           <Auth code="system:user:update">
             <Popconfirm title={t('users.status.toggleConfirm', { action: record.status === 'ENABLED' ? t('users.status.disabled') : t('users.status.enabled'), name: record.username })} onConfirm={() => void toggleStatus(record)}>
@@ -428,6 +454,27 @@ export function UsersPage() {
           </Checkbox.Group>
         </Form.Item>
         <Text type="secondary" style={{ fontSize: 12 }}>{t('users.bind.submitNote')}</Text>
+      </CrudFormModal>
+
+      <CrudFormModal<ResetPasswordValues>
+        open={resettingPwd !== null}
+        title={t('users.resetPassword.title', { name: resettingPwd?.username ?? '' })}
+        form={pwdForm}
+        submitting={submitting}
+        onOk={() => void submitResetPassword()}
+        onCancel={() => { setResettingPwd(null); pwdForm.resetFields(); }}
+      >
+        <Form.Item
+          name="password"
+          label={t('users.resetPassword.newPassword')}
+          rules={[
+            { required: true, message: t('users.resetPassword.passwordRequired') },
+            { min: 1, max: 64, message: t('users.resetPassword.passwordLength') },
+          ]}
+        >
+          <Input.Password placeholder={t('users.resetPassword.newPassword')} autoComplete="new-password" />
+        </Form.Item>
+        <Text type="secondary" style={{ fontSize: 12 }}>{t('users.resetPassword.submitNote')}</Text>
       </CrudFormModal>
     </>
   );

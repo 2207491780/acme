@@ -13,7 +13,7 @@ import {
   isThemeModeValue,
   isTopbarWidgets,
 } from '@acme/core';
-import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleView, AdminSystemConfigView, AdminTenantInitTemplateView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, RoleDataScope, TenantQuotaSource, TenantUsageOverviewRow, TenantUsageView } from '@acme/core';
+import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleTreeNode, AdminRoleView, AdminSystemConfigView, AdminTenantInitTemplateView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, RoleDataScope, TenantQuotaSource, TenantUsageOverviewRow, TenantUsageView } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
@@ -1468,11 +1468,35 @@ export const systemHandlers = [
     store.positions = store.positions.filter((p) => p.id !== id);
     return empty();
   }),
+  // 岗位启停（REQ-20261124-213008 契约③；权限点 system:position:update；body {status}，Result<Void>）
+  http.put('/admin/v1/system/positions/:positionId/status', async ({ request, params }) => {
+    const body = await bodyOf(request);
+    const id = String(params.positionId);
+    const target = store.positions.find((p) => p.id === id);
+    if (!target) {
+      return fail('POSITION_NOT_FOUND', '岗位不存在或已被删除', 404);
+    }
+    if (body.status !== 'ENABLED' && body.status !== 'DISABLED') {
+      return fail('PARAM_INVALID', 'status 必须为 ENABLED/DISABLED', 400);
+    }
+    const status = body.status;
+    store.positions = store.positions.map((p) => (p.id === id ? { ...p, status } : p));
+    return empty();
+  }),
 
   // ---- 角色 ----
   http.get('/admin/v1/system/roles', ({ request }) => {
     const rows = matchKeyword(store.roles, keywordOf(request), (role: AdminRoleView) => [role.roleCode, role.roleName]);
     return page(slicePage(rows, pagingOf(request)), rows.length);
+  }),
+  // 角色层级树（REQ-20261124-213008 契约④；权限点 system:role:list）：由内存 roles 装配，
+  // 根 parentId=null、children 递归；新建/改父角色随 store 同步反映
+  http.get('/admin/v1/system/roles/tree', () => {
+    const toNode = (row: AdminRoleView): AdminRoleTreeNode => ({
+      ...row,
+      children: store.roles.filter((child) => child.parentId === row.id).map(toNode),
+    });
+    return ok(store.roles.filter((role) => role.parentId === null).map(toNode));
   }),
   http.post('/admin/v1/system/roles', async ({ request }) => {
     const body = await bodyOf(request);
