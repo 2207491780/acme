@@ -24,6 +24,7 @@ import type {
   JobAdminView,
   JobExecutionView,
   JobView,
+  LeaveRequestView,
   ProcessDefinitionView,
   ProcessInstanceView,
   TaskView,
@@ -403,6 +404,20 @@ export const messages: AdminMessageView[] = [
   {
     id: '7001', senderId: '0', title: '欢迎加入 ACME', content: '<p>欢迎使用站内信。</p>', isRead: false,
     readAt: null, createdAt: '2026-01-05T08:30:00Z', version: '0',
+  },
+];
+
+/** 请假单样例（REQ-20261124-213008 契约⑥⑦）：含 instanceId 非空/可空两形态与终态（DONE）演示行。 */
+export const leaveRequests: LeaveRequestView[] = [
+  {
+    id: '8001', userName: 'admin', leaveType: 'ANNUAL', reason: '年假出行',
+    startTime: '2026-11-30T01:00:00Z', endTime: '2026-12-02T10:00:00Z',
+    status: 'APPROVING', instanceId: '9305', businessKey: 'LEAVE-seed-0001',
+  },
+  {
+    id: '8002', userName: 'admin', leaveType: 'SICK', reason: '感冒就医',
+    startTime: '2026-11-20T01:00:00Z', endTime: '2026-11-21T10:00:00Z',
+    status: 'DONE', instanceId: null, businessKey: 'LEAVE-seed-0002',
   },
 ];
 

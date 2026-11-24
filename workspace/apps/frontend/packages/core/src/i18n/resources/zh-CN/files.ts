@@ -1,4 +1,4 @@
-/** zh-CN 文件管理域资源包（文件列表 / 上传 / Excel 导入导出）。 */
+/** zh-CN 文件管理域资源包（文件列表 / 上传 / Excel 导入导出；REQ-20261124-213008 增详情抽屉）。 */
 export const files = {
   title: '文件管理',
   search: { placeholder: '搜索文件名' },
@@ -13,12 +13,24 @@ export const files = {
     actions: '操作',
   },
   actions: {
+    detail: '详情',
     download: '下载',
     delete: '删除',
     deleteConfirm: '确认删除文件 {{name}}？',
     upload: '上传文件',
     exportExcel: '导出 Excel 示例',
     importExcel: '导入 Excel 示例',
+  },
+  detail: {
+    title: '文件详情',
+    id: '文件 ID',
+    originalName: '文件名',
+    size: '体积',
+    contentType: 'Content-Type',
+    url: '访问地址',
+    bizType: '业务域',
+    bizId: '业务 ID',
+    createdAt: '上传时间',
   },
   toast: {
     downloaded: 'Excel 示例已导出',
@@ -44,6 +56,8 @@ export const files = {
   },
   errors: {
     loadFailed: '文件清单加载失败',
+    detailFailed: '文件详情加载失败',
+    fileNotFound: '文件不存在或已被删除',
     quotaExceeded: '租户存储配额已超限，请清理文件或联系管理员调整配额',
     imageInvalid: '图片无效或尺寸超出限制，请更换合规图片',
     ticketInvalid: '直传票据已失效，请重新上传',

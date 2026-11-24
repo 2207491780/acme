@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { App, Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tag, Tree, Typography } from 'antd';
+import { Alert, App, Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Table, Tag, Tree, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import {
   ApiError,
@@ -14,6 +15,7 @@ import {
   useMeStore,
   type AdminMenuView,
   type AdminPermissionView,
+  type AdminRoleTreeNode,
   type AdminRoleView,
   type RoleDataScope,
 } from '@acme/core';
@@ -51,7 +53,10 @@ const DATA_SCOPE_LABEL_KEYS: Record<RoleDataScope, string> = {
  *  REQ-20261114-120104 扩展：行内「数据范围」弹窗（system:role:scope）——五档 Select +
  *  CUSTOM 部门多选（useDeptTree），提交 PUT data-scope（dataScope+deptIds）。
  *  迁移 CRUD 范本（REQ-20261114-120101）：列表/表单走 useCrud + CrudTable/CrudFormModal；
- *  授权/数据范围弹窗为绑定语义（非 CRUD 表单），保持原 Modal 形态。 */
+ *  授权/数据范围弹窗为绑定语义（非 CRUD 表单），保持原 Modal 形态。
+ *  REQ-20261124-213008 范式 D：工具栏 antd Segmented「平铺/树形」视图切换，默认平铺（现状不回归）；
+ *  树形调 systemApi.roleTree（GET /system/roles/tree）按 children 递归渲染层级
+ *  （树形数据处理先例 TenantsPage 的 AdminTenantTreeNode 用法），节点展示既有列关键字段。 */
 export function RolesPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
@@ -74,6 +79,28 @@ export function RolesPage() {
   const [catalog, setCatalog] = useState<AdminPermissionView[]>([]);
   const [grantedIds, setGrantedIds] = useState<string[]>([]);
   const [grantLoading, setGrantLoading] = useState(false);
+
+  // 平铺/树形视图切换（REQ-20261124-213008 范式 D）：默认平铺；树形首次切入时拉取
+  const [view, setView] = useState<'flat' | 'tree'>('flat');
+  const [treeData, setTreeData] = useState<AdminRoleTreeNode[] | null>(null);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [treeError, setTreeError] = useState<string | null>(null);
+
+  const loadTree = useCallback(() => {
+    setTreeLoading(true);
+    setTreeError(null);
+    systemApi.roleTree()
+      .then((tree) => setTreeData(Array.isArray(tree) ? tree : []))
+      .catch(() => setTreeError(t('roles.errors.treeFailed')))
+      .finally(() => setTreeLoading(false));
+  }, [t]);
+
+  const changeView = (next: 'flat' | 'tree') => {
+    setView(next);
+    if (next === 'tree' && treeData === null) {
+      loadTree();
+    }
+  };
 
   // 数据范围弹窗（REQ-20261114-120104）：scope 五档 + CUSTOM 部门多选（选项源 useDeptTree 模块缓存）
   const deptTree = useDeptTree();
@@ -223,7 +250,7 @@ export function RolesPage() {
     }
   };
 
-  const columns: ColumnsType<AdminRoleView> = [
+  const viewColumns: ColumnsType<AdminRoleView> = [
     { title: t('roles.columns.roleCode'), dataIndex: 'roleCode', key: 'roleCode', minWidth: 180, fixed: 'left' },
     { title: t('roles.columns.roleName'), dataIndex: 'roleName', key: 'roleName', minWidth: 140 },
     {
@@ -233,6 +260,10 @@ export function RolesPage() {
       ),
     },
     { title: t('roles.columns.remark'), dataIndex: 'remark', key: 'remark', minWidth: 200, ellipsis: true, render: (v: string | null) => v ?? '—' },
+  ];
+
+  const columns: ColumnsType<AdminRoleView> = [
+    ...viewColumns,
     {
       title: t('roles.columns.actions'), key: 'actions', minWidth: 380, fixed: 'right',
       render: (_, record) => (
@@ -267,20 +298,74 @@ export function RolesPage() {
     },
   ];
 
+  const viewSegmented = (
+    <Segmented<'flat' | 'tree'>
+      value={view}
+      onChange={(value) => changeView(value)}
+      options={[
+        { value: 'flat', label: t('roles.view.flat') },
+        { value: 'tree', label: t('roles.view.tree') },
+      ]}
+    />
+  );
+
+  /** 树节点总数（全量计数，含子节点；仅用于总数文案）。 */
+  const countNodes = (nodes: AdminRoleTreeNode[]): number =>
+    nodes.reduce((acc, node) => acc + 1 + countNodes(node.children ?? []), 0);
+
   return (
     <>
-      <CrudTable<AdminRoleView>
-        crud={crud}
-        tableKey="roles"
-        title={t('roles.title')}
-        columns={columns}
-        searchPlaceholder={t('roles.search.placeholder')}
-        reloadAriaLabel={t('roles.reload')}
-        createPermission="system:role:create"
-        createLabel={t('roles.create')}
-        onCreate={openCreate}
-        totalText={(total) => t('roles.total', { total })}
-      />
+      {view === 'tree' ? (
+        <Card
+          title={t('roles.title')}
+          extra={
+            <Space wrap>
+              {viewSegmented}
+              <Button icon={<ReloadOutlined />} onClick={loadTree} loading={treeLoading} aria-label={t('roles.tree.reload')} />
+            </Space>
+          }
+        >
+          {treeError ? (
+            <Alert
+              type="error"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message={treeError}
+              action={<Button size="small" onClick={loadTree}>{t('common.actions.retry')}</Button>}
+            />
+          ) : null}
+          {/* 数据到位后才挂 Table：defaultExpandAllRows 生效（首挂即全展开） */}
+          {treeData !== null ? (
+            <Table<AdminRoleView>
+              rowKey="id"
+              columns={viewColumns}
+              dataSource={treeData}
+              loading={treeLoading}
+              size="small"
+              scroll={{ x: 'max-content' }}
+              pagination={false}
+              expandable={{ defaultExpandAllRows: true }}
+              footer={() => t('common.table.total', { total: countNodes(treeData) })}
+            />
+          ) : (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)' }}>{t('roles.tree.empty')}</div>
+          )}
+        </Card>
+      ) : (
+        <CrudTable<AdminRoleView>
+          crud={crud}
+          tableKey="roles"
+          title={t('roles.title')}
+          columns={columns}
+          searchPlaceholder={t('roles.search.placeholder')}
+          reloadAriaLabel={t('roles.reload')}
+          createPermission="system:role:create"
+          createLabel={t('roles.create')}
+          onCreate={openCreate}
+          totalText={(total) => t('roles.total', { total })}
+          actions={viewSegmented}
+        />
+      )}
 
       <CrudFormModal<RoleFormValues>
         open={creating || editing !== null}

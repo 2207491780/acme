@@ -216,6 +216,10 @@ export const infraApi = {
   /** 删除文件（软删 + 对象移除；幂等：已删/对象不存在均成功；权限点 infra:file:delete）。 */
   fileDelete: (fileId: string): Promise<void> =>
     apiFetch<void>(`${FILE_ENDPOINTS.base}/${fileId}`, { method: 'DELETE' }),
+  /** 文件详情（REQ-20261124-213008 契约②；权限点 infra:file:list 与列表同点；不存在 → FILE_NOT_FOUND）。
+   *  signal 为可选取消信号，透传 apiFetch。 */
+  fileGet: (fileId: string, signal?: AbortSignal): Promise<FileView> =>
+    apiFetch<FileView>(`${FILE_ENDPOINTS.base}/${encodeURIComponent(fileId)}`, { signal }),
   /** 运行异常分页（REQ-20261117-061017；权限点 infra:exception:list；
    *  service/exceptionType 精确、traceId 模糊、from/to 时间区间；signal 为可选取消信号）。 */
   opExceptionList: (

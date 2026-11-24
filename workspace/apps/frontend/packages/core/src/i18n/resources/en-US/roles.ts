@@ -72,6 +72,17 @@ export const roles = {
   },
   errors: {
     loadFailed: 'Failed to load roles',
+    treeFailed: 'Failed to load the role hierarchy tree',
+  },
+  view: {
+    flat: 'Flat',
+    tree: 'Tree',
+    flatLabel: 'Flat view (paged)',
+    treeLabel: 'Tree view (hierarchy)',
+  },
+  tree: {
+    reload: 'Refresh role hierarchy tree',
+    empty: 'No role hierarchy data',
   },
   deleted: 'Role {{code}} deleted',
 };

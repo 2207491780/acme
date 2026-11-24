@@ -72,6 +72,17 @@ export const roles = {
   },
   errors: {
     loadFailed: '角色清单加载失败',
+    treeFailed: '角色层级树加载失败',
+  },
+  view: {
+    flat: '平铺',
+    tree: '树形',
+    flatLabel: '平铺视图（分页）',
+    treeLabel: '树形视图（层级）',
+  },
+  tree: {
+    reload: '刷新角色层级树',
+    empty: '暂无角色层级数据',
   },
   deleted: '角色 {{code}} 已删除',
 };

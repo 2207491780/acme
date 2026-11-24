@@ -153,6 +153,15 @@ export const infraHandlers = [
       },
     });
   }),
+  // 文件详情（REQ-20261124-213008 契约②；权限点 infra:file:list；不存在 → FILE_NOT_FOUND）：
+  // 与 :fileId/content 全路径匹配互不冲突（:fileId 单段，不含后续段）
+  http.get('/admin/v1/infra/files/:fileId', ({ params }) => {
+    const target = store.files.find((f) => f.id === String(params.fileId));
+    if (!target) {
+      return fail('FILE_NOT_FOUND', '文件不存在或已被删除', 404);
+    }
+    return ok(target);
+  }),
   http.get('/admin/v1/infra/excel/demo-template', () => excelBinary('import-template.xlsx')),
   http.get('/admin/v1/infra/excel/demo-export', () => excelBinary('demo-export.xlsx')),
   http.post('/admin/v1/infra/excel/demo-import', () => ok({ total: 2, valid: 2, errors: [] })),

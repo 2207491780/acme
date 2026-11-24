@@ -139,6 +139,17 @@ export const authHandlers = [
     expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
   })),
   http.delete('/admin/v1/auth/tokens/current', () => empty()),
+  // ————— 管理端重置用户密码（REQ-20261124-213008 契约①；权限点 auth:credential:manage） —————
+  // upsert 凭据并撤销该用户全部活跃会话（mock 不持凭据仓，仅信封同形）；
+  // 策略违反（空/超 64/演示触发 __POLICY__）→ PASSWORD_POLICY_VIOLATED
+  http.put('/admin/v1/auth/credentials/users/:userId/password', async ({ request }) => {
+    const body = await bodyOf(request);
+    const password = typeof body.password === 'string' ? body.password : '';
+    if (!password || password.length > 64 || password.includes('__POLICY__')) {
+      return fail('PASSWORD_POLICY_VIOLATED', '密码不符合策略（1~64 位非空）', 400);
+    }
+    return ok(null);
+  }),
   // ————— 自助账户安全（REQ-20261119-082531：改密 / 本人会话列表 / 逐条与批量下线） —————
   // 自助改密（契约③）：旧密码错误 → OLD_PASSWORD_INVALID；新旧相同 → SAME_PASSWORD；
   // 成功 → 其他会话 KICKED+撤销（当前会话保持）→ Result<Void>

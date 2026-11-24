@@ -35,4 +35,5 @@ export * from './api/infra';
 export * from './api/scheduler';
 export * from './api/audit';
 export * from './api/workflow';
+export * from './api/leave';
 export * from './workflow/bpmn-io';

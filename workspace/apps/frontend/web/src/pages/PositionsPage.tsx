@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { App, Button, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
+import { App, Button, Form, Input, Popconfirm, Select, Space, Switch, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import {
@@ -23,11 +23,14 @@ interface PositionFormValues {
 }
 
 /** 岗位管理（REQ-20261114-120104）：分页/搜索/新建/编辑/删除（标准 CRUD 分页范本）；
+ *  REQ-20261124-213008 范式 C：「状态」列改为启停 Switch（checked=ENABLED；无 system:position:update
+ *  权限置 disabled；成功后刷新列表；失败开关保持切换前值并转译提示——受控值不本地翻转）。
  *  被用户引用的岗位删除由后端拒绝（POSITION_IN_USE）→ 统一转译反馈（system-errors，尾部附码）。 */
 export function PositionsPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
   const permissions = useMeStore((s) => s.me?.permissions) ?? [];
+  const canToggle = permissions.includes('system:position:update');
 
   const crud = useCrud<AdminPositionView>({
     fetchPage: ({ page, size, keyword, signal }) =>
@@ -39,6 +42,7 @@ export function PositionsPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminPositionView | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [form] = Form.useForm<PositionFormValues>();
 
   const openCreate = () => {
@@ -99,13 +103,36 @@ export function PositionsPage() {
     }
   };
 
+  /** 启停切换（REQ-20261124-213008 契约③）：成功刷新列表；失败转译提示（开关受控值不翻转=
+   *  自动保持切换前值，AC-8 回滚口径）。 */
+  const toggleStatus = async (record: AdminPositionView) => {
+    const next = record.status === 'ENABLED' ? 'DISABLED' : 'ENABLED';
+    setTogglingId(record.id);
+    try {
+      await systemApi.positionStatus(record.id, next);
+      message.success(next === 'ENABLED' ? t('positions.status.enabledDone') : t('positions.status.disabledDone'));
+      crud.reload();
+    } catch (ex: unknown) {
+      message.error(systemErrorMessage(ex, t('positions.errors.statusFailed')));
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const columns: ColumnsType<AdminPositionView> = [
     { title: t('positions.columns.positionCode'), dataIndex: 'positionCode', key: 'positionCode', minWidth: 160, fixed: 'left' },
     { title: t('positions.columns.positionName'), dataIndex: 'positionName', key: 'positionName', minWidth: 160 },
     {
       title: t('positions.columns.status'), dataIndex: 'status', key: 'status', minWidth: 90,
-      render: (status: AdminPositionView['status']) => (
-        <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('common.status.enabled') : t('common.status.disabled')}</Tag>
+      render: (status: AdminPositionView['status'], record) => (
+        <Switch
+          size="small"
+          checked={status === 'ENABLED'}
+          disabled={!canToggle}
+          loading={togglingId === record.id}
+          aria-label={`${record.positionName} ${t('positions.columns.status')}`}
+          onChange={() => void toggleStatus(record)}
+        />
       ),
     },
     { title: t('positions.columns.createdAt'), dataIndex: 'createdAt', key: 'createdAt', minWidth: 180, render: (v: string) => formatDate(v) },

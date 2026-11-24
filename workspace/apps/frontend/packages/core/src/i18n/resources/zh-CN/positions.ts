@@ -31,8 +31,13 @@ export const positions = {
     created: '岗位已创建',
     updated: '岗位已更新',
   },
+  status: {
+    enabledDone: '岗位已启用',
+    disabledDone: '岗位已停用',
+  },
   errors: {
     loadFailed: '岗位清单加载失败',
+    statusFailed: '岗位状态变更失败，请稍后重试',
     deleteFailed: '删除岗位失败，请稍后重试',
     positionInUse: '岗位已被用户引用，无法删除',
   },

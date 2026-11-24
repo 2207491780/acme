@@ -24,6 +24,7 @@ export const users = {
   actions: {
     edit: 'Edit',
     assignRoles: 'Assign roles',
+    resetPassword: 'Reset password',
     delete: 'Delete',
     deleteConfirm: 'Confirm deletion of user {{name}}?',
     builtIn: 'Built-in',
@@ -60,6 +61,15 @@ export const users = {
     submitNote: 'Submitting fully overwrites the user\'s role bindings; permission codes take effect with the next token issuance.',
     success: 'Roles updated for user {{name}}',
     failed: 'Role binding failed, please try again later',
+  },
+  resetPassword: {
+    title: 'Reset password: {{name}}',
+    newPassword: 'New password',
+    passwordRequired: 'Please enter the new password',
+    passwordLength: 'Password must be 1~64 characters',
+    submitNote: 'After a successful reset, all active sessions of the user are revoked (forced sign-out); the new password applies on next login.',
+    success: 'Password reset; the user will be signed out',
+    policyViolated: 'Password violates the policy (1~64 non-empty characters); please adjust and retry',
   },
   deleted: 'User {{name}} deleted',
 };
