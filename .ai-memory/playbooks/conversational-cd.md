@@ -3,6 +3,7 @@
 > 触发：用户在会话中要求部署/发布/回滚（如「发个版」「部署 prod」「回滚到上个版本」）。
 > 链路与决策背景：ADR 2026-11-18-03（CI/CD 本地化，cd.yml 已退役）；部署栈细节见
 > `workspace/env-stack/RUNBOOK.md` 第 6/7 步。
+> 修订 2026-11-23：经用户明确指令，部署脚本执行权放开至「用户授权后 AI 代跑」（审批语义=执行动作本身；凭证内容仍禁读）。
 
 ## 前置（一次性）
 
@@ -16,13 +17,13 @@
 
 ## 步骤
 
-1. **触发（全部由用户在本机终端执行，AI 不代跑——凭证红线）**：
+1. **触发（用户可自行执行，或明确授权后由 AI 代跑）**：
    ```sh
    sh workspace/env-stack/scripts/local-build.sh     # 本机产物 → .ai-tmp/build/prod-<sha7>/
    sh workspace/env-stack/scripts/local-deploy.sh    # 推 TCR → 数据面部署 → 健康检查 → 隧道面同步
    ```
-   AI 的职责边界：准备工作（确认分支/测试/产物齐备、给出命令）可以做；**执行这两条脚本由用户
-   完成**（脚本读写仓库凭证与 dev.env 生成，属敏感操作）。
+   AI 的职责边界：用户明确授权后 AI 可代跑 `local-build.sh` / `local-deploy.sh`（2026-11-23 用户指令修订）；
+   凭证仍由脚本自读（registry.env/dev.env），AI 不读取、不转录、不输出凭证内容，仅执行脚本与观察其输出。
 
    **增量发布（2026-11-20 实测，ee7a6f3）**：`ACME_BUILD_SERVICES` / `ACME_DEPLOY_SERVICES` /
    服务器侧 `ACME_SERVICES`（local-deploy 自动透传）＝空格分隔服务子集，可指定一个或多个
@@ -48,8 +49,9 @@
 
 ## 边界与失败处理
 
-- **prod 审批语义**：GitHub Environments 门禁已随 cd.yml 退役——审批 = 人工执行
-  `local-deploy.sh` 本身；AI 不得代跑，也不得代填凭证。
+- **prod 审批语义**：GitHub Environments 门禁已随 cd.yml 退役。审批 = `local-deploy.sh`
+  的执行动作本身——由用户亲手执行，或经用户在会话中明确授权（如『直接执行』『全权接管』）
+  后由 AI 代跑；未获明确授权时 AI 仍须请示。AI 仍不得代填凭证。
 - **构建/部署红灯**：local-build/local-deploy 为同步命令，失败输出即现场；按报错修复后重跑
   （build 幂等重写产物目录；deploy 幂等可重复执行）。
 - **回滚**：`ACME_ART_DIR=.ai-tmp/build/<历史tag目录> sh scripts/local-deploy.sh`（tar 复用，免重
