@@ -59,3 +59,13 @@
 3. ci.yml 补 Maven/pnpm 缓存（加速）；ai-rules-sync.yml 与 ci.yml ai-config 作业功能重复（可裁撤其一）。
 4. `.worktrees/feat-view-prototype` 目录名与检出分支（feat/login-prototype）脱钩：`node .ai/worktree.mjs remove` 按
    目录名反查会失败，收尾时用 `git worktree remove` 处理（操作项，非代码缺陷）。
+
+## 后端补充（2026-11-25，REQ-20261125-001736 终验发现）
+
+1. **单体（monolith）形态下全部 @SchedulerLock 任务持续失效**（基线预存缺陷，非本 REQ 引入；终验 bootstrap 段实证）：
+   `lockProvider`（platform-infra InfraJobLockConfig.java:20）与 `schedulerLockProvider`（platform-scheduler
+   SchedulerLockConfig.java:24）并存，framework-job 兕底 bean @ConditionalOnMissingBean 让位
+   （JobAutoConfiguration.java:79）→ monolith 恰 2 候选，shedlock AOP 惰性解析每 tick 必炸
+   （SchedulerTickJob.java:31，NoUniqueBeanDefinitionException，本轮日志 25 次）。微服务形态不受影响。
+   修复方向：schedulerLockProvider 标 @Primary 或收敛单 bean；注意两锁锁表语义差异
+   （sch_scheduler_lock vs infra 锁表）。需独立小任务，证据归档：REQ-001736 契约流程状态节。
