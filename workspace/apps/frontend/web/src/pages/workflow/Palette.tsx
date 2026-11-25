@@ -2,7 +2,6 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../../store/useStore';
 import { useSystemPrefersDark } from '../../hooks/useSystemPrefersDark';
-import { PALETTE_ITEMS } from './designerModel';
 import type { BpmnElementType } from '@acme/core';
 import { resolveThemeMode, resolveCanvasPalette, SPACING, FONT_SIZE } from '@acme/core';
 
@@ -13,6 +12,16 @@ import { resolveThemeMode, resolveCanvasPalette, SPACING, FONT_SIZE } from '@acm
  */
 
 export const BPMN_DND_MIME = 'text/acme-bpmn-element';
+
+/**
+ * 面板分组展示（REQ-20261124-224523 AC-2/13 配套，十三）：
+ * 事件/网关/活动三组，组内保持一期白名单序（PALETTE_ITEMS 全集，每项恰出现一次）。
+ */
+const PALETTE_GROUPS: Array<{ key: 'events' | 'gateways' | 'activities'; items: readonly BpmnElementType[] }> = [
+  { key: 'events', items: ['StartEvent', 'EndEvent', 'BoundaryEvent'] },
+  { key: 'gateways', items: ['XOR', 'AND'] },
+  { key: 'activities', items: ['UserTask', 'ServiceTask', 'EmbeddedSubProcess'] },
+];
 
 /** 一期白名单元素的小图标（纯内联 SVG，path 从 core 不取——形状语义而非配色；色值走令牌）。 */
 function PaletteGlyph({ type, color }: { type: BpmnElementType; color: string }): ReactElement {
@@ -62,35 +71,51 @@ export function Palette(): ReactElement {
       <div style={{ fontSize: FONT_SIZE.caption, color: 'var(--muted)', marginTop: 2, marginBottom: SPACING.md }}>
         {t('workflow.designer.palette.hint')}
       </div>
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: SPACING.xs }}>
-        {PALETTE_ITEMS.map((type) => (
-          <li
-            key={type}
-            data-testid={`palette-item-${type}`}
-            draggable
-            onDragStart={(event) => {
-              event.dataTransfer.setData(BPMN_DND_MIME, type);
-              event.dataTransfer.effectAllowed = 'copy';
-            }}
+      {PALETTE_GROUPS.map((group) => (
+        <section key={group.key} style={{ marginBottom: SPACING.md }}>
+          <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: SPACING.sm,
-              padding: '6px 8px',
-              borderRadius: 8,
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              fontSize: FONT_SIZE.small,
-              color: 'var(--text)',
-              cursor: 'grab',
-              userSelect: 'none',
+              fontSize: FONT_SIZE.caption,
+              fontWeight: 600,
+              color: 'var(--muted)',
+              letterSpacing: 0.6,
+              marginBottom: SPACING.xs,
             }}
           >
-            <PaletteGlyph type={type} color={canvas.nodeText2} />
-            <span>{t(`workflow.designer.palette.items.${type}`)}</span>
-          </li>
-        ))}
-      </ul>
+            {t(`workflow.designer.palette.group.${group.key}`)}
+          </div>
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: SPACING.xs }}>
+            {group.items.map((type) => (
+              <li
+                key={type}
+                data-testid={`palette-item-${type}`}
+                className="bpmn-palette-item"
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(BPMN_DND_MIME, type);
+                  event.dataTransfer.effectAllowed = 'copy';
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: SPACING.sm,
+                  padding: '6px 8px',
+                  borderRadius: 8,
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  fontSize: FONT_SIZE.small,
+                  color: 'var(--text)',
+                  cursor: 'grab',
+                  userSelect: 'none',
+                }}
+              >
+                <PaletteGlyph type={type} color={canvas.nodeText2} />
+                <span>{t(`workflow.designer.palette.items.${type}`)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </aside>
   );
 }

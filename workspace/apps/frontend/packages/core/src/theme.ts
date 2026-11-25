@@ -422,7 +422,9 @@ export function resolveCanvasPalette(theme: Theme): CanvasPalette {
   const neutral = resolvePalette(theme);
   return {
     background: neutral.bg1,
-    grid: theme === 'light' ? 'rgba(20, 24, 32, 0.08)' : 'rgba(255, 255, 255, 0.07)',
+    // REQ-20261124-224523 AC-5：alpha 上调（light 0.08→0.12 / dark 0.07→0.14）——
+    // 暗色画布网格实测不可辨，低饱和发丝级基调不破
+    grid: theme === 'light' ? 'rgba(20, 24, 32, 0.12)' : 'rgba(255, 255, 255, 0.14)',
     nodeFill: neutral.surface,
     nodeBorder: neutral.border,
     nodeText: neutral.text,

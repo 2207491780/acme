@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type
 import { App, Button, Space, Tag, Tooltip, Typography } from 'antd';
 import {
   CheckCircleOutlined, CloudUploadOutlined, DownloadOutlined, ImportOutlined,
-  ProfileOutlined, SaveOutlined, UndoOutlined,
+  ProfileOutlined, ReloadOutlined, SaveOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
@@ -25,8 +25,8 @@ import { VersionDiffModal } from './VersionDiffModal';
 import { applyCanvasTheme, createBpmnCanvas, syncModelToGraph } from './canvasFactory';
 import {
   autoLayout, buildSavePayload, canConnect, connect, createNodeModel,
-  emptyModel, importModel, nodeSummary, parseLayoutJson, removeEdge, removeNode, runValidation,
-  updateEdge, updateNode, type ConnectRejectReason, type Selection,
+  DEFAULT_NODE_SIZES, emptyModel, importModel, nodeSummary, parseLayoutJson, removeEdge,
+  removeNode, runValidation, updateEdge, updateNode, type ConnectRejectReason, type Selection,
 } from './designerModel';
 
 /** 连线拒绝原因 → i18n 键。 */
@@ -58,6 +58,7 @@ export function DesignerPage(): ReactElement {
   const resolvedMode = resolveThemeMode(preferences.mode, systemPrefersDark);
   const canvas = useMemo(() => resolveCanvasPalette(resolvedMode), [resolvedMode]);
 
+  const canvasWrapRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const minimapRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<Graph | null>(null);
@@ -81,11 +82,29 @@ export function DesignerPage(): ReactElement {
     setDirty(true);
   }, []);
 
+  /** Delete/Backspace 删除画布选中项（AC-13④）：节点/边混合集合，模型统一收敛后画布随同步移除；
+   * 删除后清空面板选中（被删对象不再可编辑）。 */
+  const handleDeleteSelected = useCallback((ids: string[]) => {
+    let next = modelRef.current;
+    for (const id of ids) {
+      // 节点与边集合互斥，removeNode 对边 id 返回原模型（无匹配节点）
+      next = removeNode(next, id);
+    }
+    for (const id of ids) {
+      next = removeEdge(next, id);
+    }
+    applyModel(next);
+    setSelection(null);
+  }, [applyModel]);
+
   // —— 画布装配（挂载一次；经共享工厂 canvasFactory，契约⑥） ——
   useEffect(() => {
     if (!containerRef.current) return undefined;
     const graph = createBpmnCanvas({
       container: containerRef.current,
+      // delta-r2 修复2：autoResize 传感器目标=专用画布包裹层（仅含画布，校验条是其兄弟节点）；
+      // sensor 绑画布容器自身时 X6 transform.resize 写容器内联宽高钉死读数→结构性死锁
+      autoResizeTarget: canvasWrapRef.current ?? undefined,
       minimapContainer: minimapRef.current,
       palette: canvas,
       handlers: {
@@ -108,6 +127,7 @@ export function DesignerPage(): ReactElement {
           }
           return 'keep';
         },
+        onDeleteSelected: handleDeleteSelected,
       },
     });
     graphRef.current = graph;
@@ -296,7 +316,9 @@ export function DesignerPage(): ReactElement {
     if (!graph) return;
     const nodeModel = createNodeModel(type);
     const point = graph.clientToLocal(event.clientX, event.clientY);
-    positionsRef.current.set(nodeModel.id, { x: point.x, y: point.y });
+    // AC-10：落点=节点中心对齐鼠标（减去宽高一半；尺寸单源 DEFAULT_NODE_SIZES）
+    const size = DEFAULT_NODE_SIZES[type];
+    positionsRef.current.set(nodeModel.id, { x: point.x - size.width / 2, y: point.y - size.height / 2 });
     applyModel({ nodes: [...modelRef.current.nodes, nodeModel], edges: modelRef.current.edges });
     setSelection({ kind: 'node', id: nodeModel.id });
   };
@@ -333,9 +355,21 @@ export function DesignerPage(): ReactElement {
     <Tag>{t('workflow.designer.title')}</Tag>
   );
 
+  /** 刷新钮（AC-9，ReloadOutlined+Tooltip）：以当前模型+坐标重同步画布（重置画布语义，不再无实效 setModel）。 */
+  const handleRefresh = () => {
+    const graph = graphRef.current;
+    if (!graph) return;
+    setSelection(null);
+    syncModelToGraph(graph, modelRef.current, positionsRef.current, canvas, resolvedMode === 'dark', {
+      nameOf: (node) => node.name || t(`workflow.designer.palette.items.${node.type}`),
+      summaryOf: nodeSummary,
+    });
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: SPACING.md, height: 'calc(100vh - 160px)' }}>
-      {/* 工具栏：保存草稿(79)/校验/导入/导出/版本对比/部署(79) */}
+    // AC-8：高度口径 100vh−184px（Header 64 + TabBar 36 + Content padding 上 24 + 下 60）
+    <div style={{ display: 'flex', flexDirection: 'column', gap: SPACING.md, height: 'calc(100vh - 184px)' }}>
+      {/* 工具栏（AC-9）：左=流程名+状态 Tag+脏标记；右=操作按钮组（保存草稿(79)/校验/导入/导出/版本对比/部署(79)/刷新） */}
       <div
         style={{
           display: 'flex',
@@ -347,9 +381,12 @@ export function DesignerPage(): ReactElement {
           borderRadius: RADII.sm,
         }}
       >
+        <Text strong style={{ fontSize: FONT_SIZE.base, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {definition?.name || t('workflow.designer.title')}
+        </Text>
         {statusTag}
         {dirty && <Text type="warning" style={{ fontSize: FONT_SIZE.small }}>●</Text>}
-        <Space wrap>
+        <Space wrap style={{ marginLeft: 'auto' }}>
           {definitionId ? (
             <Auth code="workflow:definition:deploy">
               <Button type="primary" icon={<SaveOutlined />} onClick={() => void handleSave()}>
@@ -370,24 +407,40 @@ export function DesignerPage(): ReactElement {
               </Tooltip>
             </Auth>
           ) : null}
-          <Button icon={<UndoOutlined />} onClick={() => setModel(modelRef.current)} aria-label={t('workflow.designer.toolbar.refresh')} />
+          <Tooltip title={t('workflow.designer.toolbar.refresh')}>
+            <Button icon={<ReloadOutlined />} onClick={handleRefresh} aria-label={t('workflow.designer.toolbar.refresh')} />
+          </Tooltip>
         </Space>
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: SPACING.md }}>
         <Palette />
-        {/* 画布：网格+对齐+框选+minimap；onDrop 承接 Palette HTML5 拖拽 */}
+        {/* 画布列：画布专用包裹层（flex:1/minHeight:0/position:relative）= autoResize 传感器
+            目标（delta-r2 修复2）；校验结果状态条必须作为包裹层兄弟节点（不得置于包裹层内，
+            否则其流内高度参与传感器读数闭环→resize 反馈循环增长）。onDrop 承接 Palette HTML5 拖拽 */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div
-            ref={containerRef}
-            data-testid="bpmn-canvas"
-            style={{ flex: 1, border: '1px solid var(--border)', borderRadius: RADII.sm, overflow: 'hidden' }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'copy';
-            }}
-            onDrop={handleDrop}
-          />
+            ref={canvasWrapRef}
+            data-testid="bpmn-canvas-wrap"
+            style={{ flex: 1, minHeight: 0, position: 'relative' }}
+          >
+            {/* 画布容器：position:absolute 脱流填满包裹层——X6 transform.resize 写容器内联
+                width/height 不会反灌包裹层盒尺寸（传感器读数仅由外部 flex 布局决定） */}
+            <div
+              ref={containerRef}
+              data-testid="bpmn-canvas"
+              className="bpmn-canvas"
+              style={{
+                position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+                border: '1px solid var(--border)', borderRadius: RADII.sm, overflow: 'hidden',
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+              }}
+              onDrop={handleDrop}
+            />
+          </div>
           <ValidationPanel status={validationStatus} items={validationItems} onLocate={handleLocate} />
         </div>
         {/* 右栏：属性面板 + minimap */}
@@ -416,7 +469,7 @@ export function DesignerPage(): ReactElement {
             />
           </div>
           <div style={{ borderTop: '1px solid var(--border)', padding: SPACING.sm, display: 'flex', justifyContent: 'center' }}>
-            <div ref={minimapRef} data-testid="bpmn-minimap" style={{ width: 180, height: 120 }} />
+            <div ref={minimapRef} data-testid="bpmn-minimap" className="bpmn-minimap" style={{ width: 180, height: 120 }} />
           </div>
         </div>
       </div>

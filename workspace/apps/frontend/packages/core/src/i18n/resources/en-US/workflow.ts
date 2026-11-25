@@ -317,6 +317,11 @@ export const workflow = {
     palette: {
       title: 'Palette',
       hint: 'Drag elements onto the canvas',
+      group: {
+        events: 'Events',
+        gateways: 'Gateways',
+        activities: 'Activities',
+      },
       items: {
         StartEvent: 'Start Event',
         EndEvent: 'End Event',

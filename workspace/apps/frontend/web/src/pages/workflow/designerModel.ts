@@ -27,16 +27,37 @@ export const PALETTE_ITEMS: readonly BpmnElementType[] = [
   'BoundaryEvent',
 ];
 
-/** 元素默认尺寸（画布渲染与自动布局共用）。 */
+/**
+ * 元素默认尺寸（画布渲染与自动布局共用，REQ-20261124-224523 AC-2 语义形状适配）。
+ * 事件/网关 = 图形区 + 名称标签区（标签在图形下方，高约 22px，可按视觉微调）；任务/子流程保持整格卡片。
+ * 最终值：StartEvent/EndEvent {40,62}、XOR/AND {50,72}、BoundaryEvent {36,58}、
+ * UserTask/ServiceTask {128,48}、EmbeddedSubProcess {200,120}。
+ */
 export const DEFAULT_NODE_SIZES: Record<BpmnElementType, { width: number; height: number }> = {
-  StartEvent: { width: 40, height: 40 },
-  EndEvent: { width: 40, height: 40 },
-  XOR: { width: 50, height: 50 },
-  AND: { width: 50, height: 50 },
+  StartEvent: { width: 40, height: 62 },
+  EndEvent: { width: 40, height: 62 },
+  XOR: { width: 50, height: 72 },
+  AND: { width: 50, height: 72 },
   UserTask: { width: 128, height: 48 },
   ServiceTask: { width: 128, height: 48 },
   EmbeddedSubProcess: { width: 200, height: 120 },
-  BoundaryEvent: { width: 36, height: 36 },
+  BoundaryEvent: { width: 36, height: 58 },
+};
+
+/**
+ * 语义形状图形区高度（单源：NodeShape 渲染标签区=cell 高−图形区高；
+ * canvasFactory 自定义 anchor 以图形几何中心=（宽/2，图形区高/2）作为连线锚点，
+ * 补偿标签区导致的锚点下移，保证连线起止于图形边缘而非标签区）。
+ */
+export const NODE_SHAPE_HEIGHTS: Record<BpmnElementType, number> = {
+  StartEvent: 40,
+  EndEvent: 40,
+  XOR: 50,
+  AND: 50,
+  UserTask: 48,
+  ServiceTask: 48,
+  EmbeddedSubProcess: 120,
+  BoundaryEvent: 36,
 };
 
 let nodeSeq = 0;
@@ -224,12 +245,13 @@ export function serializeLayout(positions: Iterable<{ id: string; x: number; y: 
 /**
  * 自动布局（AC-7：导入布局缺省时；5 列网格从左到右按层排布——
  * 一期按模型声明序 + 简单列推进，不做拓扑分层求解）。
+ * REQ-20261124-224523 AC-4：列距/行距 ≥ 子流程尺寸（200×120）+ 安全间距，混排不重叠。
  */
 export function autoLayout(model: BpmnModel, originX = 60, originY = 80): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
   const perColumn = 4;
-  const colGap = 190;
-  const rowGap = 90;
+  const colGap = 240;
+  const rowGap = 150;
   model.nodes.forEach((node, index) => {
     const column = Math.floor(index / perColumn);
     const row = index % perColumn;

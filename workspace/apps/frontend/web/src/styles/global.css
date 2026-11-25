@@ -397,3 +397,20 @@ tr.dragging { opacity: 0.45; }
 :root[data-chrome='dark'] .ant-layout-sider .ant-menu-submenu-title:hover { color: var(--text); }
 :root[data-chrome='dark'] .ant-layout-sider .sidebar-foot { color: var(--muted); }
 :root[data-chrome='dark'] .ant-layout-sider .sidebar-foot strong { color: var(--text-2); }
+
+/* 流程设计器（REQ-20261124-224523 AC-6/AC-14 配套）：minimap 主题化 + Palette 项 hover；
+   插件内置 .x6-widget-minimap 白底（#fff）/视口描边（#31d0c6）为插件 CSS 硬编码，暗色主题刺眼，
+   此处以变量层类名覆盖（色值一律走镜像 core 的变量，无硬编码）；
+   pointer-events:none 禁用插件点击导航（scrollTo→centerPoint），缩略图仅总览不承担导航（AC-14）；
+   Palette 项 hover 提亮同变量层 */
+.bpmn-minimap .x6-widget-minimap { background-color: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; pointer-events: none; }
+.bpmn-minimap .x6-widget-minimap .x6-graph { box-shadow: none; }
+.bpmn-minimap .x6-widget-minimap-viewport { border-color: var(--cyan); }
+.bpmn-palette-item { transition: background 0.2s, border-color 0.2s; }
+.bpmn-palette-item:hover { background: var(--surface-2); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+/* BPMN 连线锚点 ports（REQ-20261124-224523 delta-r1 修复1）：热区 circle 默认弱化，节点 hover 才显影；
+   色值全走变量层镜像令牌；不命中给锚点本身硬编码色（attrs 侧 fill/stroke=none，可命中靠 pointer-events:all）。
+   opacity 不阻断 pointer-events，锚点隐藏时热区仍可拖拽起线；X6 主题已给 [magnet='true'] crosshair 光标 */
+.bpmn-canvas .x6-port-body { opacity: 0; fill: var(--surface); stroke: var(--border); }
+.bpmn-canvas .x6-node:hover .x6-port-body { opacity: 1; }
+.bpmn-canvas .x6-node:hover .x6-port-body:hover { stroke: var(--accent); }

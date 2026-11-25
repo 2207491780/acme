@@ -318,6 +318,11 @@ export const workflow = {
     palette: {
       title: '元素面板',
       hint: '拖拽元素到画布',
+      group: {
+        events: '事件',
+        gateways: '网关',
+        activities: '活动',
+      },
       items: {
         StartEvent: '开始事件',
         EndEvent: '结束事件',
