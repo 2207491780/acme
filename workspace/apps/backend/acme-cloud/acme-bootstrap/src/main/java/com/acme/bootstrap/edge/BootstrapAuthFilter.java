@@ -7,6 +7,7 @@ import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ChannelPrefix;
 import com.acme.framework.core.support.ClientContextDraft;
 import com.acme.framework.security.internal.ResponseBodies;
+import com.acme.framework.security.revocation.RevocationCheckPolicy;
 import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.SecurityError;
 import com.acme.framework.security.token.UserAccessClaims;
@@ -40,8 +41,10 @@ import java.util.Set;
  *   <li>用户令牌验签：{@link UserTokenAccessVerifier}（与网关验签同源实现，8.2 语义）——
  *       过期/无效 401，tokenType 非 access 拒绝（11.4 刷新令牌不得鉴权 API），
  *       channel claim 与路由前缀不符 → CHANNEL_MISMATCH 403（FR-019 异常分支）；</li>
- *   <li>撤销检查：同 JVM 直调 {@link SessionRedis#isRevoked}（即时失效 BR-006）；判定异常
- *       FAIL_OPEN 放行 + WARN（网关 RevocationCheckFilter 默认口径，可用性优先）；</li>
+ *   <li>撤销检查：同 JVM 直调 {@link SessionRedis#isRevoked}（即时失效 BR-006）；判定异常处置统一经
+ *       framework-security {@link RevocationCheckPolicy}（acme.security.revocation.fail-closed，
+ *       REQ-20261125-001736 AC-7——默认 FAIL_OPEN 放行 + WARN，true 时 503 REVOCATION_CHECK_UNAVAILABLE
+ *       拒绝，与网关 RevocationCheckFilter 同开关同语义）；</li>
  *   <li>内部令牌注入：经 framework-security {@link InternalTokenIssuer}（JwsInternalTokenIssuer，
  *       acme.security.token.* 密钥域）签发 JWS 写入 {@code X-Acme-Token}，并注入 X-Acme-User-Id /
  *       Tenant-Id / Channel / Device-Id / App-Version 身份头（网关 InjectIdentityFilter 头集同口径）；
@@ -60,14 +63,17 @@ public final class BootstrapAuthFilter implements Filter, Ordered {
     private final UserTokenAccessVerifier verifier;
     private final InternalTokenIssuer internalTokenIssuer;
     private final SessionRedis sessionRedis;
+    private final RevocationCheckPolicy revocationCheckPolicy;
     private final List<String> publicPaths;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public BootstrapAuthFilter(UserTokenAccessVerifier verifier, InternalTokenIssuer internalTokenIssuer,
-                               SessionRedis sessionRedis, List<String> publicPaths) {
+                               SessionRedis sessionRedis, RevocationCheckPolicy revocationCheckPolicy,
+                               List<String> publicPaths) {
         this.verifier = verifier;
         this.internalTokenIssuer = internalTokenIssuer;
         this.sessionRedis = sessionRedis;
+        this.revocationCheckPolicy = revocationCheckPolicy;
         this.publicPaths = publicPaths == null ? List.of() : List.copyOf(publicPaths);
     }
 
@@ -101,8 +107,14 @@ public final class BootstrapAuthFilter implements Filter, Ordered {
             ResponseBodies.writeFailure(httpResponse, SecurityError.CHANNEL_MISMATCH);
             return;
         }
-        // 撤销检查（Q-D02、BR-006）：异常 FAIL_OPEN 放行（判定单段，不覆盖下游链路）
-        if (isRevokedFailOpen(claims.tokenId())) {
+        // 撤销检查（Q-D02、BR-006）：异常处置统一经 RevocationCheckPolicy（AC-7 判定单段，不覆盖下游链路）
+        Boolean revoked = checkRevocation(claims.tokenId());
+        if (revoked == null) {
+            // 检查不可用且 fail-closed：503 撤销检查不可用（AC-7，SecurityError SYS-02 段）
+            ResponseBodies.writeFailure(httpResponse, SecurityError.REVOCATION_CHECK_UNAVAILABLE);
+            return;
+        }
+        if (revoked) {
             ResponseBodies.writeFailure(httpResponse, SecurityError.UNAUTHORIZED);
             return;
         }
@@ -134,14 +146,21 @@ public final class BootstrapAuthFilter implements Filter, Ordered {
         return false;
     }
 
-    /** 撤销判定单段（网关 RevocationCheckFilter FAIL_OPEN 口径：异常 WARN 放行，可用性优先）。 */
-    private boolean isRevokedFailOpen(String tokenId) {
+    /**
+     * 撤销判定单段（异常处置统一经 {@link RevocationCheckPolicy}，AC-7）：
+     * 返回 null=检查不可用且 fail-closed 拒绝（503）；false=放行（含 FAIL_OPEN 可用性优先）。
+     */
+    private Boolean checkRevocation(String tokenId) {
         if (tokenId == null || tokenId.isBlank()) {
             return false;
         }
         try {
             return sessionRedis.isRevoked(tokenId);
         } catch (RuntimeException ex) {
+            if (revocationCheckPolicy.rejectOnCheckFailure()) {
+                log.warn("用户令牌撤销检查失败，FAIL_CLOSED 拒绝：tokenId={}", tokenId);
+                return null;
+            }
             log.warn("用户令牌撤销检查失败，FAIL_OPEN 放行：tokenId={}", tokenId);
             return false;
         }

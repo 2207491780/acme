@@ -32,6 +32,12 @@
             <groupId>com.acme</groupId>
             <artifactId>common-serialization</artifactId>
         </dependency>
+        <!-- REQ-20261125-001736 AC-4 租户缓存键：TenantKeyGenerator 直读 TenantContext/TenantBypassSignal
+             （旁路深度状态单源，经 framework-core 传递可达，实引用直接声明） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-context</artifactId>
+        </dependency>
 
         <!-- Modules.md 3.5 依赖粒度：Boot 4 细粒度模块（BR-021） -->
         <dependency>

@@ -27,7 +27,10 @@ public enum SecurityError implements ErrorCode, HttpStatusAware {
     UNAUTHORIZED("SYS-02-0006", "未授权", 401),
 
     /** 数据权限拒绝（FR-017，7.5：403）。 */
-    DATA_PERMISSION_DENIED("SYS-02-0007", "无权访问目标数据", 403);
+    DATA_PERMISSION_DENIED("SYS-02-0007", "无权访问目标数据", 403),
+
+    /** 撤销检查不可用（REQ-20261125-001736 AC-7：fail-closed=true 且 Redis 检查异常，边缘拒绝 503）。 */
+    REVOCATION_CHECK_UNAVAILABLE("SYS-02-0008", "撤销检查暂不可用", 503);
 
     private final String code;
     private final String defaultMessage;

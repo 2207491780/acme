@@ -21,6 +21,8 @@ public class SecurityProperties {
 
     private final DataPermission dataPermission = new DataPermission();
 
+    private final Revocation revocation = new Revocation();
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -43,6 +45,10 @@ public class SecurityProperties {
 
     public DataPermission getDataPermission() {
         return dataPermission;
+    }
+
+    public Revocation getRevocation() {
+        return revocation;
     }
 
     /** 内部令牌校验配置（7.7，Q-D01；算法固定 HS256，原 algorithm 配置为死配置已移除）。 */
@@ -105,6 +111,25 @@ public class SecurityProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
+        }
+    }
+
+    /**
+     * 撤销检查异常处置配置（REQ-20261125-001736 AC-7）：acme.security.revocation.fail-closed，
+     * 默认 false 与现状完全一致（放行+WARN）；true 时网关与边缘两处 Redis 检查异常统一拒绝
+     * （503 REVOCATION_CHECK_UNAVAILABLE，经 {@code RevocationCheckPolicy} 决策组件）。
+     */
+    public static class Revocation {
+
+        /** fail-closed 开关（默认 false=FAIL_OPEN 放行+WARN，可用性优先）。 */
+        private boolean failClosed = false;
+
+        public boolean isFailClosed() {
+            return failClosed;
+        }
+
+        public void setFailClosed(boolean failClosed) {
+            this.failClosed = failClosed;
         }
     }
 }

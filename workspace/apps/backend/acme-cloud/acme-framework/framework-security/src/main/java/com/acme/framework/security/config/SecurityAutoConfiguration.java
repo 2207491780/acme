@@ -6,6 +6,7 @@ import com.acme.framework.security.internal.DefaultInternalTokenVerifier;
 import com.acme.framework.security.internal.JwsInternalTokenIssuer;
 import com.acme.framework.security.interceptor.DataPermissionAspect;
 import com.acme.framework.security.interceptor.InternalTokenAuthFilter;
+import com.acme.framework.security.revocation.RevocationCheckPolicy;
 import com.acme.framework.security.support.DataPermissionEvaluator;
 import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.InternalTokenVerifier;
@@ -49,6 +50,14 @@ public class SecurityAutoConfiguration extends AcmeModuleAutoConfiguration {
             havingValue = "true", matchIfMissing = true)
     public DataPermissionAspect dataPermissionAspect(ObjectProvider<DataPermissionEvaluator> evaluators) {
         return new DataPermissionAspect(evaluators);
+    }
+
+    /** 撤销检查异常处置决策（REQ-20261125-001736 AC-7：acme.security.revocation.fail-closed，默认 false；
+     *  网关与边缘异常分支统一经本决策组件，可注册同类型 bean 覆盖）。 */
+    @Bean
+    @ConditionalOnMissingBean(RevocationCheckPolicy.class)
+    public RevocationCheckPolicy revocationCheckPolicy(SecurityProperties properties) {
+        return new RevocationCheckPolicy(properties.getRevocation().isFailClosed());
     }
 
     /** Servlet 通道装配（FR-014~018）。 */

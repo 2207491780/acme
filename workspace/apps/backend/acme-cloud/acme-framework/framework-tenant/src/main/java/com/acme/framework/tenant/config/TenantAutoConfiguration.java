@@ -6,7 +6,9 @@ import com.acme.framework.tenant.internal.FlexTenantFactory;
 import com.acme.framework.tenant.internal.TenantWriteGuard;
 import com.acme.framework.tenant.interceptor.IgnoreTenantAspect;
 import com.acme.framework.tenant.support.CrossTenantAuditLogger;
+import com.acme.framework.tenant.support.CrossTenantAuditSink;
 import com.mybatisflex.spring.boot.MyBatisFlexCustomizer;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -39,10 +41,10 @@ public class TenantAutoConfiguration extends AcmeModuleAutoConfiguration {
         return new TenantWriteGuard();
     }
 
-    /** 跨租户审计（FR-004，Q-005 结构化日志）。 */
+    /** 跨租户审计（FR-004，Q-005 修订：日志兑底 + 可选 sink 尽力落库，AC-2/AC-3；无 sink 仅日志不报错）。 */
     @Bean
-    public CrossTenantAuditLogger crossTenantAuditLogger() {
-        return new CrossTenantAuditLogger();
+    public CrossTenantAuditLogger crossTenantAuditLogger(ObjectProvider<CrossTenantAuditSink> sinks) {
+        return new CrossTenantAuditLogger(sinks.getIfAvailable());
     }
 
     /** 忽略注解切面（FR-003/004）。 */

@@ -105,13 +105,21 @@ public class GatewayProperties {
         }
     }
 
-    /** 用户令牌撤销检查（Q-D02、FR-004 即时失效）。 */
+    /** 用户令牌撤销检查（Q-D02、FR-004 即时失效）：检查开关独立可配；异常处置统一经
+     *  framework-security {@code RevocationCheckPolicy}（acme.security.revocation.fail-closed，
+     *  REQ-20261125-001736 AC-7——与网关同开关同语义，原 on-error 配置收编）。 */
     public static class Revocation {
 
         /** 撤销检查开关（Q-D02，默认 true；关闭后行为与未引入一致，Modules.md 3.5）。 */
         private boolean enabled = true;
 
-        /** 判定异常兜底（Q-D02 子项，默认 FAIL_OPEN 可用性优先；FAIL_CLOSE=安全优先拒绝）。 */
+        /**
+         * 撤销检查异常兜底（8.5，默认 FAIL_OPEN）。REQ-20261125-001736 AC-7 起异常处置统一经
+         * framework-security {@code RevocationCheckPolicy}（acme.security.revocation.fail-closed，
+         * 网关与边缘同开关同语义），本字段保留仅为既有配置面与回归锁定（GatewayRoutingConfigTest
+         * Q-D02）兼容，默认值 FAIL_OPEN 与现状一致，不再驱动网关运行时行为。
+         */
+        @Deprecated
         private RateLimitOnError onError = RateLimitOnError.FAIL_OPEN;
 
         public boolean isEnabled() {
@@ -122,10 +130,14 @@ public class GatewayProperties {
             this.enabled = enabled;
         }
 
+        /** @deprecated 异常处置统一经 acme.security.revocation.fail-closed（REQ-20261125-001736 AC-7）。 */
+        @Deprecated
         public RateLimitOnError getOnError() {
             return onError;
         }
 
+        /** @deprecated 异常处置统一经 acme.security.revocation.fail-closed（REQ-20261125-001736 AC-7）。 */
+        @Deprecated
         public void setOnError(RateLimitOnError onError) {
             this.onError = onError;
         }

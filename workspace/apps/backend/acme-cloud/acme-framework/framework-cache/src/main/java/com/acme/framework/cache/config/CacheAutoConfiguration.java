@@ -5,6 +5,7 @@ import com.acme.framework.core.config.AcmeModuleAutoConfiguration;
 import com.acme.framework.core.config.ConditionalOnAcmeModule;
 import com.acme.framework.core.support.KeyComposer;
 import com.acme.framework.core.support.TransactionEventPublisher;
+import com.acme.framework.cache.TenantKeyGenerator;
 import com.acme.framework.cache.internal.CaffeineL1Cache;
 import com.acme.framework.cache.internal.JsonRedisSerializer;
 import com.acme.framework.cache.internal.RedisEntryLock;
@@ -39,6 +40,16 @@ public class CacheAutoConfiguration extends AcmeModuleAutoConfiguration {
     @Bean
     public CacheKeys cacheKeys(KeyComposer keyComposer) {
         return new CacheKeys(keyComposer);
+    }
+
+    /**
+     * 租户隔离缓存键（FR-008；REQ-20261125-001736 AC-4）：@Cacheable(keyGenerator="tenantKeyGenerator")
+     * 消费面——未绑定且旁路未激活 fail-closed 抛 TENANT_REQUIRED，旁路激活取 t:*: 前缀。
+     */
+    @Bean
+    @ConditionalOnMissingBean(TenantKeyGenerator.class)
+    public TenantKeyGenerator tenantKeyGenerator() {
+        return new TenantKeyGenerator();
     }
 
     /** L1（FR-005）。 */

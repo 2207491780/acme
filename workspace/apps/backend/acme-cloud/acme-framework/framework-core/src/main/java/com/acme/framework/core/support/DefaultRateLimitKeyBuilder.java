@@ -6,6 +6,10 @@ import com.acme.common.context.Channel;
  * 限流 key 缺省构造（Modules.md 3.1.3）：B「服务前缀+端别B+账号+接口」、C「服务前缀+端别C+设备+用户+接口」；
  * 兜底键「服务前缀+端别标识FB+IP+接口」；接口段经 {@link #normalizeApi} 归一（资源 ID 段收敛，防高基数）。
  *
+ * <p>租户维度（REQ-20261125-001736 AC-6）：输入 tenantId 非空白时键在服务前缀后插入租户段
+ * （B=prefix:tenantId:B:account:api、C=prefix:tenantId:C:device:user:api）；空白/null 时与既有
+ * 格式逐字一致（向后兼容，键含租户段与否由调用方上下文决定）；FB 兜底键不变。</p>
+ *
  * <p>p5-optional-modules D-001 自 framework-gateway 迁入，键格式保持既有兼容；
  * 服务侧注解场景 api 段为业务声明的资源标识（非路径形态，原样入键）。</p>
  */
@@ -15,10 +19,15 @@ public class DefaultRateLimitKeyBuilder implements RateLimitKeyBuilder {
     public String build(RateLimitKeyInput input) {
         String prefix = input.servicePrefix() == null ? "" : input.servicePrefix();
         String api = normalizeApi(input.api());
+        String tenantId = tenantSegment(input.tenantId());
         if (input.channel() == Channel.B) {
-            return String.join(":", prefix, "B", safe(input.account()), api);
+            return tenantId == null
+                    ? String.join(":", prefix, "B", safe(input.account()), api)
+                    : String.join(":", prefix, tenantId, "B", safe(input.account()), api);
         }
-        return String.join(":", prefix, "C", safe(input.deviceId()), safe(input.userId()), api);
+        return tenantId == null
+                ? String.join(":", prefix, "C", safe(input.deviceId()), safe(input.userId()), api)
+                : String.join(":", prefix, tenantId, "C", safe(input.deviceId()), safe(input.userId()), api);
     }
 
     @Override
@@ -62,6 +71,11 @@ public class DefaultRateLimitKeyBuilder implements RateLimitKeyBuilder {
         // 长 hex（雪花/哈希标识）：≥16 位且全 hex
         return segment.length() >= 16
                 && segment.chars().allMatch(c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+    }
+
+    /** 租户段（REQ-20261125-001736 AC-6）：非空白返回 trim 值，空白/null 返回 null（无租户段）。 */
+    private static String tenantSegment(String tenantId) {
+        return tenantId == null || tenantId.isBlank() ? null : tenantId.trim();
     }
 
     private static String safe(String value) {

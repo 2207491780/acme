@@ -1,12 +1,12 @@
 package com.acme.framework.gateway.interceptor;
 
-import com.acme.framework.core.support.RateLimitOnError;
 import com.acme.framework.gateway.config.GatewayProperties;
 import com.acme.framework.gateway.internal.ExchangeAttrs;
 import com.acme.framework.gateway.internal.GatewayRejectedException;
 import com.acme.framework.gateway.support.GatewayError;
 import com.acme.framework.gateway.support.UserTokenClaims;
 import com.acme.framework.gateway.support.UserTokenRevocationChecker;
+import com.acme.framework.security.revocation.RevocationCheckPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -18,8 +18,9 @@ import reactor.core.scheduler.Schedulers;
 
 /**
  * 用户令牌撤销检查过滤器（Q-D02、FR-004 即时失效）：验签（AuthFilter，order 200）之后、
- * 限流 / 注入之前逐请求判定撤销（每请求一查、无本地缓存，Q-D02 取舍 #11）；
- * 检查异常默认 FAIL_OPEN（放行 + WARN，与限流兜底口径一致），可配 FAIL_CLOSED。
+ * 限流 / 注入之前逐请求判定撤销（每请求一查、无本地缓存，Q-D02 取舍 #11）；检查异常处置统一经
+ * {@link RevocationCheckPolicy}（REQ-20261125-001736 AC-7：acme.security.revocation.fail-closed，
+ * 默认 false=放行 + WARN 可用性优先，true=503 REVOCATION_CHECK_UNAVAILABLE 拒绝）。
  * 撤销命中 → 401 AUTH_FAILED 不向下游转发（BR-006）。
  */
 public final class RevocationCheckFilter implements GlobalFilter, Ordered {
@@ -28,10 +29,14 @@ public final class RevocationCheckFilter implements GlobalFilter, Ordered {
 
     private final UserTokenRevocationChecker checker;
     private final GatewayProperties.Revocation config;
+    private final RevocationCheckPolicy policy;
 
-    public RevocationCheckFilter(UserTokenRevocationChecker checker, GatewayProperties.Revocation config) {
+    public RevocationCheckFilter(UserTokenRevocationChecker checker,
+                                 GatewayProperties.Revocation config,
+                                 RevocationCheckPolicy policy) {
         this.checker = checker;
         this.config = config;
+        this.policy = policy;
     }
 
     @Override
@@ -50,14 +55,14 @@ public final class RevocationCheckFilter implements GlobalFilter, Ordered {
                         : chain.filter(exchange));
     }
 
-    /** 撤销判定单段（异常按 FAIL_OPEN / FAIL_CLOSE 收敛为放行或拒绝）。 */
+    /** 撤销判定单段（异常处置统一经 RevocationCheckPolicy：FAIL_CLOSED 拒绝 503 / FAIL_OPEN 放行，AC-7）。 */
     private Mono<Boolean> checkRevocation(UserTokenClaims claims) {
         return Mono.fromCallable(() -> checker.isRevoked(claims.tokenId()))
                 .subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(ex -> {
-                    if (config.getOnError() == RateLimitOnError.FAIL_CLOSE) {
+                    if (policy.rejectOnCheckFailure()) {
                         log.warn("用户令牌撤销检查失败，FAIL_CLOSED 拒绝：tokenId={}", claims.tokenId());
-                        return Mono.error(new GatewayRejectedException(GatewayError.AUTH_FAILED));
+                        return Mono.error(new GatewayRejectedException(GatewayError.REVOCATION_CHECK_UNAVAILABLE));
                     }
                     log.warn("用户令牌撤销检查失败，FAIL_OPEN 放行：tokenId={}", claims.tokenId());
                     return Mono.just(Boolean.FALSE);

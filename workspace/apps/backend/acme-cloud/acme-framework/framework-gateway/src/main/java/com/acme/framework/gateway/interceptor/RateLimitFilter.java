@@ -54,7 +54,8 @@ public final class RateLimitFilter implements GlobalFilter, Ordered {
                 claims.userId(),
                 (String) exchange.getAttributes().get(ExchangeAttrs.DEVICE_ID),
                 claims.userId(),
-                exchange.getRequest().getURI().getPath());
+                exchange.getRequest().getURI().getPath(),
+                claims.tenantId());
         try {
             if (!limiters.tryAcquire(keyBuilder.build(input), input.channel())) {
                 return Mono.error(new GatewayRejectedException(GatewayError.RATE_LIMITED));

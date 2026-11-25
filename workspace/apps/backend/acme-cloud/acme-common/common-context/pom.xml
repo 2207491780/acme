@@ -18,9 +18,19 @@
 
     <dependencies>
         <!-- 依赖=pom 实际引用（本次重构定稿）：允许依赖上界见 Modules.md 2.1，未用不声明 -->
+        <!-- REQ-20261125-001736 AC-5（异步透传）：common-* 依赖白名单（acme-common enforcer
+             bannedDependencies，Backend.md 7.1.2）禁止 spring 依赖；TaskDecorator 接口实现与
+             全局 TaskDecorator bean 装配位于 framework-core（support.ContextTaskDecorator +
+             CoreAutoConfiguration @ConditionalOnMissingBean），本模块仅提供 spring-free 的
+             ContextTaskDecorator（单方法契约形态）与 ContextExecutors -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

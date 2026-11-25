@@ -28,7 +28,10 @@ public enum GatewayError implements ErrorCode, HttpStatusAware {
     CHANNEL_MISMATCH("SYS-03-0006", "端别与路由不匹配", 403),
 
     /** 聚合文档关闭（REQ-20261114-120106，AC-1：acme.doc.enabled=false 时文档端点 404）。 */
-    DOC_DISABLED("SYS-03-0007", "接口文档已关闭", 404);
+    DOC_DISABLED("SYS-03-0007", "接口文档已关闭", 404),
+
+    /** 撤销检查不可用（REQ-20261125-001736 AC-7：fail-closed=true 且 Redis 检查异常，网关拒绝 503）。 */
+    REVOCATION_CHECK_UNAVAILABLE("SYS-03-0008", "撤销检查暂不可用", 503);
 
     private final String code;
     private final String defaultMessage;

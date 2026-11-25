@@ -2,6 +2,7 @@ package com.acme.framework.ratelimit.aspect;
 
 import com.acme.common.context.Channel;
 import com.acme.common.context.ClientContext;
+import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
 import com.acme.common.core.BizException;
 import com.acme.framework.core.support.KeyComposer;
@@ -50,7 +51,8 @@ public class RateLimitAspect {
                 account(),
                 deviceId(),
                 userId(),
-                rateLimit.resource()));
+                rateLimit.resource(),
+                tenantId()));
         boolean allowed;
         try {
             allowed = tokenBucket.tryAcquire(key, capacity, refill);
@@ -95,5 +97,11 @@ public class RateLimitAspect {
 
     private static String userId() {
         return account();
+    }
+
+    /** 租户段取 TenantContext（数据域租户唯一事实源，REQ-20261125-001736 AC-6；未绑定传 null）。 */
+    private static String tenantId() {
+        TenantContext tenant = TenantContext.get();
+        return tenant == null ? null : tenant.tenantId();
     }
 }

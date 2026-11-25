@@ -5,13 +5,16 @@ import com.acme.framework.core.internal.ApplicationContextRegistry;
 import com.acme.framework.core.internal.DefaultTransactionEventPublisher;
 import com.acme.framework.core.internal.ManagedThreadPoolFactory;
 import com.acme.framework.core.support.AfterCommitEventListener;
+import com.acme.framework.core.support.ContextTaskDecorator;
 import com.acme.framework.core.support.CoreExecutor;
 import com.acme.framework.core.support.KeyComposer;
 import com.acme.framework.core.support.TransactionEventPublisher;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
+import org.springframework.core.task.TaskDecorator;
 
 import java.util.List;
 
@@ -45,5 +48,16 @@ public class CoreAutoConfiguration extends AcmeModuleAutoConfiguration {
     @Bean
     public KeyComposer keyComposer(Environment environment) {
         return new KeyComposer(environment);
+    }
+
+    /**
+     * 全局上下文透传任务装饰器（REQ-20261125-001736 AC-5/R5）：容器唯一
+     * {@link TaskDecorator} bean，Spring Boot 默认任务执行器（@Async/@Scheduled 线程池）
+     * 装配面自动拾取；{@code @ConditionalOnMissingBean} 可被应用覆盖。
+     */
+    @Bean
+    @ConditionalOnMissingBean(TaskDecorator.class)
+    public TaskDecorator contextTaskDecorator() {
+        return new ContextTaskDecorator();
     }
 }

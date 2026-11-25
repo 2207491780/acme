@@ -1,11 +1,13 @@
 package com.acme.framework.core.config;
 
 import com.acme.framework.core.internal.ApplicationContextRegistry;
+import com.acme.framework.core.support.ContextTaskDecorator;
 import com.acme.framework.core.support.CoreExecutor;
 import com.acme.framework.core.support.TransactionEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.core.task.TaskDecorator;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -43,7 +45,34 @@ class CoreAutoConfigurationTest {
                     assertThat(context).hasSingleBean(CoreExecutor.class);
                     assertThat(context).hasSingleBean(TransactionEventPublisher.class);
                     assertThat(context).hasSingleBean(ApplicationContextRegistry.class);
+                    assertThat(context).hasSingleBean(TaskDecorator.class);
+                    assertThat(context.getBean(TaskDecorator.class))
+                            .as("全局 TaskDecorator 默认装配（REQ-20261125-001736 AC-5/R5）")
+                            .isInstanceOf(ContextTaskDecorator.class);
                 });
+    }
+
+    @Test
+    void should_overrideContextTaskDecorator_when_userTaskDecoratorDefined() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(CoreAutoConfiguration.class))
+                .withBean("customTaskDecorator", TaskDecorator.class, () -> runnable -> runnable)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(TaskDecorator.class);
+                    assertThat(context.getBean(TaskDecorator.class))
+                            .as("用户自定义 TaskDecorator 优先（@ConditionalOnMissingBean 退位）")
+                            .isNotInstanceOf(ContextTaskDecorator.class);
+                });
+    }
+
+    @Test
+    void should_notAssembleBeans_when_coreModuleDisabled() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(CoreAutoConfiguration.class))
+                .withPropertyValues("acme.core.enabled=false")
+                .run(context -> assertThat(context)
+                        .as("模块开关关闭不装配（含全局 TaskDecorator）")
+                        .doesNotHaveBean(TaskDecorator.class));
     }
 
     private List<Class<?>> loadImports() {

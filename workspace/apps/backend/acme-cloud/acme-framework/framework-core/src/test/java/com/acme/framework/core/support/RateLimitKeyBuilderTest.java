@@ -14,19 +14,19 @@ class RateLimitKeyBuilderTest {
 
     @Test
     void bKeyUsesAccountAndApi() {
-        String key = keyBuilder.build(new RateLimitKeyInput("p3-sample", Channel.B, "u-1", "dev-1", "u-1", "/admin/sample/items"));
+        String key = keyBuilder.build(new RateLimitKeyInput("p3-sample", Channel.B, "u-1", "dev-1", "u-1", "/admin/sample/items", null));
         assertThat(key).isEqualTo("p3-sample:B:u-1:/admin/sample/items");
     }
 
     @Test
     void cKeyUsesDeviceUserAndNormalizedApi() {
-        String key = keyBuilder.build(new RateLimitKeyInput("p3-sample", Channel.C, "u-1", "dev-9", "u-1", "/app/sample/items/1"));
+        String key = keyBuilder.build(new RateLimitKeyInput("p3-sample", Channel.C, "u-1", "dev-9", "u-1", "/app/sample/items/1", null));
         assertThat(key).isEqualTo("p3-sample:C:dev-9:u-1:/app/sample/items/{id}");
     }
 
     @Test
     void missingDimensionsUsePlaceholder() {
-        String key = keyBuilder.build(new RateLimitKeyInput(null, Channel.C, null, null, null, "/app/x"));
+        String key = keyBuilder.build(new RateLimitKeyInput(null, Channel.C, null, null, null, "/app/x", null));
         assertThat(key).isEqualTo(":C:-:-:/app/x");
     }
 
@@ -45,8 +45,38 @@ class RateLimitKeyBuilderTest {
     void resourceIdentifierGoesAsIs() {
         // 服务侧注解场景 api 段=业务声明的资源标识，原样入键（架构设计 11.3）
         assertThat(DefaultRateLimitKeyBuilder.normalizeApi("order.write")).isEqualTo("order.write");
-        String key = keyBuilder.build(new RateLimitKeyInput("order-service", Channel.B, "acct-1", null, "u-1", "order.write"));
+        String key = keyBuilder.build(new RateLimitKeyInput("order-service", Channel.B, "acct-1", null, "u-1", "order.write", null));
         assertThat(key).isEqualTo("order-service:B:acct-1:order.write");
+    }
+
+    // ---------- 租户维度（REQ-20261125-001736 AC-6） ----------
+
+    @Test
+    void shouldInsertTenantSegmentAfterPrefix_when_tenantBoundOnChannelB() {
+        String key = keyBuilder.build(new RateLimitKeyInput("p3-sample", Channel.B, "u-1", "dev-1", "u-1", "/admin/sample/items", "t-1"));
+        assertThat(key).isEqualTo("p3-sample:t-1:B:u-1:/admin/sample/items");
+    }
+
+    @Test
+    void shouldInsertTenantSegment_when_tenantBoundOnChannelC() {
+        String key = keyBuilder.build(new RateLimitKeyInput("p3-sample", Channel.C, "u-1", "dev-9", "u-1", "/app/sample/items/1", "t-2"));
+        assertThat(key).isEqualTo("p3-sample:t-2:C:dev-9:u-1:/app/sample/items/{id}");
+    }
+
+    @Test
+    void shouldKeepLegacyKeyFormat_when_tenantBlankOrNull() {
+        // 向后兼容：未绑定（null/空白）时键格式与现状逐字一致（无租户段）
+        String nullTenant = keyBuilder.build(new RateLimitKeyInput("p3-sample", Channel.B, "u-1", null, "u-1", "/admin/x", null));
+        String blankTenant = keyBuilder.build(new RateLimitKeyInput("p3-sample", Channel.B, "u-1", null, "u-1", "/admin/x", "   "));
+        assertThat(nullTenant).isEqualTo("p3-sample:B:u-1:/admin/x");
+        assertThat(blankTenant).isEqualTo("p3-sample:B:u-1:/admin/x");
+    }
+
+    @Test
+    void shouldKeepFallbackKeyUnchanged_when_tenantBound() {
+        // FB 兜底键不含租户维度（AC-6：buildFallback 不变）
+        String key = keyBuilder.buildFallback(new RateLimitFallbackInput("p3-sample", "10.1.2.3", "/admin/sample/x"));
+        assertThat(key).isEqualTo("p3-sample:FB:10.1.2.3:/admin/sample/x");
     }
 
     @Test

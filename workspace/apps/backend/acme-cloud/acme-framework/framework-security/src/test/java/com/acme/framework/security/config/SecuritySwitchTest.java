@@ -1,6 +1,7 @@
 package com.acme.framework.security.config;
 
 import com.acme.framework.security.interceptor.DataPermissionAspect;
+import com.acme.framework.security.revocation.RevocationCheckPolicy;
 import com.acme.framework.security.support.InternalTokenIssuer;
 import com.acme.framework.security.support.InternalTokenVerifier;
 import org.junit.jupiter.api.Test;
@@ -53,5 +54,17 @@ class SecuritySwitchTest {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class))
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void should_wireRevocationPolicyFromFailClosedConfig_when_present() {
+        // AC-7：开关装配进 SecurityAutoConfiguration，默认 false 与现状一致
+        runner.run(context -> {
+            assertThat(context).hasSingleBean(RevocationCheckPolicy.class);
+            assertThat(context.getBean(RevocationCheckPolicy.class).rejectOnCheckFailure()).isFalse();
+        });
+        runner.withPropertyValues("acme.security.revocation.fail-closed=true")
+                .run(context -> assertThat(context.getBean(RevocationCheckPolicy.class).rejectOnCheckFailure())
+                        .isTrue());
     }
 }

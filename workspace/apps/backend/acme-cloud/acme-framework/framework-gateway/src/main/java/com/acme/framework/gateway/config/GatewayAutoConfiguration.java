@@ -20,6 +20,7 @@ import com.acme.framework.gateway.interceptor.TraceWebFilter;
 import com.acme.framework.gateway.support.UserTokenRevocationChecker;
 import com.acme.framework.gateway.support.UserTokenVerifier;
 import com.acme.framework.security.config.SecurityProperties;
+import com.acme.framework.security.revocation.RevocationCheckPolicy;
 import com.acme.framework.security.support.InternalTokenIssuer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -57,11 +58,22 @@ public class GatewayAutoConfiguration extends AcmeModuleAutoConfiguration {
         return new NeverRevokedTokenChecker();
     }
 
-    /** 撤销检查过滤器（Q-D02：验签后逐请求判定；异常兜底随 acme.gateway.revocation.*）。 */
+    /** 撤销检查异常处置决策网关侧兜底装配（REQ-20261125-001736 AC-7 单源委托）：与
+     *  SecurityAutoConfiguration 同键同语义（读 acme.security.revocation.fail-closed，默认
+     *  false=放行+WARN；true=503+REVOCATION_CHECK_UNAVAILABLE）；双方 @ConditionalOnMissingBean
+     *  保证共存上下文单 bean、后到者让位——网关零配置上下文（不含 security 装配）亦可起容器。 */
+    @Bean
+    @ConditionalOnMissingBean(RevocationCheckPolicy.class)
+    public RevocationCheckPolicy revocationCheckPolicy(SecurityProperties properties) {
+        return new RevocationCheckPolicy(properties.getRevocation().isFailClosed());
+    }
+
+    /** 撤销检查过滤器（Q-D02：验签后逐请求判定；异常处置统一经 RevocationCheckPolicy，AC-7）。 */
     @Bean
     public RevocationCheckFilter revocationCheckFilter(UserTokenRevocationChecker checker,
-                                                       GatewayProperties properties) {
-        return new RevocationCheckFilter(checker, properties.getRevocation());
+                                                       GatewayProperties properties,
+                                                       RevocationCheckPolicy policy) {
+        return new RevocationCheckFilter(checker, properties.getRevocation(), policy);
     }
 
     /** 限流 key 构造器（BR-012：统一构造，可替换）。 */

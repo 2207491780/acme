@@ -9,7 +9,10 @@ public enum CacheError implements com.acme.common.core.ErrorCode {
     CACHE_UNAVAILABLE("SYS-06-0001", "缓存暂不可用"),
 
     /** 回源加载失败（FR-005）。 */
-    LOAD_FAILED("SYS-06-0002", "缓存回源失败");
+    LOAD_FAILED("SYS-06-0002", "缓存回源失败"),
+
+    /** 缺少租户上下文（REQ-20261125-001736 AC-4：租户缓存键 fail-closed，未绑定且旁路未激活）。 */
+    TENANT_REQUIRED("SYS-06-0003", "缺少租户上下文");
 
     private final String code;
     private final String defaultMessage;

@@ -66,7 +66,7 @@ acme:
       # 单体聚合形态 handler 与引擎同 JVM——异步受理（状态链序可观测：APPROVING=审批办结后、
       # FILED=HR 备案落库时），handler 异常不反噬下发；分布式形态缺省同步
       receive-async: true
-      receive-initial-delay-ms: 600
+      receive-initial-delay-ms: 4000
       receive-callback-delay-ms: 1000
   leave:
     # 试点 handler 注册键=试点 BPMN serviceRef（LeaveFileServiceTaskHandler 收集器时点解析 +
