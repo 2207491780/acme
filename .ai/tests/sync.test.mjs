@@ -494,6 +494,48 @@ test('should_inject_swarm_trigger_three_modes_into_entry_stubs', async (t) => {
   }
 });
 
+test('should_inject_manual_swarm_trigger_into_entry_stubs_without_command_entry', async (t) => {
+  // manual 档三处入口形态：根入口存根（AGENTS/CLAUDE/GEMINI）+ @import 去重存根（CODEBUDDY）。
+  // manual 不注入四阶段流程 / leader 路径 / 手册 / /req 命令入口。
+  const { repo } = await fixture(t);
+  await putSwarm(repo, 'code-review');
+  await put(repo, CONFIG, 'engine:\n  code-review: manual\n');
+  succeeds(run(repo));
+  const manual =
+    /5\. 蜂群流程开关（engine\.code-review: manual）：蜂群 code-review 仅在用户对话显式要求时调用，无自动触发、无命令入口；评审唯一产物为 contracts\/<REVIEW-ID>\.md/;
+  for (const file of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'CODEBUDDY.md']) {
+    const text = await readFile(join(repo, file), 'utf8');
+    assert.match(text, manual, `${file} 应注入 manual 档触发段`);
+    assert.doesNotMatch(text, /\.ai\/agents\/code-review\/code-review-leader\.md/, `${file} manual 档不注入 leader 路径`);
+    assert.doesNotMatch(text, /\/req/, `${file} manual 档不注入命令入口`);
+    assert.doesNotMatch(text, /multi-agent\.md/, `${file} manual 档不注入四阶段手册`);
+  }
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_number_ai_coding_dev_and_code_review_from_five_when_both_swarms_exist', async (t) => {
+  const { repo } = await fixture(t);
+  await putSwarm(repo, 'ai-coding-dev');
+  await putSwarm(repo, 'code-review');
+  await put(repo, CONFIG, 'engine:\n  code-review: manual\n  ai-coding-dev: auto\n');
+  succeeds(run(repo));
+  const agents = await readFile(join(repo, 'AGENTS.md'), 'utf8');
+  assert.match(agents, /5\. 蜂群流程开关（engine\.ai-coding-dev: auto）/);
+  assert.match(agents, /6\. 蜂群流程开关（engine\.code-review: manual）：蜂群 code-review 仅在用户对话显式要求时调用/);
+  assert.match(agents, /6\. 蜂群流程开关（engine\.code-review: manual）[^]*评审唯一产物为 contracts\/<REVIEW-ID>\.md/);
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_still_reject_code_review_key_when_swarm_directory_absent', async (t) => {
+  const { repo } = await fixture(t);
+  await put(repo, CONFIG, 'engine:\n  code-review: manual\n');
+  // fixture 无 code-review 蜂群目录 → 即使 manual 是合法档位，未知键仍报错。
+  fails(run(repo), /未知 engine 键「code-review」/);
+  await putSwarm(repo, 'code-review');
+  succeeds(run(repo));
+  succeeds(run(repo, ['--check']));
+});
+
 test('should_number_swarm_triggers_from_five_for_each_swarm_key', async (t) => {
   const { repo } = await fixture(t);
   await putSwarm(repo, 'zeta');
@@ -881,7 +923,7 @@ const badConfigs = [
   ['bad_orphan_type', 'engine:\n  orphanDetection: yes\n', /orphanDetection 必须为布尔/],
   ['bad_budget_negative', 'engine:\n  rulesBudgetBytes: -5\n', /rulesBudgetBytes 必须为正整数/],
   ['bad_budget_float', 'engine:\n  rulesBudgetBytes: 1.5\n', /rulesBudgetBytes 必须为正整数/],
-  ['bad_swarm_mode', 'engine:\n  ai-coding-dev: maybe\n', /必须为 auto\|always\|never/, ['ai-coding-dev']],
+  ['bad_swarm_mode', 'engine:\n  ai-coding-dev: maybe\n', /必须为 auto\|always\|never\|manual/, ['ai-coding-dev']],
   ['unknown_swarm_key_without_directory', 'engine:\n  ai-coding-dev: auto\n', /未知 engine 键/, []],
   ['bad_version', 'version: 2\n', /version 必须为 1/],
   ['array_unsupported', 'engine:\n  - a\n', /不支持数组/],

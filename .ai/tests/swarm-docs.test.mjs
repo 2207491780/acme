@@ -90,3 +90,127 @@ test('should_keep_only_swarm_directories_under_agents_when_ignoring_pool_doc', a
     assert.ok(stat.isFile(), `蜂群目录 ${entry.name} 缺少 leader：${rel}`);
   }
 });
+
+// ---- code-review 蜂群文档口径：双蜂群并存 / leader 唯一写入口 / 工人临时脚本边界（同样只读真实源） ----
+const CR_DIR = '.ai/agents/code-review';
+const CR_ROLES = [
+  'code-review-leader',
+  'contract-preflight',
+  'module-inspector-be',
+  'module-inspector-fe',
+  'quality-reviewer',
+  'flow-simulator',
+  'cross-contract-verifier',
+  'impact-oracle',
+  'verdict-arbitrator',
+];
+const CR_WORKERS = CR_ROLES.filter((role) => role !== 'code-review-leader' && role !== 'verdict-arbitrator');
+const crPath = (role) => `${CR_DIR}/${role}.md`;
+
+function toolsOf(text, file) {
+  const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  assert.ok(fm, `${file} 应有 frontmatter`);
+  const line = fm[1].match(/^tools:\s*\[([^\]]*)\]\s*$/m);
+  assert.ok(line, `${file} 的 frontmatter 应有 tools 数组`);
+  return line[1].split(',').map((tool) => tool.trim()).filter(Boolean);
+}
+
+function frontmatterLineOf(text, key, file) {
+  const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  assert.ok(fm, `${file} 应有 frontmatter`);
+  const line = fm[1].split(/\r?\n/).find((raw) => raw.startsWith(`${key}:`));
+  assert.ok(line, `${file} 的 frontmatter 应有 ${key} 行`);
+  return line;
+}
+
+const ZCODE_AGENTS = '.ai/tools/zcode/agents';
+
+test('should_keep_code_review_zcode_stubs_verbatim_when_registering_swarm_roles', async () => {
+  for (const role of CR_ROLES) {
+    const sourceRel = crPath(role);
+    const stubRel = `${ZCODE_AGENTS}/${role}.md`;
+    const stat = await lstat(join(root, stubRel));
+    assert.ok(stat.isFile(), `${stubRel} 应存在 ZCode 角色存根源`);
+    const source = await read(sourceRel);
+    const stub = await read(stubRel);
+    for (const key of ['description', 'tools']) {
+      assert.equal(
+        frontmatterLineOf(stub, key, stubRel),
+        frontmatterLineOf(source, key, sourceRel),
+        `${stubRel} 的 ${key} 必须与 ${sourceRel} 逐字一致`
+      );
+    }
+    const stubBody = bodyOf(stub, stubRel);
+    assert.ok(stubBody.includes(`.ai/agents/code-review/${role}.md`), `${stubRel} 正文应指向公共池源 ${sourceRel}`);
+    assert.match(stubBody, /被 spawn 后第一步：立即完整读取上述文件并严格遵循/, `${stubRel} 正文应写明 spawn 后先读源文件`);
+  }
+});
+
+test('should_keep_code_review_role_descriptions_and_names_consistent', async () => {
+  const entries = (await readdir(join(root, CR_DIR), { withFileTypes: true })).map((entry) => entry.name).sort();
+  assert.deepEqual(entries, CR_ROLES.map((role) => `${role}.md`).sort(), `${CR_DIR}/ 应恰好含 9 个角色文件`);
+  for (const role of CR_ROLES) {
+    const rel = crPath(role);
+    const text = await read(rel);
+    const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+    assert.ok(fm, `${rel} 应有 frontmatter`);
+    assert.match(fm[1], new RegExp(`^name:\\s*${role}\\s*$`, 'm'), `${rel} name 应与文件名一致`);
+    const description = descriptionOf(text, rel);
+    assert.match(description, /code-review 蜂群/, `${rel} description 应声明 code-review 蜂群`);
+    assert.match(description, /engine\.code-review: manual/, `${rel} description 应声明 manual 档`);
+    assert.ok(toolsOf(text, rel).length > 0, `${rel} tools 不应为空`);
+    assert.match(bodyOf(text, rel), /回传|唯一写入口/, `${rel} 正文应声明交付给 leader`);
+  }
+});
+
+test('should_keep_leader_as_only_write_entry_and_arbitrator_read_only', async () => {
+  const leaderRel = crPath('code-review-leader');
+  const leader = await read(leaderRel);
+  const leaderTools = toolsOf(leader, leaderRel);
+  for (const tool of ['Write', 'Edit', 'Bash', 'Read', 'Grep', 'Glob']) {
+    assert.ok(leaderTools.includes(tool), `leader 应含 ${tool}`);
+  }
+  const leaderBody = bodyOf(leader, leaderRel);
+  assert.match(leaderBody, /唯一写入口/, 'leader 应声明唯一写入口');
+  assert.match(leaderBody, /contracts\/<REVIEW-ID>\.md/, 'leader 应声明唯一产物');
+  assert.match(leaderBody, /第 7 节追加/, '多轮打回应在同一文件第 7 节追加');
+  assert.match(leaderBody, /Bash \*\*仅用于 `node <script>\.mjs`/, 'leader 的 Bash 仅限 node 脚本');
+
+  const arbRel = crPath('verdict-arbitrator');
+  assert.deepEqual(toolsOf(await read(arbRel), arbRel), ['Read', 'Grep', 'Glob'], '裁决员必须纯只读');
+  assert.match(bodyOf(await read(arbRel), arbRel), /不落盘/, '裁决员应声明不落盘');
+});
+
+test('should_limit_worker_script_writes_to_ai_tmp_only', async () => {
+  for (const role of CR_WORKERS) {
+    const rel = crPath(role);
+    const text = await read(rel);
+    const tools = toolsOf(text, rel);
+    assert.ok(tools.includes('Write') && tools.includes('Bash'), `${rel} 工人角色应可写临时脚本（Write/Bash）`);
+    assert.ok(!tools.includes('Edit'), `${rel} 工人角色不应有 Edit`);
+    const body = bodyOf(text, rel);
+    assert.match(body, /\.ai-tmp\/code-review\/<REVIEW-ID>\//, `${rel} 应限定临时脚本目录`);
+    assert.match(body, /不(?:得)?写仓库内任何文件/, `${rel} 应禁写仓库内文件`);
+    assert.match(body, /不(?:得)?写第二份 md/, `${rel} 应禁写第二份 md`);
+    assert.match(body, /不(?:得)?写业务代码/, `${rel} 应禁写业务代码`);
+    assert.match(body, /run\.mjs/, `${rel} 应经统一执行器运行`);
+    assert.match(body, /fs\.rm/, `${rel} 应用 fs.rm 清理`);
+    assert.match(body, /ACME_MVN/, `${rel} 应声明 Maven 零平台分支`);
+  }
+});
+
+test('should_declare_manual_swarm_and_cross_platform_rules_in_code_review_skill', async () => {
+  const skill = await read('.ai/skills/code-review/SKILL.md');
+  assert.match(skill, /engine\.code-review: manual/, 'Skill 应声明 manual 档');
+  assert.match(skill, /唯一(?:入库文件|产物) `contracts\/<REVIEW-ID>\.md`/, 'Skill 应声明唯一产物');
+  assert.match(skill, /无命令入口/, 'Skill 应声明无命令入口');
+  assert.match(skill, /不产生 REQ/, 'Skill 应声明不产生 REQ');
+  for (const token of ['shell: false', 'ACME_MVN', 'fs.rm', 'process.execPath', '跨平台硬规范']) {
+    assert.ok(skill.includes(token), `Skill 应含跨平台硬规范要点 ${token}`);
+  }
+  const pool = await read('.ai/agents/AGENT-POOL.md');
+  assert.match(pool, /ai-coding-dev\//, 'AGENT-POOL 应登记 ai-coding-dev 蜂群');
+  assert.match(pool, /code-review\//, 'AGENT-POOL 应登记 code-review 蜂群');
+  const config = await read('.ai/ai-coding-config.yml');
+  assert.match(config, /^  code-review: manual$/m, '引擎开关应配置 code-review: manual');
+});

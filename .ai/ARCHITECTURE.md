@@ -78,7 +78,9 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | `engine.entryMode` | `stub` \| `symlink` | `stub` | 根部/分层入口默认形态；CLI `--links` / `AI_SYNC_LINK=1` 优先（强制 symlink），无符号链接权限时自动降级 stub |
 | `engine.orphanDetection` | 布尔 | `true` | 是否在 sync/--check 扫描工具目录孤儿派生文件；关闭会削弱联动防线 |
 | `engine.rulesBudgetBytes` | 正整数 | `8192` | `RULES.md` 拼接后的字节预算上限 |
-| `<蜂群名>`（动态键，如 `ai-coding-dev`） | `auto` \| `always` \| `never` | `never`（缺省不注入触发段） | 蜂群触发开关：键名必须对应 `.ai/agents/<蜂群名>/` 目录（未知键报错）；auto=功能开发类任务自动触发；always=所有会产出业务代码的开发任务；never=停用勿主动调用。每个蜂群键由引擎注入一条入口存根触发段（从编号 5 递增，不占 RULES.md 预算）；流程源 `skills/team-leader/` + `.ai-memory/playbooks/multi-agent.md`（取舍见 ADR 2026-11-14-19，key 化见 ADR 2026-11-26-01） |
+| `<蜂群名>`（动态键，如 `ai-coding-dev`、`code-review`） | `auto` \| `always` \| `never` \| `manual` | `never`（缺省不注入触发段） | 蜂群触发开关：键名必须对应 `.ai/agents/<蜂群名>/` 目录（未知键报错）；auto=功能开发类任务自动触发；always=所有会产出业务代码的开发任务；never=停用勿主动调用；**manual=仅在用户对话显式要求时调用，无自动触发、无命令入口，唯一产物为 `contracts/<REVIEW-ID>.md`**（如 `code-review` 评审蜂群）。每个蜂群键由引擎注入一条入口存根触发段（从编号 5 递增，不占 RULES.md 预算）；auto/always/never 流程源 `skills/team-leader/` + `.ai-memory/playbooks/multi-agent.md`，manual 流程源 `skills/code-review/SKILL.md`（取舍见 ADR 2026-11-14-19，key 化见 ADR 2026-11-26-01，manual 档与双蜂群并存见 ADR 2026-11-26-02） |
+
+当前仓库并存两个蜂群：`ai-coding-dev: auto`（功能开发，四阶段契约流程）与 `code-review: manual`（全面代码评审，仅用户显式要求时调用）。`manual` 档**不创建任何命令入口**（无 `/review`、无 ZCode/各工具命令指针），触发段不含 leader/手册/命令引用；评审不产生 REQ、不写第二份 md，唯一入库产物为 `contracts/<REVIEW-ID>.md`。完整规格见 `.ai/skills/code-review/SKILL.md` 与 ADR 2026-11-26-02。
 
 **环境上下文（`environment.*`）**——不是引擎开关，是当前运行环境定义文件的指针；AI 在调试任务前读取所指 `.ai/env/` 定义，切换环境时改本文件并重跑 sync：
 

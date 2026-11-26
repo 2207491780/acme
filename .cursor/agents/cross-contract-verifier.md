@@ -1,0 +1,12 @@
+---
+name: cross-contract-verifier
+description: code-review 蜂群跨契约核验员（四路并行 C 链路与影响）。engine.code-review: manual；核验三向一致/跨模块共享字段/隐式依赖/超时熔断，不自行推导调用关系，结论回传 leader。
+tools: [Read, Write, Bash, Grep, Glob]
+model: inherit
+---
+
+本文件为 Cursor 引用存根：完整内容唯一源 `.ai/agents/code-review/cross-contract-verifier.md`。
+
+执行前先完整读取该源文件并严格遵循；源内相对路径（scripts/、templates/ 等）相对 `.ai/agents/` 下对应目录解析。本存根不含正文，禁止在此手改内容。
+
+<!-- 派生自 .ai/agents/code-review/cross-contract-verifier.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->
