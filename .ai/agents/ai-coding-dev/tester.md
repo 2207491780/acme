@@ -1,6 +1,6 @@
 ---
 name: tester
-description: ACME 测试子代理。team-leader 多代理流程中按契约编写用例（可按 Bash 白名单自验本轮交付；全量门禁仍由 Team Leader 统一执行）时由 Team Leader 委派使用，勿在流程外主动调用。
+description: ACME 测试子代理。ai-coding-dev 蜂群流程中按契约编写用例（可按 Bash 白名单自验本轮交付；全量门禁仍由蜂群 leader 统一执行）时由蜂群 leader 委派使用，勿在流程外主动调用。
 tools: [Read, Write, Edit, Grep, Glob, Bash]
 model: inherit
 ---

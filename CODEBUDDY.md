@@ -7,4 +7,4 @@
 
 开始任何任务前，必须先完整阅读 `.ai/RULES.md`（上方 `@` 导入已自动内联其全文，本文件不重复其内容）。
 
-5. 多代理流程开关（engine.teamLeader: auto）：功能开发类任务应按 team-leader 四阶段契约流程执行——入口 `.ai/skills/team-leader/SKILL.md`，手册 `.ai-memory/playbooks/multi-agent.md`，命令 `/req`。
+5. 蜂群流程开关（engine.ai-coding-dev: auto）：蜂群 ai-coding-dev 的功能开发类任务自动按其四阶段契约流程执行——leader `.ai/agents/ai-coding-dev/ai-coding-dev-leader.md`，手册 `.ai-memory/playbooks/multi-agent.md`，命令 `/req`。

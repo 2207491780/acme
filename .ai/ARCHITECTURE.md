@@ -19,7 +19,7 @@
 ├── RULES.md       # ⚙️ 生成：公共规范唯一完整副本（由 rules/ 按文件名排序拼接）
 ├── rules/         # 公共规范源（AI 协作准则 / 编码规范 / Git 工作流 / 项目上下文）
 ├── scopes/        # 分层 AGENTS.md 源 → 派生到仓库同路径（就近生效，见 SCOPED-RULES.md）
-├── agents/        # 跨工具子代理公共池（格式见 AGENT-POOL.md）
+├── agents/        # 跨工具子代理蜂群公共池（一个子目录 = 一个蜂群，格式见 AGENT-POOL.md）
 ├── skills/        # 跨工具技能公共池（格式见 SKILL-POOL.md）
 ├── commands/      # 跨工具命令公共池（格式见 COMMAND-POOL.md）
 ├── tools/         # 各工具专属配置源（用法见 TOOL-SOURCES.md）
@@ -52,7 +52,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | 同上（存根形态） | `.cursor/rules/project.mdc`、`.github/copilot-instructions.md` | frontmatter 存根（Cursor：`alwaysApply` **纯指针**不重复铁律——同时读 AGENTS.md，ADR 2026-11-18-01；Copilot 规避长度限制） |
 | 同上（纯指针存根） | `.trae/rules/project_rules.md`、`.qoder/rules/project_rules.md` | frontmatter 存根（`alwaysApply`；不重复铁律——Trae 需手动开 AGENTS.md 开关、Qoder 双份加载 AGENTS.md 与本规则，ADR 2026-11-17-02 / 2026-11-17-04） |
 | `.ai/scopes/**` | 仓库同路径 `AGENTS.md` + 同级 `CLAUDE.md`（默认 `@` 导入存根；`--links` 模式为链接） | 副本 + 引用 |
-| `.ai/agents/` | `.claude/agents/`、`.gemini/agents/`（工具名映射）、`.cursor/agents/`（引用存根，ADR 2026-11-18-01）、`.qoder/agents/`（引用存根）、`.trae/agents/`（引用存根，frontmatter 适配 tools 字符串/移除 model inherit，ADR 2026-11-17-04）、`.codebuddy/agents/`（localOnly 引用存根，ADR 2026-11-17-03） | 拷贝派生 / 引用存根 |
+| `.ai/agents/<蜂群名>/*.md`（蜂群源，如 `ai-coding-dev/`） | `.claude/agents/<agent>.md`、`.gemini/agents/<agent>.md`（工具名映射）、`.cursor/agents/`（引用存根，ADR 2026-11-18-01）、`.qoder/agents/`（引用存根）、`.trae/agents/`（引用存根，frontmatter 适配 tools 字符串/移除 model inherit，ADR 2026-11-17-04）、`.codebuddy/agents/`（localOnly 引用存根，ADR 2026-11-17-03） | **扁平派生**（源嵌套蜂群目录，输出取 basename，保持工具原生发现；溯源尾注保留完整源 rel；重名冲突仍由 destinations 检测，ADR 2026-11-26-01） |
 | `.ai/skills/` | `.claude/skills/`、`.cursor/skills/`（引用存根）、`.qoder/skills/`（引用存根）、`.trae/skills/`（引用存根）、`.codebuddy/skills/`（localOnly 引用存根） | 拷贝派生 / 引用存根 |
 | `.ai/commands/` | `.claude/commands/`、`.cursor/commands/`（引用存根）、`.qoder/commands/`（引用存根）、`.trae/commands/`（引用存根）、`.codebuddy/commands/`（localOnly 引用存根） | 拷贝派生 / 引用存根 |
 | `.ai/tools/<工具>/**` | 对应工具目录 | 拷贝派生（目录说明文件如 `CLAUDE-CODE.md` 自动前置「生成产物」标头）；`zcode`/`codebuddy` 键标记 localOnly——目标目录 git 忽略、不入库，`--check` 对缺失跳过不判错，存在必须一致 |
@@ -78,7 +78,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | `engine.entryMode` | `stub` \| `symlink` | `stub` | 根部/分层入口默认形态；CLI `--links` / `AI_SYNC_LINK=1` 优先（强制 symlink），无符号链接权限时自动降级 stub |
 | `engine.orphanDetection` | 布尔 | `true` | 是否在 sync/--check 扫描工具目录孤儿派生文件；关闭会削弱联动防线 |
 | `engine.rulesBudgetBytes` | 正整数 | `8192` | `RULES.md` 拼接后的字节预算上限 |
-| `engine.teamLeader` | `auto` \| `always` \| `never` | `never` | team-leader 多代理契约开发流程触发开关：auto=功能开发类任务自动触发；always=所有开发任务一律执行；never=停用。取值由引擎注入所有入口存根触发段（不占 RULES.md 预算）；流程源 `skills/team-leader/` + `.ai-memory/playbooks/multi-agent.md`（取舍见 ADR 2026-11-14-19） |
+| `<蜂群名>`（动态键，如 `ai-coding-dev`） | `auto` \| `always` \| `never` | `never`（缺省不注入触发段） | 蜂群触发开关：键名必须对应 `.ai/agents/<蜂群名>/` 目录（未知键报错）；auto=功能开发类任务自动触发；always=所有会产出业务代码的开发任务；never=停用勿主动调用。每个蜂群键由引擎注入一条入口存根触发段（从编号 5 递增，不占 RULES.md 预算）；流程源 `skills/team-leader/` + `.ai-memory/playbooks/multi-agent.md`（取舍见 ADR 2026-11-14-19，key 化见 ADR 2026-11-26-01） |
 
 **环境上下文（`environment.*`）**——不是引擎开关，是当前运行环境定义文件的指针；AI 在调试任务前读取所指 `.ai/env/` 定义，切换环境时改本文件并重跑 sync：
 

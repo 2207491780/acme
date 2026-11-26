@@ -27,7 +27,7 @@
 |---|---|
 | 改全局规范（所有工具生效） | `.ai/rules/*.md`（新增文件无需改脚本，按文件名排序拼接） |
 | 某目录专属规则（就近生效） | `.ai/scopes/<仓库相对路径>/AGENTS.md` |
-| 新增跨工具子代理 | `.ai/agents/<name>.md`（frontmatter 规范见该目录 `AGENT-POOL.md`） |
+| 新增跨工具子代理 | `.ai/agents/<蜂群名>/<name>.md`（蜂群目录约定与 frontmatter 规范见该目录 `AGENT-POOL.md`） |
 | 新增跨工具技能 | `.ai/skills/<name>/SKILL.md` |
 | 新增斜杠命令 | `.ai/commands/<name>.md`（Gemini 需手工转 TOML 放 `.ai/tools/gemini/commands/`） |
 | 某工具私有配置（settings / 私有规则 / .cursorignore…） | `.ai/tools/<工具>/`（镜像目标路径） |

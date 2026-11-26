@@ -53,7 +53,7 @@ const STUB_TARGETS = [
     file: '.trae/rules/project_rules.md',
     frontmatter: ['---', 'description: ACME 项目规范入口（自动生成，引用 .ai/RULES.md）', 'alwaysApply: true', '---'],
     stub: `本仓库 AI 规范唯一完整副本是 \`.ai/RULES.md\`——开始任何任务前必须先完整阅读（Trae 规则不解析链接，请主动读取该文件）。
-入口存根（铁律节选与多代理流程开关）见根目录 \`AGENTS.md\`（需在 设置 > 规则 > 导入设置 中开启「将 AGENTS.md 包含在上下文中」才生效）。
+入口存根（铁律节选与蜂群流程开关）见根目录 \`AGENTS.md\`（需在 设置 > 规则 > 导入设置 中开启「将 AGENTS.md 包含在上下文中」才生效）。
 AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\`.ai-memory/playbooks/ai-config.md\`）。`,
   },
   {
@@ -64,7 +64,7 @@ AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\
     file: '.qoder/rules/project_rules.md',
     frontmatter: ['---', 'description: ACME 项目规范入口（自动生成，引用 .ai/RULES.md）', 'alwaysApply: true', '---'],
     stub: `本仓库 AI 规范唯一完整副本是 \`.ai/RULES.md\`——开始任何任务前必须先完整阅读（Qoder 规则不解析链接，请主动读取该文件）。
-入口存根（铁律节选与多代理流程开关）见根目录 \`AGENTS.md\`，Qoder 会自动读取；两者冲突时以本规则为准，本文件不重复其内容。
+入口存根（铁律节选与蜂群流程开关）见根目录 \`AGENTS.md\`，Qoder 会自动读取；两者冲突时以本规则为准，本文件不重复其内容。
 AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\`.ai-memory/playbooks/ai-config.md\`）。`,
   },
   {
@@ -75,7 +75,7 @@ AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\
     file: '.cursor/rules/project.mdc',
     frontmatter: ['---', 'description: ACME 项目规范入口（自动生成，引用 .ai/RULES.md）', 'alwaysApply: true', '---'],
     stub: `本仓库 AI 规范唯一完整副本是 \`.ai/RULES.md\`——开始任何任务前必须先完整阅读（Cursor 规则内 \`@\` 提及不会内联文件内容，请主动用工具读取该文件）。
-入口存根（铁律节选与多代理流程开关）见根目录 \`AGENTS.md\`，Cursor 会自动读取；分层规范见各目录 \`AGENTS.md\`（官方支持 nested，更具体者优先）。本文件不重复其内容。
+入口存根（铁律节选与蜂群流程开关）见根目录 \`AGENTS.md\`，Cursor 会自动读取；分层规范见各目录 \`AGENTS.md\`（官方支持 nested，更具体者优先）。本文件不重复其内容。
 跨工具公共池见 \`.cursor/agents|skills|commands/\`（引用存根 → \`.ai/\` 源）。
 AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\`.ai-memory/playbooks/ai-config.md\`）。`,
   },
@@ -84,7 +84,9 @@ AI 配置修改一律走 \`.ai/\` 源 + \`node .ai/sync.mjs\`（五步流程：\
 /** 跨工具公共池：.ai/<src>/** → 各工具目录（doc 仅作源目录说明，不派生）。
  *  targets 项为字符串或 { dir, transform }：transform 在派生 .md 时做目标工具的格式适配。 */
 const POOLS = [
-  { src: 'agents', doc: 'AGENT-POOL.md', targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }, { dir: '.qoder/agents', transform: makePoolRefStub('agents') }, { dir: '.cursor/agents', transform: makePoolRefStub('agents', 'Cursor') }] },
+  // agents 源为蜂群文件夹（.ai/agents/<蜂群名>/<agent>.md），派生扁平到 <工具>/agents/<agent>.md，
+  // 保持工具原生发现能力；溯源尾注仍保留完整源 rel（ADR 2026-11-26-01）。
+  { src: 'agents', doc: 'AGENT-POOL.md', flat: true, targets: ['.claude/agents', { dir: '.gemini/agents', transform: transformGeminiAgent }, { dir: '.qoder/agents', transform: makePoolRefStub('agents') }, { dir: '.cursor/agents', transform: makePoolRefStub('agents', 'Cursor') }] },
   { src: 'skills', doc: 'SKILL-POOL.md', targets: ['.claude/skills', { dir: '.qoder/skills', transform: makePoolRefStub('skills') }, { dir: '.cursor/skills', transform: makePoolRefStub('skills', 'Cursor') }] },
   { src: 'commands', doc: 'COMMAND-POOL.md', targets: ['.claude/commands', { dir: '.qoder/commands', transform: makePoolRefStub('commands') }, { dir: '.cursor/commands', transform: makePoolRefStub('commands', 'Cursor') }] },
 ];
@@ -102,7 +104,7 @@ const TOOLS = [
     doc: 'TRAE.md',
     target: '.trae',
     mirrorPools: [
-      { src: 'agents', transform: makeTraeAgentStub },
+      { src: 'agents', transform: makeTraeAgentStub, flat: true },
       { src: 'skills', transform: makePoolRefStub('skills', 'Trae') },
       { src: 'commands', transform: makePoolRefStub('commands', 'Trae') },
     ],
@@ -122,7 +124,7 @@ const TOOLS = [
     target: '.codebuddy',
     localOnly: true,
     mirrorPools: [
-      { src: 'agents', transform: makePoolRefStub('agents', 'CodeBuddy') },
+      { src: 'agents', transform: makePoolRefStub('agents', 'CodeBuddy'), flat: true },
       { src: 'skills', transform: makePoolRefStub('skills', 'CodeBuddy') },
       { src: 'commands', transform: makePoolRefStub('commands', 'CodeBuddy') },
     ],
@@ -241,9 +243,13 @@ async function canSymlink() {
 const CONFIG_FILE = 'ai-coding-config.yml';
 const CONFIG_DEFAULTS = {
   version: 1,
-  engine: { entryMode: 'stub', orphanDetection: true, rulesBudgetBytes: 8192, teamLeader: 'never' },
+  engine: { entryMode: 'stub', orphanDetection: true, rulesBudgetBytes: 8192 },
   environment: { file: 'local.yaml' },
 };
+/** engine 固定键：其余键必须是 .ai/agents/ 下的蜂群名（见 listSwarmNames / validateConfig）。 */
+const FIXED_ENGINE_KEYS = new Set(['entryMode', 'orphanDetection', 'rulesBudgetBytes']);
+/** 蜂群触发模式档位（auto=功能开发类；always=所有产出业务代码的任务；never=停用）。 */
+const SWARM_TRIGGER_MODES = ['auto', 'always', 'never'];
 
 /** 极简 YAML 子集解析：仅两层标量映射 + 注释；拒绝数组/Tab/多行/锚点等未支持语法（无外部依赖）。 */
 function parseConfigYaml(text) {
@@ -283,9 +289,43 @@ function parseConfigScalar(v, raw) {
   return v;
 }
 
-/** 严格校验：未知键/错误类型/非法枚举一律报错，避免静默误配；与缺省合并。 */
-function validateConfig(parsed) {
+/** 蜂群名集合 = .ai/agents/ 下的子目录名（每个子目录 = 一个蜂群；fixture 无目录时为空集）。
+ *  两条布局不变量在此强制（先于配置加载/校验，天然早于 config 校验）：
+ *  1) 根级只允许蜂群目录与唯一说明文件 AGENT-POOL.md；
+ *  2) 每个蜂群目录必须有普通文件 <蜂群名>-leader.md（符号链接/目录均拒绝），
+ *     保证触发段引用的 leader 路径一定存在（ADR 2026-11-26-01）。 */
+async function listSwarmNames() {
+  const agentsDir = join(AI, 'agents');
+  if (!(await inspectPath(agentsDir, { directory: true }))) return [];
+  const entries = await readdir(agentsDir, { withFileTypes: true });
+  const swarms = [];
+  for (const e of entries) {
+    if (e.isDirectory()) {
+      swarms.push(e.name);
+      continue;
+    }
+    if (e.isFile() && e.name === 'AGENT-POOL.md') continue;
+    throw new Error(
+      `.ai/agents/${e.name}：根级只允许蜂群目录与唯一说明文件 AGENT-POOL.md；请将该文件移入对应蜂群文件夹（如 .ai/agents/<蜂群名>/${e.name}）后重跑 node .ai/sync.mjs。`
+    );
+  }
+  swarms.sort();
+  for (const name of swarms) {
+    const leaderRel = `.ai/agents/${name}/${name}-leader.md`;
+    if (!(await inspectPath(join(agentsDir, name, `${name}-leader.md`)))) {
+      throw new Error(
+        `蜂群 ${name} 缺少 leader：${leaderRel} 不存在；请按 <蜂群名>-leader.md 约定补齐后重跑 node .ai/sync.mjs。`
+      );
+    }
+  }
+  return swarms;
+}
+
+/** 严格校验：未知键/错误类型/非法枚举一律报错，避免静默误配；与缺省合并。
+ *  engine 除固定键外，仅允许键名属于传入的蜂群集合，取值必须是 auto|always|never。 */
+function validateConfig(parsed, swarmNames) {
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(`${CONFIG_FILE}：顶层必须是映射`);
+  const swarms = new Set(swarmNames ?? []);
   const cfg = structuredClone(CONFIG_DEFAULTS);
   for (const k of Object.keys(parsed)) {
     if (k !== 'version' && k !== 'engine' && k !== 'environment') throw new Error(`${CONFIG_FILE}：未知顶层键「${k}」`);
@@ -295,11 +335,15 @@ function validateConfig(parsed) {
     const e = parsed.engine;
     if (e === null || typeof e !== 'object' || Array.isArray(e)) throw new Error(`${CONFIG_FILE}：engine 必须是映射`);
     for (const [k, v] of Object.entries(e)) {
-      if (!(k in CONFIG_DEFAULTS.engine)) throw new Error(`${CONFIG_FILE}：未知 engine 键「${k}」`);
-      if (k === 'entryMode' && v !== 'stub' && v !== 'symlink') throw new Error(`${CONFIG_FILE}：entryMode 必须为 stub|symlink`);
-      if (k === 'orphanDetection' && typeof v !== 'boolean') throw new Error(`${CONFIG_FILE}：orphanDetection 必须为布尔`);
-      if (k === 'rulesBudgetBytes' && (!Number.isInteger(v) || v <= 0)) throw new Error(`${CONFIG_FILE}：rulesBudgetBytes 必须为正整数`);
-      if (k === 'teamLeader' && v !== 'auto' && v !== 'always' && v !== 'never') throw new Error(`${CONFIG_FILE}：teamLeader 必须为 auto|always|never`);
+      if (FIXED_ENGINE_KEYS.has(k)) {
+        if (k === 'entryMode' && v !== 'stub' && v !== 'symlink') throw new Error(`${CONFIG_FILE}：entryMode 必须为 stub|symlink`);
+        if (k === 'orphanDetection' && typeof v !== 'boolean') throw new Error(`${CONFIG_FILE}：orphanDetection 必须为布尔`);
+        if (k === 'rulesBudgetBytes' && (!Number.isInteger(v) || v <= 0)) throw new Error(`${CONFIG_FILE}：rulesBudgetBytes 必须为正整数`);
+      } else if (swarms.has(k)) {
+        if (!SWARM_TRIGGER_MODES.includes(v)) throw new Error(`${CONFIG_FILE}：${k} 必须为 auto|always|never`);
+      } else {
+        throw new Error(`${CONFIG_FILE}：未知 engine 键「${k}」`);
+      }
       cfg.engine[k] = v;
     }
   }
@@ -316,11 +360,11 @@ function validateConfig(parsed) {
   return cfg;
 }
 
-async function loadConfig() {
+async function loadConfig(swarmNames) {
   const p = join(AI, CONFIG_FILE);
   const st = await inspectPath(p); // 缺失→null（用缺省）；符号链接/非普通文件→抛错（源安全）
   if (!st) return structuredClone(CONFIG_DEFAULTS);
-  const cfg = validateConfig(parseConfigYaml(norm(await readFile(p, 'utf8'))));
+  const cfg = validateConfig(parseConfigYaml(norm(await readFile(p, 'utf8'))), swarmNames);
   // 折中存在性校验（审查 2026-11-14）：真实仓库必有 .ai/env/，目录在位时校验指针指向的文件存在，
   // 拼写错误当场报错而非调试任务当天才暴露；fixture 最小仓库无 env 目录，跳过（fixture 兼容性不变）。
   if (await inspectPath(join(AI, 'env'), { directory: true })) {
@@ -331,7 +375,7 @@ async function loadConfig() {
   return cfg;
 }
 
-const config = await loadConfig();
+const config = await loadConfig(await listSwarmNames());
 const RULES_BUDGET = config.engine.rulesBudgetBytes;
 const LINK_FLAG = process.argv.includes('--links') || process.env.AI_SYNC_LINK === '1';
 /** 链接模式：CLI --links / AI_SYNC_LINK=1 优先；否则取配置 entryMode（缺省 stub）。 */
@@ -423,21 +467,33 @@ const stub = `本仓库所有 AI 规范统一维护于 \`.ai/\`。**开始任何
 3. 未读 \`.ai/RULES.md\` 前，不得开始任何编码任务。
 4. 凡修改 AI-Coding 配置（规范 / 分层规则 / 公共池 / 工具配置 / 钩子 / CI）：先读 \`.ai-memory/playbooks/ai-config.md\`，按其五步流程执行。`;
 
-/** team-leader 多代理流程触发段：按 engine.teamLeader 档位注入所有入口存根（存根不占 RULES.md 预算；档位语义见 ARCHITECTURE「行为/引擎开关」）。 */
-const TEAM_LEADER_TRIGGER = {
-  auto: '5. 多代理流程开关（engine.teamLeader: auto）：功能开发类任务应按 team-leader 四阶段契约流程执行——入口 `.ai/skills/team-leader/SKILL.md`，手册 `.ai-memory/playbooks/multi-agent.md`，命令 `/req`。',
-  always: '5. 多代理流程开关（engine.teamLeader: always）：凡会产生业务代码的开发任务，一律按 team-leader 四阶段契约流程执行——入口 `.ai/skills/team-leader/SKILL.md`，手册 `.ai-memory/playbooks/multi-agent.md`，命令 `/req`。',
-  never: '5. 多代理流程开关（engine.teamLeader: never）：team-leader 四阶段契约流程已停用，开发任务按常规方式执行，勿主动调用该流程。',
-};
-const entryStub = `${stub}\n${TEAM_LEADER_TRIGGER[config.engine.teamLeader]}`;
+/** 蜂群触发段：对 engine 中每个蜂群键按档位生成一条（编号从 5 递增），注入所有入口存根。
+ *  蜂群键缺省 → 不生成任何条目（等价 never 停用）；存根不占 RULES.md 预算；档位语义见 ARCHITECTURE「行为/引擎开关」。 */
+function buildSwarmTrigger(engine) {
+  const swarms = Object.keys(engine).filter((k) => !FIXED_ENGINE_KEYS.has(k)).sort();
+  return swarms
+    .map((name, i) => {
+      const mode = engine[name];
+      const head = `${5 + i}. 蜂群流程开关（engine.${name}: ${mode}）`;
+      // 命名约定 <蜂群名>-leader.md，未来多蜂群避免重名（ADR 2026-11-26-01）。
+      const refs = `leader \`.ai/agents/${name}/${name}-leader.md\`，手册 \`.ai-memory/playbooks/multi-agent.md\`，命令 \`/req\``;
+      // 用途说明只登记在 .ai/agents/AGENT-POOL.md；触发段不写蜂群专属用途，避免新增蜂群时误标。
+      if (mode === 'auto') return `${head}：蜂群 ${name} 的功能开发类任务自动按其四阶段契约流程执行——${refs}。`;
+      if (mode === 'always') return `${head}：凡会产生业务代码的开发任务一律按蜂群 ${name} 的四阶段契约流程执行——${refs}。`;
+      return `${head}：蜂群 ${name} 的四阶段契约流程已停用，开发任务按常规方式执行——${refs}，勿主动调用。`;
+    })
+    .join('\n');
+}
+const entryTrigger = buildSwarmTrigger(config.engine);
+const entryStub = `${stub}${entryTrigger ? `\n${entryTrigger}` : ''}`;
 
 for (const t of LINK_TARGETS) {
   // @import 工具：官方记忆机制解析 `@path` 导入（Claude Code；CodeBuddy 同语法，官方文档明示支持
   // 相对/绝对路径、递归导入）。CodeBuddy 额外去重：@.ai/RULES.md 已内联完整规范，入口不再重复
-  // 铁律节选，仅保留一句自然语言兜底指针与引擎注入的多代理流程开关（后者不属于 RULES.md，无重复）。
+  // 铁律节选，仅保留一句自然语言兜底指针与引擎注入的蜂群流程开关（后者不属于 RULES.md，无重复）。
   const imp = t.atImport ? '@.ai/RULES.md\n\n' : '';
   const body = t.atImportDedupe
-    ? `${imp}# ACME 项目规范（入口）\n\n开始任何任务前，必须先完整阅读 \`.ai/RULES.md\`（上方 \`@\` 导入已自动内联其全文，本文件不重复其内容）。\n\n${TEAM_LEADER_TRIGGER[config.engine.teamLeader]}\n`
+    ? `${imp}# ACME 项目规范（入口）\n\n开始任何任务前，必须先完整阅读 \`.ai/RULES.md\`（上方 \`@\` 导入已自动内联其全文，本文件不重复其内容）。${entryTrigger ? `\n\n${entryTrigger}\n` : '\n'}`
     : `${imp}# ACME 项目规范（入口）\n\n${entryStub}\n`;
   register(links, t.file, {
     target: LINK_TO,
@@ -534,25 +590,28 @@ function makeTraeAgentStub(content, rel) {
   return `${front}\n\n本文件为 Trae 引用存根：完整内容唯一源 \`.ai/agents/${rel}\`。\n\n执行前先完整读取该源文件并严格遵循；本存根不含正文，禁止在此手改内容。\n`;
 }
 
-async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc = null, transform = null }) {
+/** 逐文件派生。flat=true：输出路径取源文件 basename（蜂群子目录不落到工具目录，保持原生发现能力），
+ *  但 label / footer / transform 仍使用完整源 rel，登记簿按输出路径检测重名冲突。 */
+async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc = null, transform = null, flat = false } = {}) {
   for (const f of await walk(srcDir)) {
     const rel = relative(srcDir, f).split('\\').join('/');
     if (excludeDocs.includes(rel)) continue;
     const label = `${srcLabel}${rel}`;
+    const outRel = flat ? rel.split('/').pop() : rel;
     let content = norm(await readFile(f, 'utf8'));
     if (placardDoc && rel === placardDoc) content = PLACARD_HEAD + content;
     if (transform && rel.endsWith('.md')) content = transform(content, rel);
     if (rel.endsWith('.md')) content = content.trimEnd() + footer(label);
     else if (/\.(ya?ml|toml)$/.test(rel))
       content = `# 派生自 ${label}（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs\n\n` + content;
-    register(expected, `${outRoot}/${rel}`, content, label);
+    register(expected, `${outRoot}/${outRel}`, content, label);
   }
 }
 
 for (const p of POOLS) {
   for (const t of p.targets) {
     const { dir, transform } = typeof t === 'string' ? { dir: t, transform: null } : t;
-    await derive(join(AI, p.src), dir, `.ai/${p.src}/`, { excludeDocs: [p.doc], transform });
+    await derive(join(AI, p.src), dir, `.ai/${p.src}/`, { excludeDocs: [p.doc], transform, flat: !!p.flat });
   }
 }
 for (const t of TOOLS) {
@@ -562,11 +621,12 @@ for (const t of TOOLS) {
   // 池目录说明文件（AGENT-POOL.md 等）与 POOLS 循环同样排除；transform 仅作用于 .md（技能辅助
   // 文件照旧全量拷贝）。与 .ai/tools/<key>/ 同名同路径源会经 destinations 登记簿触发「派生目标冲突」。
   for (const pool of t.mirrorPools ?? []) {
-    const { src: poolName, transform: poolTransform } = typeof pool === 'string' ? { src: pool, transform: null } : pool;
+    const { src: poolName, transform: poolTransform, flat: poolFlat } = typeof pool === 'string' ? { src: pool, transform: null, flat: false } : pool;
     const poolDef = POOLS.find((p) => p.src === poolName);
     await derive(join(AI, poolName), `${t.target}/${poolName}`, `.ai/${poolName}/`, {
       excludeDocs: poolDef ? [poolDef.doc] : [],
       transform: poolTransform,
+      flat: !!poolFlat,
     });
   }
 }
