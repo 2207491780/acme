@@ -526,6 +526,8 @@ class REQ20261122150802TenantLifecycleQuotaIntegrationTest {
         body.putNull("remark");
         body.put("adminUsername", tenantCode.replace('-', '_') + "_admin");
         body.put("adminNickname", tenantCode + " 管理员");
+        // REQ-20261125-230807 确认③：templateCode HTTP 面必填（未命中模板=既有兜底行为，语义不变）
+        body.put("templateCode", "fixture-unmatched-template");
         body.putNull("parentId");
         return body;
     }
@@ -590,7 +592,7 @@ class REQ20261122150802TenantLifecycleQuotaIntegrationTest {
         assertThat(result.path("success").asBoolean()).as("绑定套餐应成功：%s", result).isTrue();
     }
 
-    /** PUT /tenants/{id}/quota（quotaStorageBytes null=清除继承；空体 2xx 合成成功信封，putStatus 同款）。 */
+    /** PUT /tenants/{id}/quota（quotaStorageBytes null=清除继承；REQ-20261125-230807 信封化：成功 wire=Result 信封 code="0"）。 */
     private JsonNode putQuota(long tenantId, Long quotaStorageBytes) throws Exception {
         ObjectNode body = JSON.createObjectNode();
         if (quotaStorageBytes == null) {
@@ -598,21 +600,14 @@ class REQ20261122150802TenantLifecycleQuotaIntegrationTest {
         } else {
             body.put("quotaStorageBytes", quotaStorageBytes);
         }
-        MvcResult result = performAs("1", "default", Set.of("super_admin"),
-                put(LIST_URL + "/" + tenantId + "/quota")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(JSON.writeValueAsString(body)));
-        String content = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        if (content.isBlank()) {
-            assertThat(result.getResponse().getStatus())
-                    .as("void quota 端点空体应 2xx（emptyAsSuccess 既有惯例）")
-                    .isEqualTo(HttpStatus.OK.value());
-            ObjectNode ok = JSON.createObjectNode();
-            ok.put("success", true);
-            ok.put("code", "0");
-            return ok;
-        }
-        return JSON.readTree(content);
+        JsonNode envelope = callAsSuperAdmin(put(LIST_URL + "/" + tenantId + "/quota")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(body)));
+        assertThat(envelope.path("success").asBoolean())
+                .as("配额保存应成功（REQ-20261125-230807 信封化）：%s", envelope).isTrue();
+        assertThat(envelope.path("code").asText())
+                .as("配额保存成功信封应 code=\"0\"（REQ-20261125-230807 信封化）").isEqualTo("0");
+        return envelope;
     }
 
     /** 解析后有效配额（AdminTenantView.quotaStorageBytes，确认⑦「解析后有效值」）。 */
@@ -626,25 +621,19 @@ class REQ20261122150802TenantLifecycleQuotaIntegrationTest {
         return record.path("quotaStorageBytes").asLong();
     }
 
-    /** 停用/启用（成功路径 emptyAsSuccess 双口径兼容；失败路径信封 code 断言用）。 */
+    /** 停用/启用（REQ-20261125-230807 信封化：成功 wire=Result 信封 code="0"；失败路径信封 code 断言用）。 */
     private JsonNode putStatus(long tenantId, String status) throws Exception {
         ObjectNode body = JSON.createObjectNode();
         body.put("status", status);
-        MvcResult result = performAs("1", "default", Set.of("super_admin"),
-                put(LIST_URL + "/" + tenantId + "/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(JSON.writeValueAsString(body)));
-        String content = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        if (content.isBlank()) {
-            assertThat(result.getResponse().getStatus())
-                    .as("void 状态端点空体应 2xx（emptyAsSuccess 既有惯例）")
-                    .isEqualTo(HttpStatus.OK.value());
-            ObjectNode ok = JSON.createObjectNode();
-            ok.put("success", true);
-            ok.put("code", "0");
-            return ok;
+        JsonNode envelope = callAsSuperAdmin(put(LIST_URL + "/" + tenantId + "/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(body)));
+        if (envelope.path("success").asBoolean()) {
+            assertThat(envelope.path("code").asText())
+                    .as("状态端点成功应返回 Result 信封 code=\"0\"（REQ-20261125-230807 信封化）")
+                    .isEqualTo("0");
         }
-        return JSON.readTree(content);
+        return envelope;
     }
 
     /** 创建套餐（仅名），返回套餐 id（REQ-022910 端点复用）。 */

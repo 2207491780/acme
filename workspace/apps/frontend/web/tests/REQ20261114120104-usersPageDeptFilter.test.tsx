@@ -37,8 +37,9 @@ const PERM = {
 };
 
 const USERS_PATH_PART = '/users';
-const DEPTS_PATH_PART = '/depts';
-const POSITIONS_PATH_PART = '/positions';
+// REQ-20261125-230807 delta-r3 基线更新（AC-3）：目录源统一走 GET /admin/v1/system/user-form-options，
+// 替代本套件原对 /depts、/positions 旧端点的直接 stub（页面已不再调用旧端点，usersDirectory 套件钉死）。
+const FORM_OPTIONS_PATH_PART = '/user-form-options';
 
 // 用户 fixture（A-13：AdminUserView + deptId/positionId；zhangsan 未分配部门/岗位 → 编辑路径承载新选值）
 const USER_ROWS: Record<string, unknown>[] = [
@@ -108,8 +109,10 @@ const setupUsersApi = () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const r = asRequest(input, init);
     const p = r.url.pathname;
-    if (p.includes(DEPTS_PATH_PART)) return envelope(DEPT_TREE); // 部门筛选/表单部门选项源
-    if (p.includes(POSITIONS_PATH_PART)) return envelope({ records: POSITION_ROWS, total: POSITION_ROWS.length }); // 表单岗位选项源
+    // 目录单一数据源（AC-3）：deptTree/positions/roles 全量目录（fixture 同原 /depts、/positions 数据）
+    if (p.includes(FORM_OPTIONS_PATH_PART)) {
+      return envelope({ deptTree: DEPT_TREE, positions: POSITION_ROWS, roles: [] });
+    }
     if (!p.includes(USERS_PATH_PART)) return envelope(null);
     if (r.method === 'GET') {
       // 详情端点 GET {id}（编辑回显可经详情或行数据承载，mock 双兼容，noticesPage 口径）

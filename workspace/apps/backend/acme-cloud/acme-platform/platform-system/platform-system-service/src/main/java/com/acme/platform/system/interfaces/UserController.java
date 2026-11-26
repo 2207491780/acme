@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.common.core.Result;
 import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.SystemPermissions;
@@ -78,27 +79,33 @@ public class UserController {
         return EntityViews.userView(userUseCase.update(userId, request), userUseCase.roleIdsOf(userId));
     }
 
+    /** 删除用户（统一响应体 Result 契约口径：void 语义显式出信封，code="0"；REQ-20261125-230807）。 */
     @DeleteMapping("/{userId}")
     @RequirePermission(SystemPermissions.USER_DELETE)
     @AuditLog(action = "system.user.delete", targetType = "user", targetId = "#userId",
             contentParams = {"userId"})
-    public void delete(@PathVariable Long userId) {
+    public Result<Void> delete(@PathVariable Long userId) {
         userUseCase.delete(userId);
+        return Result.ok(null);
     }
 
+    /** 启停用户（统一响应体 Result 契约口径：void 语义显式出信封，code="0"；REQ-20261125-230807）。 */
     @PutMapping("/{userId}/status")
     @RequirePermission(SystemPermissions.USER_UPDATE)
     @AuditLog(action = "system.user.updateStatus", targetType = "user", targetId = "#userId",
             contentParams = {"userId", "request.status"})
-    public void updateStatus(@PathVariable Long userId, @Valid @RequestBody AdminStatusUpdate request) {
+    public Result<Void> updateStatus(@PathVariable Long userId, @Valid @RequestBody AdminStatusUpdate request) {
         userUseCase.updateStatus(userId, request.status());
+        return Result.ok(null);
     }
 
+    /** 绑定角色（统一响应体 Result 契约口径：void 语义显式出信封，code="0"；REQ-20261125-230807）。 */
     @PutMapping("/{userId}/roles")
     @RequirePermission(SystemPermissions.USER_ASSIGN_ROLE)
     @AuditLog(action = "system.user.assignRole", targetType = "user", targetId = "#userId",
             contentParams = {"userId", "request.roleIds"})
-    public void bindRoles(@PathVariable Long userId, @Valid @RequestBody AdminRoleIds request) {
+    public Result<Void> bindRoles(@PathVariable Long userId, @Valid @RequestBody AdminRoleIds request) {
         userUseCase.bindRoles(userId, request.roleIds());
+        return Result.ok(null);
     }
 }

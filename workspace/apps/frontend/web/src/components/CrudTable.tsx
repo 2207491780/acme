@@ -50,6 +50,9 @@ export interface CrudTableProps<T extends object, F extends Record<string, strin
   filterPanel?: ReactNode;
   /** 卡片体内、表格之下的补充内容（操作提示等）。 */
   footer?: ReactNode;
+  /** 页面级警告（REQ-20261125-230807 AC-3/27：目录源加载失败等可见警告插槽；
+   *  渲染在错误提示之下、表格之上）。 */
+  alert?: ReactNode;
   /** 列设置持久化键（REQ-20261117-140427）：提供后启用多列筛选/排序与列显隐/固定/边框设置。 */
   tableKey?: string;
 }
@@ -79,6 +82,7 @@ export function CrudTable<T extends object, F extends Record<string, string | un
   paged = true,
   filterPanel,
   footer,
+  alert,
   tableKey,
 }: CrudTableProps<T, F>) {
   const { t } = useTranslation();
@@ -126,6 +130,7 @@ export function CrudTable<T extends object, F extends Record<string, string | un
             action={<Button size="small" onClick={() => crud.reload()}>{t('common.actions.retry')}</Button>}
           />
         ) : null}
+        {alert ?? null}
         <Table<T>
           rowKey={rowKey ?? 'id'}
           columns={tableSettings.enhancedColumns}

@@ -1,5 +1,6 @@
 package com.acme.platform.system.interfaces;
 
+import com.acme.common.core.Result;
 import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminTenantQuotaUpdate;
@@ -37,12 +38,14 @@ public class TenantQuotaController {
         return tenantQuotaUseCase.usage(tenantId);
     }
 
-    /** 租户配额覆盖（确认③⑦：非空=覆盖 0=不限；null=清除继承回落套餐/平台缺省）。 */
+    /** 租户配额覆盖（确认③⑦：非空=覆盖 0=不限；null=清除继承回落套餐/平台缺省；
+     * 统一响应体 Result 契约口径：void 语义显式出信封，code="0"，REQ-20261125-230807）。 */
     @PutMapping("/{tenantId}/quota")
     @RequirePermission(SystemPermissions.TENANT_UPDATE)
     @AuditLog(action = "system.tenant.updateQuota", targetType = "tenant", targetId = "#tenantId",
             contentParams = {"tenantId", "request.quotaStorageBytes"})
-    public void setQuota(@PathVariable Long tenantId, @Valid @RequestBody AdminTenantQuotaUpdate request) {
+    public Result<Void> setQuota(@PathVariable Long tenantId, @Valid @RequestBody AdminTenantQuotaUpdate request) {
         tenantQuotaUseCase.setTenantQuota(tenantId, request.quotaStorageBytes());
+        return Result.ok(null);
     }
 }

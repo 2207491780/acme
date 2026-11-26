@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.common.core.Result;
 import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminDictItemCreate;
@@ -67,18 +68,22 @@ public class DictController {
         return EntityViews.dictTypeView(dictUseCase.updateType(typeId, request));
     }
 
+    /** 删除字典类型（统一响应体 Result 契约口径：void 语义显式出信封，code="0"；REQ-20261125-230807）。 */
     @DeleteMapping("/dict-types/{typeId}")
     @RequirePermission(SystemPermissions.DICT_DELETE)
     @AuditLog(action = "system.dict.deleteType", targetType = "dictType", targetId = "#typeId",
             contentParams = {"typeId"})
-    public void deleteType(@PathVariable Long typeId) {
+    public Result<Void> deleteType(@PathVariable Long typeId) {
         dictUseCase.deleteType(typeId);
+        return Result.ok(null);
     }
 
+    /** 字典项列表（REQ-20261125-230807：kind=TREE 嵌套树返回，kind=FLAT 平铺现状不变；children 恒数组）。 */
     @GetMapping("/dict-types/{typeId}/items")
     @RequirePermission(SystemPermissions.DICT_LIST)
     public List<AdminDictItemView> listItems(@PathVariable Long typeId) {
-        return dictUseCase.listItems(typeId).stream().map(EntityViews::dictItemView).toList();
+        SysDictType type = dictUseCase.getType(typeId);
+        return EntityViews.dictItemViews(type.getDictKind(), dictUseCase.listItems(typeId));
     }
 
     @PostMapping("/dict-types/{typeId}/items")
@@ -97,11 +102,13 @@ public class DictController {
         return EntityViews.dictItemView(dictUseCase.updateItem(itemId, request));
     }
 
+    /** 删除字典项（统一响应体 Result 契约口径：void 语义显式出信封，code="0"；REQ-20261125-230807）。 */
     @DeleteMapping("/dict-items/{itemId}")
     @RequirePermission(SystemPermissions.DICT_DELETE)
     @AuditLog(action = "system.dict.deleteItem", targetType = "dictItem", targetId = "#itemId",
             contentParams = {"itemId"})
-    public void deleteItem(@PathVariable Long itemId) {
+    public Result<Void> deleteItem(@PathVariable Long itemId) {
         dictUseCase.deleteItem(itemId);
+        return Result.ok(null);
     }
 }

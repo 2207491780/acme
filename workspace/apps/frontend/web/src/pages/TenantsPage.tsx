@@ -12,7 +12,8 @@ import {
   ApiError, Auth, authApi, formatDate, systemApi, TONE_ANTD, TONES,
   tenantPackageApi, tenantTemplateApi, tenantUsageOverview, useAuthStore, useCrud, useMeStore,
   useSystemConfigStore,
-  type AdminTenantInitTemplateView, type AdminTenantPackageView, type AdminTenantTreeNode,
+  type AdminPermissionView, type AdminRoleView, type AdminTenantInitTemplateView,
+  type AdminTenantPackageView, type AdminTenantTreeNode,
   type AdminTenantView, type TenantQuotaSource, type TenantTemplateSavePayload,
   type TenantUsageOverviewRow, type TenantUsageOverviewView, type TenantUsageView,
 } from '@acme/core';
@@ -20,6 +21,7 @@ import { Chart } from '../components/Chart';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 import { useDashboardCharts, type DashboardChartStats } from '../hooks/useDashboardCharts';
+import { stripEmptyChildren } from '../utils/tree';
 
 const { Text } = Typography;
 
@@ -72,11 +74,11 @@ function formatBytes(bytes: number): string {
   return `${text} ${units[index]}`;
 }
 
-/** 父租户下拉节点（TreeSelect treeData 形态；显式类型规避递归引用推断）。 */
+/** 父租户下拉节点（TreeSelect treeData 形态；叶子不携带空 children 键——AC-9 剥空 children）。 */
 interface ParentTreeOption {
   value: string;
   title: string;
-  children: ParentTreeOption[];
+  children?: ParentTreeOption[];
 }
 
 interface TenantFormValues {
@@ -89,11 +91,11 @@ interface TenantFormValues {
   expiresAt?: Dayjs | null;
   /** 宽限期截止（REQ-20261122-150802 确认⑥：update 收 graceUntil；表单态 Dayjs，清空=不启用宽限）。 */
   graceUntil?: Dayjs | null;
-  /** 绑定套餐（REQ-20261121-022910；表单态为套餐 id 字符串，清空=不受限，提交转 number|null）。 */
+  /** 绑定套餐（REQ-20261121-022910；表单态为套餐 id 字符串，清空=不受限，字符串口径提交；仅编辑态展示）。 */
   packageId?: string;
   /** 父租户（REQ-20261122-102954；表单态为租户 id 字符串，清空=顶层，提交转 string|null）。 */
   parentId?: string;
-  /** 开通模板（REQ-20261122-233426 确认⑦：可选 Select，表单态为模板 code，清空=动态授权集现状）。 */
+  /** 开通模板（REQ-20261125-230807 AC-22：仅创建态且必选，表单态为模板 code；提交必走 tenantInit）。 */
   templateCode?: string;
   /** 初始管理员（选中模板时必填——init 端点要求；adminNickname 可空=后端按租户名兜底）。 */
   adminUsername?: string;
@@ -133,43 +135,79 @@ function TenantListTab() {
     errorMessage: t('tenants.errors.loadFailed'),
   });
 
-  // 套餐目录（REQ-20261121-022910）：下拉选项源 + packageId→名称映射（列表列直显兜底）；
-  // 拉取失败静默降级（列回退视图自带 packageName / 不受限）
+  // 目录源（REQ-20261125-230807 AC-21/27）：套餐/模板/租户树三路目录——TabKeepAlive 页签保活下
+  // 挂载拉一次会拿旧快照（根因），改为「打开新建/编辑弹窗时实时重拉」+ 失败可见警告（不再静默置空）
   const [packages, setPackages] = useState<AdminTenantPackageView[]>([]);
-  useEffect(() => {
-    tenantPackageApi.page({ page: 1, size: 100 })
+  const [packagesFailed, setPackagesFailed] = useState(false);
+  const loadPackages = useCallback(() => {
+    setPackagesFailed(false);
+    return tenantPackageApi.page({ page: 1, size: 100 })
       .then((result) => setPackages(result?.records ?? []))
-      .catch(() => setPackages([]));
+      .catch(() => setPackagesFailed(true));
   }, []);
+  useEffect(() => {
+    void loadPackages();
+  }, [loadPackages]);
   const packageNameById = useMemo(
     () => new Map(packages.map((pkg) => [pkg.id, pkg.packageName])),
     [packages],
   );
 
-  // 租户层级树（REQ-20261122-102954 契约⑨）：parent 下拉数据源；拉取失败/信封空降级为空数组
-  // （下拉无选项，列表不受影响）；wire 归一=数组校验+节点 children 缺省兜底（旧口径/同形 mock 容忍）
+  // 租户层级树（REQ-20261122-102954 契约⑨）：parent 下拉数据源；失败可见警告（AC-19，不再静默置空）
   const [tenantTree, setTenantTree] = useState<AdminTenantTreeNode[]>([]);
-  useEffect(() => {
+  const [treeFailed, setTreeFailed] = useState(false);
+  const loadTenantTree = useCallback(() => {
+    setTreeFailed(false);
     // page/size 仅随请求携带（统一列表分页口径，menuTree 同先例；后端全量返回不截断）
-    systemApi.tenantTree(1, crud.size)
+    return systemApi.tenantTree(1, crud.size)
       .then((tree) => setTenantTree(Array.isArray(tree) ? tree : []))
-      .catch(() => setTenantTree([]));
-  }, []);
-
-  // 开通模板目录（REQ-20261122-233426 确认⑦）：新建表单模板 Select 选项源；拉取失败静默降级（无选项）
-  const [templates, setTemplates] = useState<AdminTenantInitTemplateView[]>([]);
+      .catch(() => setTreeFailed(true));
+  }, [crud.size]);
   useEffect(() => {
-    tenantTemplateApi.page({ page: 1, size: 100 })
+    void loadTenantTree();
+  }, [loadTenantTree]);
+
+  // 开通模板目录（REQ-20261122-233426 确认⑦）：新建表单模板 Select 选项源；失败可见警告（AC-27）
+  const [templates, setTemplates] = useState<AdminTenantInitTemplateView[]>([]);
+  const [templatesFailed, setTemplatesFailed] = useState(false);
+  const loadTemplates = useCallback(() => {
+    setTemplatesFailed(false);
+    return tenantTemplateApi.page({ page: 1, size: 100 })
       .then((result) => setTemplates(result?.records ?? []))
-      .catch(() => setTemplates([]));
+      .catch(() => setTemplatesFailed(true));
   }, []);
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
+
+  /** 打开新建/编辑弹窗时实时重拉全部目录（AC-21 根因修复：TabKeepAlive 激活不重取 → 打开弹窗保鲜）。 */
+  const reloadCatalogs = useCallback(() => {
+    void loadPackages();
+    void loadTenantTree();
+    void loadTemplates();
+  }, [loadPackages, loadTenantTree, loadTemplates]);
+
+  // AC-19/27：目录加载失败可见警告（合并展示）+ 重试入口
+  const catalogWarnings = [
+    treeFailed ? t('tenants.errors.treeLoadFailed') : null,
+    packagesFailed ? t('tenants.errors.packagesLoadFailed') : null,
+    templatesFailed ? t('tenants.errors.templatesLoadFailed') : null,
+  ].filter((item): item is string => item !== null);
+  const catalogAlert = catalogWarnings.length > 0 ? (
+    <Alert
+      type="warning"
+      showIcon
+      style={{ marginBottom: 16 }}
+      message={t('tenants.errors.catalogFailed')}
+      description={catalogWarnings.join('；')}
+      action={<Button size="small" onClick={reloadCatalogs}>{t('common.actions.retry')}</Button>}
+    />
+  ) : undefined;
 
   const [editing, setEditing] = useState<AdminTenantView | null>(null);
   const [creating, setCreating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<TenantFormValues>();
-  // 选中模板 → 表单追加初始管理员字段（init 端点要求 adminUsername；确认③）
-  const templateCode = Form.useWatch('templateCode', form);
 
   // 用量 Modal（REQ-20261122-150802 契约⑧：操作列「用量」按需拉取 usage 端点，list 不带 usage）
   const [usageTarget, setUsageTarget] = useState<AdminTenantView | null>(null);
@@ -238,6 +276,8 @@ function TenantListTab() {
     setEditing(null);
     form.resetFields();
     setCreating(true);
+    // AC-21：打开弹窗实时重拉套餐/模板/树目录（TabKeepAlive 存续期保鲜）
+    reloadCatalogs();
   };
 
   const openEdit = (record: AdminTenantView) => {
@@ -254,6 +294,8 @@ function TenantListTab() {
       parentId: record.parentId ?? undefined,
     });
     setCreating(false);
+    // AC-21：打开弹窗实时重拉套餐/模板/树目录（TabKeepAlive 存续期保鲜）
+    reloadCatalogs();
   };
 
   // 防环排除（REQ-20261122-102954 契约③）：编辑时父租户候选剔除自身与全部后代（改父构成环由后端 TENANT_CYCLE 兜底拒绝）
@@ -288,15 +330,29 @@ function TenantListTab() {
   const parentTreeData = useMemo<ParentTreeOption[]>(() => {
     const toOption = (node: AdminTenantTreeNode): ParentTreeOption => ({
       value: node.id,
-      // 选项文案=租户名称（契约⑩未钉编码后缀；选中回显与防环断言按名称口径）
       title: node.tenantName,
-      children: (node.children ?? []).filter((child) => !excludedParentIds.has(child.id)).map(toOption),
+      // 防环剔除（REQ-20261122-102954 契约③）保留：编辑时候选剔除自身与全部后代
+      //（改父构成环由后端 TENANT_CYCLE 兜底拒绝）
+      children: (node.children ?? [])
+        .filter((child) => !excludedParentIds.has(child.id))
+        .map(toOption),
     });
-    return tenantTree.filter((node) => !excludedParentIds.has(node.id)).map(toOption);
+    // AC-9（REQ-20261125-230807）：树数据统一走 stripEmptyChildren 收口——
+    // 叶子摘除空 children 键（无展开箭头），与 utils/tree.ts 全局口径一致
+    return stripEmptyChildren(
+      tenantTree.filter((node) => !excludedParentIds.has(node.id)).map(toOption),
+    );
   }, [tenantTree, excludedParentIds]);
 
   const submit = async () => {
-    const values = await form.validateFields();
+    let values: TenantFormValues;
+    try {
+      values = await form.validateFields();
+    } catch {
+      // 校验失败=表单已就地呈现拦截反馈（AC-22 空提交拦截口径），属正常控制流，
+      // 不作为未处理 rejection 外抛（保持门禁日志干净）
+      return;
+    }
     // 三新字段归一：文本 trim 空串→null；expiresAt Dayjs→ISO-8601 字符串，清空=null（长期）
     const profile = {
       contactName: values.contactName?.trim() || null,
@@ -304,46 +360,33 @@ function TenantListTab() {
       expiresAt: values.expiresAt ? values.expiresAt.toISOString() : null,
     };
     setSubmitting(true);
-    // 套餐归一（REQ-20261121-022910）：清空=不受限（null=解除绑定）；提交转 number 口径
-    const packageId = values.packageId ? Number(values.packageId) : null;
     // 父租户归一（REQ-20261122-102954）：清空=顶层（null）；提交 wire 字符串口径
     const parentId = values.parentId || null;
     try {
       if (editing) {
+        // 编辑：套餐绑定保留（AC-22）；packageId 字符串原样提交（AC-26 不做 Number 数值化）
         await systemApi.tenantUpdate(editing.id, {
           tenantName: values.tenantName,
           remark: values.remark,
           ...profile,
           // 宽限期（REQ-20261122-150802 确认⑥）：update 收 graceUntil（Dayjs→ISO，清空=null 不启用）
           graceUntil: values.graceUntil ? values.graceUntil.toISOString() : null,
-          packageId,
+          packageId: values.packageId || null,
           parentId,
           version: editing.version,
         });
         message.success(t('tenants.form.updated'));
-      } else if (values.templateCode) {
-        // 模板开通路径（REQ-20261122-233426 确认③）：init 端点携带 templateCode+初始管理员——
-        // 命中模板=按模板预置角色/授权/配置/默认套餐（adminUsername 前缀合成由后端完成）
+      } else {
+        // 新建（AC-22）：模板必选，提交必走 tenantInit（无套餐字段，tenantCreate 不再被前端调用）
         await systemApi.tenantInit({
           tenantCode: values.tenantCode,
           tenantName: values.tenantName,
           remark: values.remark,
           ...profile,
-          packageId,
           parentId,
-          templateCode: values.templateCode,
+          templateCode: values.templateCode ?? '',
           adminUsername: (values.adminUsername ?? '').trim(),
           adminNickname: values.adminNickname?.trim() || undefined,
-        });
-        message.success(t('tenants.form.created'));
-      } else {
-        await systemApi.tenantCreate({
-          tenantCode: values.tenantCode,
-          tenantName: values.tenantName,
-          remark: values.remark,
-          ...profile,
-          packageId,
-          parentId,
         });
         message.success(t('tenants.form.created'));
       }
@@ -459,6 +502,7 @@ function TenantListTab() {
         createLabel={t('tenants.create')}
         onCreate={openCreate}
         totalText={(total) => t('tenants.total', { total })}
+        alert={catalogAlert}
       />
 
       <CrudFormModal<TenantFormValues>
@@ -506,22 +550,28 @@ function TenantListTab() {
             showSearch
           />
         </Form.Item>
-        {/* 绑定套餐（REQ-20261121-022910）：可清空=不受限；提交 packageId（null=解除绑定） */}
-        <Form.Item name="packageId" label={t('tenants.form.package')} extra={t('tenants.form.packageExtra')}>
-          <Select
-            allowClear
-            placeholder={t('tenants.form.packagePlaceholder')}
-            optionFilterProp="label"
-            showSearch
-            options={packages.map((pkg) => ({ value: pkg.id, label: pkg.packageName }))}
-          />
-        </Form.Item>
-        {/* 开通模板（REQ-20261122-233426 确认③⑦，仅创建态）：可选 Select（选项=模板列表）；
-            选中=提交走 init 端点（携带 templateCode+初始管理员），清空=tenantCreate 现行为逐字不变 */}
-        {!editing ? (
-          <Form.Item name="templateCode" label={t('tenants.form.template')} extra={t('tenants.form.templateExtra')}>
+        {/* 绑定套餐（REQ-20261121-022910）：仅编辑态（AC-22：新建删套餐字段）；可清空=不受限；
+            提交字符串口径（AC-26） */}
+        {editing ? (
+          <Form.Item name="packageId" label={t('tenants.form.package')} extra={t('tenants.form.packageExtra')}>
             <Select
               allowClear
+              placeholder={t('tenants.form.packagePlaceholder')}
+              optionFilterProp="label"
+              showSearch
+              options={packages.map((pkg) => ({ value: pkg.id, label: pkg.packageName }))}
+            />
+          </Form.Item>
+        ) : null}
+        {/* 开通模板（AC-22）：仅创建态且必选（空提交被表单拦截）；选中=提交走 init 端点（携带初始管理员） */}
+        {!editing ? (
+          <Form.Item
+            name="templateCode"
+            label={t('tenants.form.template')}
+            extra={t('tenants.form.templateExtra')}
+            rules={[{ required: true, message: t('tenants.form.templateRequired') }]}
+          >
+            <Select
               placeholder={t('tenants.form.templatePlaceholder')}
               optionFilterProp="label"
               showSearch
@@ -529,8 +579,8 @@ function TenantListTab() {
             />
           </Form.Item>
         ) : null}
-        {/* 初始管理员（REQ-20261122-233426 确认③）：选中模板时必填（init 端点要求 adminUsername）；昵称可空 */}
-        {!editing && templateCode ? (
+        {/* 初始管理员（REQ-20261122-233426 确认③ + AC-22 模板必选）：创建态必填 adminUsername（init 端点要求）；昵称可空 */}
+        {!editing ? (
           <>
             <Form.Item
               name="adminUsername"
@@ -652,23 +702,53 @@ function TenantTemplatesTab() {
     errorMessage: t('tenants.templates.loadFailed'),
   });
 
-  // 套餐目录（默认套餐下拉选项源；失败静默降级为空选项）
+  // 套餐目录（默认套餐下拉选项源；AC-21：打开弹窗时实时重拉；AC-27：失败可见警告）
   const [packages, setPackages] = useState<AdminTenantPackageView[]>([]);
-  useEffect(() => {
-    tenantPackageApi.page({ page: 1, size: 100 })
+  const [packagesFailed, setPackagesFailed] = useState(false);
+  const loadPackages = useCallback(() => {
+    setPackagesFailed(false);
+    return tenantPackageApi.page({ page: 1, size: 100 })
       .then((result) => setPackages(result?.records ?? []))
-      .catch(() => setPackages([]));
+      .catch(() => setPackagesFailed(true));
   }, []);
+  useEffect(() => {
+    void loadPackages();
+  }, [loadPackages]);
+
+  // 系统角色目录（AC-23：预置角色改系统角色下拉；失败降级为空选项）
+  const [roles, setRoles] = useState<AdminRoleView[]>([]);
+  const loadRoles = useCallback(
+    () => systemApi.roleList().then((result) => setRoles(result?.records ?? [])).catch(() => setRoles([])),
+    [],
+  );
+  // 权限点目录（AC-23：permissionCodes 改权限目录多选，tags 保留手输兑底；失败降级为空选项）
+  const [permCatalog, setPermCatalog] = useState<AdminPermissionView[]>([]);
+  const loadPermCatalog = useCallback(
+    () => systemApi.permissionList(1, 200).then((result) => setPermCatalog(result?.records ?? [])).catch(() => setPermCatalog([])),
+    [],
+  );
+  useEffect(() => {
+    void loadRoles();
+    void loadPermCatalog();
+  }, [loadRoles, loadPermCatalog]);
 
   const [editing, setEditing] = useState<AdminTenantInitTemplateView | null>(null);
   const [creating, setCreating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<TemplateFormValues>();
 
+  /** 打开新建/编辑弹窗时实时重拉目录（AC-21：TabKeepAlive 存续期保鲜）。 */
+  const reloadCatalogs = useCallback(() => {
+    void loadPackages();
+    void loadRoles();
+    void loadPermCatalog();
+  }, [loadPackages, loadRoles, loadPermCatalog]);
+
   const openCreate = () => {
     setEditing(null);
     form.resetFields();
     setCreating(true);
+    reloadCatalogs();
   };
 
   // 编辑回显：列表行自带完整 content（确认④无 detail 端点——列表即全量）
@@ -692,6 +772,7 @@ function TenantTemplatesTab() {
       })),
     });
     setCreating(false);
+    reloadCatalogs();
   };
 
   const submit = async () => {
@@ -719,8 +800,8 @@ function TenantTemplatesTab() {
           value: entry.value ?? '',
         })),
       },
-      // 默认套餐归一：清空=不设置（null）；提交转 number 口径（与 tenantCreate.packageId 同型）
-      defaultPackageId: values.defaultPackageId ? Number(values.defaultPackageId) : null,
+      // 默认套餐归一：清空=不设置（null）；AC-26 字符串口径原样提交（不做 Number 数值化）
+      defaultPackageId: values.defaultPackageId || null,
     };
     try {
       if (editing) {
@@ -806,6 +887,15 @@ function TenantTemplatesTab() {
         createLabel={t('tenants.templates.create')}
         onCreate={openCreate}
         totalText={(total) => t('tenants.templates.total', { total })}
+        alert={packagesFailed ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={t('tenants.errors.packagesLoadFailed')}
+            action={<Button size="small" onClick={() => void loadPackages()}>{t('common.actions.retry')}</Button>}
+          />
+        ) : undefined}
       />
 
       <CrudFormModal<TemplateFormValues>
@@ -864,8 +954,9 @@ function TenantTemplatesTab() {
             </Form.Item>
           </Col>
         </Row>
-        {/* rolePresets 结构化编辑（确认②）：roleKey/roleName 必填 + permissionCodes 标签输入
-            （Select mode=tags 自由输入，保留前缀由后端保存时校验拒绝——PARAM_INVALID） */}
+        {/* rolePresets 结构化编辑（AC-23）：系统角色下拉（选中自动回填角色名与权限点，可再编辑）+
+            roleName 自动回填只读展示；permissionCodes 改权限目录多选（tags 模式保留手输兑底）；
+            configEntries 维持手填。 */}
         <Form.Item label={t('tenants.templates.roles.title')} style={{ marginBottom: 4 }}>
           <Form.List name="rolePresets">
             {(fields, { add, remove }) => (
@@ -873,25 +964,37 @@ function TenantTemplatesTab() {
                 {fields.map((field) => (
                   <Card key={field.key} size="small" title={`#${field.name + 1}`}>
                     <Row gutter={12}>
-                      <Col xs={24} sm={8}>
+                      <Col xs={24} sm={9}>
                         <Form.Item
                           name={[field.name, 'roleKey']}
-                          label={t('tenants.templates.roles.roleKey')}
-                          rules={[
-                            { required: true, message: t('tenants.templates.roles.roleKeyRequired') },
-                            { pattern: CODE_PATTERN, message: t('tenants.templates.roles.roleKeyPattern') },
-                          ]}
+                          label={t('tenants.templates.roles.systemRole')}
+                          rules={[{ required: true, message: t('tenants.templates.roles.roleKeyRequired') }]}
                         >
-                          <Input autoComplete="off" />
+                          <Select
+                            showSearch
+                            optionFilterProp="label"
+                            placeholder={t('tenants.templates.roles.systemRolePlaceholder')}
+                            options={roles.map((role) => ({ value: role.roleCode, label: `${role.roleName}（${role.roleCode}）` }))}
+                            onChange={(roleCode) => {
+                              const role = roles.find((item) => item.roleCode === roleCode);
+                              if (!role) {
+                                return;
+                              }
+                              // 选中自动回填：角色名 + 该角色已授权限点（可再编辑）
+                              form.setFieldValue(['rolePresets', field.name, 'roleName'], role.roleName);
+                              void systemApi.rolePermissions(role.id)
+                                .then((perms) => form.setFieldValue(
+                                  ['rolePresets', field.name, 'permissionCodes'],
+                                  perms.map((p) => p.permissionCode),
+                                ))
+                                .catch(() => undefined);
+                            }}
+                          />
                         </Form.Item>
                       </Col>
-                      <Col xs={24} sm={8}>
-                        <Form.Item
-                          name={[field.name, 'roleName']}
-                          label={t('tenants.templates.roles.roleName')}
-                          rules={[{ required: true, message: t('tenants.templates.roles.roleNameRequired') }]}
-                        >
-                          <Input autoComplete="off" />
+                      <Col xs={24} sm={7}>
+                        <Form.Item name={[field.name, 'roleName']} label={t('tenants.templates.roles.roleName')}>
+                          <Input disabled placeholder={t('tenants.templates.roles.roleNameAuto')} />
                         </Form.Item>
                       </Col>
                       <Col xs={24} sm={8} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 24 }}>
@@ -913,10 +1016,12 @@ function TenantTemplatesTab() {
                     >
                       <Select
                         mode="tags"
-                        open={false}
                         tokenSeparators={[',']}
                         placeholder={t('tenants.templates.roles.permissionPlaceholder')}
                         aria-label={t('tenants.templates.roles.permissionCodes')}
+                        options={permCatalog.map((p) => ({ value: p.permissionCode, label: `${p.permissionName}（${p.permissionCode}）` }))}
+                        optionFilterProp="label"
+                        showSearch
                       />
                     </Form.Item>
                   </Card>

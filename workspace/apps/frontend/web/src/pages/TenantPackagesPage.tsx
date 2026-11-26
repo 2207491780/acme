@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { App, Button, Checkbox, Form, Input, Popconfirm, Space, Tag, Tree, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,7 @@ import {
 } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
+import { stripEmptyChildren } from '../utils/tree';
 
 interface PackageFormValues {
   packageName: string;
@@ -54,44 +55,30 @@ export function TenantPackagesPage() {
   // round 2 补：wire 字符串口径（FR-024 Long→string），内部 Number() 归一容错，提交 String 化。
   const [editVersion, setEditVersion] = useState<number | null>(null);
 
-  // 菜单树数据源（GET 既有菜单树接口，全量含 BUTTON）：首次打开弹窗时懒加载一次，弹窗复用
+  // 菜单树数据源（GET 既有菜单树接口，全量含 BUTTON）：每次打开弹窗后台刷新（AC-21——
+  // TabKeepAlive 页签存续期目录保鲜，不用 useRef 永久缓存）；刷新期间已有数据保持展示
   const [menuTree, setMenuTree] = useState<AdminMenuView[]>([]);
   const [menuTreeLoading, setMenuTreeLoading] = useState(false);
-  const menuTreeRef = useRef<AdminMenuView[] | null>(null);
   const loadMenuTree = () => {
-    if (menuTreeRef.current) {
-      setMenuTree(menuTreeRef.current);
-      return;
-    }
     setMenuTreeLoading(true);
     systemApi.menuTree()
-      .then((tree) => {
-        menuTreeRef.current = tree;
-        setMenuTree(tree);
-      })
+      .then((tree) => setMenuTree(Array.isArray(tree) ? tree : []))
       .catch(() => setMenuTree([]))
       .finally(() => setMenuTreeLoading(false));
   };
 
-  // 能力目录数据源（REQ-20261121-054613 GET /system/capabilities，仅启用行）：与菜单树同款
-  // 懒加载一次策略（弹窗复用）；目录为套餐管理面组成，读权限挂 system:tenant-package:list（无新权限点）。
-  // 运行时容错：data 缺失/非数组（异常信封/旧口径 wire）→ 空目录降级展示，不设成功缓存（可重开重试）
+  // 能力目录数据源（REQ-20261121-054613 GET /system/capabilities，仅启用行）：每次打开弹窗后台刷新（AC-21 同口径）；
+  // 目录为套餐管理面组成，读权限挂 system:tenant-package:list（无新权限点）。
+  // 运行时容错：data 缺失/非数组（异常信封/旧口径 wire）→ 空目录降级展示
   const [capabilities, setCapabilities] = useState<AdminCapabilityView[]>([]);
   const [capabilitiesLoading, setCapabilitiesLoading] = useState(false);
-  const capabilitiesRef = useRef<AdminCapabilityView[] | null>(null);
   const loadCapabilities = () => {
-    if (capabilitiesRef.current) {
-      setCapabilities(capabilitiesRef.current);
-      return;
-    }
     setCapabilitiesLoading(true);
     systemApi.capabilityList()
       .then((rows) => {
-        if (!Array.isArray(rows)) {
-          return;
+        if (Array.isArray(rows)) {
+          setCapabilities(rows);
         }
-        capabilitiesRef.current = rows;
-        setCapabilities(rows);
       })
       .catch(() => setCapabilities([]))
       .finally(() => setCapabilitiesLoading(false));
@@ -157,7 +144,8 @@ export function TenantPackagesPage() {
     const base = {
       packageName: values.packageName.trim(),
       remark: values.remark?.trim() || null,
-      menuIds: checkedMenuIds.map(Number),
+      // AC-26：menuIds 字符串原样提交（不做 map(Number) 数值化，防雪花精度丢失）
+      menuIds: checkedMenuIds,
       capabilities: checkedCapabilities,
     };
     setSubmitting(true);
@@ -207,6 +195,11 @@ export function TenantPackagesPage() {
       render: (_, record) => (
         <Space size={4}>
           <Auth code="system:tenant-package:update">
+            {/* AC-20/21（套餐半句）+AC-24：行内「绑定菜单」入口——复用既有套餐弹窗
+                （菜单树+能力勾选同屏，限高滚动收口不变；打开即实时拉目录 AC-21） */}
+            <Button size="small" onClick={() => openEdit(record)}>{t('tenantPackages.actions.bindMenus')}</Button>
+          </Auth>
+          <Auth code="system:tenant-package:update">
             <Button size="small" onClick={() => openEdit(record)}>{t('tenantPackages.actions.edit')}</Button>
           </Auth>
           <Auth code="system:tenant-package:delete">
@@ -245,6 +238,9 @@ export function TenantPackagesPage() {
         onOk={() => void submit()}
         onCancel={() => { setCreating(false); setEditing(null); }}
         width={640}
+        /* footer 显式 i18n 文案（AC-24：确定/取消中文字径钉死，不随装配 locale 缺省漂移） */
+        okText={t('common.actions.confirm')}
+        cancelText={t('common.actions.cancel')}
       >
         <Form.Item
           name="packageName"
@@ -259,23 +255,29 @@ export function TenantPackagesPage() {
         <Form.Item name="remark" label={t('tenantPackages.form.remark')} rules={[{ max: 255, message: t('common.validation.maxLength', { max: 255 }) }]}>
           <Input.TextArea rows={2} />
         </Form.Item>
+        {/* AC-24：菜单树在限高容器内滚动——弹窗整体不无限撑高，footer 按钮始终可见 */}
         <Form.Item label={t('tenantPackages.form.menus')} extra={t('tenantPackages.form.menusExtra')}>
           {menuTree.length > 0 ? (
-            <PackageMenuTree tree={menuTree} checkedIds={checkedMenuIds} onChange={setCheckedMenuIds} />
+            <div style={{ maxHeight: 320, overflow: 'auto' }}>
+              <PackageMenuTree tree={menuTree} checkedIds={checkedMenuIds} onChange={setCheckedMenuIds} />
+            </div>
           ) : (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {menuTreeLoading ? t('tenantPackages.form.menusLoading') : t('tenantPackages.form.menusEmpty')}
             </Typography.Text>
           )}
         </Form.Item>
-        {/* 能力组（REQ-20261121-054613）：Checkbox 组勾选能力码，语义同菜单勾选（全量替换） */}
+        {/* 能力组（REQ-20261121-054613）：Checkbox 组勾选能力码，语义同菜单勾选（全量替换）；
+            AC-24：能力复选组同样限高滚动 */}
         <Form.Item label={t('tenantPackages.form.capabilities')} extra={t('tenantPackages.form.capabilitiesExtra')}>
           {capabilities.length > 0 ? (
-            <Checkbox.Group
-              value={checkedCapabilities}
-              onChange={(values) => setCheckedCapabilities(values as string[])}
-              options={capabilityOptions}
-            />
+            <div style={{ maxHeight: 200, overflow: 'auto' }}>
+              <Checkbox.Group
+                value={checkedCapabilities}
+                onChange={(values) => setCheckedCapabilities(values as string[])}
+                options={capabilityOptions}
+              />
+            </div>
           ) : (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {capabilitiesLoading ? t('tenantPackages.form.capabilitiesLoading') : t('tenantPackages.form.capabilitiesEmpty')}
@@ -289,7 +291,8 @@ export function TenantPackagesPage() {
 
 /** 套餐菜单树形勾选（antd Tree checkable；fieldNames 对齐 AdminMenuView）：
  *  checkStrictly 显式勾选集（menuIds 全量替换语义，与角色菜单分配树同口径）；
- *  BUTTON 节点标题附「按钮」Tag（REQ-20261119-051119 按钮级权限投影口径）。 */
+ *  BUTTON 节点标题附「按钮」Tag（REQ-20261119-051119 按钮级权限投影口径）；
+ *  AC-9：树数据剥空 children（叶子无展开箭头）。 */
 function PackageMenuTree({
   tree,
   checkedIds,
@@ -301,7 +304,10 @@ function PackageMenuTree({
 }) {
   const { t } = useTranslation();
   // BUTTON 节点标题 → ReactNode（menuName + 「按钮」Tag）；其余保持纯文本（antd Tree title 接受 ReactNode）
-  const treeData = useMemo(() => decorateButtonTitles(tree, t('menus.type.button')), [tree, t]);
+  const treeData = useMemo(
+    () => decorateButtonTitles(stripEmptyChildren(tree), t('menus.type.button')),
+    [tree, t],
+  );
   return (
     <Tree
       checkable
@@ -323,21 +329,27 @@ function PackageMenuTree({
 /** 装饰后树节点：menuName 升级为 ReactNode（BUTTON 节点附「按钮」Tag），children 递归同型。 */
 interface MenuTreeNodeTitle extends Omit<AdminMenuView, 'menuName' | 'children'> {
   menuName: ReactNode;
-  children: MenuTreeNodeTitle[];
+  children?: MenuTreeNodeTitle[];
 }
 
-/** 递归装饰菜单树标题：menuType=BUTTON 节点附「按钮」Tag（其余节点原样）。 */
+/** 递归装饰菜单树标题：menuType=BUTTON 节点附「按钮」Tag（其余节点原样）；
+ *  叶子节点不携带 children 键（AC-9 剥空 children，防无效展开箭头）。 */
 function decorateButtonTitles(nodes: AdminMenuView[], buttonLabel: string): MenuTreeNodeTitle[] {
-  return nodes.map((node) => ({
-    ...node,
-    menuName: node.menuType === 'BUTTON'
-      ? (
-          <span>
-            {node.menuName}
-            <Tag style={{ marginLeft: 8 }} color="purple">{buttonLabel}</Tag>
-          </span>
-        )
-      : node.menuName,
-    children: node.children?.length ? decorateButtonTitles(node.children, buttonLabel) : [],
-  }));
+  return nodes.map((node) => {
+    const base: MenuTreeNodeTitle = {
+      ...node,
+      menuName: node.menuType === 'BUTTON'
+        ? (
+            <span>
+              {node.menuName}
+              <Tag style={{ marginLeft: 8 }} color="purple">{buttonLabel}</Tag>
+            </span>
+          )
+        : node.menuName,
+    };
+    if (node.children?.length) {
+      return { ...base, children: decorateButtonTitles(node.children, buttonLabel) };
+    }
+    return base;
+  });
 }

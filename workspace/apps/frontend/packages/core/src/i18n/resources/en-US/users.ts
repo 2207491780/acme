@@ -9,6 +9,9 @@ export const users = {
   columns: {
     username: 'Username',
     nickname: 'Nickname',
+    // AC-1: dept/position columns (mapped from the catalog, empty renders —)
+    dept: 'Department',
+    position: 'Position',
     status: 'Status',
     roles: 'Roles',
     updatedAt: 'Updated',
@@ -31,6 +34,8 @@ export const users = {
   },
   errors: {
     loadFailed: 'Failed to load users',
+    // AC-3/AC-27: catalog load failure surfaces as a visible warning (no more silent empty options)
+    optionsLoadFailed: 'Failed to load the user form catalog; department / position / role options are unavailable',
   },
   form: {
     editTitle: 'Edit user: {{name}}',

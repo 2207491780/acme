@@ -331,7 +331,10 @@ class SystemApiSurfaceTest {
         assertThat(controller.update(1L, new AdminRoleUpdate("运维", null, null, 1L)).roleCode()).isEqualTo("ops");
         var tree = controller.tree();
         assertThat(tree).hasSize(1);
-        assertThat(tree.get(0).parentId()).isEqualTo(0L);
+        // REQ-20261125-230807（F7，对齐 REQ-20261124-213008 §API）：根角色 wire parentId 归一 null
+        // （0 仅落库哨兵，响应侧 0→null）；非根角色 parentId 保持实体原值不归一
+        assertThat(tree.get(0).parentId()).isNull();
+        assertThat(tree.get(0).children().get(0).parentId()).isEqualTo(1L);
         assertThat(tree.get(0).children()).extracting(AdminRoleView::roleCode).containsExactly("ops_child");
         controller.delete(1L);
         controller.updateStatus(1L, new AdminStatusUpdate(EnableStatus.ENABLED));
@@ -498,7 +501,8 @@ class SystemApiSurfaceTest {
         assertThat(EntityViews.userView(user, List.of(1L)).username()).isEqualTo("u");
         SysRole role = new SysRole("ops", "运维", null, false);
         assertThat(EntityViews.roleView(role).roleCode()).isEqualTo("ops");
-        assertThat(EntityViews.roleView(role).parentId()).isEqualTo(SysRole.ROOT_PARENT_ID);
+        // REQ-20261125-230807：根角色 wire 归一 null（响应侧 0→null，AdminRoleView 契约注）
+        assertThat(EntityViews.roleView(role).parentId()).isNull();
         assertThat(EntityViews.roleTree(List.of(roleWithId(1L, 0L, "ops")))).hasSize(1);
         SysPermission permission = new SysPermission("system:user:create", "创建用户",
                 PermissionType.API, "POST", "/y");

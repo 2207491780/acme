@@ -14,6 +14,15 @@
  *     init（新建租户）表单「开通模板」Select——选中模板后提交携 templateCode；
  *     未选=原路径提交（body 无 templateCode）。
  *
+ * 【REQ-20261125-230807 delta-r3 基线更新（AC-22/AC-23，覆盖上述旧口径）】
+ *   D-1（AC-23）模板表单预置角色：roleKey/roleName 手填文本框 → **系统角色下拉**（选项源
+ *       roles 目录接口，选中自动回填角色名与该角色已授权限点，可再编辑；roleName 只读回显）；
+ *       permissionCodes 改权限目录多选（tags 手输兑底）。原 roleKey/roleName 双文本输入断言
+ *       随表单形态移除。
+ *   D-2（AC-22）新建租户：模板**必选**（空提交被表单拦截，后端 PARAM_INVALID 兑底）、提交
+ *       **必走 tenantInit**；原「未选模板→ tenantCreate 原路径」分流面随契约移除（前端不再
+ *       调用 tenantCreate）；初始管理员字段族创建态恒显（不再随模板选中显隐）。
+ *
  * 装配照既有范本 web/tests/REQ20261122150802-tenantLifecycleQuota.test.tsx（fetch stubGlobal
  * 精确 pathname 路由 + useMeStore 权限播种 + <AntApp> 包裹 + i18n zh-CN）；
  * Select 交互照 pitfalls 卡 7/8 口径（容器内 .ant-select-selector 展开 + 下拉浮层 within 点选）。
@@ -55,7 +64,7 @@ import { App as AntApp } from 'antd';
 import { i18n, useAuthStore, useMeStore, type AdminTenantView } from '@acme/core';
 import { TenantsPage } from '../src/pages/TenantsPage';
 
-vi.setConfig({ testTimeout: 30000 });
+vi.setConfig({ testTimeout: 90000 }); // delta-r3：同机后端全量测试 CPU 争抢下 30s 饥饿超时，对齐新套件显式超时口径
 
 // ————— 行为常量（TENANT-4 范本口径，空白宽容匹配） —————
 const CONFIRM_BUTTON = /确\s*定|^OK$/i;
@@ -121,6 +130,23 @@ const TEMPLATE_ROWS: Array<Record<string, unknown>> = [
 
 const PACKAGE_ROWS: Array<Record<string, unknown>> = [
   { id: '1', packageName: '基础版', remark: null },
+];
+
+/** 系统角色目录 fixture（REQ-20261125-230807 AC-23：预置角色下拉选项源，options label=`角色名（code）`）。 */
+const ROLE_ROWS: Array<Record<string, unknown>> = [
+  { id: '6101', parentId: null, roleCode: 'ops', roleName: '运维员', status: 'ENABLED', builtIn: false, remark: null, dataScope: 'ALL', version: '0' },
+];
+
+/** 该角色已授权限点（AC-23 选中自动回填的目录数据源）。 */
+const ROLE_PERMS: Array<Record<string, unknown>> = [
+  { id: 'p1', permissionCode: 'system:user:list', permissionName: '用户查询', permissionType: 'MENU', status: 'ENABLED' },
+  { id: 'p2', permissionCode: 'system:user:create', permissionName: '用户新建', permissionType: 'BUTTON', status: 'ENABLED' },
+];
+
+/** 权限点目录 fixture（AC-23 permissionCodes 多选选项源）。 */
+const PERM_CATALOG: Array<Record<string, unknown>> = [
+  { id: 'p1', permissionCode: 'system:user:list', permissionName: '用户查询', permissionType: 'MENU', status: 'ENABLED' },
+  { id: 'p2', permissionCode: 'system:user:create', permissionName: '用户新建', permissionType: 'BUTTON', status: 'ENABLED' },
 ];
 
 /** 运营概览夹具（契约⑥ UsageOverviewView 形状；行码 ov-* 与租户列表隔离）。 */
@@ -230,6 +256,16 @@ const setupTenantsApi = () => {
     }
     if (p === '/admin/v1/system/tenant-packages' && r.method === 'GET') {
       return envelope({ records: PACKAGE_ROWS, total: PACKAGE_ROWS.length });
+    }
+    // AC-23 目录源：系统角色目录 / 角色已授权限点 / 权限点目录（模板表单预置角色编辑器消费）
+    if (p === '/admin/v1/system/roles' && r.method === 'GET') {
+      return envelope({ records: ROLE_ROWS, total: ROLE_ROWS.length });
+    }
+    if (/^\/admin\/v1\/system\/roles\/[^/]+\/permissions$/.test(p) && r.method === 'GET') {
+      return envelope(ROLE_PERMS);
+    }
+    if (p === '/admin/v1/system/permissions' && r.method === 'GET') {
+      return envelope({ records: PERM_CATALOG, total: PERM_CATALOG.length });
     }
     if (p === '/admin/v1/system/tenants/init' && r.method === 'POST') {
       const body = parseBody(r.body);
@@ -403,7 +439,8 @@ describe('REQ20261122233426 TenantsPage 三 Tab 重构面（AC-6）', () => {
       '新建表单应含 configEntries 结构化编辑器').toBeGreaterThan(0);
     fillInput(createDialog, /模\s*板\s*编\s*码/, 'tpl-web-new');
     fillInput(createDialog, /模\s*板\s*名\s*称/, 'Web 集成模板');
-    // rolePresets 结构化编辑：预置角色初始空集 → 添加角色 → 编辑器项内填 roleKey/roleName
+    // rolePresets 结构化编辑（AC-23 delta-r3 基线）：初始空集 → 添加角色 → 系统角色下拉选择
+    // （选项源 roles 目录）→ roleName 只读自动回填 + 该角色已授权限点回填
     fireEvent.click(await within(createDialog).findByText(/添\s*加\s*角\s*色/));
     await waitFor(() => {
       expect(within(createDialog).getAllByText(/预\s*置\s*角\s*色/).length).toBeGreaterThan(0);
@@ -412,11 +449,19 @@ describe('REQ20261122233426 TenantsPage 三 Tab 重构面（AC-6）', () => {
       .find((node) => /预\s*置\s*角\s*色/.test(node.textContent ?? ''));
     expect(rpLabel, 'rolePresets 编辑器应以 Form.Item label 承载').toBeTruthy();
     const rpSection = (rpLabel as HTMLElement).closest('.ant-form-item') as HTMLElement;
-    const rpInputs = Array.from(rpSection.querySelectorAll<HTMLInputElement>('input.ant-input'))
-      .filter((input) => !input.disabled);
-    expect(rpInputs.length, '编辑器项应含 roleKey/roleName 可填输入').toBeGreaterThanOrEqual(2);
-    fireEvent.change(rpInputs[0], { target: { value: 'ops' } });
-    fireEvent.change(rpInputs[1], { target: { value: '运维员' } });
+    // AC-23：系统角色下拉（目录接口选项源，label 形态=`角色名（code）`），不再有 roleKey/roleName 手填文本框
+    await pickSelectOption(rpSection, /系\s*统\s*角\s*色/, /运\s*维\s*员/);
+    const roleNameInput = rpSection.querySelector<HTMLInputElement>('input.ant-input[disabled], input.ant-input:disabled');
+    await waitFor(() => {
+      expect(roleNameInput?.value, '选中系统角色应自动回填角色名（只读）').toBe('运维员');
+    });
+    // 选中角色自动回填该角色已授权限点（rolePermissions 目录，异步 setFieldValue）
+    await waitFor(() => {
+      const permTexts = Array.from(rpSection.querySelectorAll('.ant-select-selection-item-content'))
+        .map((node) => node.textContent ?? '');
+      expect(permTexts.some((text) => text.includes('system:user:create')),
+        '选中角色应回填该角色已授权限点').toBe(true);
+    }, { timeout: 5000 });
     fireEvent.click(await within(createDialog).findByRole('button', { name: CONFIRM_BUTTON }));
 
     await waitFor(() => expect(state.templatePosts.length).toBeGreaterThan(0), { timeout: 8000 });
@@ -428,8 +473,10 @@ describe('REQ20261122233426 TenantsPage 三 Tab 重构面（AC-6）', () => {
     const postedPresets = (createPost.body.content as Record<string, unknown>).rolePresets as Array<Record<string, unknown>>;
     expect(Array.isArray(postedPresets) && postedPresets.length >= 1,
       'content.rolePresets 结构化载荷（经编辑器添加行）').toBe(true);
-    expect(postedPresets[0]?.roleKey).toBe('ops');
-    expect(postedPresets[0]?.roleName).toBe('运维员');
+    expect(postedPresets[0]?.roleKey, 'AC-23：roleKey=所选系统角色 code').toBe('ops');
+    expect(postedPresets[0]?.roleName, 'AC-23：roleName=下拉选中自动回填').toBe('运维员');
+    expect((postedPresets[0]?.permissionCodes as string[] | undefined)?.includes('system:user:create'),
+      'AC-23：permissionCodes 含角色已授权限点回填').toBe(true);
 
     // ② 编辑模板：editTitle 按 code 锚定 → 名称修改 → PUT /{id}
     const row = await rowByAnchor('标准起步模板');
@@ -522,29 +569,29 @@ describe('REQ20261122233426 TenantsPage 三 Tab 重构面（AC-6）', () => {
     expect(withTemplate.body.templateCode, '提交应携带 templateCode（确认③）').toBe('tpl-web-a');
     expect(withTemplate.body.tenantCode).toBe('init-tpl');
 
-    // ② 未选模板：走原 tenantCreate 路径（POST /tenants，无 templateCode/管理员字段——
-    // 初始管理员字段族保持隐藏，显隐对照；确认③「未传=现行为」= 原 create 面）
+    // ② AC-22 delta-r3 基线更新：模板必选且提交必走 init——原「未选模板→ tenantCreate 原路径」
+    // 分流面随契约移除（前端不再调用 tenantCreate）；初始管理员字段族创建态恒显。
+    // 本段改钉：空模板提交被表单拦截（校验文案 + 零请求）。
     // 先等场景①弹窗完全关闭（antd 关闭动画期 display 未切换，防旧 Modal 误命中）
     await waitFor(() => {
       expect(visibleModals(/新\s*建\s*租\s*户|开\s*通\s*租\s*户/).length).toBe(0);
     }, { timeout: 8000 });
     fireEvent.click(await within(activePane()).findByText(/新\s*建\s*租\s*户/));
     const dialog2 = await awaitSurface(/新\s*建\s*租\s*户|开\s*通\s*租\s*户/);
+    // AC-22：初始管理员账号字段族创建态恒显（必填），不再随模板选中显隐
+    await waitFor(() => {
+      const adminShown = Array.from(dialog2.querySelectorAll('label'))
+        .some((node) => /初\s*始\s*管\s*理\s*员\s*账\s*号/.test(node.textContent ?? ''));
+      expect(adminShown, 'AC-22：创建态初始管理员账号字段恒显（必填）').toBe(true);
+    }, { timeout: 5000 });
     fillInput(dialog2, /租\s*户\s*代\s*码/, 'init-plain');
     fillInput(dialog2, /租\s*户\s*名\s*称/, '无模板夹具租户');
-    const adminLabelShown = Array.from(dialog2.querySelectorAll('label'))
-      .some((node) => /初\s*始\s*管\s*理\s*员\s*账\s*号/.test(node.textContent ?? ''));
-    expect(adminLabelShown, '未选模板时初始管理员账号字段保持隐藏（显隐对照面）').toBe(false);
     fireEvent.click(await within(dialog2).findByRole('button', { name: CONFIRM_BUTTON }));
 
-    await waitFor(() => expect(state.tenantCreates.length).toBeGreaterThanOrEqual(1), { timeout: 8000 });
-    expect(state.initPosts.length, '未选模板不走 init 端点（原 create 路径）').toBe(1);
-    const withoutTemplate = state.tenantCreates[0] as { url: string; body: Record<string, unknown> };
-    expect(withoutTemplate.url, '未选模板=原 tenantCreate 提交路径（委派单钉死口径）')
-      .toBe('/admin/v1/system/tenants');
-    expect(withoutTemplate.body.tenantCode).toBe('init-plain');
-    const submittedTemplateCode = withoutTemplate.body.templateCode;
-    expect(submittedTemplateCode === undefined || submittedTemplateCode === null || submittedTemplateCode === '',
-      '原 create 路径不携带 templateCode（确认③兼容）').toBe(true);
+    // 空模板提交被表单拦截：校验文案出现 + 零提交（initPosts 不增、tenantCreates 保持 0）
+    expect(await within(dialog2).findByText('请选择开通模板', {}, { timeout: 5000 }),
+      'AC-22：空模板提交应被表单校验拦截').toBeTruthy();
+    expect(state.initPosts.length, '空模板提交被拦截（无 init 请求）').toBe(1);
+    expect(state.tenantCreates.length, 'AC-22：tenantCreate 路径已不再被前端调用').toBe(0);
   });
 });

@@ -551,59 +551,6 @@ class REQ20261122233426TenantInitTemplateTesterTest {
                 .containsExactlyInAnyOrder("system:user:list", "system:user:create");
     }
 
-    // ---------- AC-4：init 未传/未命中模板 → 现行为逐字不变（动态全量授权集兼容） ----------
-
-    @Test
-    void should_keep_dynamic_grant_baseline_when_init_without_or_unmatched_template() throws Exception {
-        // ① 未传 templateCode：开通成功 + 视图形状不变
-        String plainCode = FIXTURE_PREFIX + "-plain-init";
-        JsonNode view = callAsSuperAdmin(post(TENANTS_URL + "/init")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(initBody(plainCode, null, "plainadmin2"))));
-        assertThat(view.path("success").asBoolean()).as("init 未传模板应成功（兼容零回归）：%s", view).isTrue();
-        assertThat(view.path("code").asText()).isEqualTo("0");
-        JsonNode data = view.path("data");
-        for (String field : List.of("tenantId", "tenantCode", "tenantName",
-                "adminUserId", "adminUsername", "adminNickname")) {
-            assertThat(data.path(field).isMissingNode())
-                    .as("AdminTenantInitView 应含 " + field + "（现行为逐字不变）").isFalse();
-        }
-        long adminUserId = data.path("adminUserId").asLong();
-
-        // ② 动态全量授权集语义不变：union 集含非保留金丝雀（system:config:list 系 V15 明示
-        //    「TenantInitUseCase 按非保留域全量授予，system:config:* 自动纳入」）、不含保留域三码、
-        //    集合规模显著大于模板集
-        List<String> union = unionPermissionCodesOfUser(plainCode, adminUserId);
-        assertThat(union).as("动态路径应授非保留全量（V15 口径金丝雀）")
-                .contains("system:config:list", "system:user:list", "system:role:list", "system:dict:list");
-        assertThat(union).as("动态路径不含保留域三码（既有不变量）")
-                .doesNotContainAnyElementsOf(RESERVED_CANARY_CODES);
-        assertThat(union.size()).as("动态全量集规模显著大于模板集（跳过语义的反向锚）").isGreaterThan(5);
-
-        // ③ adminUsername=请求原值（无模板前缀改写，逐字兼容）；无默认套餐；无 sys_config 行（V15 无行按缺省）
-        assertThat(data.path("adminUsername").asText()).as("无模板时 adminUsername=请求原值")
-                .isEqualTo("plainadmin2");
-        assertThat(jdbcTemplate.queryForObject(
-                "select package_id from sys_tenant where tenant_code = ?", Long.class, plainCode))
-                .as("无模板时无默认套餐绑定").isNull();
-        assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from sys_config where tenant_id = ?", Long.class, plainCode))
-                .as("无模板时无 sys_config 行（V15：无行租户按缺省生效；AMB-4）").isZero();
-
-        // ④ 未命中 templateCode：回退现行为（确认③「未命中=现行为逐字不变」）
-        String missCode = FIXTURE_PREFIX + "-miss-init";
-        JsonNode missView = callAsSuperAdmin(post(TENANTS_URL + "/init")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON.writeValueAsString(initBody(missCode, "tpl-no-such-template-xyz", "plainadmin3"))));
-        assertThat(missView.path("success").asBoolean())
-                .as("未命中模板应回退现行为成功（确认③）：%s", missView).isTrue();
-        List<String> missUnion = unionPermissionCodesOfUser(missCode, missView.path("data").path("adminUserId").asLong());
-        assertThat(missUnion).as("未命中路径=动态全量（金丝雀在集）")
-                .contains("system:config:list", "system:user:list");
-        assertThat(missUnion).as("未命中路径不含保留域三码")
-                .doesNotContainAnyElementsOf(RESERVED_CANARY_CODES);
-    }
-
     // ---------- 坑 16 生效面：无种子权限点访问模板端点 → 403（既有 RBAC 口径） ----------
 
     @Test

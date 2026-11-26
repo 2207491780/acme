@@ -17,6 +17,7 @@ export const tenantPackages = {
   },
   actions: {
     edit: 'Edit',
+    bindMenus: 'Bind menus',
     delete: 'Delete',
     deleteConfirm: 'Delete package {{name}}? Its menu bindings will be removed as well.',
   },

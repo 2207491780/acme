@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
+import com.acme.common.core.Result;
 import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.system.api.EnableStatus;
 import com.acme.platform.system.api.SystemPermissions;
@@ -107,12 +108,14 @@ public class TenantController {
         return enrichedTenantView(tenantUseCase.update(tenantId, request));
     }
 
+    /** 启停租户（统一响应体 Result 契约口径：void 语义显式出信封，code="0"；REQ-20261125-230807）。 */
     @PutMapping("/{tenantId}/status")
     @RequirePermission(SystemPermissions.TENANT_UPDATE)
     @AuditLog(action = "system.tenant.updateStatus", targetType = "tenant", targetId = "#tenantId",
             contentParams = {"tenantId", "request.status"})
-    public void updateStatus(@PathVariable Long tenantId, @Valid @RequestBody AdminStatusUpdate request) {
+    public Result<Void> updateStatus(@PathVariable Long tenantId, @Valid @RequestBody AdminStatusUpdate request) {
         tenantUseCase.updateStatus(tenantId, request.status());
+        return Result.ok(null);
     }
 
     /** 视图富化（REQ-20261122-150802 确认⑦）：quotaStorageBytes=三级覆盖链解析后有效值。 */

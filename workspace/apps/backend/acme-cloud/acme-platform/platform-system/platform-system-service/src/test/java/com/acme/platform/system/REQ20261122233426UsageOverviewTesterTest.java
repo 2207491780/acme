@@ -397,6 +397,8 @@ class REQ20261122233426UsageOverviewTesterTest {
         body.putNull("remark");
         body.put("adminUsername", tenantCode.replace('-', '_') + "_admin");
         body.put("adminNickname", tenantCode + " 管理员");
+        // REQ-20261125-230807 确认③：templateCode HTTP 面必填（未命中模板=既有兜底行为，语义不变）
+        body.put("templateCode", "fixture-unmatched-template");
         body.putNull("parentId");
         JsonNode result = callAsSuperAdmin(post(TENANTS_URL + "/init")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -432,22 +434,21 @@ class REQ20261122233426UsageOverviewTesterTest {
                 .as("update 生命周期应成功：%s", result).isTrue();
     }
 
-    /** 停用/启用（成功路径 emptyAsSuccess 双口径兼容，TENANT-4 同款）。 */
+    /** 停用/启用（REQ-20261125-230807 信封化：成功 wire=Result 信封 code="0"；失败路径信封 code 断言用）。 */
     private JsonNode putStatus(long tenantId, String status) throws Exception {
         ObjectNode body = JSON.createObjectNode();
         body.put("status", status);
-        MvcResult result = performAs("1", "default", Set.of("super_admin"),
+        JsonNode envelope = JSON.readTree(performAs("1", "default", Set.of("super_admin"),
                 put(TENANTS_URL + "/" + tenantId + "/status")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(JSON.writeValueAsString(body)));
-        String content = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        if (content.isBlank()) {
-            ObjectNode ok = JSON.createObjectNode();
-            ok.put("success", true);
-            ok.put("code", "0");
-            return ok;
+                        .content(JSON.writeValueAsString(body))).getResponse()
+                .getContentAsString(StandardCharsets.UTF_8));
+        if (envelope.path("success").asBoolean()) {
+            assertThat(envelope.path("code").asText())
+                    .as("状态端点成功应返回 Result 信封 code=\"0\"（REQ-20261125-230807 信封化）")
+                    .isEqualTo("0");
         }
-        return JSON.readTree(content);
+        return envelope;
     }
 
     private long tenantIdByCode(String tenantCode) {

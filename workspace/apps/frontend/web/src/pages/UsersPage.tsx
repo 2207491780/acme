@@ -1,12 +1,12 @@
-import { useEffect, useId, useState } from 'react';
-import { App, Button, Checkbox, Form, Input, Popconfirm, Select, Space, Tag, Typography } from 'antd';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { Alert, App, Button, Checkbox, Form, Input, Popconfirm, Select, Space, Tag, TreeSelect, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
-import { ApiError, Auth, formatDate, systemApi, useCrud, useDeptTree, useMeStore, type AdminPositionView, type AdminRoleView, type AdminUserView } from '@acme/core';
+import { ApiError, Auth, formatDate, systemApi, useCrud, useMeStore, type AdminDeptView, type AdminUserView, type UserFormOptionsView } from '@acme/core';
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 import { FilterField } from '../components/FilterPanel';
-import { flattenDeptOptions } from '../utils/dept';
+import { toDeptTreeOptions } from '../utils/dept';
 
 const { Text } = Typography;
 
@@ -43,11 +43,14 @@ interface ResetPasswordValues {
 
 /** 用户管理（p2-admin）：分页/搜索/新建/编辑/启停/删除/角色绑定。
  *  通用 CRUD 范本：headless 状态机走 @acme/core useCrud，展示层为 CrudTable + CrudFormModal。
- *  角色选择器来自角色目录（/system/roles 首页大页）；内置账号（builtIn）禁止删除。
- *  REQ-20261114-120104 扩展：筛选区部门 Select（列表请求携带 deptId，子部门递归为后端语义）、
- *  表单部门/岗位选择（编辑路径同步新建路径字段）。
+ *  角色选择器来自角色目录；内置账号（builtIn）禁止删除。
+ *  REQ-20261125-230807（AC-1/2/3/27）：目录源统一走 GET /system/user-form-options
+ *  （权限挂 system:user:list，替代 dept:list/position:list/角色分页三路依赖）——
+ *  ① 列表新增「部门」「岗位」列（映射自目录源，空值 —）；② 部门选择改 TreeSelect 树形
+ *  （层级展示+搜索，treeNodeLabelProp="pathTitle" 层级路径回显，选项文本无前导空格缩进）；③ 目录加载失败
+ *  页面可见警告+重试，不再静默空选项；④ 打开表单时后台刷新目录（TabKeepAlive 存续期保鲜）。
  *  动作按钮按 me.permissions 权限码显隐（fail-closed）。
- *  文案经 users 域资源包（zh 基线=既有用例断言原文，REQ-20261114-120103）。 */
+ *  文案经 users 域资源包（zh 基线=既有用例断言原文）。 */
 export function UsersPage() {
   const { t } = useTranslation();
   const { message } = App.useApp();
@@ -63,7 +66,6 @@ export function UsersPage() {
     errorMessage: t('users.errors.loadFailed'),
   });
 
-  const [roles, setRoles] = useState<AdminRoleView[]>([]);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<AdminUserView | null>(null);
   const [binding, setBinding] = useState<AdminUserView | null>(null);
@@ -74,38 +76,56 @@ export function UsersPage() {
   const [bindForm] = Form.useForm<RoleBindValues>();
   const [pwdForm] = Form.useForm<ResetPasswordValues>();
 
-  // 部门/岗位选择器数据源（REQ-20261114-120104）：部门树经 useDeptTree 模块缓存共享；
-  // 岗位目录一次大页拉取（读路径降级为空选项，无独立权限门禁）。
-  const deptTree = useDeptTree();
-  const [positions, setPositions] = useState<AdminPositionView[]>([]);
+  // 目录源（REQ-20261125-230807 AC-3）：单一 user-form-options 端点；失败可见警告+重试（AC-27）
+  const [options, setOptions] = useState<UserFormOptionsView | null>(null);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
+  const [optionsLoading, setOptionsLoading] = useState(false);
 
-  // 权限就绪后加载角色目录（选择器数据源）
-  useEffect(() => {
-    if (crud.can('system:user:assign-role')) {
-      systemApi.roleList()
-        .then((result) => setRoles(result.records))
-        .catch(() => setRoles([]));
-    }
-  }, [permissions.length]);
-
-  useEffect(() => {
-    let alive = true;
-    systemApi.positionList(1, 200)
-      .then((result) => {
-        if (alive) setPositions(result?.records ?? []);
+  const loadOptions = useCallback(() => {
+    setOptionsLoading(true);
+    setOptionsError(null);
+    systemApi.userFormOptions()
+      .then((data) => setOptions(data))
+      .catch((ex: unknown) => {
+        setOptionsError(ex instanceof ApiError ? ex.message : t('users.errors.optionsLoadFailed'));
       })
-      .catch(() => {
-        if (alive) setPositions([]);
-      });
-    return () => {
-      alive = false;
+      .finally(() => setOptionsLoading(false));
+  }, [t]);
+
+  useEffect(() => {
+    loadOptions();
+  }, [loadOptions]);
+
+  const deptTree: AdminDeptView[] = options?.deptTree ?? [];
+  const roles = useMemo(() => options?.roles ?? [], [options]);
+  const positions = useMemo(() => options?.positions ?? [], [options]);
+
+  // 列名称映射（AC-1）：部门/岗位列按目录 id→名称映射动态显示，空值 —
+  const deptNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    const walk = (nodes: AdminDeptView[]) => {
+      for (const node of nodes) {
+        map.set(node.id, node.deptName);
+        walk(node.children ?? []);
+      }
     };
-  }, []);
+    walk(deptTree);
+    return map;
+  }, [deptTree]);
+  const positionNameById = useMemo(
+    () => new Map(positions.map((p) => [p.id, p.positionName])),
+    [positions],
+  );
+
+  // TreeSelect 数据源（AC-2）：层级由树形结构承载、选项无前导空格缩进；叶子不携带空 children 键（AC-9）
+  const deptFilterTree = useMemo(() => toDeptTreeOptions(deptTree), [deptTree]);
+  const deptFormTree = useMemo(() => toDeptTreeOptions(deptTree, { enabledOnly: true }), [deptTree]);
 
   const openCreate = () => {
     createForm.resetFields();
     createForm.setFieldsValue({ roleIds: [] });
     setCreating(true);
+    loadOptions();
   };
 
   const openEdit = (record: AdminUserView) => {
@@ -117,11 +137,13 @@ export function UsersPage() {
       deptId: record.deptId ?? undefined,
       positionId: record.positionId ?? undefined,
     });
+    loadOptions();
   };
 
   const openBind = (record: AdminUserView) => {
     setBinding(record);
     bindForm.setFieldsValue({ roleIds: [...record.roleIds] });
+    loadOptions();
   };
 
   /** 打开重置密码弹窗（REQ-20261124-213008 范式 A；权限显隐见行内 Auth）：打开前清空输入。 */
@@ -239,6 +261,16 @@ export function UsersPage() {
     { title: t('users.columns.username'), dataIndex: 'username', key: 'username', minWidth: 160, fixed: 'left' },
     { title: t('users.columns.nickname'), dataIndex: 'nickname', key: 'nickname', minWidth: 120, render: (v: string | null) => v ?? '—' },
     {
+      // AC-1：部门列（映射自目录源；空值 —）
+      title: t('users.columns.dept'), dataIndex: 'deptId', key: 'dept', minWidth: 120,
+      render: (_, record) => (record.deptId ? deptNameById.get(record.deptId) ?? '—' : '—'),
+    },
+    {
+      // AC-1：岗位列（映射自目录源；空值 —）
+      title: t('users.columns.position'), dataIndex: 'positionId', key: 'position', minWidth: 120,
+      render: (_, record) => (record.positionId ? positionNameById.get(record.positionId) ?? '—' : '—'),
+    },
+    {
       title: t('users.columns.status'), dataIndex: 'status', key: 'status', minWidth: 90,
       render: (status: AdminUserView['status']) => (
         <Tag color={status === 'ENABLED' ? 'success' : 'default'}>{status === 'ENABLED' ? t('users.status.enabled') : t('users.status.disabled')}</Tag>
@@ -298,17 +330,31 @@ export function UsersPage() {
         createLabel={t('users.create')}
         onCreate={openCreate}
         totalText={(total) => t('users.total', { total })}
+        alert={optionsError ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={t('users.errors.optionsLoadFailed')}
+            description={optionsError}
+            action={<Button size="small" onClick={loadOptions} loading={optionsLoading}>{t('common.actions.retry')}</Button>}
+          />
+        ) : undefined}
         filters={(
           <>
             <FilterField label={t('users.form.dept')} htmlFor={`${filterId}-dept`}>
-              <Select<string>
+              <TreeSelect<string>
                 id={`${filterId}-dept`}
                 allowClear
                 aria-label={t('users.filters.dept')}
                 placeholder={t('users.filters.dept')}
-                options={flattenDeptOptions(deptTree.tree)}
+                treeData={deptFilterTree}
+                treeNodeFilterProp="title"
+                treeNodeLabelProp="pathTitle"
+                treeDefaultExpandAll
+                showSearch
                 value={crud.filters.deptId}
-                onChange={(value) => crud.setFilter('deptId', value)}
+                onChange={(value) => crud.setFilter('deptId', value ?? undefined)}
               />
             </FilterField>
             <FilterField label={t('users.columns.status')} htmlFor={`${filterId}-status`}>
@@ -371,13 +417,17 @@ export function UsersPage() {
             optionFilterProp="label"
           />
         </Form.Item>
+        {/* AC-2：部门选择为树形下拉（层级展示+搜索），选中回显层级路径（treeNodeLabelProp="pathTitle"），
+            选项无前导空格缩进 */}
         <Form.Item name="deptId" label={t('users.form.dept')}>
-          <Select
+          <TreeSelect<string>
             allowClear
             placeholder={t('users.form.deptPlaceholder')}
-            optionFilterProp="label"
+            treeData={deptFormTree}
+            treeNodeFilterProp="title"
+            treeNodeLabelProp="pathTitle"
+            treeDefaultExpandAll
             showSearch
-            options={flattenDeptOptions(deptTree.tree, { enabledOnly: true })}
           />
         </Form.Item>
         <Form.Item name="positionId" label={t('users.form.position')}>
@@ -415,13 +465,16 @@ export function UsersPage() {
         <Form.Item name="phone" label={t('users.form.phone')} rules={[{ max: 32, message: t('common.validation.maxLength', { max: 32 }) }]}>
           <Input placeholder={t('users.form.optional')} />
         </Form.Item>
+        {/* AC-2：编辑路径部门树形下拉同口径（treeNodeLabelProp="pathTitle" 层级路径回显） */}
         <Form.Item name="deptId" label={t('users.form.dept')}>
-          <Select
+          <TreeSelect<string>
             allowClear
             placeholder={t('users.form.deptPlaceholder')}
-            optionFilterProp="label"
+            treeData={deptFormTree}
+            treeNodeFilterProp="title"
+            treeNodeLabelProp="pathTitle"
+            treeDefaultExpandAll
             showSearch
-            options={flattenDeptOptions(deptTree.tree, { enabledOnly: true })}
           />
         </Form.Item>
         <Form.Item name="positionId" label={t('users.form.position')}>

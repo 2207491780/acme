@@ -40,3 +40,36 @@ export function flattenDeptOptions(
 export function countDeptTree(nodes: AdminDeptView[]): number {
   return nodes.reduce((sum, node) => sum + 1 + countDeptTree(node.children ?? []), 0);
 }
+
+/** 部门 TreeSelect 选项节点（treeData 形态；叶子不携带 children 键，避免无效展开箭头——AC-9）。
+ *  pathTitle=选中回显层级路径（含自身、根在前「 / 」连接，如「研发中心 / 平台组」——AC-2），
+ *  经 TreeSelect 原生 `treeNodeLabelProp="pathTitle"` 消费（antd 5.22 TreeSelectProps 无 labelRender）。 */
+export interface DeptTreeOption {
+  value: string;
+  title: string;
+  /** 层级路径（下拉选项仍渲染 title，仅选中回显消费该字段）。 */
+  pathTitle: string;
+  children?: DeptTreeOption[];
+}
+
+/** 部门树 → TreeSelect treeData（REQ-20261125-230807 AC-2）：层级由树形结构承载，
+ *  选项文本无前导空格缩进；enabledOnly 剪枝禁用子树（表单分配语义仅启用部门）。
+ *  pathTitle 由根递归累积祖先链（根在前），selected 回显与搜索均不影响。 */
+export function toDeptTreeOptions(
+  nodes: AdminDeptView[],
+  options: { enabledOnly?: boolean } = {},
+  /** 祖先显示名链（根在前；递归累积，外部调用不传）。 */
+  ancestorNames: string[] = [],
+): DeptTreeOption[] {
+  const { enabledOnly } = options;
+  return nodes
+    .filter((node) => !enabledOnly || node.status === 'ENABLED')
+    .map((node) => {
+      const path = [...ancestorNames, node.deptName];
+      const children = toDeptTreeOptions(node.children ?? [], options, path);
+      const pathTitle = path.join(' / ');
+      return children.length > 0
+        ? { value: String(node.id), title: node.deptName, pathTitle, children }
+        : { value: String(node.id), title: node.deptName, pathTitle };
+    });
+}

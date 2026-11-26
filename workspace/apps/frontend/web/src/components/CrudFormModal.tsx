@@ -15,6 +15,10 @@ export interface CrudFormModalProps<Values extends object> {
   children: ReactNode;
   /** 弹窗宽度（AntD 默认 520）。 */
   width?: number;
+  /** 确认按钮文案（缺省=AntD locale 缺省；页面可显式传 i18n 文案钉死口径）。 */
+  okText?: ReactNode;
+  /** 取消按钮文案（缺省=AntD locale 缺省）。 */
+  cancelText?: ReactNode;
 }
 
 /**
@@ -30,6 +34,8 @@ export function CrudFormModal<Values extends object>({
   onCancel,
   children,
   width,
+  okText,
+  cancelText,
 }: CrudFormModalProps<Values>) {
   return (
     <Modal
@@ -40,6 +46,8 @@ export function CrudFormModal<Values extends object>({
       confirmLoading={submitting}
       destroyOnClose
       width={width}
+      okText={okText}
+      cancelText={cancelText}
     >
       <Form form={form} layout="vertical">
         {children}

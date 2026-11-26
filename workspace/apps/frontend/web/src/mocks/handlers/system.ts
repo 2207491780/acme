@@ -13,7 +13,7 @@ import {
   isThemeModeValue,
   isTopbarWidgets,
 } from '@acme/core';
-import type { AdminCapabilityView, AdminDeptView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleTreeNode, AdminRoleView, AdminSystemConfigView, AdminTenantInitTemplateView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, RoleDataScope, TenantQuotaSource, TenantUsageOverviewRow, TenantUsageView } from '@acme/core';
+import type { AdminCapabilityView, AdminDeptView, AdminDictItemView, AdminDictTypeView, AdminMenuView, AdminPermissionView, AdminPositionView, AdminRoleTreeNode, AdminRoleView, AdminSystemConfigView, AdminTenantInitTemplateView, AdminTenantPackageView, AdminTenantTreeNode, AdminTenantView, AdminUserView, DictKind, RoleDataScope, TenantQuotaSource, TenantUsageOverviewRow, TenantUsageView } from '@acme/core';
 import * as db from '../data';
 import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../utils';
 
@@ -1034,7 +1034,8 @@ export const systemHandlers = [
       ? new Set<string>([id, ...tenantDescendantIdsOf(id)])
       : new Set<string>([id]);
     store.tenants = store.tenants.map((tenant) => (affected.has(tenant.id) ? { ...tenant, status: next } : tenant));
-    return empty();
+    // REQ-20261125-230807：void 端点信封化（Result<Void>），与真实后端同形（原 empty() 改信封）
+    return ok(null);
   }),
 
   // ---- 租户用量/配额（REQ-20261122-150802 契约⑦：usage 权限 system:tenant:list、quota 权限 system:tenant:update，mock 不校验权限头） ----
@@ -1076,7 +1077,8 @@ export const systemHandlers = [
     } else {
       store.tenantQuotaOverrides[id] = bytes;
     }
-    return ok(tenantViewOf(tenant));
+    // REQ-20261125-230807：wire 变更 Result<Void>（原 ok(tenantView) 错形改信封空载荷），前端类型 Promise<void>
+    return ok(null);
   }),
 
   // ---- 服务能力目录（REQ-20261121-054613；读权限挂 system:tenant-package:list，mock 不校验权限头） ----
@@ -1262,6 +1264,10 @@ export const systemHandlers = [
   }),
 
   // ---- 用户 ----
+  // 用户表单目录（REQ-20261125-230807 新增端点；权限=system:user:list，mock 不校验权限头）：
+  // deptTree/positions/roles 全量目录——用户页筛选/表单/列名称映射统一数据源
+  http.get('/admin/v1/system/user-form-options', () =>
+    ok({ deptTree: store.depts, positions: store.positions, roles: store.roles })),
   http.get('/admin/v1/system/users', ({ request }) => {
     const params = urlOf(request).searchParams;
     const status = params.get('status');
@@ -1325,20 +1331,23 @@ export const systemHandlers = [
   http.delete('/admin/v1/system/users/:userId', ({ params }) => {
     const id = String(params.userId);
     store.users = store.users.filter((u) => u.id !== id);
-    return empty();
+    // REQ-20261125-230807：void 端点信封化（Result<Void>），与真实后端同形（原 empty() 改信封）
+    return ok(null);
   }),
   http.put('/admin/v1/system/users/:userId/status', async ({ request, params }) => {
     const body = await bodyOf(request);
     const id = String(params.userId);
     store.users = store.users.map((u) => (u.id === id ? { ...u, status: body.status === 'DISABLED' ? 'DISABLED' : 'ENABLED' } : u));
-    return empty();
+    // REQ-20261125-230807：void 端点信封化（Result<Void>），与真实后端同形（原 empty() 改信封）
+    return ok(null);
   }),
   http.put('/admin/v1/system/users/:userId/roles', async ({ request, params }) => {
     const body = await bodyOf(request);
     const id = String(params.userId);
     const roleIds = Array.isArray(body.roleIds) ? (body.roleIds as unknown[]).map(String) : [];
     store.users = store.users.map((u) => (u.id === id ? { ...u, roleIds } : u));
-    return empty();
+    // REQ-20261125-230807：void 端点信封化（Result<Void>），与真实后端同形（原 empty() 改信封）
+    return ok(null);
   }),
 
   // ---- 部门（REQ-20261114-120104） ----
@@ -1554,10 +1563,26 @@ export const systemHandlers = [
     if (!target) {
       return fail('ROLE_NOT_FOUND', '角色不存在或已被删除', 404);
     }
+    // parentId 三态（REQ-20261125-230807 AC-10，AdminRoleUpdate javadoc 口径，mock 与真后端一致）：
+    // undefined/null=不调整（保持现状）；0=移为根（哨兵置 null）；>0=改父（字符串原样，父须存在）
+    let parentId = target.parentId;
+    const rawParent = body.parentId;
+    if (rawParent !== undefined && rawParent !== null) {
+      if (Number(rawParent) === 0) {
+        parentId = null;
+      } else {
+        const next = String(rawParent);
+        if (!store.roles.some((role) => role.id === next)) {
+          return fail('PARAM_INVALID', '上级角色不存在或已被删除', 400);
+        }
+        parentId = next;
+      }
+    }
     const updated = {
       ...target,
       roleName: typeof body.roleName === 'string' ? body.roleName : target.roleName,
       remark: (body.remark as string | null) ?? target.remark,
+      parentId,
       version: String(Number(target.version) + 1),
     };
     store.roles = store.roles.map((role) => (role.id === id ? updated : role));
@@ -1592,43 +1617,8 @@ export const systemHandlers = [
       .filter((p) => (httpMethod ? p.httpMethod === httpMethod : true));
     return page(slicePage(rows, pagingOf(request)), rows.length);
   }),
-  http.post('/admin/v1/system/permissions', async ({ request }) => {
-    const body = await bodyOf(request);
-    const created = {
-      id: genId(),
-      permissionCode: String(body.permissionCode ?? 'system:mock'),
-      permissionName: String(body.permissionName ?? ''),
-      permissionType: String(body.permissionType ?? 'API'),
-      httpMethod: (body.httpMethod as string | undefined) ?? null,
-      httpPath: (body.httpPath as string | undefined) ?? null,
-      status: 'ENABLED' as const,
-      version: '0',
-    };
-    store.permissions = [...store.permissions, created];
-    return ok(created);
-  }),
-  http.put('/admin/v1/system/permissions/:permissionId', async ({ request, params }) => {
-    const body = await bodyOf(request);
-    const id = String(params.permissionId);
-    const target = store.permissions.find((p) => p.id === id);
-    if (!target) {
-      return fail('PERMISSION_NOT_FOUND', '权限点不存在或已被删除', 404);
-    }
-    const updated = {
-      ...target,
-      permissionName: typeof body.permissionName === 'string' ? body.permissionName : target.permissionName,
-      httpMethod: (body.httpMethod as string | null) ?? target.httpMethod,
-      httpPath: (body.httpPath as string | null) ?? target.httpPath,
-      version: String(Number(target.version) + 1),
-    };
-    store.permissions = store.permissions.map((p) => (p.id === id ? updated : p));
-    return ok(updated);
-  }),
-  http.delete('/admin/v1/system/permissions/:permissionId', ({ params }) => {
-    const id = String(params.permissionId);
-    store.permissions = store.permissions.filter((p) => p.id !== id);
-    return empty();
-  }),
+  // REQ-20261125-230807 确认②「仅浏览」前端收口：权限点新建/编辑/删除入口与表单已移除，
+  // 后端 mutation 端点+权限码保留；mock 同步移除 mutation handler（仅保留读面）。
 
   // ---- 菜单 ----
   // GET /menus（REQ-20261120-213603）：keyword/menuType/status/visible 可选筛选（多条件 AND，
@@ -1673,58 +1663,8 @@ export const systemHandlers = [
     });
     return ok(tree);
   }),
-  http.post('/admin/v1/system/menus', async ({ request }) => {
-    const body = await bodyOf(request);
-    const created = {
-      id: Number(genId()),
-      parentId: body.parentId ? Number(body.parentId) : 0,
-      menuName: String(body.menuName ?? '新菜单'),
-      menuType: String(body.menuType ?? 'MENU'),
-      path: (body.path as string | undefined) ?? null,
-      component: (body.component as string | undefined) ?? null,
-      icon: (body.icon as string | undefined) ?? null,
-      sortOrder: Number(body.sortOrder ?? 0),
-      visible: body.visible !== false,
-      permissionCode: (body.permissionCode as string | undefined) ?? null,
-      status: 'ENABLED' as const,
-      version: '0',
-      children: [] as AdminMenuView[],
-    };
-    store.menus = [...store.menus, created];
-    return ok(created);
-  }),
-  http.put('/admin/v1/system/menus/:menuId', async ({ request, params }) => {
-    const body = await bodyOf(request);
-    const id = Number(params.menuId);
-    let updated: AdminMenuView | null = null;
-    const walk = (nodes: AdminMenuView[]): AdminMenuView[] =>
-      nodes.map((node) => {
-        if (node.id !== id) {
-          return { ...node, children: walk(node.children) };
-        }
-        updated = {
-          ...node,
-          menuName: typeof body.menuName === 'string' ? body.menuName : node.menuName,
-          path: (body.path as string | null) ?? node.path,
-          component: (body.component as string | null) ?? node.component,
-          icon: (body.icon as string | null) ?? node.icon,
-          sortOrder: Number(body.sortOrder ?? node.sortOrder ?? 0),
-          visible: body.visible !== undefined ? body.visible !== false : node.visible,
-          permissionCode: (body.permissionCode as string | null) ?? node.permissionCode,
-          version: String(Number(node.version) + 1),
-        };
-        return updated;
-      });
-    store.menus = walk(store.menus);
-    return updated ? ok(updated) : fail('MENU_NOT_FOUND', '菜单不存在或已被删除', 404);
-  }),
-  http.delete('/admin/v1/system/menus/:menuId', ({ params }) => {
-    const id = Number(params.menuId);
-    const walk = (nodes: AdminMenuView[]): AdminMenuView[] =>
-      nodes.filter((node) => node.id !== id).map((node) => ({ ...node, children: walk(node.children) }));
-    store.menus = walk(store.menus);
-    return empty();
-  }),
+  // REQ-20261125-230807 确认②「仅浏览」前端收口：菜单新建/加子/编辑/删除入口与表单已移除，
+  // 后端 mutation 端点+权限码保留；mock 同步移除 mutation handler（仅保留读面）。
 
   // ---- 字典 ----
   http.get('/admin/v1/system/dict-types', ({ request }) => {
@@ -1733,10 +1673,15 @@ export const systemHandlers = [
   }),
   http.post('/admin/v1/system/dict-types', async ({ request }) => {
     const body = await bodyOf(request);
-    const created = {
+    // REQ-20261125-230807（V35）：dictKind 可选（缺省 FLAT）；非法枚举 → PARAM_INVALID
+    if (body.dictKind !== undefined && body.dictKind !== null && body.dictKind !== 'FLAT' && body.dictKind !== 'TREE') {
+      return fail('PARAM_INVALID', 'dictKind 仅支持 FLAT/TREE', 400);
+    }
+    const created: AdminDictTypeView = {
       id: genId(),
       dictCode: String(body.dictCode ?? 'mock_dict'),
       dictName: String(body.dictName ?? ''),
+      dictKind: (body.dictKind === 'TREE' ? 'TREE' : 'FLAT') as DictKind,
       status: 'ENABLED' as const,
       remark: (body.remark as string | undefined) ?? null,
       version: '0',
@@ -1766,14 +1711,25 @@ export const systemHandlers = [
       return fail('DICT_TYPE_HAS_ITEMS', '字典类型下存在条目，无法删除', 400);
     }
     store.dictTypes = store.dictTypes.filter((t) => t.id !== id);
-    return empty();
+    // REQ-20261125-230807：void 端点信封化（Result<Void>），与真实后端同形（原 empty() 改信封）
+    return ok(null);
   }),
   http.get('/admin/v1/system/dict-types/:typeId/items', ({ request, params }) => {
     const typeId = String(params.typeId);
     const qs = urlOf(request).searchParams;
     // 兼容两种消费口径：useDict 大页取全量返回分页信封 { records, total }（响应兼容数组形状）；
-    // 既有管理端缺省不带查询参数 → 条目数组直出
+    // 既有管理端缺省不带查询参数 → 条目数组直出。
+    // REQ-20261125-230807（V35）：TREE 类型条目树形返回（children 恒数组，叶子 []）；
+    // FLAT 类型平铺现状零变化（回归锚点）。
+    const kind = store.dictTypes.find((t) => t.id === typeId)?.dictKind ?? 'FLAT';
     const rows = store.dictItems.filter((item) => item.dictTypeId === typeId);
+    if (kind === 'TREE') {
+      const tree = buildDictItemTree(rows);
+      if (qs.get('page') !== null || qs.get('size') !== null) {
+        return page(tree, countDictTreeItems(tree));
+      }
+      return ok(tree);
+    }
     if (qs.get('page') !== null || qs.get('size') !== null) {
       return page(rows, rows.length);
     }
@@ -1781,11 +1737,26 @@ export const systemHandlers = [
   }),
   http.post('/admin/v1/system/dict-types/:typeId/items', async ({ request, params }) => {
     const body = await bodyOf(request);
-    const created = {
+    const typeId = String(params.typeId);
+    // REQ-20261125-230807（V35）：TREE 条目可携带 parentId（父条目存在、同字典类型——新条目无后代不构成环）；
+    // FLAT 类型提交 parentId → PARAM_INVALID（与后端同语义）
+    let parentId: string | null = null;
+    if (body.parentId !== undefined && body.parentId !== null && body.parentId !== '') {
+      if ((store.dictTypes.find((t) => t.id === typeId)?.dictKind ?? 'FLAT') !== 'TREE') {
+        return fail('PARAM_INVALID', 'FLAT 字典不支持父条目（parentId 仅 TREE 类型可用）', 400);
+      }
+      parentId = String(body.parentId);
+      const parent = store.dictItems.find((item) => item.id === parentId);
+      if (!parent || parent.dictTypeId !== typeId) {
+        return fail('PARAM_INVALID', '父条目不存在或不属于当前字典类型', 400);
+      }
+    }
+    const created: AdminDictItemView = {
       id: genId(),
-      dictTypeId: String(params.typeId),
+      dictTypeId: typeId,
       itemLabel: String(body.itemLabel ?? ''),
       itemValue: String(body.itemValue ?? ''),
+      parentId,
       sortOrder: Number(body.sortOrder ?? 0),
       status: 'ENABLED' as const,
       version: '0',
@@ -1813,6 +1784,29 @@ export const systemHandlers = [
   http.delete('/admin/v1/system/dict-items/:itemId', ({ params }) => {
     const id = String(params.itemId);
     store.dictItems = store.dictItems.filter((item) => item.id !== id);
-    return empty();
+    // REQ-20261125-230807：void 端点信封化（Result<Void>），与真实后端同形（原 empty() 改信封）
+    return ok(null);
   }),
 ];
+
+/** TREE 字典条目树装配（REQ-20261125-230807 V35）：按 parentId 挂 children（恒为数组，叶子 []），
+ *  同层按 sortOrder 升序；悬空 parentId 兜底为根（防丢行）。 */
+function buildDictItemTree(rows: AdminDictItemView[]): AdminDictItemView[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const toNode = (row: AdminDictItemView): AdminDictItemView => ({
+    ...row,
+    children: rows
+      .filter((child) => child.parentId === row.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(toNode),
+  });
+  return rows
+    .filter((row) => !row.parentId || !byId.has(row.parentId))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(toNode);
+}
+
+/** 条目树节点总数（分页信封 total 口径）。 */
+function countDictTreeItems(nodes: AdminDictItemView[]): number {
+  return nodes.reduce((sum, node) => sum + 1 + countDictTreeItems(node.children ?? []), 0);
+}

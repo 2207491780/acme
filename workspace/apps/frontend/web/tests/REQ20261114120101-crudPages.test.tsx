@@ -24,6 +24,13 @@
  *       （round0 已通过），失败例 1/2 页面改按 label 语义填字段（round1 打回单）
  *   播种归一（round1 裁决⑤）：me.permissions = 后端三段式码（SystemPermissions.java 口径），
  *   双拼写播种废除；行删除 id 走路径参数（usersPage 口径，弱匹配包含断言）
+ *
+ * 【REQ-20261125-230807 delta-r4 旧基线更新（仅测试侧，契约确认记录②③⑦）】
+ *   - AC-22：新建租户表单模板必选 + 初始管理员必填，提交改走 POST /tenants/init（tenantCreate 前端不再调用）；
+ *     故 Tenants create 用例补模板目录 stub 与必填字段，并钉死 init 路径/templateCode/adminUsername。
+ *   - AC-13/AC-16：权限点/菜单页「仅浏览」（前端收口，与权限播种无关），无新建/编辑/删除/加子菜单入口；
+ *     两页原 CRUD 用例按同批 menusButton 重写为「无入口 + 列表/筛选可用 + 全程零 mutation」断言，
+ *     图标选择器相关表单语义随入口移除，改钉「表单/图标选择器不存在」而非放宽。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -37,8 +44,10 @@ import { DictsPage } from '../src/pages/DictsPage';
 import { AuditPage } from '../src/pages/AuditPage';
 import { useAuthStore, useMeStore } from '@acme/core';
 
-// Dicts 为主从双卡布局（双 Table + 双 Modal），渲染预算高于单表页；15000 下 Dicts edit 已贴线超时（装配放宽）
-vi.setConfig({ testTimeout: 25000 });
+// Dicts 为主从双卡布局（双 Table + 双 Modal），渲染预算高于单表页；15000 下 Dicts edit 已贴线超时（装配放宽）。
+// delta-r4：全量门禁并行负载下本文件 Tenants update / Roles delete 曾贴 25s 超时（串行复跑绿），
+// 与同批新套件（permissionsDicts/tenants）一致放宽到 90s，断言集不变（pitfall 15 超时饥饿口径）。
+vi.setConfig({ testTimeout: 90000 });
 
 // ————— 行为常量（usersPage 口径：两字按钮 autoInsertSpace 兼容） —————
 const ADD_BUTTON = /新\s*[建增]/;
@@ -59,6 +68,8 @@ type CreateSpec = {
   select?: { label: string; option: string; value?: string };
   /** 行为式（Menus，round0 已通过）：填弹窗内首个可用文本框的值 */
   value?: string;
+  /** AC-22 tenantInit：模板必选（选项源 tenant-templates）+ 初始管理员必填 + 提交走 /tenants/init */
+  init?: { templateOption: string; templateCode: string; adminUsername: string };
 };
 
 type PageSpec = {
@@ -71,6 +82,8 @@ type PageSpec = {
   edit: { perm: string[]; prefill: string; update: string } | null;
   remove: { perm: string[]; rowAnchor: string; id: string; stillAnchor: string } | null;
   search: boolean;
+  /** AC-13/AC-16：前端仅浏览收口，CRUD 用例改为无入口/零 mutation 断言 */
+  browseOnly?: boolean;
 };
 
 const SPECS: PageSpec[] = [
@@ -91,6 +104,8 @@ const SPECS: PageSpec[] = [
         { label: '租户代码', value: 'xin-zuhu-1' },
         { label: '租户名称', value: '新租户甲' },
       ],
+      // AC-22 / 确认记录③：新建态模板必选、初始管理员必填，提交必走 tenantInit
+      init: { templateOption: '标准开通模板', templateCode: 'std', adminUsername: 'tenantadmin' },
     },
     edit: { perm: ['system:tenant:update'], prefill: '贝塔租户', update: '贝塔改名' },
     remove: null,
@@ -128,19 +143,10 @@ const SPECS: PageSpec[] = [
       { id: '3202', permissionCode: 'system:user:create', permissionName: '用户列表', permissionType: 'API', httpMethod: 'POST', httpPath: '/admin/v1/system/users', status: 'ENABLED', createdAt: '2026-01-02T00:00:00Z', version: '0' },
     ],
     anchors: ['用户查询', 'system:user:list'],
-    // create 按字段语义填（round1 失败例 2）：权限代码/权限名称 + 必填 Select「类型」（选项 API）
-    create: {
-      perm: ['system:permission:create'],
-      fields: [
-        { label: '权限代码', value: 'system:test:new' },
-        { label: '权限名称', value: '新权限点甲' },
-      ],
-      // delta-3：实现选项 label='API（接口级）'/value='API'（迁移前基线，实现禁改）——
-      // 点选按可访问名（显示名）匹配，POST body 断言按 wire 值
-      select: { label: '类型', option: 'API（接口级）', value: 'API' },
-    },
-    edit: { perm: ['system:permission:update'], prefill: '用户列表', update: '用户列表改名' },
-    remove: { perm: ['system:permission:delete'], rowAnchor: '用户列表', id: '3202', stillAnchor: '用户查询' },
+    // AC-13 / 确认记录②：权限点页前端仅浏览（无新建/编辑/删除入口，mock mutation handler 移除）。
+    // 原三个 CRUD 用例重定向为「无变更入口 + 列表/筛选可用 + 全程零 mutation」断言，强度不降。
+    create: null, edit: null, remove: null,
+    browseOnly: true,
     search: false, // AC-1 等价口径：迁移前本页无关键字搜索（装配修正，见交付说明）
   },
   {
@@ -158,10 +164,10 @@ const SPECS: PageSpec[] = [
       { id: '3303', parentId: '0', menuName: '报表中心', menuType: 'MENU', path: '/reports', component: null, icon: null, sortOrder: 2, visible: true, permissionCode: null, status: 'ENABLED', children: [], version: '0' },
     ],
     anchors: ['系统管理', '报表中心'],
-    // Menus create 维持 round0 已通过的首个可用文本框行为式（round1 未列失败，不改填法）
-    create: { perm: ['system:menu:create'], value: '新菜单X' },
-    edit: { perm: ['system:menu:update'], prefill: '报表中心', update: '报表中心改名' },
-    remove: { perm: ['system:menu:delete'], rowAnchor: '报表中心', id: '3303', stillAnchor: '系统管理' },
+    // AC-16 / 确认记录②：菜单页前端仅浏览（无新建/加子菜单/编辑/删除入口，mock mutation handler 移除）。
+    // 原三个 CRUD 用例与 4 个图标选择器用例重定向为「无表单/无图标选择器入口 + 树表可用 + 零 mutation」。
+    create: null, edit: null, remove: null,
+    browseOnly: true,
     search: false, // 树形管理页无关键字搜索
   },
   {
@@ -227,11 +233,38 @@ const callsOf = (fetchMock: ReturnType<typeof vi.fn>, method: string, pathPart: 
 const lastQuery = (fetchMock: ReturnType<typeof vi.fn>, pathPart: string) =>
   callsOf(fetchMock, 'GET', pathPart).at(-1)?.url.searchParams ?? null;
 
+/** 全程 mutation 调用（POST/PUT/PATCH/DELETE，不限路径）——AC-13/AC-16「零 mutation」判据。 */
+const mutationCallsOf = (fetchMock: ReturnType<typeof vi.fn>) =>
+  (fetchMock.mock.calls as unknown as FetchArgs[])
+    .map(([input, init]) => asRequest(input, init))
+    .filter((r) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method));
+
+/** 仅浏览页入口缺失断言：新建/编辑/删除/加子菜单/变更表单一律不存在。
+ *  新建按 role=button 匹配（避撞 fixture 行名）；其余按宽容文案（/编\s*辑/ 等，pitfall 10）。 */
+const expectNoMutationEntries = (key: string) => {
+  expect(screen.queryByRole('button', { name: ADD_BUTTON }), `${key} 不应有新建入口`).toBeNull();
+  expect(screen.queryByText(/^编\s*辑$/), `${key} 不应有编辑入口`).toBeNull();
+  expect(screen.queryByText(/^删\s*除$/), `${key} 不应有删除入口`).toBeNull();
+  if (key === 'Menus') {
+    expect(screen.queryAllByText(/子\s*菜\s*单|加\s*子/), '不应有加子菜单入口').toHaveLength(0);
+  }
+  expect(screen.queryByRole('dialog'), `${key} 不应有变更表单`).toBeNull();
+};
+
+// AC-22 模板目录 fixture（同批 tenantEnhance/tenantHierarchy 口径：选项 code/name）
+const TEMPLATE_ROWS: Record<string, unknown>[] = [
+  { id: '8101', code: 'std', name: '标准开通模板', status: 'ENABLED', createdAt: '2026-01-01T00:00:00Z', version: '0', content: { rolePresets: [], configEntries: [] } },
+];
+
 const setupApi = (spec: PageSpec) => {
   const state = { rows: spec.rows.map((r) => ({ ...r })) };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const r = asRequest(input, init);
     const p = r.url.pathname;
+    // AC-21/AC-22：创建弹窗实时拉模板目录；路径 tenant-templates 不含 'tenants'，须在弱匹配前精确放行
+    if (r.method === 'GET' && p.includes('/system/tenant-templates')) {
+      return envelope({ records: TEMPLATE_ROWS, total: TEMPLATE_ROWS.length });
+    }
     if (!p.includes(spec.pathPart)) return envelope(null);
     if (r.method === 'GET') {
       // Dicts 页类型/条目双请求（A-34，类型域端点为 /admin/v1/system/dict-types*）：
@@ -309,7 +342,8 @@ const findByAnyText = async (candidates: string[]) => {
 };
 
 const findRowByText = async (anchor: string) => {
-  const cell = await screen.findByText(anchor);
+  // 并行门禁负载下默认 1s 查找窗口偏紧（同批 menusButton 已踩坑），放宽到 5s；断言对象不变
+  const cell = await screen.findByText(anchor, {}, { timeout: 5000 });
   return cell.closest('tr') as HTMLElement;
 };
 
@@ -406,12 +440,22 @@ for (const spec of SPECS) {
             expect(item?.textContent ?? '').toContain(createSpec.select?.option ?? '');
           });
         }
+        // AC-22 / 确认记录③：新建租户模板必选（点选模板目录选项）+ 初始管理员账号必填；
+        // 缺失时 antd 表单拦截提交 → posts=[]（delta-r4 串行实证的失败原因）
+        if (createSpec.init) {
+          fireEvent.mouseDown(within(dialog).getByLabelText('开通模板'));
+          fireEvent.click(await screen.findByText(createSpec.init.templateOption));
+          fireEvent.change(within(dialog).getByLabelText('初始管理员账号'), {
+            target: { value: createSpec.init.adminUsername },
+          });
+        }
         fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
 
-        // 提交体包含全部填入值（label 式含各字段值 + Select 提交值；行为式含首个文本框值）
+        // 提交体包含全部填入值（label 式含各字段值 + Select 提交值 + init 模板/管理员；行为式含首个文本框值）
         const expectedValues = createSpec.fields
           ? [...createSpec.fields.map((f) => f.value),
-             ...createSpec.select ? [createSpec.select.value ?? createSpec.select.option] : []]
+             ...createSpec.select ? [createSpec.select.value ?? createSpec.select.option] : [],
+             ...createSpec.init ? [createSpec.init.templateCode, createSpec.init.adminUsername] : []]
           : [createSpec.value!];
         await waitFor(() => {
           const posts = callsOf(fetchMock, 'POST', spec.pathPart);
@@ -419,6 +463,10 @@ for (const spec of SPECS) {
           const bodyJson = JSON.stringify(parseBody(posts[0]?.body));
           for (const v of expectedValues) {
             expect(bodyJson).toContain(v);
+          }
+          if (createSpec.init) {
+            // tenantCreate 端点保留但前端不再调用：创建提交必走 /admin/v1/system/tenants/init
+            expect(posts[0]?.url.pathname).toContain('/system/tenants/init');
           }
         });
         // 关闭态数据驱动：提交成功后的 reload 二次 GET（071607 裁决⑪）
@@ -468,7 +516,50 @@ for (const spec of SPECS) {
       });
     }
 
-    if (spec.create || spec.edit || spec.remove) {
+    // AC-13/AC-16（确认记录②）：原「新建提交 / 编辑回填提交 / 删除确认」三用例重定向为
+    // 「无变更入口 + 列表/筛选可用 + 全程零 mutation」；入口缺失与权限播种无关，故额外授予全部 mutation 权限复核。
+    if (spec.browseOnly) {
+      const mutationPerms = spec.key === 'Menus'
+        ? ['system:menu:create', 'system:menu:update', 'system:menu:delete']
+        : ['system:permission:create', 'system:permission:update', 'system:permission:delete'];
+
+      it(`should_not_render_mutation_entries_when_${spec.key}_page_browse_only`, async () => {
+        const { fetchMock } = await renderPage(spec, listPerms);
+        await findByAnyText(spec.anchors);
+        expectNoMutationEntries(spec.key);
+        await waitFor(() => expect(mutationCallsOf(fetchMock)).toHaveLength(0));
+      });
+
+      it(`should_keep_list_and_filters_usable_when_${spec.key}_page_browse_only`, async () => {
+        const { fetchMock } = await renderPage(spec, listPerms);
+        await findByAnyText(spec.anchors);
+        // 列表可用：全部行锚可见（原用例的列表渲染断言保留）
+        for (const anchor of spec.anchors) {
+          expect(screen.getByText(anchor)).toBeTruthy();
+        }
+        // 筛选可用：关键字输入框 + 下拉/表格容器保留（permissionsDicts/menusButton 同口径）
+        expect(screen.getAllByPlaceholderText(/搜\s*索/).length).toBeGreaterThan(0);
+        expect(document.querySelectorAll('.ant-select, .ant-table-tbody').length).toBeGreaterThan(0);
+        if (spec.key === 'Menus') {
+          // 树表可用：展开父行可见子节点（替代原新建后表单插入行的可操作性判据）
+          const row = await findRowByText(spec.anchors[0]);
+          const expand = row.querySelector('.ant-table-row-expand-icon') as HTMLElement | null;
+          if (expand && !expand.className.includes('spaced')) fireEvent.click(expand);
+          expect(await screen.findByText('用户中心', {}, { timeout: 5000 })).toBeTruthy();
+          expect(screen.getAllByLabelText('菜单类型').length).toBeGreaterThanOrEqual(1);
+        }
+        await waitFor(() => expect(mutationCallsOf(fetchMock)).toHaveLength(0));
+      });
+
+      it(`should_fire_no_mutation_calls_even_when_mutation_permissions_granted_when_${spec.key}_page_browse_only`, async () => {
+        const { fetchMock } = await renderPage(spec, [...listPerms, ...mutationPerms]);
+        await findByAnyText(spec.anchors);
+        expectNoMutationEntries(spec.key);
+        await waitFor(() => expect(mutationCallsOf(fetchMock)).toHaveLength(0));
+      });
+    }
+
+    if (spec.create || spec.edit || spec.remove || spec.browseOnly) {
       it(`should_hide_unauthorized_actions_when_${spec.key}_permission_missing`, async () => {
         await renderPage(spec, listPerms); // 仅 list 权限
         await findByAnyText(spec.anchors);
@@ -481,113 +572,63 @@ for (const spec of SPECS) {
   });
 }
 
-// ————— Menus 图标方格选择器（注册表选择替代手输标识，AntD/Lucide 双源） —————
-describe('REQ20261114120101 Menus 图标选择器', () => {
+// ————— Menus 图标方格选择器（AC-16：表单入口随仅浏览收口移除，改钉入口/选择器不存在） —————
+describe('REQ20261114120101 Menus 图标选择器（AC-16 仅浏览基线更新）', () => {
   const menusSpec = SPECS.find((s) => s.key === 'Menus')!;
+  // 前端收口与权限无关：四个用例均授予全部菜单 mutation 权限
+  const allMenuPerms = ['system:menu:list', 'system:menu:create', 'system:menu:update', 'system:menu:delete'];
 
-  /** 图标触发器（Form.Item label 经 id 关联到 button）。 */
-  const iconTriggerOf = (dialog: HTMLElement) => {
-    const trigger = within(dialog).getByLabelText('图标');
-    expect(trigger.tagName, '图标字段应为方格选择器触发器').toBe('BUTTON');
-    return trigger;
+  /** 图标选择器相关控件一律不存在（原用例的表单语义随入口移除，断言对象重定向而非放宽）。 */
+  const expectIconFormAbsent = () => {
+    expect(screen.queryByRole('button', { name: ADD_BUTTON }), '不应有新建入口').toBeNull();
+    expect(screen.queryByText(/^编\s*辑$/), '不应有编辑入口').toBeNull();
+    expect(screen.queryByRole('dialog'), '不应有菜单表单').toBeNull();
+    expect(screen.queryByLabelText('图标'), '不应有图标方格触发器').toBeNull();
+    expect(screen.queryByPlaceholderText(/搜索图标/), '不应有图标搜索框').toBeNull();
+    expect(screen.queryByLabelText('清除图标'), '不应有清除图标控件').toBeNull();
   };
 
-  /** 打开方格面板并按关键词检索（Popover 渲染在 body 层，用 screen 查询）。 */
-  const openAndSearch = async (dialog: HTMLElement, keyword: string) => {
-    fireEvent.click(iconTriggerOf(dialog));
-    const search = await screen.findByPlaceholderText(/搜索图标/);
-    fireEvent.change(search, { target: { value: keyword } });
-  };
-
-  it('should_submit_selected_icon_when_menu_created', async () => {
-    const { fetchMock } = await renderPage(menusSpec, ['system:menu:list', 'system:menu:create']);
+  it('should_not_render_builtin_icon_picker_when_menus_page_browse_only', async () => {
+    const { fetchMock } = await renderPage(menusSpec, allMenuPerms);
     await findByAnyText(menusSpec.anchors);
-    fireEvent.click((await screen.findAllByText(ADD_BUTTON))[0]);
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.change(dialogTextboxes(dialog)[0]!, { target: { value: '图标菜单X' } });
-
-    // 中文关键词搜索 → 点选方格单元（aria-label=标识）。
-    // 列头筛选/排序增强后 jsdom 下 role+name 查询的样式计算显著变慢，改用选择器直查同一 aria-label 契约
-    await openAndSearch(dialog, '通知');
-    fireEvent.click(await waitFor(() => {
-      const cell = document.querySelector('button[aria-label="bell"]');
-      expect(cell).toBeTruthy();
-      return cell as HTMLElement;
-    }));
-    await waitFor(() => {
-      expect(iconTriggerOf(dialog).textContent ?? '').toContain('bell');
-    });
-
-    fireEvent.click(await within(dialog).findByText(CONFIRM_BUTTON));
-    await waitFor(() => {
-      const posts = callsOf(fetchMock, 'POST', menusSpec.pathPart);
-      expect(posts).toHaveLength(1);
-      expect(parseBody(posts[0]?.body).icon).toBe('bell');
-    });
+    expectIconFormAbsent();
+    // 原用例点选的内置 bell 方格不再可达（选择器随表单移除）
+    expect(document.querySelector('button[aria-label="bell"]')).toBeNull();
+    await waitFor(() => expect(mutationCallsOf(fetchMock)).toHaveLength(0));
   });
 
-  it('should_submit_lucide_icon_when_lucide_cell_picked', async () => {
-    const { fetchMock } = await renderPage(menusSpec, ['system:menu:list', 'system:menu:create']);
+  it('should_not_render_lucide_icon_picker_when_menus_page_browse_only', async () => {
+    const { fetchMock } = await renderPage(menusSpec, allMenuPerms);
     await findByAnyText(menusSpec.anchors);
-    fireEvent.click((await screen.findAllByText(ADD_BUTTON))[0]);
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.change(dialogTextboxes(dialog)[0]!, { target: { value: '图标菜单Y' } });
-
-    await openAndSearch(dialog, '猫');
-    fireEvent.click(await waitFor(() => {
-      const cell = document.querySelector('button[aria-label="lucide-cat"]');
-      expect(cell).toBeTruthy();
-      return cell as HTMLElement;
-    }));
-    await waitFor(() => {
-      expect(iconTriggerOf(dialog).textContent ?? '').toContain('lucide-cat');
-    });
-
-    fireEvent.click(await within(dialog).findByText(CONFIRM_BUTTON));
-    await waitFor(() => {
-      const posts = callsOf(fetchMock, 'POST', menusSpec.pathPart);
-      expect(posts).toHaveLength(1);
-      expect(parseBody(posts[0]?.body).icon).toBe('lucide-cat');
-    });
+    expectIconFormAbsent();
+    expect(document.querySelector('button[aria-label="lucide-cat"]')).toBeNull();
+    await waitFor(() => expect(mutationCallsOf(fetchMock)).toHaveLength(0));
   });
 
-  it('should_prefill_icon_trigger_when_menu_edited', async () => {
+  it('should_not_prefill_icon_trigger_when_menus_page_browse_only', async () => {
     const spec: PageSpec = {
       ...menusSpec,
       rows: menusSpec.rows.map((r) => (r.id === '3303' ? { ...r, icon: 'dashboard' } : r)),
     };
-    await renderPage(spec, ['system:menu:list', 'system:menu:update']);
+    const { fetchMock } = await renderPage(spec, allMenuPerms);
     const rowEl = await findRowByText('报表中心');
-    fireEvent.click(await within(rowEl).findByText(EDIT_BUTTON));
-    const dialog = await screen.findByRole('dialog');
-    await waitFor(() => {
-      expect(iconTriggerOf(dialog).textContent ?? '').toContain('dashboard');
-    });
+    expect(within(rowEl).queryByText(EDIT_BUTTON)).toBeNull();
+    expectIconFormAbsent();
+    await waitFor(() => expect(mutationCallsOf(fetchMock)).toHaveLength(0));
   });
 
-  it('should_clear_icon_when_clear_affordance_clicked', async () => {
+  it('should_not_submit_icon_update_when_menus_page_browse_only', async () => {
     const spec: PageSpec = {
       ...menusSpec,
       rows: menusSpec.rows.map((r) => (r.id === '3303' ? { ...r, icon: 'dashboard' } : r)),
     };
-    const { fetchMock } = await renderPage(spec, ['system:menu:list', 'system:menu:update']);
-    const rowEl = await findRowByText('报表中心');
-    fireEvent.click(await within(rowEl).findByText(EDIT_BUTTON));
-    const dialog = await screen.findByRole('dialog');
+    const { fetchMock } = await renderPage(spec, allMenuPerms);
+    await findByAnyText(spec.anchors);
+    expectIconFormAbsent();
+    // 原用例「清图标后确认提交 PUT」语义重定向为：无任何 mutation 发出
     await waitFor(() => {
-      expect(iconTriggerOf(dialog).textContent ?? '').toContain('dashboard');
-    });
-
-    fireEvent.click(within(dialog).getByLabelText('清除图标'));
-    await waitFor(() => {
-      expect(iconTriggerOf(dialog).textContent ?? '').not.toContain('dashboard');
-    });
-
-    fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }));
-    await waitFor(() => {
-      const puts = callsOf(fetchMock, 'PUT', menusSpec.pathPart);
-      expect(puts).toHaveLength(1);
-      expect(parseBody(puts[0]?.body).icon).toBeUndefined();
+      expect(mutationCallsOf(fetchMock)).toHaveLength(0);
+      expect(callsOf(fetchMock, 'PUT', spec.pathPart)).toHaveLength(0);
     });
   });
 });
