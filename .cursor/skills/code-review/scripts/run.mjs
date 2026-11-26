@@ -4,15 +4,21 @@
  *
  * 用法：
  *   node <run.mjs> <script.mjs> [args...]   # 用 node 运行审核脚本（execFile，shell 关闭）
- *   node <run.mjs> --mvn [args...]          # 零平台分支解析 Maven 并执行
+ *   node <run.mjs> --mvn [args...]          # 经 Java 启动器执行 Maven（无需平台专属包装脚本）
  *   node <run.mjs> --cleanup <dir>          # 用 fs.rm 递归清理临时目录
  *
  * 硬规范：只用 execFile(file, args[], { shell: false })；不拼命令字符串；不按平台分支；
  * 路径经 path.resolve / path.join；Node 路径用 process.execPath；环境变量只经 process.env。
+ *
+ * Maven 解析：ACME_MVN 指向 Maven 安装目录下 bin/mvn 启动器；据此反推安装根，
+ * 用 JAVA_HOME/bin/java（或 PATH 中的 java）加载 boot 下的 plexus-classworlds 启动器。
+ * 这样不依赖任何带后缀的包装脚本、不开 shell，POSIX 与 NT 同一条命令路径。
  */
 import { execFile } from 'node:child_process';
 import { rm } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 const [command, ...args] = process.argv.slice(2);
 
@@ -48,9 +54,32 @@ if (command === '--cleanup') {
 }
 
 if (command === '--mvn') {
-  // 零平台分支：环境变量优先；其次交给 Node 在 PATH 中解析；都没有则明确报错。
-  const maven = process.env.ACME_MVN || 'mvn';
-  run(maven, args, '请设置 ACME_MVN（环境变量 ACME_MVN 未设置，PATH 中也未找到 mvn）');
+  const explicit = process.env.ACME_MVN;
+  if (!explicit) fail('请设置 ACME_MVN（指向 Maven 安装目录下 bin/mvn 启动器）');
+  const MVN_LAUNCHER = 'mvn';
+  const launcherName = basename(explicit);
+  if (!launcherName.startsWith(MVN_LAUNCHER)) {
+    fail(`ACME_MVN 应指向 Maven 的 ${MVN_LAUNCHER} 启动器（实际：${launcherName}）`);
+  }
+  const home = resolve(dirname(dirname(explicit)));
+  const boot = join(home, 'boot');
+  let jars;
+  try {
+    jars = (await readdir(boot)).filter((f) => /^plexus-classworlds-.*\.jar$/.test(f)).sort();
+  } catch (error) {
+    fail(`无法读取 Maven 的 boot 目录（${boot}）：${error.message}`);
+  }
+  if (!jars.length) fail(`未在 ${boot} 找到 plexus-classworlds 启动器 jar`);
+  const javaHome = process.env.JAVA_HOME;
+  const java = javaHome ? join(resolve(javaHome), 'bin', 'java') : 'java';
+  run(java, [
+    '-classpath', join(boot, jars.at(-1)),
+    `-Dclassworlds.conf=${join(home, 'bin', 'm2.conf')}`,
+    `-Dmaven.home=${home}`,
+    `-Dmaven.multiModuleProjectDirectory=${resolve('.')}`,
+    'org.codehaus.plexus.classworlds.launcher.Launcher',
+    ...args,
+  ]);
 } else if (command) {
   run(process.execPath, [resolve(command), ...args]);
 } else {
