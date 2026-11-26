@@ -2,12 +2,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEY } from '@acme/core';
 import type { StorageLike } from '@acme/core';
 
-/** 业务态各持久化键（唯一登记处）：业务态（core parse-state 管道）/ 查询筛选 / 字典缓存。 */
-export const QUERY_STORAGE_KEY = 'acme.mobile.query.v1';
+/** 业务态各持久化键（唯一登记处）：业务态（core parse-state 管道）/ 字典缓存。
+ *  REQ-20261126-125836：历史查询筛选键 acme.mobile.query.v1 不再注册灌入（发布单演示域已删除）。 */
 export const DICT_CACHE_STORAGE_KEY = 'acme.mobile.dicts.v1';
 
 /** 冷启动灌入键集：所有持久化键均为编译期常量，按已知键全量读取（不依赖 getAllKeys）。 */
-const PERSISTED_KEYS: readonly string[] = [STORAGE_KEY, QUERY_STORAGE_KEY, DICT_CACHE_STORAGE_KEY];
+const PERSISTED_KEYS: readonly string[] = [STORAGE_KEY, DICT_CACHE_STORAGE_KEY];
 
 /** 既有内存态实现（测试与降级兜底继续使用；生产链路见 mobileStorage）。 */
 export function memoryStorage(): StorageLike {

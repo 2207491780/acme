@@ -10,10 +10,7 @@ export const apps = {
     currentVersion: '当前版本',
     owner: '负责人',
     health: '健康度',
-    releases: '发布单',
-    releaseCount: '{{n}} 个',
     copyPath: '复制路径',
-    viewReleases: '查看发布',
   },
   reuse: {
     title: '复用关系',
@@ -59,8 +56,5 @@ export const apps = {
     },
     description: '描述',
     updated: '应用信息已更新',
-  },
-  mobile: {
-    viewReleases: '查看 {{platform}} 发布',
   },
 };

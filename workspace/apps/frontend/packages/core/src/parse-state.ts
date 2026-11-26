@@ -1,4 +1,4 @@
-import { ENVS, PLATFORMS, SORTS, STATUSES } from './constants';
+import { PLATFORMS } from './constants';
 import {
   buildSettings,
   isAccentKey,
@@ -15,17 +15,7 @@ import {
   type ThemePreferences,
 } from './preferences';
 import { seedState } from './seed';
-import type {
-  Activity,
-  App,
-  AppState,
-  Artifact,
-  Query,
-  Release,
-  SavedView,
-  Settings,
-  TimelineEntry,
-} from './types';
+import type { App, AppState, Settings } from './types';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -41,10 +31,6 @@ function isId(value: unknown): value is string {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isDate(value: unknown): value is string {
-  return isString(value) && Number.isFinite(Date.parse(value));
 }
 
 function isOneOf<T extends string>(value: unknown, choices: readonly T[]): value is T {
@@ -97,47 +83,6 @@ export function isAppPatch(value: unknown): value is Partial<App> {
   });
 }
 
-function isArtifact(value: unknown): value is Artifact {
-  return isRecord(value) && isString(value.name) && isString(value.size);
-}
-
-function isTimelineEntry(value: unknown): value is TimelineEntry {
-  return isRecord(value) && isDate(value.at) && isString(value.action) && isString(value.by);
-}
-
-function isRelease(value: unknown): value is Release {
-  return isRecord(value)
-    && isId(value.id)
-    && isString(value.title)
-    && isId(value.appId)
-    && isOneOf(value.platform, PLATFORMS)
-    && isString(value.version)
-    && isOneOf(value.env, ENVS)
-    && isOneOf(value.status, STATUSES)
-    && isFiniteNumber(value.priority)
-    && isString(value.owner)
-    && isFiniteNumber(value.progress)
-    && isString(value.notes)
-    && isArrayOf(value.artifacts, isArtifact)
-    && isArrayOf(value.timeline, isTimelineEntry)
-    && isDate(value.createdAt)
-    && isDate(value.updatedAt);
-}
-
-/** Query 运行时校验（导出供 SAVE_VIEW 等入口复用，与 IMPORT 同一标准）。 */
-export function isQuery(value: unknown): value is Query {
-  return isRecord(value)
-    && isString(value.search)
-    && (value.platform === 'all' || isOneOf(value.platform, PLATFORMS))
-    && (value.status === 'all' || value.status === 'active' || isOneOf(value.status, STATUSES))
-    && (value.env === 'all' || isOneOf(value.env, ENVS))
-    && isOneOf(value.sort, SORTS.map(([key]) => key));
-}
-
-function isSavedView(value: unknown): value is SavedView {
-  return isRecord(value) && isId(value.id) && isString(value.name) && isQuery(value.query);
-}
-
 function isLegacyTheme(value: unknown): value is 'dark' | 'light' {
   return value === 'dark' || value === 'light';
 }
@@ -150,6 +95,7 @@ function isLegacyTheme(value: unknown): value is 'dark' | 'light' {
  * 逐字段降级语义在偏好引擎层（validateThemePreferences/migrateSettings），两者各司其职。
  * THEME-3（REQ-20261121-200415 契约⑧）：投影 fail-closed 校验已物理删除——迁移窗口内旧 blob
  * 的 4 个投影键仍被接受但值一律忽略（由 preferences 单向重建）。
+ * REQ-20261126-125836：topbarWidgets 中的 legacy `release` 键由 isTopbarWidgets 接受但忽略。
  */
 function normalizeStoredSettings(raw: unknown, base: Settings): Settings | null {
   if (!isRecord(raw)) return null;
@@ -208,44 +154,24 @@ function normalizeStoredSettings(raw: unknown, base: Settings): Settings | null 
   return buildSettings(prefs);
 }
 
-function isActivity(value: unknown): value is Activity {
-  return isRecord(value)
-    && isId(value.id)
-    && isDate(value.at)
-    && isString(value.text)
-    && isOneOf(value.tone, ['muted', 'info', 'violet', 'warning', 'success', 'danger']);
-}
-
-/** 校验外部状态并补齐缺省字段；非法数据返回 null。 */
-export function parseState(data: unknown, now: number = Date.now()): AppState | null {
-  if (!isRecord(data) || !isArrayOf(data.apps, isApp) || !isArrayOf(data.releases, isRelease)) {
+/**
+ * 校验外部状态并补齐缺省字段；非法数据返回 null。
+ * REQ-20261126-125836（旧数据零损坏）：历史 blob 中的 `releases`/`order`/`savedViews`/`activity`
+ * 字段一律接受但忽略——不校验其内容、不参与合并、不写回，其余基座字段（apps/settings/version）
+ * 仍按原 fail-closed 口径校验，非法输入照旧返回 null。不升 schemaVersion、不做丢弃式迁移。
+ */
+export function parseState(data: unknown, _now: number = Date.now()): AppState | null {
+  if (!isRecord(data) || !isArrayOf(data.apps, isApp) || !hasUniqueIds(data.apps)) {
     return null;
   }
-  if (!hasUniqueIds(data.apps) || !hasUniqueIds(data.releases)) return null;
-  const apps = new Map(data.apps.map((app) => [app.id, app]));
-  if (data.releases.some((release) => apps.get(release.appId)?.platform !== release.platform)) {
-    return null;
-  }
-
-  const base = seedState(now);
-  const order = 'order' in data ? data.order : [];
-  const savedViews = 'savedViews' in data ? data.savedViews : base.savedViews;
-  const activity = 'activity' in data ? data.activity : base.activity;
+  const base = seedState(_now);
   const version = 'version' in data ? data.version : base.version;
   const settings = normalizeStoredSettings('settings' in data ? data.settings : {}, base.settings);
-  if (!settings || !isFiniteNumber(version) || !isArrayOf(order, isString)) return null;
-  const releaseIds = new Set(data.releases.map((release) => release.id));
-  if (new Set(order).size !== order.length || order.some((id) => !releaseIds.has(id))) return null;
-  if (!isArrayOf(savedViews, isSavedView) || !hasUniqueIds(savedViews)) return null;
-  if (!isArrayOf(activity, isActivity) || !hasUniqueIds(activity)) return null;
+  if (!settings || !isFiniteNumber(version)) return null;
 
   return {
     version,
     apps: data.apps,
-    releases: data.releases,
     settings,
-    order: order.length ? [...order] : data.releases.map((release) => release.id),
-    savedViews,
-    activity: [...activity],
   };
 }

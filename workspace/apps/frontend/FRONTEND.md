@@ -1,12 +1,12 @@
 # frontend — 前端多端工程
 
-前端 pnpm monorepo，包含共享业务层与 Web / PC 桌面 / 移动三个子工程，实现「ACME 多端前端交付台」（发布单管理控制台）。技术栈：TypeScript 5 / Node ≥22.13 / pnpm 11.8（与根 `.ai/rules/project.md` 及 `package.json` engines 一致）；Web 用 React 18 + Vite 5 + Ant Design 5，PC 用 Electron 套壳 Web 产物，移动端用 React Native + Expo，三端共享框架无关的 `@acme/core` 业务层。
+前端 pnpm monorepo，包含共享业务层与 Web / PC 桌面 / 移动三个子工程，维护「ACME 多端前端交付台」的多端基座（三端清单、主题偏好与租户身份）。技术栈：TypeScript 5 / Node ≥22.13 / pnpm 11.8（与根 `.ai/rules/project.md` 及 `package.json` engines 一致）；Web 用 React 18 + Vite 5 + Ant Design 5，PC 用 Electron 套壳 Web 产物，移动端用 React Native + Expo，三端共享框架无关的 `@acme/core` 业务层。
 
 ## 多端定位
 
 | 子工程 | 目录 | 形态 | 说明 |
 |---|---|---|---|
-| 共享层 | [`packages/core/`](packages/core) | 框架无关 TS | 类型 / 常量 / 工具 / 种子 / reducer / 选择器 / **设计令牌**，三端唯一业务与视觉来源 |
+| 共享层 | [`packages/core/`](packages/core) | 框架无关 TS | 类型 / 常量 / 工具 / 种子 / reducer / **设计令牌**，三端唯一业务与视觉来源 |
 | Web 端 | [`web/`](web/WEB.md) | React SPA | 页面与 UI 唯一来源（React + Vite + Ant Design + Zustand） |
 | PC 端 | [`desktop/`](desktop/DESKTOP.md) | Electron 桌面应用 | 套壳 Web 产物，不维护第二套页面源码 |
 | 移动端 | [`mobile/`](mobile/MOBILE.md) | React Native + Expo | 共享 `@acme/core`，Ant Design 风格的原生组件 |
@@ -23,7 +23,7 @@ frontend/
 ├── scripts/                # build-style-guide.mjs + style-guide.template.html
 ├── ui-spec/                # 生成的跨端校验页 style-guide.html（pnpm ui:guide）
 ├── packages/core/          # @acme/core：共享类型/业务/状态/设计令牌（框架无关 TS）
-│   ├── src/                # types / constants / utils / theme / seed / reducer / selectors / index
+│   ├── src/                # types / constants / utils / theme / seed / reducer / index
 │   └── tests/              # reducer / utils / theme.test.ts（Vitest）
 ├── web/                    # @acme/web：React + Vite + Ant Design
 │   ├── src/                # App / main / theme / components / pages / store / hooks / utils / styles

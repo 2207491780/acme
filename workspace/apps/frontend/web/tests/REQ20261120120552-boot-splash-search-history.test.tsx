@@ -12,14 +12,14 @@
  * - AC-7 执行任一条目（页面/动作）记入历史（kind/key/label/at；去重按 key、最近在前、上限 8、持久化）；
  * - AC-9~AC-12 面板回归（照范本 REQ20261119063129-tabs AC-5 用例口径）：三节过滤与 ↑↓/Enter/Esc 键盘、
  *   「页面」节权限过滤（与侧边导航同源 fail-closed、无 permission 路由恒可见）、
- *   键位提示条「↵ 选择 / ↑↓ 导航 / ESC 关闭」＋placeholder「搜索导航菜单」/「搜索」、
+ *   键位提示条「↵ 选择 / ↑↓ 导航 / ESC 关闭」＋面板 placeholder「搜索导航菜单」（Header 搜索框已删除）、
  *   Ctrl+K 打开/autofocus/Esc 关闭/关面板焦点还原（TL 裁决②：Ctrl+K 仅开不关，关闭一律走 Esc）。
  * - AC-5 desktop：无自动化用例（同一 index.html 套壳自动继承；desktop check 门禁＋人工抽验，见契约 AC-5）。
  *
  * 装配照范本 web/tests/REQ20261119063129-tabs.test.tsx：seedSession + useMeStore 播种 + HashRouter 上下文 +
  * <AntApp> 包裹 + matchMedia/ResizeObserver stub + testTimeout ≥15000ms；历史模块用真实函数（无需 mock）。
  * 历史播种走最黑盒通路（TL 裁决①：commandHistory key 与 CommandItem.key 同构 page:<path>/action:<action>，
- * 用例不写死 key 字面量）：先在面板内真实执行一次「发布单」页面命令生成历史，再重开面板断言历史节/回放/清空。
+ * 用例不写死 key 字面量）：先在面板内真实执行一次「应用结构」页面命令生成历史，再重开面板断言历史节/回放/清空。
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -152,17 +152,17 @@ const backToHome = async () => {
 };
 
 /**
- * 最黑盒历史播种（TL 裁决①取向 a）：在面板内真实执行一次「发布单」页面命令生成历史，
+ * 最黑盒历史播种（TL 裁决①取向 a）：在面板内真实执行一次「应用结构」页面命令生成历史，
  * key 形态由实现侧 recordCommandHistory 决定；mouse=点击执行 / keyboard=Enter 执行。
- * 播种时过滤词 '/releases' 下「发布单」唯一命中（尚无历史条目/无同名页签），可安全 getByText 定位。
+ * 播种时过滤词 '/apps' 下「应用结构」唯一命中（尚无历史条目/无同名页签），可安全 getByText 定位。
  */
 const seedHistoryByRealExecution = async (mode: 'mouse' | 'keyboard') => {
   const dialog = await openPalette();
   const input = paletteInput(dialog);
-  fireEvent.change(input, { target: { value: '/releases' } });
-  await wait(() => expect(within(dialog).getByText('发布单')).toBeTruthy());
+  fireEvent.change(input, { target: { value: '/apps' } });
+  await wait(() => expect(within(dialog).getByText('应用结构')).toBeTruthy());
   if (mode === 'mouse') {
-    fireEvent.click(within(dialog).getByText('发布单'));
+    fireEvent.click(within(dialog).getByText('应用结构'));
   } else {
     fireEvent.keyDown(input, { key: 'Enter' });
   }
@@ -431,7 +431,7 @@ describe('REQ20261120120552 AC-6 命令面板搜索历史区', () => {
 
   it('should_show_history_entries_and_clear_button_when_history_exists', async () => {
     await renderAppAt('#/', { permissions: [] });
-    // 播种＝面板内真实执行「发布单」页面命令生成历史（不写死 key 字面量）
+    // 播种＝面板内真实执行「应用结构」页面命令生成历史（不写死 key 字面量）
     await seedHistoryByRealExecution('keyboard');
     const dialog = await openPalette();
 
@@ -445,31 +445,31 @@ describe('REQ20261120120552 AC-6 命令面板搜索历史区', () => {
 
   it('should_execute_history_entry_by_mouse_and_record', async () => {
     await renderAppAt('#/', { permissions: [] });
-    // 播种＝鼠标真实执行「发布单」生成历史（不写死 key 字面量）
+    // 播种＝鼠标真实执行「应用结构」生成历史（不写死 key 字面量）
     await seedHistoryByRealExecution('mouse');
     await backToHome();
 
     // 重开面板：鼠标点击历史节首条目回放执行（页面=打开为页签）
     const dialog = await openPalette();
     const entry = historyFirstItem(dialog);
-    expect(entry?.textContent).toContain('发布单');
+    expect(entry?.textContent).toContain('应用结构');
     fireEvent.click(entry!);
     await wait(() => {
-      expect(window.location.hash).toBe('#/releases');
-      expect(tabEl('/releases')).toBeTruthy();
+      expect(window.location.hash).toBe('#/apps');
+      expect(tabEl('/apps')).toBeTruthy();
     });
     await wait(() => expect(screen.queryByRole('dialog')).toBeNull());
     // 回放执行记入历史：同一命令两次执行，按 key 去重仍单条、最近在前（断言不写死 key 字面量）
     await wait(() => {
       const history = readCommandHistory();
-      expect(history.filter((item) => item.kind === 'page' && item.label === '发布单')).toHaveLength(1);
+      expect(history.filter((item) => item.kind === 'page' && item.label === '应用结构')).toHaveLength(1);
       expect(history[0]?.kind).toBe('page');
     });
   });
 
   it('should_execute_history_entry_by_keyboard_and_record', async () => {
     await renderAppAt('#/', { permissions: [] });
-    // 播种＝键盘真实执行「发布单」生成历史（不写死 key 字面量）
+    // 播种＝键盘真实执行「应用结构」生成历史（不写死 key 字面量）
     await seedHistoryByRealExecution('keyboard');
     await backToHome();
 
@@ -477,7 +477,7 @@ describe('REQ20261120120552 AC-6 命令面板搜索历史区', () => {
     const dialog = await openPalette();
     const input = paletteInput(dialog);
     const target = historyFirstItem(dialog);
-    expect(target?.textContent).toContain('发布单');
+    expect(target?.textContent).toContain('应用结构');
     let active: Element | null = null;
     for (let i = 0; i < 25; i += 1) {
       active = dialog.querySelector('.command-palette-item[data-active="true"]');
@@ -487,14 +487,14 @@ describe('REQ20261120120552 AC-6 命令面板搜索历史区', () => {
     expect(active).toBe(target);
     fireEvent.keyDown(input, { key: 'Enter' });
     await wait(() => {
-      expect(window.location.hash).toBe('#/releases');
-      expect(tabEl('/releases')).toBeTruthy();
+      expect(window.location.hash).toBe('#/apps');
+      expect(tabEl('/apps')).toBeTruthy();
     });
     await wait(() => expect(screen.queryByRole('dialog')).toBeNull());
     // 回放执行记入历史：同一命令两次执行，按 key 去重仍单条、最近在前（断言不写死 key 字面量）
     await wait(() => {
       const history = readCommandHistory();
-      expect(history.filter((entry) => entry.kind === 'page' && entry.label === '发布单')).toHaveLength(1);
+      expect(history.filter((entry) => entry.kind === 'page' && entry.label === '应用结构')).toHaveLength(1);
       expect(history[0]?.kind).toBe('page');
     });
   });
@@ -507,23 +507,23 @@ describe('REQ20261120120552 AC-7/AC-8 面板执行记录与清空', () => {
     const dialog = await openPalette();
     const input = paletteInput(dialog);
 
-    fireEvent.change(input, { target: { value: '/releases' } });
-    await wait(() => expect(within(dialog).getByText('发布单')).toBeTruthy());
+    fireEvent.change(input, { target: { value: '/apps' } });
+    await wait(() => expect(within(dialog).getByText('应用结构')).toBeTruthy());
     fireEvent.keyDown(input, { key: 'Enter' });
-    await wait(() => expect(window.location.hash).toBe('#/releases'));
+    await wait(() => expect(window.location.hash).toBe('#/apps'));
 
     // 执行页面条目 → 记入历史（TL 裁决①：key 与 CommandItem.key 同构，断言放宽为 kind＋label＋key 含路径）
     await wait(() => {
-      const entry = readCommandHistory().find((e) => e.kind === 'page' && e.key.includes('/releases'));
+      const entry = readCommandHistory().find((e) => e.kind === 'page' && e.key.includes('/apps'));
       expect(entry).toBeTruthy();
-      expect(entry?.label).toBe('发布单');
+      expect(entry?.label).toBe('应用结构');
       expect(typeof entry?.at).toBe('number');
     });
     // localStorage 持久化（STORAGE_KEY）
     const raw = window.localStorage.getItem(STORAGE_KEY);
     expect(raw).toBeTruthy();
     const persisted = JSON.parse(raw!) as { kind: string; label: string; key: string }[];
-    expect(persisted.some((item) => item.kind === 'page' && item.label === '发布单' && item.key.includes('/releases'))).toBe(true);
+    expect(persisted.some((item) => item.kind === 'page' && item.label === '应用结构' && item.key.includes('/apps'))).toBe(true);
   });
 
   it('should_record_action_command_into_history_when_executed', async () => {
@@ -549,7 +549,7 @@ describe('REQ20261120120552 AC-7/AC-8 面板执行记录与清空', () => {
 
   it('should_clear_history_and_return_to_empty_state_when_clear_clicked', async () => {
     await renderAppAt('#/', { permissions: [] });
-    // 播种＝面板内真实执行「发布单」生成历史（不写死 key 字面量）
+    // 播种＝面板内真实执行「应用结构」生成历史（不写死 key 字面量）
     await seedHistoryByRealExecution('keyboard');
     const dialog = await openPalette();
     expect(within(dialog).queryByText('没有搜索历史')).toBeNull(); // 历史非空
@@ -578,15 +578,15 @@ describe('REQ20261120120552 AC-9~AC-12 面板回归', () => {
     expect(within(dialog).getByText('没有搜索历史')).toBeTruthy();
     expect(activeItemText(dialog)).toContain('概览');
     fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(activeItemText(dialog)).toContain('发布单');
+    expect(activeItemText(dialog)).toContain('应用结构');
 
     // 非空查询：历史区不渲染（仅空查询显示）；三节过滤照旧
-    fireEvent.change(input, { target: { value: '/releases' } });
-    await wait(() => expect(within(dialog).getByText('发布单')).toBeTruthy());
+    fireEvent.change(input, { target: { value: '/apps' } });
+    await wait(() => expect(within(dialog).getByText('应用结构')).toBeTruthy());
     expect(within(dialog).queryByText('搜索历史')).toBeNull();
     expect(within(dialog).queryByText('没有搜索历史')).toBeNull();
     fireEvent.keyDown(input, { key: 'Enter' });
-    await wait(() => expect(window.location.hash).toBe('#/releases'));
+    await wait(() => expect(window.location.hash).toBe('#/apps'));
     await wait(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     // Esc 关闭回归：重开面板输入动作关键词
@@ -627,12 +627,11 @@ describe('REQ20261120120552 AC-9~AC-12 面板回归', () => {
     });
   });
 
-  it('should_render_hints_bar_and_updated_placeholders_when_palette_open', async () => {
+  it('should_render_hints_bar_and_palette_placeholder_when_palette_open', async () => {
     await renderAppAt('#/', { permissions: [] });
 
-    // Header 搜索框 placeholder 更新为「搜索」；旧语义文案废除
-    expect(screen.getByPlaceholderText('搜索')).toBeTruthy();
-    expect(screen.queryByPlaceholderText('搜索页面 / 页签 / 快捷操作…')).toBeNull();
+    // ⑦：Header 搜索框已随发布单演示域删除，不再有「搜索」输入框
+    expect(screen.queryByPlaceholderText('搜索')).toBeNull();
 
     const dialog = await openPalette();
     // 面板 placeholder「搜索导航菜单」
@@ -646,8 +645,9 @@ describe('REQ20261120120552 AC-9~AC-12 面板回归', () => {
 
   it('should_toggle_autofocus_and_restore_focus_on_palette_close', async () => {
     await renderAppAt('#/', { permissions: [] });
-    const headerSearch = screen.getByPlaceholderText('搜索') as HTMLInputElement;
-    headerSearch.focus();
+    // ⑦：Header 搜索框已移除，改以顶栏用户菜单按钮作焦点还原锚点
+    const focusAnchor = screen.getByRole('button', { name: '打开用户菜单' }) as HTMLButtonElement;
+    focusAnchor.focus();
 
     // Ctrl+K 打开＋autofocus（TL 裁决②：Ctrl+K 仅开不关，App 无 toggle）
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
@@ -655,9 +655,9 @@ describe('REQ20261120120552 AC-9~AC-12 面板回归', () => {
     const input = paletteInput(dialog);
     await wait(() => expect(document.activeElement).toBe(input));
 
-    // Esc 关闭（照 tabs.test 口径 keyDown Escape）→ 焦点还原到打开前聚焦的 Header 搜索框
+    // Esc 关闭（照 tabs.test 口径 keyDown Escape）→ 焦点还原到打开前聚焦的顶栏按钮
     fireEvent.keyDown(input, { key: 'Escape', keyCode: 27 });
     await wait(() => expect(screen.queryByRole('dialog')).toBeNull());
-    await wait(() => expect(document.activeElement).toBe(headerSearch));
+    await wait(() => expect(document.activeElement).toBe(focusAnchor));
   });
 });

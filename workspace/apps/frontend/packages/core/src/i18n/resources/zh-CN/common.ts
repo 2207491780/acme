@@ -25,6 +25,34 @@ export const common = {
     visible: '可见',
     hidden: '隐藏',
     loading: '加载中…',
+    // 通用状态标签（REQ-20261126-125836：自 releases 域迁入，供保留的基座页面解析）
+    draft: '草稿',
+    building: '构建中',
+    testing: '测试中',
+    approved: '待发布',
+    published: '已发布',
+    failed: '失败',
+    cancelled: '已取消',
+  },
+  platform: {
+    web: 'Web',
+    desktop: 'Electron',
+    mobile: 'Mobile',
+  },
+  platformFull: {
+    web: 'Web 端',
+    desktop: 'PC 桌面端',
+    mobile: '移动端',
+  },
+  env: {
+    dev: '开发',
+    test: '测试',
+    prod: '生产',
+  },
+  health: {
+    healthy: '健康',
+    warning: '关注',
+    critical: '异常',
   },
   table: {
     total: '共 {{total}} 条',

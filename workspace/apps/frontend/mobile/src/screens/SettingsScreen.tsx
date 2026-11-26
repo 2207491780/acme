@@ -537,16 +537,8 @@ export function SettingsScreen() {
         <Text style={styles.cardTitle}>{t('settings.data.title')}</Text>
         <View style={styles.statRow}>
           <View style={styles.statBox}>
-            <Text style={[styles.statN, { color: accent }]}>{state.releases.length}</Text>
-            <Muted style={{ fontSize: 12 }}>{t('settings.mobile.stats.releases')}</Muted>
-          </View>
-          <View style={styles.statBox}>
             <Text style={[styles.statN, { color: accent }]}>{state.apps.length}</Text>
             <Muted style={{ fontSize: 12 }}>{t('settings.mobile.stats.apps')}</Muted>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={[styles.statN, { color: accent }]}>{state.savedViews.length}</Text>
-            <Muted style={{ fontSize: 12 }}>{t('settings.mobile.stats.savedViews')}</Muted>
           </View>
         </View>
         <SettingRow

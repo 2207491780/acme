@@ -20,19 +20,6 @@ export function IconDashboard({ color, size = 22 }: { color: string; size?: numb
   );
 }
 
-export function IconReleases({ color, size = 22 }: { color: string; size?: number }) {
-  return (
-    <View style={{ width: size, height: size, justifyContent: 'center', gap: size * 0.16 }}>
-      {[0, 1, 2].map((i) => (
-        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: size * 0.14 }}>
-          <View style={{ width: size * 0.16, height: size * 0.16, borderRadius: 99, backgroundColor: color }} />
-          <View style={{ height: 2.5, flex: 1, borderRadius: 2, backgroundColor: color, opacity: 0.55 }} />
-        </View>
-      ))}
-    </View>
-  );
-}
-
 export function IconApps({ color, size = 22 }: { color: string; size?: number }) {
   return (
     <View

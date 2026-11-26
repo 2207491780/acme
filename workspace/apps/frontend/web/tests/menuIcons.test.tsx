@@ -7,7 +7,7 @@ import { MENU_ICON_OPTIONS, resolveMenuIcon } from '../src/menuIcons';
 
 /** nav.tsx 历史 MENU_ICON_MAP 的种子标识（扩展不得破坏）。 */
 const LEGACY_CODES = [
-  'dashboard', 'releases', 'apps', 'tenants', 'users', 'roles', 'depts', 'positions',
+  'dashboard', 'apps', 'tenants', 'users', 'roles', 'depts', 'positions',
   'permissions', 'menus', 'dicts', 'audit', 'loginlogs', 'onlineusers', 'files', 'settings',
 ];
 
@@ -44,7 +44,8 @@ describe('menuIcons 注册表', () => {
   it('should_group_by_source_when_lucide_registry_added', () => {
     const antd = MENU_ICON_OPTIONS.filter((o) => o.source === 'antd');
     const lucide = MENU_ICON_OPTIONS.filter((o) => o.source === 'lucide');
-    expect(antd.length).toBe(200);
+    // 原 200 个 antd 标识中 releases 随发布单演示域删除（REQ-20261126-125836）→ 199
+    expect(antd.length).toBe(199);
     expect(lucide.length).toBeGreaterThanOrEqual(200);
     expect(lucide.every((o) => o.code.startsWith('lucide-'))).toBe(true);
     expect(antd.every((o) => !o.code.startsWith('lucide-'))).toBe(true);

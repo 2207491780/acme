@@ -358,7 +358,7 @@
 
 <script>
 const T = {
-  "generatedAt": "2026-11-22T00:07:26.743Z",
+  "generatedAt": "2026-11-26T14:24:09.398Z",
   "accents": {
     "cyan": "#5aa7a0",
     "blue": "#6f92c4",
@@ -661,7 +661,7 @@ const T = {
   "canvas": {
     "dark": {
       "background": "#191c21",
-      "grid": "rgba(255, 255, 255, 0.07)",
+      "grid": "rgba(255, 255, 255, 0.14)",
       "nodeFill": "#1d2127",
       "nodeBorder": "rgba(255, 255, 255, 0.08)",
       "nodeText": "#e8eaed",
@@ -674,7 +674,7 @@ const T = {
     },
     "light": {
       "background": "#f1f2f4",
-      "grid": "rgba(20, 24, 32, 0.08)",
+      "grid": "rgba(20, 24, 32, 0.12)",
       "nodeFill": "#ffffff",
       "nodeBorder": "rgba(20, 24, 32, 0.10)",
       "nodeText": "#1c2128",
@@ -986,16 +986,16 @@ function renderComponents(){
     `<div class="m-card"><div class="t">Web 控制台</div><div class="muted" style="font-size:13px">v1.4.2 · 林晚</div><div>${mTag('success')}</div></div>`));
 
   blocks.push(spec('Input 输入',
-    `<input class="w-input" placeholder="搜索发布单 / 版本…" />`,
-    `<input class="m-input" placeholder="搜索发布单 / 版本…" />`));
+    `<input class="w-input" placeholder="搜索应用 / 版本…" />`,
+    `<input class="m-input" placeholder="搜索应用 / 版本…" />`));
 
   blocks.push(spec('Progress 进度',
     `<div class="stack" style="width:100%"><div class="w-prog"><i style="width:62%"></i></div><div class="muted mono" style="font-size:11px">62% · accent 纯色</div></div>`,
     `<div class="stack" style="width:100%"><div class="m-prog"><i style="width:62%;background:${T.tones.success}"></i></div><div class="muted mono" style="font-size:11px">62% · 轨道 elevated 高6</div></div>`));
 
   blocks.push(spec('Nav 导航',
-    `<div class="w-menu"><div class="it">概览</div><div class="it active">发布单</div><div class="it">应用结构</div><div class="it">设置</div></div>`,
-    `<div class="m-tabs"><div class="tb"><span class="ic"></span>概览</div><div class="tb active"><span class="ic"></span>发布单</div><div class="tb"><span class="ic"></span>应用</div><div class="tb"><span class="ic"></span>设置</div></div>`));
+    `<div class="w-menu"><div class="it">概览</div><div class="it active">应用结构</div><div class="it">租户管理</div><div class="it">设置</div></div>`,
+    `<div class="m-tabs"><div class="tb"><span class="ic"></span>概览</div><div class="tb active"><span class="ic"></span>应用</div><div class="tb"><span class="ic"></span>租户</div><div class="tb"><span class="ic"></span>设置</div></div>`));
 
   blocks.push(spec('Table / List 列表',
     `<div class="w-table"><div class="hd"><span>标题</span><span>状态</span><span>环境</span></div><div class="rw sel"><span>灰度发布</span><span>${wTag('info')}</span><span>${wTag('warning')}</span></div><div class="rw"><span>热修复</span><span>${wTag('success')}</span><span>${wTag('danger')}</span></div></div>`,

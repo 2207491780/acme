@@ -7,7 +7,7 @@
  *   - tabStyle('line'|'card'|'chrome'|'plain'，缺省 line=现行为)；
  *   - siderTone('auto'|'dark'，缺省 auto=现行为)；
  *   - topbarWidgets(Record<WidgetKey,boolean>，WidgetKey 枚举=契约②原文
- *     search/bell/lang/timezone/appearance/themeToggle/lock/fullscreen/settings/release，
+ *     search/bell/lang/timezone/appearance/themeToggle/lock/fullscreen/settings（release 键 legacy 容忍、产物不输出），
  *     缺省全显=现状逐字)；
  *   migrate v3→v4 无损（既有字段逐字保留，新字段补默认值）；非法值按既有口径逐字段降级不抛错；
  *   buildSettings 投影 = { schemaVersion, preferences }（msm preferences PUT 载荷同形基础）。
@@ -29,10 +29,10 @@ import {
   type ThemePreferences,
 } from '../src';
 
-/** WidgetKey 枚举 = 契约②原文逐字（十键；委派单「9 键」计数与原文冲突，按原文执行并上报 TL 裁决）。 */
+/** WidgetKey 枚举（REQ-20261126-125836 删除 release UI 呈现后为九键；legacy release 键接受但忽略）。 */
 const WIDGET_KEYS = [
   'search', 'bell', 'lang', 'timezone', 'appearance',
-  'themeToggle', 'lock', 'fullscreen', 'settings', 'release',
+  'themeToggle', 'lock', 'fullscreen', 'settings',
 ] as const;
 
 /** topbarWidgets 缺省全显（=现状逐字，契约②钉死）。 */

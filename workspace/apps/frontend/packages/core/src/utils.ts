@@ -1,4 +1,4 @@
-import type { Platform, Env, Status, Tone } from './types';
+import type { Tone } from './types';
 import { formatDate, getDateLocale, type DateLocale } from './date-format';
 
 export const esc = (value: unknown): string =>
@@ -63,19 +63,6 @@ export function relTime(iso: string, now: number = Date.now()): string {
   return formatDate(iso);
 }
 
-export function isVersion(value: unknown): boolean {
-  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(String(value || '').trim());
-}
-
-export function compareVersion(a: string, b: string): number {
-  const pa = String(a).split('-')[0].split('.').map(Number);
-  const pb = String(b).split('-')[0].split('.').map(Number);
-  for (let i = 0; i < 3; i += 1) {
-    const diff = (pa[i] || 0) - (pb[i] || 0);
-    if (diff !== 0) return diff;
-  }
-  return String(a).localeCompare(String(b));
-}
 
 export function debounce<A extends unknown[]>(fn: (...args: A) => void, ms = 180) {
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -85,27 +72,17 @@ export function debounce<A extends unknown[]>(fn: (...args: A) => void, ms = 180
   };
 }
 
-export const platformLabel = (p: Platform | string): string =>
-  ({ web: 'Web 端', desktop: 'PC 桌面端', mobile: '移动端' })[p as Platform] || p;
+export const platformLabel = (p: string): string =>
+  ({ web: 'Web 端', desktop: 'PC 桌面端', mobile: '移动端' })[p] || p;
 
-export const platformShort = (p: Platform | string): string =>
-  ({ web: 'Web', desktop: 'Electron', mobile: 'Mobile' })[p as Platform] || p;
+export const platformShort = (p: string): string =>
+  ({ web: 'Web', desktop: 'Electron', mobile: 'Mobile' })[p] || p;
 
-export const envLabel = (e: Env | string): string =>
-  ({ dev: '开发', test: '测试', prod: '生产' })[e as Env] || e;
+export const envLabel = (e: string): string =>
+  ({ dev: '开发', test: '测试', prod: '生产' })[e] || e;
 
-export const statusLabel = (s: Status | string): string =>
-  ({
-    draft: '草稿',
-    building: '构建中',
-    testing: '测试中',
-    approved: '待发布',
-    published: '已发布',
-    failed: '失败',
-    cancelled: '已取消',
-  })[s as Status] || s;
-
-export function statusTone(s: Status | string): Tone {
+/** 状态→语义色映射（主题令牌派生使用；状态文案已迁至 i18n common.status 域）。 */
+export function statusTone(s: string): Tone {
   return (
     ({
       draft: 'muted',
@@ -115,7 +92,7 @@ export function statusTone(s: Status | string): Tone {
       published: 'success',
       failed: 'danger',
       cancelled: 'muted',
-    })[s as Status] || 'muted'
+    })[s] || 'muted'
   ) as Tone;
 }
 

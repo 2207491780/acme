@@ -31,7 +31,6 @@ export interface PageRoute {
 }
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard as PageComponent })));
-const Releases = lazy(() => import('./pages/Releases').then((m) => ({ default: m.Releases as PageComponent })));
 const Apps = lazy(() => import('./pages/Apps').then((m) => ({ default: m.Apps as PageComponent })));
 const TenantsPage = lazy(() => import('./pages/TenantsPage').then((m) => ({ default: m.TenantsPage as PageComponent })));
 const TenantPackagesPage = lazy(() => import('./pages/TenantPackagesPage').then((m) => ({ default: m.TenantPackagesPage as PageComponent })));
@@ -56,12 +55,12 @@ const DesignerPage = lazy(() => import('./pages/workflow/DesignerPage').then((m)
 // 待办中心（REQ-20261122-102730 确认③）：独立路由页（高频独立入口，不入 /workflow 三 Tab）
 const TodoCenterPage = lazy(() => import('./pages/TodoCenterPage').then((m) => ({ default: m.TodoCenterPage as PageComponent })));
 
-/** 24 页清单（25 条 Route − login − `*`；/files 为 REQ-20261119-063129 契约⑥补齐）。
+/** 23 页清单（24 条 Route − login − `*`；/files 为 REQ-20261119-063129 契约⑥补齐；
+ *  /releases 随 REQ-20261126-125836 发布单演示域删除）。
  *  /tenant-packages 为 REQ-20261121-022910：套餐管理（权限 system:tenant-package:list）。
  *  /workflow 与 /workflow/designer 为 REQ-20261122-023441（designer=base-path 单实例页签）。 */
 export const PAGE_ROUTES: PageRoute[] = [
   { path: '/', labelKey: 'nav.items.dashboard', element: <Dashboard /> },
-  { path: '/releases', labelKey: 'nav.items.releases', element: <Releases /> },
   { path: '/apps', labelKey: 'nav.items.apps', element: <Apps /> },
   { path: '/tenants', labelKey: 'nav.items.tenants', permission: 'system:tenant:list', element: <TenantsPage /> },
   // 套餐管理（REQ-20261121-022910）：紧随租户管理；动态导航由后端菜单种子（V24 叶 46）下发

@@ -231,9 +231,6 @@ export function LoginPage() {
           <ThunderboltOutlined style={{ fontSize: 26, color: 'var(--accent)' }} />
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>{t('login.brand.title')}</div>
-            <div style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)' }}>
-              {t('login.brand.subtitle')}
-            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'stretch' }}>

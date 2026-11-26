@@ -1,8 +1,7 @@
 /**
  * REQ-20261119-011524（web 首页——平台概览统计与 widget 改版）AC-4/AC-5/契约⑤⑥：
  * - 平台概览六统计卡：数字来自 summary（wire Long→string 解析为 number）；summary 不可用 → '—' 降级；
- * - echarts 数据源切换：经 useDashboardCharts(stats) 既有预留位直测（对齐 chartOptionFactory/chart 测试模式），
- *   无 summary → 保持本地 release 数据源降级；
+ * - echarts 数据源切换：经 useDashboardCharts(stats) 既有预留位直测（对齐 chartOptionFactory/chart 测试模式）；
  * - 已发布公告 widget：noticeList(1,5) + 客户端过滤 PUBLISHED 取 5 条；无 PUBLISHED → 空态；
  *   无 system:notice:list 权限 → widget 不渲染且不发公告请求（入口型 widget 权限显隐，契约①）；
  * - 快捷入口：Auth 原语（me.permissions）按各域 list 权限显隐，fail-closed；
@@ -248,13 +247,6 @@ describe('REQ20261119011524 图表数据源切换（AC-4）', () => {
       .find((s) => s.type === 'pie');
     expect(pie?.data.map((d) => d.name)).toEqual(['user.login', 'notice.read']);
     expect(pie?.data.map((d) => d.value)).toEqual([120, 64]);
-  });
-
-  it('should_keep_local_release_source_when_no_summary_stats', () => {
-    // 无 summary（stats=undefined）→ 保持本地 release 数据源降级（既有预留位口径）
-    const { result } = renderHook(() => useDashboardCharts());
-    const trend = result.current.trend as Record<string, unknown>;
-    expect(((trend.series as Array<{ data: number[] }>)[0]).data).toHaveLength(7); // 本地近 7 日趋势
   });
 });
 

@@ -10,10 +10,7 @@ export const apps = {
     currentVersion: 'Version',
     owner: 'Owner',
     health: 'Health',
-    releases: 'Releases',
-    releaseCount: '{{n}}',
     copyPath: 'Copy path',
-    viewReleases: 'View releases',
   },
   reuse: {
     title: 'Reuse map',
@@ -59,8 +56,5 @@ export const apps = {
     },
     description: 'Description',
     updated: 'App info updated',
-  },
-  mobile: {
-    viewReleases: 'View {{platform}} releases',
   },
 };

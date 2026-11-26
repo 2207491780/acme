@@ -80,7 +80,7 @@ const backendPrefs = (over: Partial<ThemePreferences> = {}): ThemePreferences =>
   siderTone: 'dark',
   topbarWidgets: {
     search: false, bell: false, lang: true, timezone: false, appearance: true,
-    themeToggle: false, lock: true, fullscreen: false, settings: true, release: false,
+    themeToggle: false, lock: true, fullscreen: false, settings: true,
   },
   ...over,
 });

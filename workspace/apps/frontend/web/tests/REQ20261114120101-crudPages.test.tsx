@@ -2,7 +2,7 @@
  * REQ-20261114-120101 AC-1：既有管理页迁移 CrudTable/CrudFormModal 后行为等价回归。
  *
  * 覆盖页（契约确认记录③必迁清单）：Tenants / Roles / Permissions / Menus / Dicts / Audit。
- * Apps/Releases 为业务页，实施时豁免须记录（契约③），不在本套件内。
+ * Apps 为基座业务页、Releases 已随 REQ-20261126-125836 删除，均不在本套件内。
  *
  * 行为等价清单（AC-1）：列表渲染 / 搜索触发回页首 / 新建 Modal 提交 / 编辑回填 / 删除确认 / 权限显隐。
  * 装配照既有范本 web/tests/REQ20261114071607-usersPage.test.tsx：fetch stubGlobal 弱匹配路由 +

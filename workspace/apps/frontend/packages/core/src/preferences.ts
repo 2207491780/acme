@@ -84,7 +84,6 @@ export const DEFAULT_PREFERENCES: ThemePreferences = {
     lock: true,
     fullscreen: true,
     settings: true,
-    release: true,
   },
 };
 
@@ -99,8 +98,10 @@ const TAB_STYLES: TabStyle[] = ['line', 'card', 'chrome', 'plain'];
 const SIDER_TONES: SiderTone[] = ['auto', 'dark'];
 const TOPBAR_WIDGET_KEYS: TopbarWidgetKey[] = [
   'search', 'bell', 'lang', 'timezone', 'appearance',
-  'themeToggle', 'lock', 'fullscreen', 'settings', 'release',
+  'themeToggle', 'lock', 'fullscreen', 'settings',
 ];
+/** 发布单演示域删除后遗留的偏好键：只接受、不解释、不产出（REQ-20261126-125836 确认④）。 */
+const LEGACY_TOPBAR_WIDGET_KEYS: readonly string[] = ['release'];
 
 // —— 扩展偏好注册机制（REQ-20261121-200415 THEME-3 契约⑤）——
 
@@ -189,12 +190,17 @@ export function isTopbarWidgetKey(value: unknown): value is TopbarWidgetKey {
   return TOPBAR_WIDGET_KEYS.some((k) => k === value);
 }
 
-/** 顶栏 widget 开关结构校验（THEME-4 确认②）：键位须为 WidgetKey 子集、值须为布尔。 */
+/**
+ * 顶栏 widget 开关结构校验（THEME-4 确认②；REQ-20261126-125836 确认④）：
+ * 键位须为 WidgetKey 子集、值须为布尔；历史 `release` 键接受但忽略（值合法与否都不影响结果），
+ * 其余未知键仍 fail-closed，避免放宽外部输入的校验口径。
+ */
 export function isTopbarWidgets(value: unknown): value is TopbarWidgets {
   if (!isRecord(value)) return false;
-  return Object.entries(value).every(
-    ([key, item]) => isTopbarWidgetKey(key) && typeof item === 'boolean',
-  );
+  return Object.entries(value).every(([key, item]) => {
+    if (LEGACY_TOPBAR_WIDGET_KEYS.includes(key)) return true;
+    return isTopbarWidgetKey(key) && typeof item === 'boolean';
+  });
 }
 
 /** 语义色覆盖形状校验：success/warning/danger 三键均须为 null 或合法 hex（供 parse-state fail-closed 复用）。 */
@@ -240,8 +246,9 @@ function normalizeSemanticColors(value: unknown): SemanticColorOverrides {
 }
 
 /**
- * 顶栏 widget 开关归一化（THEME-4 v4 确认②）：整段缺省/非法 → 缺省全显；逐键仅接受
- * WidgetKey 子集内的布尔值（未知键剔除、非法值/缺键降级 true），每次产出独立对象避免共享引用。
+ * 顶栏 widget 开关归一化（THEME-4 v4 确认②；REQ-20261126-125836 确认④）：整段缺省/非法 → 缺省全显；
+ * 逐键仅接受 WidgetKey 子集内的布尔值（未知键剔除、非法值/缺键降级 true），每次产出独立对象避免共享引用。
+ * 遍历的是当前键位全集，因此 legacy `release` 键即便存在也不会出现在产出对象中（接受但忽略）。
  */
 function normalizeTopbarWidgets(value: unknown): TopbarWidgets {
   const raw = isRecord(value) ? value : {};

@@ -47,7 +47,7 @@ const validPreferences = (over: Partial<ThemePreferences> | Record<string, unkno
   siderTone: 'auto',
   topbarWidgets: {
     search: true, bell: true, lang: true, timezone: true, appearance: true,
-    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true,
   },
   ...(over as Partial<ThemePreferences>),
 });
@@ -101,7 +101,7 @@ describe('REQ20261121010725 core 偏好引擎 schema（AC-1/AC-2）', () => {
       siderTone: 'auto',
       topbarWidgets: {
         search: true, bell: true, lang: true, timezone: true, appearance: true,
-        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true,
       },
     });
 
@@ -187,7 +187,7 @@ describe('REQ20261121010725 legacy 迁移（AC-3）', () => {
       layoutMode: 'sidebar', tabStyle: 'line', siderTone: 'auto',
       topbarWidgets: {
         search: true, bell: true, lang: true, timezone: true, appearance: true,
-        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true,
       },
     });
     // 无损：投影字段零残留（THEME-3 ⑧：Settings 仅 schemaVersion+preferences）
@@ -204,7 +204,7 @@ describe('REQ20261121010725 legacy 迁移（AC-3）', () => {
       layoutMode: 'sidebar', tabStyle: 'line', siderTone: 'auto',
       topbarWidgets: {
         search: true, bell: true, lang: true, timezone: true, appearance: true,
-        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true,
       },
     });
     expectNoProjections(lightLegacy.settings as unknown as SettingsWithProjections, lightLegacy.settings.preferences);

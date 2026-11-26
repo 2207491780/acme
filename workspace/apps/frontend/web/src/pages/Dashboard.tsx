@@ -4,54 +4,29 @@ import {
   ApartmentOutlined,
   AppstoreOutlined,
   AuditOutlined,
-  ClockCircleOutlined,
-  DashboardOutlined,
   FolderOpenOutlined,
   GlobalOutlined,
   LineChartOutlined,
   NotificationOutlined,
   PieChartOutlined,
-  PlusOutlined,
   ReloadOutlined,
-  RocketOutlined,
   TeamOutlined,
-  ThunderboltOutlined,
-  UnorderedListOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  STATUSES,
-  metrics,
   notifyApi,
   relTime,
-  sortReleases,
-  statusTone,
   useMeStore,
   type AdminNoticeView,
-  type Platform,
-  type Status,
-  type Tone,
 } from '@acme/core';
 import { useStore } from '../store/useStore';
-import { HealthTag, PlatformIcon, PlatformTag, StatusTag } from '../components/atoms';
+import { HealthTag, PlatformIcon } from '../components/atoms';
 import { Chart } from '../components/Chart';
 import { useDashboardCharts, type DashboardChartStats } from '../hooks/useDashboardCharts';
 import { useDashboardSummary } from '../hooks/useDashboardSummary';
 
-const { Text, Paragraph } = Typography;
-
-const TONE_VAR: Record<Tone, string> = {
-  success: 'var(--acid)',
-  warning: 'var(--amber)',
-  danger: 'var(--red)',
-  info: 'var(--blue)',
-  violet: 'var(--violet)',
-  muted: 'var(--slate)',
-};
-
-/** 流水线阶段（状态子集 + 展示名经 i18n dashboard.stages 承载）。 */
-const STAGES: Status[] = ['draft', 'building', 'testing', 'approved', 'published'];
+const { Text } = Typography;
 
 /** 快捷入口（REQ-20261119-011524 契约④⑤）：显隐走 Auth 原语（me.permissions，fail-closed），
  *  跳转仍由各路由的权限门禁守护；文案复用 nav.items.*（与导航同一目的地同一叫法）。 */
@@ -71,10 +46,7 @@ function shortTrendLabel(date: string): string {
 export function Dashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const state = useStore((s) => s.state);
-  const setQuery = useStore((s) => s.setQuery);
-  const openDrawer = useStore((s) => s.openDrawer);
-  const openModal = useStore((s) => s.openModal);
+  const apps = useStore((s) => s.state.apps);
   // 权限感知（Auth 原语 me.permissions，fail-closed）：hero 文件入口与首页 widget 显隐共用同一来源
   const mePermissions = useMeStore((s) => s.me?.permissions);
   const hasPermission = (perm: string): boolean => (mePermissions ?? []).includes(perm);
@@ -109,9 +81,6 @@ export function Dashboard() {
     };
   }, [canNotices]);
 
-  const m = metrics(state);
-  const recent = sortReleases(state.releases, 'updated', state.order).slice(0, 5);
-  const maxStatus = Math.max(1, ...Object.values(m.byStatus));
   // 平台概览六卡（契约⑤）：数字走 summary；未取到（加载中/失败）→ '—'；近14日登录 = 趋势桶合计
   const overviewCards = [
     { key: 'users', value: summary.data?.users },
@@ -127,8 +96,7 @@ export function Dashboard() {
     },
   ];
   // 图表区（REQ-20261114-120112 AC-1 + REQ-20261119-011524 契约⑤）：有 summary → 后端数据源
-  // （登录趋势/审计动作分布，经 useDashboardCharts stats props 既有预留位接入）；
-  // 无 summary（加载中/失败）→ undefined 保持本地 release 数据源降级
+  // （登录趋势/审计动作分布）；无 summary（加载中/失败）→ undefined 保持空态，无本地业务演示数据源。
   const chartStats = useMemo<DashboardChartStats | undefined>(() => {
     const data = summary.data;
     if (!data) {
@@ -146,15 +114,6 @@ export function Dashboard() {
   }, [summary.data]);
   const charts = useDashboardCharts(chartStats);
 
-  const goPlatform = (platform: Platform) => {
-    setQuery({ platform, status: 'all' });
-    navigate('/releases');
-  };
-  const goStatus = (status: Status) => {
-    setQuery({ status, platform: 'all' });
-    navigate('/releases');
-  };
-
   return (
     <>
       <section className="hero">
@@ -166,12 +125,6 @@ export function Dashboard() {
               {t('dashboard.hero.desc')}
             </p>
             <Space wrap>
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal({ type: 'release', id: null })}>
-                {t('dashboard.actions.createRelease')}
-              </Button>
-              <Button icon={<UnorderedListOutlined />} onClick={() => navigate('/releases')}>
-                {t('dashboard.actions.viewAll')}
-              </Button>
               <Button type="text" icon={<AppstoreOutlined />} onClick={() => navigate('/apps')}>
                 {t('dashboard.actions.apps')}
               </Button>
@@ -181,12 +134,6 @@ export function Dashboard() {
                 </Button>
               ) : null}
             </Space>
-          </div>
-          <div className="hero-stats">
-            <div className="hero-stat"><div className="n">{m.active}</div><div className="l">{t('dashboard.stats.active')}</div></div>
-            <div className="hero-stat"><div className="n">{m.approved}</div><div className="l">{t('dashboard.stats.approved')}</div></div>
-            <div className="hero-stat"><div className="n">{m.publishedToday}</div><div className="l">{t('dashboard.stats.publishedToday')}</div></div>
-            <div className="hero-stat"><div className="n">{m.failed}</div><div className="l">{t('dashboard.stats.failed')}</div></div>
           </div>
         </div>
       </section>
@@ -221,45 +168,27 @@ export function Dashboard() {
         </div>
       </Card>
 
+      {/* 多端基座清单（REQ-20261126-125836 保留）：Web / Electron / Mobile 三端与共享 core 的入口 */}
       <Row gutter={[18, 18]} style={{ marginBottom: 18 }}>
-        {state.apps.map((app) => {
-          const latest = sortReleases(state.releases.filter((r) => r.appId === app.id), 'updated', state.order)[0];
-          return (
-            <Col xs={24} md={12} xl={8} key={app.id}>
-              <Card hoverable onClick={() => goPlatform(app.platform)} style={{ height: '100%' }}>
-                <Space align="start" style={{ marginBottom: 12 }}>
-                  <PlatformIcon platform={app.platform} />
-                  <div>
-                    <Text strong>{app.name}</Text>
-                    <div className="platform-path">{app.path}</div>
-                  </div>
-                </Space>
-                <Paragraph type="secondary" style={{ fontSize: 13, minHeight: 42 }}>{app.description}</Paragraph>
-                <Space wrap>
-                  <HealthTag health={app.health} />
-                  <Text style={{ color: 'var(--accent)' }}>v{app.version}</Text>
-                  {latest ? <StatusTag status={latest.status} /> : <Text type="secondary">{t('dashboard.noRelease')}</Text>}
-                </Space>
-              </Card>
-            </Col>
-          );
-        })}
+        {apps.map((app) => (
+          <Col xs={24} md={12} xl={8} key={app.id}>
+            <Card hoverable onClick={() => navigate('/apps')} style={{ height: '100%' }}>
+              <Space align="start" style={{ marginBottom: 12 }}>
+                <PlatformIcon platform={app.platform} />
+                <div>
+                  <Text strong>{app.name}</Text>
+                  <div className="platform-path">{app.path}</div>
+                </div>
+              </Space>
+              <Typography.Paragraph type="secondary" style={{ fontSize: 13, minHeight: 42 }}>{app.description}</Typography.Paragraph>
+              <Space wrap>
+                <HealthTag health={app.health} />
+                <Text style={{ color: 'var(--accent)' }}>v{app.version}</Text>
+              </Space>
+            </Card>
+          </Col>
+        ))}
       </Row>
-
-      <Card
-        style={{ marginBottom: 18 }}
-        title={<Space><RocketOutlined style={{ color: 'var(--accent)' }} /> {t('dashboard.cards.pipeline')}</Space>}
-        extra={<Text type="secondary">{t('dashboard.cards.pipelineTotal', { total: m.total })}</Text>}
-      >
-        <div className="pipeline">
-          {STAGES.map((key) => (
-            <button key={key} className={`stage s-${key}`} onClick={() => goStatus(key)}>
-              <div className="n">{m.byStatus[key] || 0}</div>
-              <div className="l">{t(`dashboard.stages.${key}`)}</div>
-            </button>
-          ))}
-        </div>
-      </Card>
 
       <Row gutter={[18, 18]} style={{ marginBottom: 18 }}>
         <Col xs={24} xl={12}>
@@ -331,67 +260,6 @@ export function Dashboard() {
           ) : null}
         </Row>
       ) : null}
-
-      <Row gutter={[18, 18]}>
-        <Col xs={24} xl={16}>
-          <Space direction="vertical" size={18} style={{ width: '100%' }}>
-            <Card title={<Space><DashboardOutlined style={{ color: 'var(--accent)' }} /> {t('dashboard.cards.statusDistribution')}</Space>}>
-              <div className="bars">
-                {STATUSES.map((s) => (
-                  <div className="bar-row" key={s}>
-                    <span className="bar-label">{t(`releases.status.${s}`)}</span>
-                    <div className="bar-track">
-                      <div
-                        className="bar-fill"
-                        style={{ width: `${((m.byStatus[s] || 0) / maxStatus) * 100}%`, background: TONE_VAR[statusTone(s)] }}
-                      />
-                    </div>
-                    <span className="bar-value">{m.byStatus[s] || 0}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-            <Card
-              title={<Space><ClockCircleOutlined style={{ color: 'var(--accent)' }} /> {t('dashboard.cards.recent')}</Space>}
-              extra={<Button size="small" type="text" onClick={() => navigate('/releases')}>{t('dashboard.cards.recentAll')}</Button>}
-            >
-              <List
-                dataSource={recent}
-                renderItem={(r) => (
-                  <List.Item style={{ cursor: 'pointer' }} onClick={() => openDrawer(r.id)}>
-                    <List.Item.Meta
-                      title={<Text strong>{r.title} · {r.id}</Text>}
-                      description={
-                        <Space wrap size={4}>
-                          <PlatformTag platform={r.platform} />
-                          <StatusTag status={r.status} />
-                          <Text type="secondary" style={{ fontSize: 11 }}>{relTime(r.updatedAt)}</Text>
-                        </Space>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
-            </Card>
-          </Space>
-        </Col>
-        <Col xs={24} xl={8}>
-          <Card title={<Space><ThunderboltOutlined style={{ color: 'var(--accent)' }} /> {t('dashboard.cards.activity')}</Space>}>
-            <List
-              dataSource={state.activity.slice(0, 14)}
-              renderItem={(a) => (
-                <List.Item>
-                  <List.Item.Meta
-                    avatar={<span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', marginTop: 6, background: TONE_VAR[a.tone] || TONE_VAR.info }} />}
-                    title={<Text style={{ fontSize: 13 }}>{a.text}</Text>}
-                    description={<Text type="secondary" style={{ fontSize: 11 }}>{relTime(a.at)}</Text>}
-                  />
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
-      </Row>
     </>
   );
 }

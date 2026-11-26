@@ -17,7 +17,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   - v4 新字段：layoutMode('sidebar'|'top'|'mixed') / tabStyle('line'|'card'|'chrome'|'plain') /
  *     siderTone('auto'|'dark') / topbarWidgets(Record&lt;WidgetKey,boolean&gt;，
  *     WidgetKey 枚举=契约②原文 search/bell/lang/timezone/appearance/themeToggle/lock/
- *     fullscreen/settings/release)；
+ *     fullscreen/settings/release；release 键按 REQ-20261126-125836 保留为 legacy-tolerant，
+ *     仍接受、行为不变）；
  *   - v4 合法载荷通过；非法值/未知键拒绝；v3 旧载荷（schemaVersion=3 + v3 字段集）兼容通过；
  *   - 业务错误口径 = 统一响应体 {@code Result.code≠0}（BizException → 错误码段 SYS-01-xxxx，
  *     断言沿用既有 ThemePreferenceValidatorTest 口径；HTTP 层非 4xx 断言面）。
@@ -28,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class REQ20261122233427ThemePreferenceValidatorV4Test {
 
-    /** WidgetKey 枚举 = 契约②原文逐字（十键）。 */
+    /** WidgetKey 枚举 = 契约②原文逐字（十键；release 为 legacy-tolerant 保留键，行为不变）。 */
     private static final String[] WIDGET_KEYS = {
             "search", "bell", "lang", "timezone", "appearance",
             "themeToggle", "lock", "fullscreen", "settings", "release",
@@ -121,6 +122,20 @@ class REQ20261122233427ThemePreferenceValidatorV4Test {
                     .as("topbarWidgets 非对象 %s 应拒绝".formatted(bad))
                     .isInstanceOf(BizException.class)
                     .hasMessageContaining("topbarWidgets");
+        }
+    }
+
+    @Test
+    void should_accept_legacy_release_widget_when_theme_preference_validated() {
+        // REQ-20261126-125836 AC-7：release 键仍在 TOPBAR_WIDGET_KEYS 白名单内（legacy-tolerant），
+        // true/false 两值均不抛校验异常，其余 widget 白名单行为不变。
+        for (boolean legacyValue : new boolean[]{false, true}) {
+            Map<String, Object> widgets = allWidgetsTrue();
+            widgets.put("release", legacyValue);
+            Map<String, Object> payload = v4Blob("topbarWidgets", widgets);
+            assertThatCode(() -> ThemePreferenceValidator.validate(payload))
+                    .as("legacy topbarWidgets.release=%s 应被接受".formatted(legacyValue))
+                    .doesNotThrowAnyException();
         }
     }
 

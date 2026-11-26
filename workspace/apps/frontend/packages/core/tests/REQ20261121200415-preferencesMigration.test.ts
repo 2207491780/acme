@@ -47,7 +47,7 @@ const v3Preferences = (over: Partial<ThemePreferences> = {}): ThemePreferences =
   siderTone: 'auto',
   topbarWidgets: {
     search: true, bell: true, lang: true, timezone: true, appearance: true,
-    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true,
   },
   ...over,
 });

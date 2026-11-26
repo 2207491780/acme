@@ -74,7 +74,7 @@ afterEach(() => {
 /** WidgetKey 枚举 = 契约②原文逐字（十键）。 */
 const WIDGET_KEYS = [
   'search', 'bell', 'lang', 'timezone', 'appearance',
-  'themeToggle', 'lock', 'fullscreen', 'settings', 'release',
+  'themeToggle', 'lock', 'fullscreen', 'settings',
 ] as const;
 
 const allWidgetsVisible = (): Record<string, boolean> =>

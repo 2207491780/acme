@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, App as AntApp, Badge, Button, Dropdown, Grid, Input, Menu, Space, Watermark } from 'antd';
-import type { InputRef, MenuProps } from 'antd';
+import { Alert, App as AntApp, Button, Dropdown, Grid, Menu, Space, Watermark } from 'antd';
+import type { MenuProps } from 'antd';
 import { useTranslation } from 'react-i18next';
 import {
   ApartmentOutlined,
@@ -28,19 +28,16 @@ import {
   MoonOutlined,
   NotificationOutlined,
   PartitionOutlined,
-  PlusOutlined,
   SafetyCertificateOutlined,
   ScheduleOutlined,
-  SearchOutlined,
   SettingOutlined,
   SunOutlined,
   TeamOutlined,
   ThunderboltOutlined,
-  UnorderedListOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ACTIVE_STATUSES, ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, resolveAccentColor, resolveSemanticColors, resolveThemeMode, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type LayoutMode, type TenantSummary, type TimezonePref, type TopbarWidgetKey } from '@acme/core';
+import { ApiError, authApi, effectiveTimezone, renderWatermarkTemplate, resolveAccentColor, resolveSemanticColors, resolveThemeMode, startAuthRenewal, SUPPORTED_LOCALES, SUPPORTED_TIMEZONES, useAuthStore, useLocaleStore, useLockStore, useMeStore, useNotifyStore, useSystemConfigStore, useTimezoneStore, type AppLocale, type LayoutMode, type TenantSummary, type TimezonePref, type TopbarWidgetKey } from '@acme/core';
 import dayjs from 'dayjs';
 import { PAGE_ROUTES, findPageRoute, tabPathOf } from './routes';
 import { Avatar } from './components/Avatar';
@@ -60,16 +57,12 @@ import { PreferencesDrawer } from './components/PreferencesDrawer';
 import { useSystemPrefersDark } from './hooks/useSystemPrefersDark';
 import { usePreferencesSync } from './hooks/usePreferencesSync';
 import { buildDynamicNav, type NavEntry } from './nav';
-import { ReleaseDrawer } from './components/ReleaseDrawer';
-import { ReleaseFormModal } from './components/ReleaseFormModal';
-import { SaveViewModal } from './components/SaveViewModal';
 import { AppFormModal } from './components/AppFormModal';
 import { LockScreenOverlay } from './components/LockScreenOverlay';
 import { useFullscreen } from './hooks/useFullscreen';
 
 const NAV: { path: string; icon: ReactNode; labelKey: string; permission?: string }[] = [
   { path: '/', icon: <DashboardOutlined />, labelKey: 'nav.items.dashboard' },
-  { path: '/releases', icon: <UnorderedListOutlined />, labelKey: 'nav.items.releases' },
   { path: '/apps', icon: <AppstoreOutlined />, labelKey: 'nav.items.apps' },
   { path: '/tenants', icon: <ApartmentOutlined />, labelKey: 'nav.items.tenants', permission: 'system:tenant:list' },
   // 套餐管理（REQ-20261121-022910）：me.menus 空时的静态导航回退条目（动态导航由菜单种子 V24 下发）
@@ -130,11 +123,7 @@ export function App() {
   const isMobile = !screens.lg;
 
   const settings = useStore((s) => s.state.settings);
-  const releases = useStore((s) => s.state.releases);
-  const query = useStore((s) => s.query);
-  const setQuery = useStore((s) => s.setQuery);
   const dispatch = useStore((s) => s.dispatch);
-  const openModal = useStore((s) => s.openModal);
   const storageError = useStore((s) => s.storageError);
   const storageConflict = useStore((s) => s.storageConflict);
 
@@ -148,7 +137,6 @@ export function App() {
   const [switchTargets, setSwitchTargets] = useState<TenantSummary[]>([]);
   const [switchTargetsLoading, setSwitchTargetsLoading] = useState(false);
   const [switchingTenant, setSwitchingTenant] = useState(false);
-  const searchRef = useRef<InputRef>(null);
   // 页签滚动位置（契约 AC-1）：Content 为共享滚动视口，切签时按 path 记忆/恢复 scrollTop
   const contentRef = useRef<HTMLElement | null>(null);
   const scrollTopsRef = useRef(new Map<string, number>());
@@ -255,12 +243,9 @@ export function App() {
     }
   }, [resolvedMode, preferences]);
 
-  useEffect(() => {
-    const timer = setInterval(() => dispatch({ type: 'TICK' }), 1200);
-    return () => clearInterval(timer);
-  }, [dispatch]);
+  // Ctrl+K（REQ-20261119-063129 契约⑤；REQ-20261126-125836）：仅开命令面板（登录态）；
+  // 原发布单搜索框随演示功能删除。
 
-  // Ctrl+K（REQ-20261119-063129 契约⑤）：改开命令面板（登录态）；既有搜索框保留原语义
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -372,24 +357,13 @@ export function App() {
   // 注意：本段含 hooks（useLocaleStore/useMemo/useState/useEffect），必须位于下方条件 return
   // （if (!session)）之前——登录/登出（含 401 清会话）切换时 hook 数量不得变化，否则触发
   // React "Rendered fewer hooks than expected" 崩溃（同上方 P0 注释口径）。
-  const activeCount = releases.filter((r) => ACTIVE_STATUSES.includes(r.status)).length;
-  const labelOf = (n: NavEntry) =>
-    n.path === '/releases' ? (
-      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {n.label}
-        <Badge count={activeCount} size="small" color="var(--accent)" />
-      </span>
-    ) : (
-      n.label
-    );
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const timezone = useTimezoneStore((s) => s.timezone);
   const setTimezone = useTimezoneStore((s) => s.setTimezone);
   const dynamicNav = useMemo(
-    () => (me && (me.menus?.length ?? 0) > 0 ? buildDynamicNav(me.menus, me.permissions, (_label, entry) => labelOf(entry)) : null),
-    // labelOf 依赖 activeCount（发布单活跃数）与 t（语言切换后菜单文案重译），随渲染更新
-    [me, activeCount, t],
+    () => (me && (me.menus?.length ?? 0) > 0 ? buildDynamicNav(me.menus, me.permissions) : null),
+    [me, t],
   );
   // 动态菜单的目录分组默认展开（受控）：保证分组子项在侧边导航直达可见
   const [navOpenKeys, setNavOpenKeys] = useState<string[] | undefined>(undefined);
@@ -527,11 +501,6 @@ export function App() {
     ?? NAV_ICONS.get(tabPathOf(path))
     ?? null;
 
-  const onSearch = (value: string) => {
-    setQuery({ search: value });
-    if (location.pathname !== '/releases') navigate('/releases');
-  };
-
   const onUserMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'logout') {
       handleLogout();
@@ -587,7 +556,7 @@ export function App() {
   // 底栏/点击守卫用的扁平叶子集合（动态取菜单树叶子；回退取静态 NAV）
   const navEntries: NavEntry[] = dynamicNav?.entries ?? permittedNav;
   const leafPaths = new Set(navEntries.map((n) => n.path));
-  const menuItems: MenuProps['items'] = dynamicNav?.items ?? permittedNav.map((n) => ({ key: n.path, icon: n.icon, label: labelOf(n) }));
+  const menuItems: MenuProps['items'] = dynamicNav?.items ?? permittedNav.map((n) => ({ key: n.path, icon: n.icon, label: n.label }));
 
   const renderNav = (expanded: boolean) => (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -651,27 +620,7 @@ export function App() {
 
   const headerWidgets = (
     <>
-      {widgetOn('search') && (
-        <Input
-          ref={searchRef}
-          allowClear
-          prefix={<SearchOutlined style={{ color: 'var(--muted)' }} />}
-          placeholder={t('nav.header.searchPlaceholder')}
-          value={query.search}
-          onChange={(e) => onSearch(e.target.value)}
-          style={{ flex: 1, maxWidth: 420 }}
-          suffix={
-            !isMobile ? (
-              <kbd
-                style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '1px 6px' }}
-                title={t('nav.commandPalette.open')}
-              >
-                Ctrl K
-              </kbd>
-            ) : undefined
-          }
-        />
-      )}
+      {/* REQ-20261126-125836：发布单搜索框与 Ctrl+K 徽标随演示功能删除；命令面板仍由 Ctrl+K 唤起 */}
       <div style={{ flex: 1 }} />
       {!isMobile && (
         <span
@@ -812,16 +761,6 @@ export function App() {
           </Space>
         </Button>
       </Dropdown>
-      {widgetOn('release') && (
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => openModal({ type: 'release', id: null })}
-          aria-label={t('nav.header.createAria')}
-        >
-          {!isMobile && t('nav.header.create')}
-        </Button>
-      )}
     </>
   );
 
@@ -902,9 +841,6 @@ export function App() {
         contentWidth={preferences.contentWidth}
       />
 
-      <ReleaseDrawer />
-      <ReleaseFormModal />
-      <SaveViewModal />
       <AppFormModal />
       <LockScreenOverlay />
       {/* 偏好抽屉（REQ-20261121-010725）：顶栏入口打开，修改即时生效并持久化 */}
@@ -926,10 +862,6 @@ export function App() {
         }}
         onToggleLanguage={() => {
           setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN');
-        }}
-        onCreateRelease={() => {
-          setPaletteOpen(false);
-          openModal({ type: 'release', id: null });
         }}
         onLogout={() => {
           setPaletteOpen(false);

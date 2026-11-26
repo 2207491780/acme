@@ -336,13 +336,18 @@ describe('REQ20261119032108 Toast（AC-7）', () => {
 describe('REQ20261119032108 deep link mapping（AC-2）', () => {
   it('should_map_valid_paths_to_tabs_and_fall_back_to_dashboard_when_path_invalid', () => {
     expect(resolveDeepLinkPath('dashboard')).toBe('dashboard');
-    expect(resolveDeepLinkPath('releases')).toBe('releases');
     expect(resolveDeepLinkPath('/apps')).toBe('apps');
     expect(resolveDeepLinkPath('settings?utm=1')).toBe('settings');
     // 非法/未知路径回 dashboard
     expect(resolveDeepLinkPath('nope')).toBe('dashboard');
     expect(resolveDeepLinkPath('')).toBe('dashboard');
     expect(resolveDeepLinkPath('../evil')).toBe('dashboard');
+  });
+
+  it('should_fallback_to_dashboard_when_release_deeplink_opened', () => {
+    // REQ-20261126-125836：releases Tab 与深链已删除，acme://releases 回落 dashboard
+    expect(resolveDeepLinkPath('releases')).toBe('dashboard');
+    expect(resolveDeepLinkPath('/releases')).toBe('dashboard');
   });
 
   it('should_expose_acme_prefix_and_login_main_screens_when_linking_configured', () => {
@@ -378,11 +383,10 @@ describe('REQ20261119032108 i18n resources（AC-4）', () => {
   it('should_resolve_new_mobile_keys_when_locale_zh', () => {
     expect(i18n.t('nav.mobile.tabs.dashboard')).toBe('总览');
     expect(i18n.t('nav.mobile.offline')).toBe('网络不可达');
-    expect(i18n.t('releases.mobile.statusFilters.all')).toBe('全部');
+    expect(i18n.t('common.status.enabled')).toBe('启用');
     expect(i18n.t('settings.mobile.themeLight')).toBe('浅色');
     expect(i18n.t('login.mobile.title')).toBe('登录');
     expect(i18n.t('common.mobile.empty')).toBe('暂无数据');
-    expect(i18n.t('dashboard.cards.pipelineTotal', { total: 3 })).toBe('共 3 个发布单');
   });
 });
 
@@ -392,7 +396,7 @@ describe('REQ20261119032108 routes（AC-1）', () => {
   it('should_align_route_constants_with_tab_paths_when_navigation_mounts', () => {
     expect(LOGIN_ROUTE).toBe('Login');
     expect(MAIN_ROUTE).toBe('Main');
-    expect(TAB_KEYS).toEqual(['dashboard', 'releases', 'apps', 'settings']);
+    expect(TAB_KEYS).toEqual(['dashboard', 'apps', 'settings']);
     expect(Object.keys(TAB_PATHS)).toEqual([...TAB_KEYS]);
     expect(Object.values(TAB_PATHS)).toEqual([...TAB_KEYS]);
   });

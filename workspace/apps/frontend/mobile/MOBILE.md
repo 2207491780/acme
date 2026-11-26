@@ -1,6 +1,6 @@
 # mobile — 移动端
 
-React Native + Expo 移动应用，复用共享 `@acme/core` 业务层，实现与 Web 同构的「ACME 多端前端交付台」。UI 为 **Ant Design 风格的 RN 原生组件**（非 `antd-mobile`——后者基于 DOM，与 RN 原生渲染不兼容），共享 Zustand store 模式与同一套发布单业务逻辑。
+React Native + Expo 移动应用，复用共享 `@acme/core` 业务层，实现与 Web 同构的「ACME 多端前端交付台」多端基座。UI 为 **Ant Design 风格的 RN 原生组件**（非 `antd-mobile`——后者基于 DOM，与 RN 原生渲染不兼容），共享 Zustand store 模式与同一套基座状态（三端清单、主题偏好与租户身份）。
 
 ## 技术栈
 
@@ -30,7 +30,7 @@ mobile/
 ├── tsconfig.json           # extends expo/tsconfig.base，@acme/core paths 别名
 ├── vitest.config.ts
 ├── src/
-│   ├── nav.ts              # TabKey/路由常量（Login/Main + 四 Tab）/ 深链映射（linking，type-only 引 RN）
+│   ├── nav.ts              # TabKey/路由常量（Login/Main + 三 Tab）/ 深链映射（linking，type-only 引 RN）
 │   ├── theme.ts            # 三态主题（THEME-3）：ThemeProvider/useAppTheme 消费 core preferences.mode
 │   │                       #   （system=useColorScheme 解析）→ resolvePalette（dark/light 两套中性色）
 │   ├── i18n.ts             # useTranslation：消费 core i18next 实例 + localeStore（mobile 不装 i18n 包）
@@ -44,15 +44,15 @@ mobile/
 │   │                       #   ErrorBoundary（class 兜底 + 重试重挂载）/
 │   │                       #   PermissionGate（screen 级权限门禁）/ icons.tsx（纯 View 矢量图标）
 │   ├── use-dict.ts         # 字典消费 hook（core useDict 镜像 + AsyncStorage 缓存持久化；AMB-4 裁决）
-│   └── screens/            # Dashboard / Releases / Apps / Settings / Login（全量 t() + 双主题派生）
-└── tests/                  # Vitest：store/theme/导航联动/深链/边界/网络/Toast 等（10 文件 66 用例）
+│   └── screens/            # Dashboard / Apps / Settings / Login（全量 t() + 双主题派生）
+└── tests/                  # Vitest：store/theme/导航联动/深链/边界/网络/Toast 等回归用例
 ```
 
 ## 导航（react-navigation v7）
 
 - **Stack**：`Login`（initialRouteName，登录屏）→ `Main`（承载主 Tabs）；`headerShown: false`，品牌头由 App 壳统一渲染。
-- **Main Tabs**：bottom-tabs 四 Tab（dashboard/releases/apps/settings），自定义 `AppTabBar` 保持既有设计
-  （accent pill + 发布活跃数 badge）；每 Tab 组件外再包一层 `ErrorBoundary`（两道防线，单 Tab 崩溃可重试且不波及其他 Tab）。
+- **Main Tabs**：bottom-tabs 三 Tab（dashboard/apps/settings），自定义 `AppTabBar` 保持既有设计
+  （accent pill）；每 Tab 组件外再包一层 `ErrorBoundary`（两道防线，单 Tab 崩溃可重试且不波及其他 Tab）。
 - **登录联动**：`AuthNavigator`（容器内）消费 `authStore.session`——建立会话（含冷启动已有会话）
   `navigation.replace('Main')`；登出 `navigation.reset` 回 `Login`；深链冷启动已落 Main/* 时不干预。
 - **TabKey 语义保留**：`nav.ts` 是路由常量唯一事实源（`TAB_KEYS` 顺序 = 旧手动切换顺序），Tab 路由名 = TabKey。
@@ -70,15 +70,15 @@ mobile/
 
 ## i18n
 
-- 复用 core 资源域（nav/login/dashboard/releases/apps/settings/common），mobile 缺键以各域内 `mobile` 组
+- 复用 core 资源域（nav/login/dashboard/apps/settings/common 等），mobile 缺键以各域内 `mobile` 组
   成对新增（zh-CN/en-US 形状一致性由 scaffold 测试断言）；`useTranslation()` 来自 `src/i18n.ts`
   （core i18next 单例 + localeStore 订阅），语言切换在设置页「界面语言」分段控件（zh-CN / en-US）。
-- screens/App 硬编码中文已全量迁移 t() 键；core 标签函数（statusLabel/HEALTH_LABELS 等）仍为数据驱动，
-  语义标签部分（状态/平台/环境）已改走 `releases.*` 资源键。
+- screens/App 硬编码中文已全量迁移 t() 键；健康等共享分类标签统一从 `common.*` 域解析，
+  分类取色仍来自 `@acme/core` 设计令牌。
 
 ## 深链
 
-- `linking`（`src/nav.ts`）：prefixes `['acme://']`；`acme://login` → Login，`acme://dashboard|releases|apps|settings`
+- `linking`（`src/nav.ts`）：prefixes `['acme://']`；`acme://login` → Login，`acme://dashboard|apps|settings`
   → Main 对应 Tab；冷启动与运行态同径；非法路径回落 dashboard（`resolveDeepLinkPath` 纯函数，测试锁定）。
 - `app.json`：android `intentFilters`（action VIEW + autoVerify + scheme acme）；iOS scheme 由 expo
   `scheme: "acme"` 生成 URL type。
@@ -117,7 +117,7 @@ mobile/
 
 ## 验证状态
 
-- `tsc --noEmit` 通过；Vitest 66 用例通过（含 REQ-20261119-032108 scaffold 回归：主题双分支/边界重试/断网态/
+- `tsc --noEmit` 通过；Vitest 全量回归通过（含 REQ-20261119-032108 scaffold 回归：主题双分支/边界重试/断网态/
   Toast/深链映射/i18n 成对/路由常量/AuthNavigator 登录登出联动）；`expo export -p android --dev` 成功打包
   （整棵依赖图含 `@acme/core` 源码、react-navigation v7 与 RN 原生导入可编译）。
 - **真机/模拟器运行验证需 Android 模拟器、iOS 模拟器或 Expo Go 设备**，当前环境未提供，故未做运行时交互验证。

@@ -2,7 +2,6 @@ import { common } from './common';
 import { nav } from './nav';
 import { login } from './login';
 import { dashboard } from './dashboard';
-import { releases } from './releases';
 import { apps } from './apps';
 import { tenants } from './tenants';
 import { tenantPackages } from './tenantPackages';
@@ -32,7 +31,6 @@ export const enUS = {
   nav,
   login,
   dashboard,
-  releases,
   apps,
   tenants,
   tenantPackages,

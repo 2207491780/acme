@@ -7,7 +7,6 @@ export * from './chart-option';
 export * from './seed';
 export * from './parse-state';
 export * from './reducer';
-export * from './selectors';
 export * from './date-format';
 export * from './watermark';
 export * from './use-crud';

@@ -1,12 +1,10 @@
 import type {
   Accent,
   Density,
-  Env,
   Health,
   Platform,
   RadiusScale,
   SiderTone,
-  Status,
   Theme,
   Tone,
 } from './types';
@@ -122,13 +120,14 @@ export const PLATFORM_ANTD: Record<Platform, string> = {
   mobile: 'success',
 };
 
-export const ENV_COLORS: Record<Env, string> = {
+/** 环境分类色（REQ-20261126-125836 后仅作通用令牌映射，键按字符串查表）。 */
+export const ENV_COLORS: Record<string, string> = {
   dev: '#8b929e',
   test: '#cfa14f',
   prod: '#c47b7b',
 };
 
-export const ENV_ANTD: Record<Env, string> = {
+export const ENV_ANTD: Record<string, string> = {
   dev: 'default',
   test: 'warning',
   prod: 'error',
@@ -387,7 +386,7 @@ export function mixHex(a: string, b: string, weight: number): string {
   return toHex(ch(0), ch(1), ch(2));
 }
 
-export function statusColor(status: Status | string): string {
+export function statusColor(status: string): string {
   return TONES[statusTone(status)];
 }
 

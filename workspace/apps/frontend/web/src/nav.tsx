@@ -64,7 +64,7 @@ export interface DynamicNav {
   openKeys: string[];
 }
 
-/** 叶子 label 装饰回调（如发布单活跃数 Badge；返回替换态 label）。 */
+/** 叶子 label 装饰回调（如活跃数 Badge；返回替换态 label）。 */
 export type NavLabelDecorator = (label: string, entry: NavEntry) => ReactNode;
 
 /**

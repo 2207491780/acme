@@ -17,7 +17,7 @@ import {
  * 全局命令面板（REQ-20261119-063129 契约⑤；REQ-20261120-120552 增强）：
  * Ctrl+K 开 antd Modal（顶部 20% 定位）；输入过滤三节——页面（PAGE_ROUTES+label 含 /files，
  * 按注入 hasPermission 过滤：与侧边导航同源 fail-closed，无 permission 路由恒可见）/
- * 页签（已开 tabs）/快捷操作（锁屏/切换主题/切换语言/新建发布单/退出登录，动作经 App 既有
+ * 页签（已开 tabs）/快捷操作（锁屏/切换主题/切换语言/退出登录，动作经 App 既有
  * handlers 注入）；空查询另渲染「搜索历史」节（acme.commandHistory.v1，最近 8 条，空态
  * 「没有搜索历史」，头部「清空」钮仅非空显示）；键盘 ↑↓ 选择＋Enter 执行＋Esc 关闭；
  * 执行页面/动作记入搜索历史（页签不记）；底部键位提示条「↵ 选择 / ↑↓ 导航 / ESC 关闭」。
@@ -42,7 +42,6 @@ export interface CommandPaletteProps {
   onLock: () => void;
   onToggleTheme: () => void;
   onToggleLanguage: () => void;
-  onCreateRelease: () => void;
   onLogout: () => void;
   /** 「页面」节权限过滤（REQ-20261120-120552 AC-10）：与侧边导航同源（App 既有权限集），
    *  fail-closed；code 缺省（无 permission 路由）恒 true。 */
@@ -52,7 +51,7 @@ export interface CommandPaletteProps {
 const SECTION_ORDER: CommandItem['section'][] = ['history', 'pages', 'tabs', 'actions'];
 
 export function CommandPalette({
-  open, onClose, onOpenPage, onLock, onToggleTheme, onToggleLanguage, onCreateRelease, onLogout,
+  open, onClose, onOpenPage, onLock, onToggleTheme, onToggleLanguage, onLogout,
   hasPermission,
 }: CommandPaletteProps) {
   const { t } = useTranslation();
@@ -102,7 +101,6 @@ export function CommandPalette({
       { key: 'action:lock', section: 'actions', label: t('nav.header.lockScreen'), run: onLock },
       { key: 'action:theme', section: 'actions', label: t('nav.header.toggleTheme'), run: onToggleTheme },
       { key: 'action:language', section: 'actions', label: t('nav.header.language'), run: onToggleLanguage },
-      { key: 'action:createRelease', section: 'actions', label: t('nav.commandPalette.createRelease'), run: onCreateRelease },
       { key: 'action:logout', section: 'actions', label: t('nav.userMenu.logout'), run: onLogout },
     ];
     const actions: CommandItem[] = actionDefs.map((item) => ({
@@ -134,7 +132,7 @@ export function CommandPalette({
       item.section !== 'history'
       && (item.label.toLowerCase().includes(keyword)
         || (item.hint?.toLowerCase().includes(keyword) ?? false)));
-  }, [t, tabs, query, history, hasPermission, onOpenPage, onLock, onToggleTheme, onToggleLanguage, onCreateRelease, onLogout]);
+  }, [t, tabs, query, history, hasPermission, onOpenPage, onLock, onToggleTheme, onToggleLanguage, onLogout]);
 
   // 列表随查询变化：选中项收敛到有效区间
   useEffect(() => {

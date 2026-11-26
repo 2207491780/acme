@@ -25,6 +25,34 @@ export const common = {
     visible: 'Visible',
     hidden: 'Hidden',
     loading: 'Loading…',
+    // Shared status labels (moved from the releases domain in REQ-20261126-125836)
+    draft: 'Draft',
+    building: 'Building',
+    testing: 'Testing',
+    approved: 'Ready',
+    published: 'Published',
+    failed: 'Failed',
+    cancelled: 'Cancelled',
+  },
+  platform: {
+    web: 'Web',
+    desktop: 'Electron',
+    mobile: 'Mobile',
+  },
+  platformFull: {
+    web: 'Web',
+    desktop: 'Desktop (Electron)',
+    mobile: 'Mobile',
+  },
+  env: {
+    dev: 'Dev',
+    test: 'Test',
+    prod: 'Prod',
+  },
+  health: {
+    healthy: 'Healthy',
+    warning: 'Watch',
+    critical: 'Critical',
   },
   table: {
     total: '{{total}} items in total',

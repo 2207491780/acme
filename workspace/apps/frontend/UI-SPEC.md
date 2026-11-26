@@ -203,32 +203,32 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 - **Mobile**：`ui.tsx ProgressBar`，轨道高 6 `palette.elevated`，填充 `color`，圆角 999，`percent` clamp 0–100。
 
 ### Input / 搜索
-- **Web**：AntD `Input`，`allowClear`，前缀搜索图标，`Ctrl/Cmd+K` 聚焦。
+- **Web**：AntD `Input`，`allowClear`，前缀搜索图标；各管理页按自身查询条件接入。
 - **Mobile**：`TextInput`，底 `surface`、边框 `border`、圆角 12、placeholder `muted`。
-- **共享**：搜索词进 `query.search`，过滤逻辑用 core `filterReleases`。
+- **共享**：搜索/筛选由各页面数据源承担，不设全局查询态。
 
 ### Table / 列表
-- **Web**：AntD `Table`，表头 `elevated`，行悬停 `withAlpha(cyan|blue,0.06)`，选中 `${accent}1f`；支持拖拽调序（`REORDER`）、批量选择。
+- **Web**：AntD `Table`，表头 `elevated`，行悬停 `withAlpha(cyan|blue,0.06)`，选中 `${accent}1f`；批量选择按页面权限与业务需要启用。
 - **列增强（REQ-20261117-140427）**：`CrudTable tableKey` / `useTableSettings` 提供列头多列筛选（低基数枚举多选、高基数关键词）与多列排序（本地语义：分页表仅当前页，设置面板明示口径）；工具栏「列设置」弹层支持列显隐（至少保留一列）、左/右固定（固定列归位边缘）、边框开关、重置默认；按 `acme.table-settings.v1:<tableKey>` 版本化持久化，损坏回退缺省。
 - **筛选栏布局（REQ-20261117-161500）**：筛选区独立于表格卡片（`FilterPanel`），字段落入等宽自适应网格 `repeat(auto-fill, minmax(min(100%, 240px), 1fr))`（gap 12/16，居中对齐）；统一 `FilterField` 行内小标签（12px/500/`text2`，`htmlFor` 关联控件，与控件同一行、标签不换行）+ 自适应宽控件，禁手写固定像素宽；表单型筛选（审计/登录日志）用 `layout="horizontal" labelAlign="left" colon={false}` 保持标签控件同行；时间范围等宽控件用 `filter-field-wide` 跨两列（≤575px 回落单列）；查询/重置动作行右对齐；折叠保值、ARIA（`aria-expanded`/`aria-controls`）与无进阶字段不渲染折叠入口的既有契约不变。
-- **Mobile**：`FlatList` + 可展开 `ReleaseCard`（无表格）；展开显示 notes/artifacts/timeline。
-- **共享**：排序/筛选用 core `sortReleases/filterReleases`；调序写 `state.order`。
+- **Mobile**：列表卡片为只读基座信息（应用/平台/健康度/版本）。
+- **共享**：排序/筛选为页面级行为，不依赖共享业务选择器。
 
 ### Drawer / Modal
 - **Web**：AntD `Drawer`（详情，右侧）/`Modal`（表单）；z 1000；遮罩 `scrim`。
 - **Mobile**：全屏 Screen 切换 + 展开卡片替代抽屉/弹窗（无模态依赖）。
-- **共享**：详情只读字段 + 状态流转按钮（`STATUS_ACTION`/`NEXT_STATUS`）。
+- **共享**：详情只读字段 + 页面级操作按钮；无跨页状态流转动作。
 
 ### Nav / 导航
-- **Web/PC**：固定 `Sider`（≥lg）+ 顶栏；<lg 仅用左抽屉（顶栏菜单按钮打开），不设固定底部导航条；当前项主色高亮，发布单带活跃数 `Badge`。
-- **Mobile**：底部 tabbar（dashboard/releases/apps/settings），当前项 accent pill + 活跃数 badge；顶部品牌条。
-- **共享**：四目的地一致；活跃数 = `ACTIVE_STATUSES` 计数。
+- **Web/PC**：固定 `Sider`（≥lg）+ 顶栏；<lg 仅用左抽屉（顶栏菜单按钮打开），不设固定底部导航条；当前项主色高亮。
+- **Mobile**：底部 tabbar（dashboard/apps/settings），当前项 accent pill；顶部品牌条。
+- **共享**：三目的地一致，导航显隐按 `me.permissions` fail-closed 过滤。
 
 ### CommandPalette / 命令面板（REQ-20261119-063129 契约⑤＋REQ-20261120-120552 增强）
 - **Web/PC**：Ctrl+K 开 antd Modal（顶部 20% 定位，宽 520）；输入过滤三节——页面/页签/快捷操作；键盘 ↑↓ 选择＋Enter 执行＋Esc 关闭；hover 选中；autofocus 与关面板焦点还原。
 - **权限对齐（AC-10）**：「页面」节经注入 `hasPermission(code?)` 过滤，与侧边导航同源（me.permissions；me 未加载 fail-closed），无 permission 路由恒可见；页签/快捷操作节不过滤。
 - **搜索历史（AC-6/7/8）**：空查询时顶部渲染「搜索历史」节——`acme.commandHistory.v1`（localStorage 持久化，最近 8 条、按 key 去重最近在前、运行时校验损坏回退空）；空态「没有搜索历史」；头部「清空」钮仅非空显示；执行页面/动作条目（含历史回放）记入历史（页签不记）；失效条目（路由移除/权限收回）不渲染。
-- **键位提示条（AC-11）**：面板底部「↵ 选择 / ↑↓ 导航 / ESC 关闭」（kbd 徽标视觉对齐 Header Ctrl K 徽标）；面板 placeholder「搜索导航菜单」；Header 搜索框 placeholder「搜索」。
+- **键位提示条（AC-11）**：面板底部「↵ 选择 / ↑↓ 导航 / ESC 关闭」（kbd 徽标视觉对齐既有键帽样式）；面板 placeholder「搜索导航菜单」。
 - **Mobile**：无对应结构（命令面板为指针/键盘桌面交互，Mobile 不复用）。
 
 ---
@@ -253,7 +253,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 - 时长取 `MOTION`：微交互 fast/base，进场 slow，构建进度 `tick`（1200ms）。
 - `settings.motion=false` 或 `prefers-reduced-motion` → 关闭所有动画/过渡（Web 由 `data-motion` + 媒体查询；Mobile `TICK` 副作用 gated by `motion`）。
 - 反馈：hover 边框变主色 + 轻微抬升（≤2px），无光晕；pressed 降不透明度；状态流转即时更新 + 活动流（`TONE_COLOR` 点 + `relTime`）。
-- 破坏性操作（删除）必须可撤销（`RESTORE_RELEASES` + Undo Toast）。
+- 破坏性操作（删除）须有明确确认与结果反馈；业务数据删除的可撤销能力由各管理页自行提供。
 
 ## 7. 无障碍 / 对比
 
@@ -271,7 +271,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 4. 语义标签：Web 用 `*_ANTD`，Mobile 用 `*_COLORS`/`TONES`。
 5. 跑 `pnpm -r typecheck && pnpm -r test`；改令牌再跑 `pnpm ui:guide`。
 6. 打开 `ui-spec/style-guide.html`，切换 6 强调色 × 暗/亮 × 两密度，核对 Web/Mobile 两栏一致、无 console 错误。
-7. 真机/浏览器验证主流程（创建→流转→删除→撤销）后再交付。
+7. 浏览器/设备验证基座主流程（概览数据 → 应用结构 → 设置与主题偏好）后再交付。
 
 ## 9. 验证锚点
 

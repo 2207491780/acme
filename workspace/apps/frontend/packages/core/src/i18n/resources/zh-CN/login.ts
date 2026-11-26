@@ -2,7 +2,6 @@
 export const login = {
   brand: {
     title: 'Acme SaaS 云平台',
-    subtitle: 'MULTI-TENANT CLOUD · 多租户发布流程云平台',
   },
   features: {
     tenantIsolation: '租户隔离：数据 / 配置 / 配额按租户硬隔离，互不可见',

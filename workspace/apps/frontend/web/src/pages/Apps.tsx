@@ -1,8 +1,6 @@
 import { App, Button, Card, Col, Descriptions, Row, Space, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { ApartmentOutlined, AppstoreOutlined, CopyOutlined, EditOutlined, UnorderedListOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import type { Platform } from '@acme/core';
+import { ApartmentOutlined, AppstoreOutlined, CopyOutlined, EditOutlined } from '@ant-design/icons';
 import { useStore } from '../store/useStore';
 import { HealthTag, PlatformIcon } from '../components/atoms';
 import { PageHead } from '../components/PageHead';
@@ -31,20 +29,12 @@ function DirectoryTree() {
 export function Apps() {
   const { t } = useTranslation();
   const { message } = App.useApp();
-  const navigate = useNavigate();
   const apps = useStore((s) => s.state.apps);
-  const releases = useStore((s) => s.state.releases);
-  const setQuery = useStore((s) => s.setQuery);
   const openModal = useStore((s) => s.openModal);
 
   const copy = async (text: string) => {
     const ok = await copyText(text);
     message[ok ? 'success' : 'error'](ok ? t('apps.copy.done', { text }) : t('apps.copy.failed'));
-  };
-
-  const viewReleases = (platform: Platform) => {
-    setQuery({ platform, status: 'all' });
-    navigate('/releases');
   };
 
   return (
@@ -57,7 +47,6 @@ export function Apps() {
 
       <Row gutter={[18, 18]} style={{ marginBottom: 18 }}>
         {apps.map((app) => {
-          const count = releases.filter((r) => r.appId === app.id).length;
           return (
             <Col xs={24} md={12} xl={8} key={app.id}>
               <Card
@@ -81,12 +70,10 @@ export function Apps() {
                     { key: 'v', label: t('apps.card.currentVersion'), children: `v${app.version}` },
                     { key: 'o', label: t('apps.card.owner'), children: app.owner },
                     { key: 'h', label: t('apps.card.health'), children: <HealthTag health={app.health} /> },
-                    { key: 'c', label: t('apps.card.releases'), children: t('apps.card.releaseCount', { n: count }) },
                   ]}
                 />
                 <Space style={{ marginTop: 16 }}>
                   <Button size="small" icon={<CopyOutlined />} onClick={() => copy(app.path)}>{t('apps.card.copyPath')}</Button>
-                  <Button size="small" type="text" icon={<UnorderedListOutlined />} onClick={() => viewReleases(app.platform)}>{t('apps.card.viewReleases')}</Button>
                 </Space>
               </Card>
             </Col>

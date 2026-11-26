@@ -3,10 +3,12 @@
 // 使测试可在无 navigator mock 的情况下直接断言路由常量与映射表。
 import type { LinkingOptions, NavigatorScreenParams } from '@react-navigation/native';
 
-/** 主 Tabs 路由名 = 既有 TabKey（语义/顺序与旧手动切换完全一致）。 */
-export type TabKey = 'dashboard' | 'releases' | 'apps' | 'settings';
+/** 主 Tabs 路由名 = 既有 TabKey（语义/顺序与旧手动切换完全一致）。
+ *  REQ-20261126-125836：releases Tab 随发布单演示域删除；深链 acme://releases 由
+ *  resolveDeepLinkPath 的非法路径兜底回落 dashboard。 */
+export type TabKey = 'dashboard' | 'apps' | 'settings';
 
-export const TAB_KEYS: readonly TabKey[] = ['dashboard', 'releases', 'apps', 'settings'];
+export const TAB_KEYS: readonly TabKey[] = ['dashboard', 'apps', 'settings'];
 
 /** Stack 层路由：登录屏为 Stack 首屏（initialRouteName），Main 承载主 Tabs；
  *  QrConfirm 为扫码确认屏（REQ-20261119-040838，Login push 进入，不参与深链映射）。 */
@@ -39,14 +41,15 @@ export const TAB_PATHS: Readonly<Record<TabKey, string>> = TAB_KEYS.reduce(
 
 /**
  * 纯函数：深链路径 → TabKey。非法/未知路径回 dashboard（AC-2）。
- * 兼容可选的前导斜杠与 query/hash 尾巴：'releases'、'/settings'、'apps?x=1' 均可解析。
+ * 兼容可选的前导斜杠与 query/hash 尾巴：'/settings'、'apps?x=1' 均可解析；
+ * 历史 'releases' 路径无对应 Tab，回落 dashboard。
  */
 export function resolveDeepLinkPath(path: string): TabKey {
   const segment = (path ?? '').replace(/^\/+/, '').split(/[/?#]/)[0] ?? '';
   return (TAB_KEYS as readonly string[]).includes(segment) ? (segment as TabKey) : 'dashboard';
 }
 
-/** NavigationContainer 深链配置：acme://releases → Main Tabs 的 releases 屏（冷启动与运行态同径）。 */
+/** NavigationContainer 深链配置：acme://dashboard|apps|settings → Main Tabs 对应屏（冷启动与运行态同径）。 */
 export const linking: LinkingOptions<RootStackParamList> = {
   prefixes: [...LINK_PREFIXES],
   config: {

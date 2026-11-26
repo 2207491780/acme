@@ -2,7 +2,6 @@
 export const login = {
   brand: {
     title: 'Acme SaaS Cloud Platform',
-    subtitle: 'MULTI-TENANT CLOUD · Release Delivery Platform',
   },
   features: {
     tenantIsolation: 'Tenant isolation: data / config / quotas are hard-isolated per tenant',

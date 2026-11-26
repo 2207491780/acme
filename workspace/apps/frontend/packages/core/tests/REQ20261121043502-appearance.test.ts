@@ -48,7 +48,7 @@ const V4_DEFAULTS = {
   siderTone: 'auto' as const,
   topbarWidgets: {
     search: true, bell: true, lang: true, timezone: true, appearance: true,
-    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true,
   },
 };
 

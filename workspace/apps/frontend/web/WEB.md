@@ -1,6 +1,6 @@
 # web — Web 端
 
-浏览器端 React SPA，也是 PC 桌面端的页面/产物来源。实现「ACME 多端前端交付台」：发布单的创建、编辑、删除、搜索、筛选、排序、拖拽调序、批量操作、保存视图、撤销、详情抽屉与状态流转（草稿→构建→测试→审批→发布），数据持久化于 localStorage。
+浏览器端 React SPA，也是 PC 桌面端的页面/产物来源。承载「ACME 多端前端交付台」的基座：概览与平台数据、应用与工程结构、租户/权限/流程/调度/审计等管理页、主题偏好与命令面板；三端清单与偏好数据持久化于 localStorage。
 
 ## 技术栈
 
@@ -22,12 +22,11 @@ web/
 │   ├── App.tsx             # ConfigProvider + 路由 + 布局
 │   ├── theme.ts            # Ant Design 主题令牌 / 强调色
 │   ├── store/useStore.ts   # Zustand 包裹 core reducer + 持久化 + UI 态
-│   ├── hooks/useReleaseActions.tsx
-│   ├── components/         # atoms / PageHead / ReleaseDrawer / ReleaseFormModal / AppFormModal / SaveViewModal
-│   ├── pages/              # Dashboard / Releases / Apps / Settings
+│   ├── components/         # atoms / PageHead / AppFormModal / CommandPalette / PreferencesDrawer 等
+│   ├── pages/              # Dashboard / Apps / Settings 与各管理页
 │   ├── utils/dom.ts        # 存储适配器、复制、下载、平台探测
 │   └── styles/global.css   # 设计系统：背景/滚动条/响应式
-└── tests/                  # Vitest：store（22 用例）/ theme（6 用例）
+└── tests/                  # Vitest：store / theme / 偏好 / 页签 / 权限等回归用例
 ```
 
 ## 常用命令（相对 `web/`）

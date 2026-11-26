@@ -92,7 +92,8 @@ const TOKENS = {
   gradients,
   statusOrder: STATUS_ORDER,
   statusTone: Object.fromEntries(STATUS_ORDER.map((s) => [s, core.statusTone(s)])),
-  statusLabel: Object.fromEntries(STATUS_ORDER.map((s) => [s, core.statusLabel(s)])),
+  // REQ-20261126-125836：core.statusLabel 已删除，共享标签迁至 i18n common.status 域
+  statusLabel: Object.fromEntries(STATUS_ORDER.map((s) => [s, core.i18n.t(`common.status.${s}`)])),
   statusColor: Object.fromEntries(STATUS_ORDER.map((s) => [s, core.statusColor(s)])),
   platformShort: Object.fromEntries(['web', 'desktop', 'mobile'].map((p) => [p, core.platformShort(p)])),
   envLabel: Object.fromEntries(['dev', 'test', 'prod'].map((e) => [e, core.envLabel(e)])),

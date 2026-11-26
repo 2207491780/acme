@@ -1,12 +1,12 @@
 # ACME · 多端交付台 / Frontend Delivery Console
 
-> **中文**：ACME 是一套多租户、多端协同的软件交付与运维平台。统一管理 Web、Electron 桌面端与移动端的发布流程，内置 BPM 工作流审批、任务调度、组织权限与审计体系；仓库同时维护一套「单一事实源、一条命令派生」的 AI Coding 配置体系。
+> **中文**：ACME 是一套多租户、多端协同的软件交付与运维平台。统一维护 Web、Electron 桌面端与移动端的多端基座（共享 core、租户身份与权限体系），内置 BPM 工作流审批、任务调度、组织权限与审计体系；仓库同时维护一套「单一事实源、一条命令派生」的 AI Coding 配置体系。
 >
-> **English**: ACME is a multi-tenant delivery and operations platform. It coordinates releases across Web, Electron desktop and mobile, with built-in BPM approvals, job scheduling, RBAC and audit trails — plus a single-source, one-command-sync AI Coding configuration system.
+> **English**: ACME is a multi-tenant delivery and operations platform. It maintains one foundation across Web, Electron desktop and mobile (shared core, tenant identity and RBAC), with built-in BPM approvals, job scheduling, audit trails — plus a single-source, one-command-sync AI Coding configuration system.
 
 ![ACME 概览 / ACME Overview](docs/screenshots/dashboard.png)
 
-<p align="center"><i>概览：发布指标、流水线阶段、平台健康度与动态 / Overview: release metrics, pipeline stages, platform health and activity feed</i></p>
+<p align="center"><i>概览：平台数据、多端基座与快捷入口 / Overview: platform data, multi-client foundation and quick access</i></p>
 
 ## 目录 / Contents
 
@@ -29,7 +29,7 @@
 
 | 能力 / Capability | 说明（中文） | English |
 |---|---|---|
-| 多端发布 / Multi-client releases | Web / Electron / Mobile 发布单统一管理：草稿 → 构建 → 测试 → 审批 → 发布，支持拖拽排序、批量流转、保存视图与删除撤销 | One release pipeline for Web, Electron and Mobile: draft → build → test → approval → publish, with drag-and-drop ordering, bulk actions, saved views and undo |
+| 多端基座 / Multi-client foundation | Web 为页面唯一来源，Electron 复用 Web 构建产物，移动端共享 `@acme/core` 业务层与租户身份 | Web is the single source of pages, Electron reuses the web build, and mobile shares the `@acme/core` business layer and tenant identity |
 | BPM 工作流 / Workflow | 可视化流程设计器（BPMN XML、校验、导入导出、版本对比、部署）与待办中心（认领、转办、加签、完成、驳回） | Visual BPMN designer (validation, import/export, version diff, deploy) and a todo center with claim, transfer, delegate, complete and reject |
 | 调度中心 / Scheduler | 任务定义、执行历史、执行器监控；支持 cron / fixed-rate / once 与手动触发 | Job definitions, execution history and executor monitoring; cron / fixed-rate / once schedules plus manual triggers |
 | 多租户与权限 / Tenancy & RBAC | 三级租户层级、套餐与配额、用户/角色/菜单/数据范围、按钮级权限码、动态导航 | Three-level tenant hierarchy, packages and quotas, users/roles/menus/data scope, button-level permission codes and dynamic navigation |
@@ -46,10 +46,6 @@
 ### 概览（中文） / Dashboard (Chinese)
 
 ![概览中文](docs/screenshots/dashboard.png)
-
-### 发布单管理 / Release Orders
-
-![发布单管理](docs/screenshots/releases.png)
 
 ### BPM 流程设计器 / BPM Process Designer
 

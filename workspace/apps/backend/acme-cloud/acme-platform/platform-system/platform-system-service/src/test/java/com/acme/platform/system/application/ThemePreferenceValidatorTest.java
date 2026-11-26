@@ -232,6 +232,21 @@ class ThemePreferenceValidatorTest {
     }
 
     @Test
+    void should_accept_legacy_release_widget_when_theme_preference_validated() {
+        // REQ-20261126-125836 AC-7：release 键保留在白名单中、语义改为 legacy-tolerant，
+        // 含 release:true/false 的 v3 载荷 validate 不抛异常；未知键（themeSwitch）仍拒绝。
+        for (boolean legacyValue : new boolean[]{false, true}) {
+            Map<String, Object> widgets = new LinkedHashMap<>();
+            widgets.put("search", true);
+            widgets.put("bell", false);
+            widgets.put("release", legacyValue);
+            assertThatCode(() -> ThemePreferenceValidator.validate(badBlob("topbarWidgets", widgets)))
+                    .as("legacy topbarWidgets.release=%s 应被接受".formatted(legacyValue))
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    @Test
     void should_reject_when_topbar_widgets_unknown_key() {
         assertThatThrownBy(() -> ThemePreferenceValidator.validate(badBlob("topbarWidgets",
                 Map.of("search", true, "themeSwitch", true))))

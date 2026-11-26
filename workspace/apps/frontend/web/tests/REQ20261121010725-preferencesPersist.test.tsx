@@ -39,7 +39,7 @@ const CUSTOM_PREFS: ThemePreferences = {
   siderTone: 'dark',
   topbarWidgets: {
     search: false, bell: false, lang: true, timezone: false, appearance: true,
-    themeToggle: false, lock: true, fullscreen: false, settings: true, release: false,
+    themeToggle: false, lock: true, fullscreen: false, settings: true,
   },
 };
 
@@ -82,7 +82,7 @@ describe('REQ20261121010725 持久化键（契约钉死）', () => {
       layoutMode: 'sidebar', tabStyle: 'line', siderTone: 'auto',
       topbarWidgets: {
         search: true, bell: true, lang: true, timezone: true, appearance: true,
-        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true,
       },
     });
   });
@@ -140,7 +140,7 @@ describe('REQ20261121010725 偏好重载恢复（AC-6 刷新保持 / AC-8 重载
         layoutMode: 'sidebar', tabStyle: 'line', siderTone: 'auto',
         topbarWidgets: {
           search: true, bell: true, lang: true, timezone: true, appearance: true,
-          themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+          themeToggle: true, lock: true, fullscreen: true, settings: true,
         },
       });
     });

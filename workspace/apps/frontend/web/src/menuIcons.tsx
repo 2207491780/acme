@@ -30,7 +30,7 @@ import {
   SolutionOutlined, SortAscendingOutlined, SoundOutlined, SplitCellsOutlined, StarOutlined, StopOutlined,
   SubnodeOutlined, SwitcherOutlined, SyncOutlined, TableOutlined, TabletOutlined, TagOutlined,
   TagsOutlined, TeamOutlined, ThunderboltOutlined, ToTopOutlined, ToolOutlined, TransactionOutlined,
-  TranslationOutlined, TrophyOutlined, TruckOutlined, UndoOutlined, UnlockOutlined, UnorderedListOutlined,
+  TranslationOutlined, TrophyOutlined, TruckOutlined, UndoOutlined, UnlockOutlined,
   UploadOutlined, UserAddOutlined, UserDeleteOutlined, UserOutlined, UserSwitchOutlined, UsergroupAddOutlined,
   VerifiedOutlined, VerticalAlignTopOutlined, VideoCameraOutlined, WalletOutlined, WarningOutlined, WifiOutlined,
   WomanOutlined,
@@ -97,7 +97,6 @@ export interface MenuIconOption {
 
 export const MENU_ICON_OPTIONS: MenuIconOption[] = [
   { code: 'dashboard', icon: <DashboardOutlined />, keywords: '仪表盘 首页 概览', source: 'antd' },
-  { code: 'releases', icon: <UnorderedListOutlined />, keywords: '发布单 列表', source: 'antd' },
   { code: 'apps', icon: <AppstoreOutlined />, keywords: '应用 模块', source: 'antd' },
   { code: 'tenants', icon: <ApartmentOutlined />, keywords: '租户 组织', source: 'antd' },
   { code: 'users', icon: <UserOutlined />, keywords: '用户', source: 'antd' },

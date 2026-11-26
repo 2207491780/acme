@@ -2,7 +2,6 @@
 export const nav = {
   items: {
     dashboard: 'Overview',
-    releases: 'Releases',
     apps: 'App Structure',
     tenants: 'Tenants',
     tenantPackages: 'Tenant Packages',
@@ -51,7 +50,6 @@ export const nav = {
       actions: 'Quick actions',
     },
     empty: 'No results',
-    createRelease: 'New release',
     // REQ-20261120-120552: search history section (empty state / clear button) and bottom key hints bar
     history: 'Search history',
     noHistory: 'No search history',
@@ -64,8 +62,7 @@ export const nav = {
   },
   header: {
     toggleNav: 'Toggle navigation',
-    // REQ-20261120-120552: header search box semantics reduced to "Search" (quick entry to the command palette)
-    searchPlaceholder: 'Search',
+    // REQ-20261126-125836: the release search box and its Ctrl+K badge were removed with the demo feature
     runtimeWeb: 'Web',
     runtimeDesktop: 'Electron Desktop',
     runtimeMobile: 'Mobile',
@@ -77,9 +74,6 @@ export const nav = {
     timezone: 'Switch time zone',
     settings: 'Settings',
     openUserMenu: 'Open user menu',
-    create: 'New',
-    // aria label for the header create button (disambiguated from in-page CrudTable "New")
-    createAria: 'Create release',
   },
   userMenu: {
     rolesLabel: 'Roles: {{roles}}',
@@ -119,7 +113,6 @@ export const nav = {
   mobile: {
     tabs: {
       dashboard: 'Home',
-      releases: 'Releases',
       apps: 'Apps',
       settings: 'Settings',
     },

@@ -1,41 +1,32 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_PREFERENCES,
   STORAGE_KEY,
   parseState,
-  reduce,
   seedState,
 } from '@acme/core';
-import type { AppState, ReleaseInput, StorageLike } from '@acme/core';
+import type { AppState, StorageLike } from '@acme/core';
 import { createMobileStore } from '../src/store/useStore';
 import { memoryStorage } from '../src/utils/storage';
 
 /**
- * REQ-20261114-120110 AC-3（parse-state 校验管道层）：
- * AsyncStorage 落地后冷启动恢复仍走 core `loadState → parseState` 运行时校验管道
- * （本层以 StorageLike 抽象断言管道语义，AsyncStorage 适配器接入层用例见
- * REQ20261114120110-storage.test.ts）。断言口径=契约 AC-3：
- *   ① given 持久化合法业务态 when 冷启动 then 状态恢复；
- *   ② given 持久化数据非法 when 冷启动 then 回落种子态、不崩溃，且后续写入恢复正常
- *      （数据非法时不得污染/覆盖有效状态）。
- * 范本：mobile/tests/store.test.ts（memoryStorage 注入 + createMobileStore）。
+ * REQ-20261114-120110 AC-3（parse-state 校验管道层，REQ-20261126-125836 适配）：
+ * AsyncStorage 落地后冷启动恢复仍走 core `loadState → parseState` 运行时校验管道。
+ * 发布单域已删除：合法持久化面改为 apps/settings；旧 blob 的 releases/order/savedViews/
+ * activity 字段接受但忽略，非法输入仍回落种子态、不覆盖有效状态。
  */
-
 const now = Date.now();
 
-const validInput: ReleaseInput = {
-  title: '移动端持久化恢复',
-  appId: 'mobile',
-  version: '1.4.0',
-  env: 'test',
-  owner: '苏然',
-  priority: 1,
-  notes: '',
-};
-
-/** 经 core reducer 产出的合法状态（与运行时写入存储的数据同构）。 */
+/** 经 core reducer 产出的合法基座状态（settings 与种子可区分）。 */
 function validPersistedState(): AppState {
   const base = seedState(now);
-  return reduce(base, { type: 'CREATE_RELEASE', payload: validInput }, now);
+  return {
+    ...base,
+    settings: {
+      ...base.settings,
+      preferences: { ...DEFAULT_PREFERENCES, mode: 'light', accent: 'emerald' },
+    },
+  };
 }
 
 function storeOn(rawStorage: StorageLike) {
@@ -46,25 +37,38 @@ function seedRaw(storage: StorageLike, raw: string): void {
   storage.setItem(STORAGE_KEY, raw);
 }
 
-beforeEach(() => {
-  // 每用例独立存储与时间基准，避免跨用例串扰
-});
+const settingsMode = (state: AppState): string =>
+  (state.settings as unknown as { preferences: { mode: string } }).preferences.mode;
 
 describe('REQ20261114120110 冷启动恢复 parse-state 校验管道（AC-3）', () => {
   it('should_restore_persisted_state_on_cold_start_when_persisted_data_valid', () => {
     const storage = memoryStorage();
     seedRaw(storage, JSON.stringify(validPersistedState()));
 
-    const store = storeOn(storage);
+    const restored = storeOn(storage).getState().state;
 
-    // 冷启动：持久化的业务态（含新增发布单）原样恢复
-    const restored = store.getState().state;
-    const created = restored.releases.find((r) => r.title === validInput.title);
-    expect(created).toBeTruthy();
-    expect(created!.platform).toBe('mobile');
-    expect(created!.version).toBe(validInput.version);
-    // 恢复的是完整状态而非种子（种子无该标题发布单）
-    expect(seedState(now).releases.some((r) => r.title === validInput.title)).toBe(false);
+    expect(restored.apps).toEqual(seedState(now).apps);
+    expect(settingsMode(restored)).toBe('light');
+    expect(settingsMode(seedState(now))).not.toBe('light'); // 恢复持久化状态而非种子
+  });
+
+  it('should_ignore_legacy_release_fields_when_loading_old_state', () => {
+    const storage = memoryStorage();
+    const legacy = {
+      ...validPersistedState(),
+      releases: [null, { id: 'REL-1', version: 123 }],
+      order: ['REL-1', 42],
+      savedViews: [{ id: 1, name: null }],
+      activity: [{ id: '', at: 'invalid', text: null }],
+    };
+    seedRaw(storage, JSON.stringify(legacy));
+
+    const restored = storeOn(storage).getState().state;
+    expect(settingsMode(restored)).toBe('light');
+    for (const key of ['releases', 'order', 'savedViews', 'activity']) {
+      expect(key in restored, `旧字段 ${key} 应被接受但忽略`).toBe(false);
+    }
+    expect(parseState(legacy, now)).not.toBeNull();
   });
 
   it('should_fallback_to_seed_when_persisted_json_broken', () => {
@@ -73,63 +77,33 @@ describe('REQ20261114120110 冷启动恢复 parse-state 校验管道（AC-3）',
 
     const store = storeOn(storage);
 
-    // 坏 JSON：不崩溃，回落种子态（14 条种子发布单）
-    expect(store.getState().state.releases).toHaveLength(14);
+    expect(store.getState().state.apps).toHaveLength(3);
     expect(parseState(JSON.parse(JSON.stringify(store.getState().state)), now)).not.toBeNull();
   });
 
   it('should_fallback_to_seed_when_persisted_field_type_invalid', () => {
     const storage = memoryStorage();
-    const corrupted = validPersistedState() as unknown as { releases: Array<Record<string, unknown>> };
-    // release.version 字段类型非法（数字而非字符串）→ parseState 拒绝
-    corrupted.releases[0]!.version = 123;
+    const corrupted = validPersistedState() as unknown as { apps: Array<Record<string, unknown>> };
+    corrupted.apps[0]!.health = 'unknown';
     seedRaw(storage, JSON.stringify(corrupted));
 
     const store = storeOn(storage);
 
-    // 非法数据不覆盖有效状态：整体回落种子态，而不是部分采用损坏数据
-    expect(store.getState().state.releases).toHaveLength(14);
-    expect(
-      store.getState().state.releases.some((r) => r.title === validInput.title),
-    ).toBe(false);
+    expect(store.getState().state.apps).toEqual(seedState(now).apps);
+    expect(settingsMode(store.getState().state)).toBe(settingsMode(seedState(now)));
   });
 
   it('should_restore_persisted_state_when_settings_projection_key_corrupted', () => {
     const storage = memoryStorage();
     const corrupted = validPersistedState() as unknown as { settings: Record<string, unknown> };
-    // THEME-3（REQ-20261121-200415 ⑧）：parse-state 投影 fail-closed 校验已删除，
-    // settings.theme 为未知键（归一化丢弃），不再触发整体回落种子；
-    // preferences 唯一事实源不受污染，水合正常完成。
     corrupted.settings.theme = 'neon';
     seedRaw(storage, JSON.stringify(corrupted));
 
     const store = storeOn(storage);
 
-    // ⑧ 后：未知键丢弃、解析成功 → 持久化业务态完整恢复（14 种子 + 1 新建 = 15）
-    expect(store.getState().state.releases).toHaveLength(15);
-    expect(
-      store.getState().state.releases.some((r) => r.title === validInput.title),
-    ).toBe(true);
-    const settings = store.getState().state.settings as unknown as {
-      preferences?: { mode: string };
-      theme?: unknown;
-    };
-    expect(settings.preferences?.mode).toBe(
-      (seedState(now).settings as unknown as { preferences: { mode: string } }).preferences.mode,
-    );
+    expect(settingsMode(store.getState().state)).toBe('light');
+    const settings = store.getState().state.settings as unknown as { theme?: unknown };
     expect('theme' in settings, '投影字段 theme 删除后不得残留').toBe(false);
-  });
-
-  it('should_fallback_to_seed_when_order_references_unknown_release', () => {
-    const storage = memoryStorage();
-    const corrupted = validPersistedState() as unknown as { order: string[] };
-    // order 引用不存在的发布单 id（parse-state 唯一性/引用校验）
-    corrupted.order = ['release-not-exist'];
-    seedRaw(storage, JSON.stringify(corrupted));
-
-    const store = storeOn(storage);
-
-    expect(store.getState().state.releases).toHaveLength(14);
   });
 
   it('should_recover_persistence_after_invalid_data_when_user_dispatches', () => {
@@ -137,22 +111,22 @@ describe('REQ20261114120110 冷启动恢复 parse-state 校验管道（AC-3）',
     seedRaw(storage, '{not-json');
 
     const store = storeOn(storage);
-    // 非法数据回落后，后续业务写入恢复正常持久化（有效状态不被坏数据卡死）
-    const ok = store.getState().dispatch({ type: 'CREATE_RELEASE', payload: validInput });
+    const ok = store.getState().dispatch({
+      type: 'UPDATE_SETTINGS',
+      patch: { preferences: { ...DEFAULT_PREFERENCES, mode: 'dark' } },
+    });
     expect(ok).toBe(true);
-    expect(store.getState().state.releases).toHaveLength(15);
+    expect(settingsMode(store.getState().state)).toBe('dark');
 
     const persisted = storage.getItem(STORAGE_KEY);
     expect(persisted).not.toBeNull();
-    const reparsed = parseState(JSON.parse(persisted!), now);
-    expect(reparsed).not.toBeNull();
-    expect(reparsed!.releases.some((r) => r.title === validInput.title)).toBe(true);
+    expect(parseState(JSON.parse(persisted!), now)).not.toBeNull();
+    expect(settingsMode(parseState(JSON.parse(persisted!), now)!)).toBe('dark');
   });
 
-  it('should_return_null_from_parse_state_when_release_platform_mismatches_app', () => {
-    // parse-state 运行时校验契约直证：release.platform 与所属 app.platform 不一致 → 拒绝
-    const corrupted = validPersistedState() as unknown as { releases: Array<Record<string, unknown>> };
-    corrupted.releases[0]!.platform = 'web';
+  it('should_return_null_from_parse_state_when_app_platform_mismatches', () => {
+    const corrupted = validPersistedState() as unknown as { apps: Array<Record<string, unknown>> };
+    corrupted.apps[0]!.platform = 'native';
     expect(parseState(corrupted, now)).toBeNull();
   });
 });

@@ -1,9 +1,9 @@
 // App 壳（REQ-20261119-032108 重构）：react-navigation v7 接入。
 // 层级：ThemeProvider（preferences.mode 三态解析 → resolvePalette）→ ToastProvider（顶层 toast）→
 // SafeAreaView[StatusBar 联动 + 离线横幅 + 品牌头] → ErrorBoundary（外层防线）→
-// NavigationContainer(linking) → Stack[Login(initial) → Main(Tabs: 4 Tab，各含内层 ErrorBoundary)]。
+// NavigationContainer(linking) → Stack[Login(initial) → Main(Tabs: 3 Tab，各含内层 ErrorBoundary)]。
 // 登录语义（契约⑨）：AuthNavigator 统一联动 session——建立 → replace 主 Tabs；登出 → reset 回 Login；
-// 深链（契约⑦⑧）：linking prefixes acme:// + 四 Tab 路径映射（nav.ts 单一事实源）。
+// 深链（契约⑦⑧）：linking prefixes acme:// + 三 Tab 路径映射（nav.ts 单一事实源）。
 import { useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
 import {
@@ -15,7 +15,6 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { ACTIVE_STATUSES } from '@acme/core';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -29,7 +28,7 @@ import { startAuthRenewal } from './src/api/client';
 import { registerPushTokenAfterLogin } from './src/utils/push';
 import { initMobileStorage } from './src/utils/storage';
 import { hydrateDicts } from './src/use-dict';
-import { useAccent, useOnAccent } from './src/hooks';
+import { useAccent } from './src/hooks';
 import { useNetworkStatus } from './src/hooks/useNetworkStatus';
 import { usePreferencesSync } from './src/hooks/usePreferencesSync';
 import { ThemeProvider, useAppTheme, barStyleFor } from './src/theme';
@@ -45,7 +44,6 @@ import {
   type TabKey,
 } from './src/nav';
 import { DashboardScreen } from './src/screens/DashboardScreen';
-import { ReleasesScreen } from './src/screens/ReleasesScreen';
 import { AppsScreen } from './src/screens/AppsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -53,12 +51,11 @@ import { QrConfirmScreen } from './src/screens/QrConfirmScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ToastProvider, toast } from './src/components/ui';
 import type { NeutralPalette } from '@acme/core';
-import { BrandMark, IconDashboard, IconReleases, IconApps, IconSettings } from './src/components/icons';
+import { BrandMark, IconDashboard, IconApps, IconSettings } from './src/components/icons';
 
 // 主 Tabs 元数据：label 走 i18n 键（nav.mobile.tabs.*，契约③），顺序 = TAB_KEYS。
 const TAB_META: Record<TabKey, { labelKey: string; Icon: ComponentType<{ color: string; size?: number }> }> = {
   dashboard: { labelKey: 'nav.mobile.tabs.dashboard', Icon: IconDashboard },
-  releases: { labelKey: 'nav.mobile.tabs.releases', Icon: IconReleases },
   apps: { labelKey: 'nav.mobile.tabs.apps', Icon: IconApps },
   settings: { labelKey: 'nav.mobile.tabs.settings', Icon: IconSettings },
 };
@@ -79,20 +76,16 @@ function withTabBoundary(Screen: ComponentType): ComponentType {
 
 const TAB_SCREENS: Record<TabKey, ComponentType> = {
   dashboard: withTabBoundary(DashboardScreen),
-  releases: withTabBoundary(ReleasesScreen),
   apps: withTabBoundary(AppsScreen),
   settings: withTabBoundary(SettingsScreen),
 };
 
-/** 自绘 TabBar（保持既有设计语言：accent pill + 活跃数 badge；路由状态来自 bottom-tabs）。 */
+/** 自绘 TabBar（保持既有设计语言：accent pill；路由状态来自 bottom-tabs）。
+ *  REQ-20261126-125836：发布活跃数 badge 随演示功能删除。 */
 function AppTabBar({ state, navigation }: BottomTabBarProps) {
   const accent = useAccent();
-  const onAccentHex = useOnAccent();
   const { palette } = useAppTheme();
   const { t } = useTranslation();
-  const activeCount = useStore(
-    (s) => s.state.releases.filter((r) => ACTIVE_STATUSES.includes(r.status)).length,
-  );
   const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View style={styles.tabbar}>
@@ -111,11 +104,6 @@ function AppTabBar({ state, navigation }: BottomTabBarProps) {
           >
             <View style={[styles.tabIconWrap, active ? { backgroundColor: `${accent}1f` } : null]}>
               <meta.Icon color={color} size={22} />
-              {key === 'releases' && activeCount > 0 ? (
-                <View style={[styles.badge, { backgroundColor: accent }]}>
-                  <Text style={[styles.badgeText, { color: onAccentHex }]}>{activeCount}</Text>
-                </View>
-              ) : null}
             </View>
             <Text style={[styles.tabLabel, { color }]}>{t(meta.labelKey)}</Text>
           </Pressable>
@@ -162,15 +150,13 @@ function AppShell() {
   const accent = useAccent();
   const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(palette), [palette]);
-  const dispatch = useStore((s) => s.dispatch);
-  const motion = useStore((s) => s.state.settings.preferences.motionEnabled);
   const offline = useNetworkStatus();
   // 登录态（login-app）：启动恢复安全存储会话 + 续约守护循环；未登录渲染登录 Stack
   const session = useAuthStore((s) => s.session);
   const hydrated = useAuthStore((s) => s.hydrated);
   const hydrate = useAuthStore((s) => s.hydrate);
   // 业务态持久化（REQ-20261114-120110 AC-3）：AsyncStorage 异步灌入同步镜像后重载
-  // store（loadState/loadQuery 经 parse-state/isQuery 运行时校验），完成前不渲染主界面
+  // store（loadState 经 parse-state 运行时校验），完成前不渲染主界面
   const [businessReady, setBusinessReady] = useState(false);
   const isAuthed = session != null;
   const barStyle = barStyleFor(theme);
@@ -184,7 +170,7 @@ function AppShell() {
     void useBSessionStore.getState().hydrate();
     const stopRenewal = startAuthRenewal();
     // 业务态持久化（REQ-20261114-120110 AC-3/AMB-5）：AsyncStorage 灌入同步镜像后重载
-    // store（loadState/loadQuery 经 parse-state 运行时校验），字典缓存同步灌回；
+    // store（loadState 经 parse-state 运行时校验），字典缓存同步灌回；
     // 就绪前不渲染主界面
     void initMobileStorage().then(() => {
       hydrateDicts();
@@ -204,12 +190,6 @@ function AppShell() {
       useMeStore.getState().clear();
     }
   }, [isAuthed]);
-
-  useEffect(() => {
-    if (!motion) return;
-    const timer = setInterval(() => dispatch({ type: 'TICK' }), 1200);
-    return () => clearInterval(timer);
-  }, [dispatch, motion]);
 
   // 推送令牌注册（REQ-20261119-082531 契约⑧，AC-8）：员工 B 会话建立（登录/冷启动恢复）后注册——
   // EXPO_PUBLIC_PROJECT_ID 缺省时降级跳过（不触系统模块、零外呼）并告知用户；同 token upsert 幂等。
@@ -325,17 +305,5 @@ const makeStyles = (p: NeutralPalette) =>
     },
     tab: { flex: 1, alignItems: 'center', gap: 4 },
     tabIconWrap: { width: 46, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    badge: {
-      position: 'absolute',
-      top: -4,
-      right: -2,
-      minWidth: 16,
-      height: 16,
-      borderRadius: 99,
-      paddingHorizontal: 4,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    badgeText: { fontSize: 10, fontWeight: '800' },
     tabLabel: { fontSize: 11, fontWeight: '600' },
   });

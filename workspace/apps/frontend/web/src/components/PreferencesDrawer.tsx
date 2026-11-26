@@ -68,7 +68,6 @@ const TOPBAR_WIDGET_ROWS: { key: TopbarWidgetKey; labelKey: string }[] = [
   { key: 'lock', labelKey: 'settings.preferences.layout.widgetLock' },
   { key: 'fullscreen', labelKey: 'settings.preferences.layout.widgetFullscreen' },
   { key: 'settings', labelKey: 'settings.preferences.layout.widgetSettings' },
-  { key: 'release', labelKey: 'settings.preferences.layout.widgetRelease' },
 ];
 
 export function PreferencesDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {

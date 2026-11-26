@@ -3,7 +3,7 @@
  *
  * 表面 = 契约确认记录②⑤⑥ + AC-6/AC-7 + 委派单钉死事实：
  *   - topbarWidgets=个人偏好级（Record<WidgetKey,boolean>，WidgetKey 枚举=契约②原文
- *     search/bell/lang/timezone/appearance/themeToggle/lock/fullscreen/settings/release，
+ *     search/bell/lang/timezone/appearance/themeToggle/lock/fullscreen/settings（release 键已移除 UI 呈现，legacy 容忍），
  *     缺省全显=现状逐字），与租户级水印/页脚控制（systemConfigStore）正交；
  *   - Header 按偏好条件渲染；重置=恢复缺省全显；
  *   - 偏好抽屉增「布局」分组：layoutMode/tabStyle/siderTone/topbarWidgets 开关组四控件，双语文案。
@@ -14,7 +14,7 @@
  * 交互口径（pitfalls #7/#8/#9/#10/#14 + THEME-1/2 先例）：
  *   - Segmented 以「选项集」联合锚定分组（防多组并存跨组误命中）；开关按祖先链最近命中标签定位；
  *   - widget 顶栏定位=aria-label/title/文本/placeholder 宽容正则（文案契约未钉死）；
- *   - 抽屉内 widget 开关组以「开关行标签能命中的 WidgetKey 并集 ≥ 9/10」断言齐备
+ *   - 抽屉内 widget 开关组以「开关行标签能命中的 WidgetKey 并集 ≥ 8/9」断言齐备
  *     （appearance/themeToggle 等行文案若与既有「外观」分组文案撞车，阈值容忍 1 键缺位）。
  *
  * 锚点校准注记（实现交付后自验轮收敛）：widget 按钮的可访问名/文案、抽屉分组标签均为
@@ -64,8 +64,13 @@ const WIDGET_PROBES: WidgetProbe[] = [
   { key: 'lock', header: /锁屏|锁定|lock/i, row: /锁屏|lock/i },
   { key: 'fullscreen', header: /全屏|full\s?screen|fullscreen/i, row: /全屏|full\s?screen|fullscreen/i },
   { key: 'settings', header: /(^|\s)(设置|Settings)(\s|$)/i, row: /设置(入口|按钮)|settings (entry|button)/i },
-  { key: 'release', header: /发布单|release|新建/i, row: /发布单|release|新建/i },
 ];
+
+/**
+ * Header 可见性探针：search 顶栏搜索框随 REQ-20261126-125836 ⑦ 移除（偏好开关仍保留），
+ * 因此 header 侧断言不含 search；抽屉开关组仍覆盖全部 9 键。
+ */
+const HEADER_WIDGET_PROBES = WIDGET_PROBES.filter((p) => p.key !== 'search');
 
 const widgetProbe = (key: string): WidgetProbe => {
   const probe = WIDGET_PROBES.find((p) => p.key === key);
@@ -329,11 +334,11 @@ describe('REQ20261122233427 顶栏 widget 开关显隐与持久化（AC-6）', (
   it('should_hide_and_show_header_widgets_and_persist_when_widget_switch_operated', async () => {
     await renderApp();
 
-    // 基线正控：缺省全显=现状逐字——10 个 WidgetKey 顶栏探针全部可定位（失败时 dump 顶栏控件面校准）
+    // 基线正控：缺省全显=现状——除已移除的 Header 搜索框外，8 个 widget 顶栏探针可定位（失败时 dump 顶栏控件面校准）
     const headerDump = (): string => headerControls()
       .map((el) => `${el.tagName}[${(el.className || '').toString().slice(0, 40)}]|${el.getAttribute('aria-label') ?? ''}|${(el.textContent ?? '').slice(0, 12)}`)
       .join(' ; ');
-    for (const probe of WIDGET_PROBES) {
+    for (const probe of HEADER_WIDGET_PROBES) {
       expect(
         findWidgetInHeader(probe.header),
         `缺省顶栏应可见 widget ${probe.key}（探针 ${probe.header}）——顶栏控件面：${headerDump()}`,
@@ -365,7 +370,7 @@ describe('REQ20261122233427 顶栏 widget 开关显隐与持久化（AC-6）', (
       for (const key of ['search', 'lock', 'fullscreen']) {
         expect(findWidgetInHeader(widgetProbe(key).header), `关闭后顶栏不应再渲染 ${key}`).toBeNull();
       }
-      for (const key of ['bell', 'lang', 'timezone', 'appearance', 'themeToggle', 'settings', 'release']) {
+      for (const key of ['bell', 'lang', 'timezone', 'appearance', 'themeToggle', 'settings']) {
         expect(findWidgetInHeader(widgetProbe(key).header), `未关闭键 ${key} 顶栏应保持可见`).toBeTruthy();
       }
     });
@@ -378,7 +383,8 @@ describe('REQ20261122233427 顶栏 widget 开关显隐与持久化（AC-6）', (
     });
     await waitFor(() => {
       expect((currentPrefsLoose()['topbarWidgets'] as Record<string, unknown>)['search']).toBe(true);
-      expect(findWidgetInHeader(widgetProbe('search').header), '重开后顶栏应恢复 search').toBeTruthy();
+      // ⑦：Header 搜索框已删除，search 偏好仅保留在偏好面，不回到顶栏
+      expect(findWidgetInHeader(widgetProbe('search').header)).toBeNull();
     });
   });
 
@@ -411,9 +417,10 @@ describe('REQ20261122233427 顶栏 widget 开关显隐与持久化（AC-6）', (
     await waitFor(() => {
       expect(blobPrefs()?.['topbarWidgets']).toEqual(allWidgetsVisible());
     });
-    for (const probe of WIDGET_PROBES) {
+    for (const probe of HEADER_WIDGET_PROBES) {
       expect(findWidgetInHeader(probe.header), `重置后顶栏应恢复 widget ${probe.key}`).toBeTruthy();
     }
+    expect(findWidgetInHeader(widgetProbe('search').header), '⑦ Header 搜索框不应随重置复现').toBeNull();
   });
 
   it('should_keep_tenant_system_config_untouched_when_widget_toggled', async () => {
@@ -458,14 +465,14 @@ describe('REQ20261122233427 偏好抽屉「布局」分组四控件（AC-7）', 
     // 控件三：siderTone 两选项（auto/dark；恰 2 项防主题模式组 3 选项撞车）
     findSegmentedByOptions(drawer, [/自动|跟随|auto/i, /深色|暗色|dark/i], 2);
 
-    // 控件四：topbarWidgets 开关组——行标签可命中的 WidgetKey 并集 ≥ 9/10（appearance/settings
-    // 行文案撞车容忍 1 键缺位，见文件头校准注记）
+    // 控件四：topbarWidgets 开关组——行标签可命中的 WidgetKey 并集 ≥ 8/9（appearance/settings
+    // 行文案撞车容忍 1 键缺位，见文件头校准注记；release 键已退出 UI 呈现）
     const union = drawerWidgetKeyUnion(drawer);
     const missing = WIDGET_PROBES.filter((p) => !union.keys.has(p.key)).map((p) => p.key);
     expect(
       union.keys.size,
-      `布局分组应提供 widget 开关组（9/10 键齐备，缺位：${missing.join('/')}；switch 行命中明细：${union.debug}）`,
-    ).toBeGreaterThanOrEqual(9);
+      `布局分组应提供 widget 开关组（8/9 键齐备，缺位：${missing.join('/')}；switch 行命中明细：${union.debug}）`,
+    ).toBeGreaterThanOrEqual(8);
   });
 
   it('should_cover_layout_group_labels_in_zh_and_en_without_raw_keys', async () => {
@@ -476,7 +483,7 @@ describe('REQ20261122233427 偏好抽屉「布局」分组四控件（AC-7）', 
     findSegmentedByOptions(zhDrawer, [/侧边|侧栏|sidebar/i, /顶部|顶栏|top/i, /混合|mixed/i], 3);
     findSegmentedByOptions(zhDrawer, [/线(条|型)?|line/i, /卡片|card/i, /chrome|铬|梯形|经典|标签页/i, /朴素|纯文字|简洁|极简|plain/i], 4);
     findSegmentedByOptions(zhDrawer, [/自动|跟随|auto/i, /深色|暗色|dark/i], 2);
-    expect(drawerWidgetKeyUnion(zhDrawer).keys.size).toBeGreaterThanOrEqual(9);
+    expect(drawerWidgetKeyUnion(zhDrawer).keys.size).toBeGreaterThanOrEqual(8);
     expect(rawKeyTexts(zhDrawer), 'zh 抽屉不应出现裸 i18n key').toEqual([]);
     cleanup();
 
@@ -493,8 +500,8 @@ describe('REQ20261122233427 偏好抽屉「布局」分组四控件（AC-7）', 
     const enUnion = drawerWidgetKeyUnion(enDrawer);
     expect(
       enUnion.keys.size,
-      `en 布局分组 widget 开关组应 ≥9/10 键（缺位明细：${WIDGET_PROBES.filter((p) => !enUnion.keys.has(p.key)).map((p) => p.key).join('/')}；switch 行命中明细：${enUnion.debug}）`,
-    ).toBeGreaterThanOrEqual(9);
+      `en 布局分组 widget 开关组应 ≥8/9 键（缺位明细：${WIDGET_PROBES.filter((p) => !enUnion.keys.has(p.key)).map((p) => p.key).join('/')}；switch 行命中明细：${enUnion.debug}）`,
+    ).toBeGreaterThanOrEqual(8);
     expect(rawKeyTexts(enDrawer), 'en 抽屉不应出现裸 i18n key').toEqual([]);
     cleanup();
 

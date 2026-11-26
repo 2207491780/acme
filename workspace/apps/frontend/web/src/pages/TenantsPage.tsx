@@ -1030,7 +1030,7 @@ function TenantOverviewTab() {
 
   // 分布图数据源（确认⑦ echarts 分布图）：优先套餐分布（packageDistribution），缺省回退四态分布；
   // 经 useDashboardCharts stats 预留位接入（createChartOption+themeSnapshot 既有管线，memo 稳定）；
-  // failed 显式传 null（空态）——避免回退到 hook 的 release 本地派生数据源（stats===undefined 语义）
+  // failed 显式传 null（空态）；overview 未就绪传 undefined（hook 同样按空态处理，无本地派生数据源）
   const chartStats = useMemo<DashboardChartStats | null | undefined>(() => {
     if (failed) {
       return null;

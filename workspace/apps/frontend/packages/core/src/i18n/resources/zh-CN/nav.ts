@@ -2,7 +2,6 @@
 export const nav = {
   items: {
     dashboard: '概览',
-    releases: '发布单',
     apps: '应用结构',
     tenants: '租户管理',
     tenantPackages: '套餐管理',
@@ -51,7 +50,6 @@ export const nav = {
       actions: '快捷操作',
     },
     empty: '无匹配结果',
-    createRelease: '新建发布单',
     // REQ-20261120-120552：搜索历史节（空态/清空钮）与底部键位提示条
     history: '搜索历史',
     noHistory: '没有搜索历史',
@@ -64,8 +62,7 @@ export const nav = {
   },
   header: {
     toggleNav: '切换导航',
-    // REQ-20261120-120552：顶栏搜索框语义收敛为「搜索」（快捷搜索入口指向命令面板）
-    searchPlaceholder: '搜索',
+    // REQ-20261126-125836：发布单搜索框与其 Ctrl+K 徽标随演示功能删除，命令面板保留
     runtimeWeb: 'Web 端',
     runtimeDesktop: 'Electron 桌面端',
     runtimeMobile: '移动端',
@@ -77,9 +74,6 @@ export const nav = {
     timezone: '切换时区',
     settings: '设置',
     openUserMenu: '打开用户菜单',
-    create: '新建',
-    // 顶栏新建按钮的无障碍名（与页面内 CrudTable「新建」区分，避免同名按钮歧义）
-    createAria: '创建发布单',
   },
   userMenu: {
     rolesLabel: '角色：{{roles}}',
@@ -119,7 +113,6 @@ export const nav = {
   mobile: {
     tabs: {
       dashboard: '总览',
-      releases: '发布',
       apps: '应用',
       settings: '设置',
     },

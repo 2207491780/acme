@@ -5,16 +5,13 @@ import {
   type NeutralPalette,
   type Platform,
 } from '@acme/core';
-import { useNavigation } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useStore } from '../store/useStore';
 import { useAccent } from '../hooks';
 import { useAppTheme } from '../theme';
 import { useTranslation } from '../i18n';
-import { Card, Screen, Title, Eyebrow, Muted, Tag, Button } from '../components/ui';
+import { Card, Screen, Title, Eyebrow, Muted, Tag } from '../components/ui';
 import { PlatformBadge } from '../components/icons';
 import { HEALTH_COLOR } from '../theme';
-import type { MainTabParamList, TabKey } from '../nav';
 
 type AppStyles = ReturnType<typeof makeStyles>;
 
@@ -36,18 +33,10 @@ const REUSE_KEYS: { platform: Platform; titleKey: string; descKey: string; bridg
 
 export function AppsScreen() {
   const apps = useStore((s) => s.state.apps);
-  const releases = useStore((s) => s.state.releases);
-  const setQuery = useStore((s) => s.setQuery);
   const accent = useAccent();
   const { t } = useTranslation();
   const { palette } = useAppTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
-  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
-
-  const viewReleases = (platform: Platform) => {
-    setQuery({ platform, status: 'all', env: 'all', search: '' });
-    navigation.navigate('releases' satisfies TabKey);
-  };
 
   return (
     <Screen>
@@ -58,7 +47,6 @@ export function AppsScreen() {
       </View>
 
       {apps.map((app) => {
-        const count = releases.filter((r) => r.appId === app.id).length;
         return (
           <Card key={app.id}>
             <View style={styles.appHead}>
@@ -77,17 +65,9 @@ export function AppsScreen() {
                 <Text style={styles.infoValue}>{app.owner}</Text>
               </InfoRow>
               <InfoRow label={t('apps.card.health')} styles={styles}>
-                <Tag label={t(`releases.health.${app.health}`)} color={HEALTH_COLOR[app.health]} />
-              </InfoRow>
-              <InfoRow label={t('apps.card.releases')} styles={styles}>
-                <Text style={styles.infoValue}>{t('apps.card.releaseCount', { n: count })}</Text>
+                <Tag label={t(`common.health.${app.health}`)} color={HEALTH_COLOR[app.health]} />
               </InfoRow>
             </View>
-            <Button
-              variant="ghost"
-              label={t('apps.mobile.viewReleases', { platform: t(`releases.platformFull.${app.platform}`) })}
-              onPress={() => viewReleases(app.platform)}
-            />
           </Card>
         );
       })}

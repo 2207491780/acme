@@ -7,8 +7,6 @@ import { FilterField, FilterPanel } from '../src/components/FilterPanel';
 import { CrudTable } from '../src/components/CrudTable';
 import { AuditPage } from '../src/pages/AuditPage';
 import { LoginLogsPage } from '../src/pages/LoginLogsPage';
-import { Releases } from '../src/pages/Releases';
-import { DEFAULT_QUERY, useStore } from '../src/store/useStore';
 
 vi.setConfig({ testTimeout: 25000 });
 
@@ -17,7 +15,6 @@ beforeEach(async () => {
   window.sessionStorage.clear();
   useAuthStore.getState().clear();
   useMeStore.getState().clear();
-  useStore.setState({ query: { ...DEFAULT_QUERY }, selection: [], modal: null });
   await i18n.changeLanguage('zh-CN');
   vi.stubGlobal('matchMedia', (query: string) => ({
     matches: false, media: query, onchange: null,
@@ -194,29 +191,3 @@ for (const spec of [
     expect((screen.getByLabelText(spec.basic) as HTMLInputElement).value).toBe('');
   });
 }
-
-it('Releases retains environment and selection when collapsed and keeps sorting and actions in the table card', async () => {
-  render(<AntApp><Releases /></AntApp>);
-  const panel = screen.getByRole('region', { name: '筛选条件' });
-  const card = document.querySelector('.crud-table-card')!;
-  expect(panel.contains(screen.getByLabelText('排序'))).toBe(false);
-  expect(card.contains(screen.getByLabelText('排序'))).toBe(true);
-  expect(card.contains(screen.getByRole('button', { name: /新建发布单$/ }))).toBe(true);
-  expect(card.contains(screen.getByRole('button', { name: /保存视图$/ }))).toBe(true);
-  expand();
-  fireEvent.mouseDown(within(panel).getByLabelText('环境'));
-  const dropdown = document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)') as HTMLElement;
-  fireEvent.click(await within(dropdown).findByText('生产'));
-  expect(useStore.getState().query.env).toBe('prod');
-  const release = useStore.getState().visibleReleases()[0]!;
-  act(() => useStore.getState().setSelection([release.id]));
-  collapse();
-  expect(useStore.getState().query.env).toBe('prod');
-  expect(useStore.getState().selection).toEqual([release.id]);
-  expect(screen.getByText('进阶筛选已生效')).toBeTruthy();
-  expect(screen.getByRole('button', { name: /批量推进$/ })).toBeTruthy();
-  expand();
-  expect(within(panel).getByText('生产')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: /保存视图$/ }));
-  expect(useStore.getState().modal).toEqual({ type: 'savedView' });
-});

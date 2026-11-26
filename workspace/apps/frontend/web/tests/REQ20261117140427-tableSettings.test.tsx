@@ -4,8 +4,6 @@ import { App as AntApp } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { i18n, useAuthStore, useCrud, useMeStore } from '@acme/core';
 import { CrudTable } from '../src/components/CrudTable';
-import { Releases } from '../src/pages/Releases';
-import { DEFAULT_QUERY, useStore } from '../src/store/useStore';
 
 vi.setConfig({ testTimeout: 25000 });
 
@@ -14,7 +12,6 @@ beforeEach(async () => {
   window.sessionStorage.clear();
   useAuthStore.getState().clear();
   useMeStore.getState().clear();
-  useStore.setState({ query: { ...DEFAULT_QUERY }, selection: [], modal: null });
   await i18n.changeLanguage('zh-CN');
   vi.stubGlobal('matchMedia', (query: string) => ({
     matches: false, media: query, onchange: null,
@@ -215,19 +212,5 @@ describe('REQ20261117140427 多列筛选与排序', () => {
     fireEvent.click(headerByTitle('状态'));
     await waitFor(() => expect(firstCellTexts()).toEqual(['beta', 'delta', 'gamma', 'alpha']));
     expect(document.querySelectorAll('.ant-table-column-sort').length).toBeGreaterThanOrEqual(2);
-  });
-});
-
-describe('REQ20261117140427 页面接入', () => {
-  it('should_expose_settings_with_all_data_scope_when_rendering_releases', async () => {
-    render(<AntApp><Releases /></AntApp>);
-    const card = document.querySelector('.crud-table-card')!;
-    expect(within(card as HTMLElement).getByRole('button', { name: '列设置' })).toBeTruthy();
-    const borderedSwitch = await openSettings();
-    expect(screen.getByText('列筛选与排序作用于全部已加载数据')).toBeTruthy();
-    fireEvent.click(borderedSwitch);
-    await waitFor(() => expect(card.querySelector('.ant-table-bordered')).toBeTruthy());
-    expect(screen.getByLabelText('排序')).toBeTruthy();
-    expect(within(card as HTMLElement).getByRole('button', { name: /新建发布单$/ })).toBeTruthy();
   });
 });

@@ -37,7 +37,7 @@ const validPreferences = (over: Partial<ThemePreferences> | Record<string, unkno
   siderTone: 'auto',
   topbarWidgets: {
     search: true, bell: true, lang: true, timezone: true, appearance: true,
-    themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+    themeToggle: true, lock: true, fullscreen: true, settings: true,
   },
   ...(over as Partial<ThemePreferences>),
 });
@@ -176,7 +176,7 @@ describe('REQ20261121200415 扩展与版本常量（AC-5 前置锚）', () => {
       siderTone: 'auto',
       topbarWidgets: {
         search: true, bell: true, lang: true, timezone: true, appearance: true,
-        themeToggle: true, lock: true, fullscreen: true, settings: true, release: true,
+        themeToggle: true, lock: true, fullscreen: true, settings: true,
       },
     });
   });

@@ -1,36 +1,15 @@
-/** en-US dashboard resource pack. */
+/** en-US dashboard resource pack (multi-client foundation and backend data overview). */
 export const dashboard = {
   hero: {
     eyebrow: 'ACME · Frontend Delivery',
     title: 'Multi-client delivery on one screen',
-    desc: 'Manage releases across Web, Electron desktop and mobile in one place. Desktop reuses the web build, mobile shares the business layer — track everything from build, test, approval to release.',
-  },
-  stats: {
-    active: 'In progress',
-    approved: 'Ready to release',
-    publishedToday: 'Released today',
-    failed: 'Failed, needs attention',
-  },
-  stages: {
-    draft: 'Draft',
-    building: 'Building',
-    testing: 'Testing',
-    approved: 'Approval',
-    published: 'Released',
+    desc: 'One place for the Web, Electron desktop and mobile foundation: Web is the single source of pages, the desktop app reuses its build output, and mobile shares the business layer.',
   },
   cards: {
-    pipeline: 'Delivery pipeline',
-    pipelineTotal: '{{total}} releases in total',
-    statusDistribution: 'Status distribution',
     trendChart: 'Login trend (last 14 days)',
     distributionChart: 'Audit action distribution',
-    recent: 'Recently updated',
-    activity: 'Activity',
-    recentAll: 'All',
   },
   actions: {
-    createRelease: 'New release',
-    viewAll: 'View all releases',
     apps: 'App structure',
     files: 'Files',
   },
@@ -53,9 +32,7 @@ export const dashboard = {
   quickAccess: {
     title: 'Quick access',
   },
-  noRelease: 'No releases yet',
   mobile: {
-    heroDesc: 'Manage releases for web, Electron desktop and mobile in one place. Mobile shares the @acme/core business layer — track builds, testing, approval and publishing end to end.',
-    recentActivity: 'Recent activity',
+    heroDesc: 'Multi-client foundation at a glance: Web is the single source of pages, Electron reuses the web build, and mobile shares the @acme/core business layer.',
   },
 };

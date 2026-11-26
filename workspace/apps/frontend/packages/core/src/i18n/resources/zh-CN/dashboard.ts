@@ -1,36 +1,15 @@
-/** zh-CN 概览页资源包（Dashboard）。 */
+/** zh-CN 概览页资源包（Dashboard，保留多端基座与后端数据概览）。 */
 export const dashboard = {
   hero: {
     eyebrow: 'ACME · Frontend Delivery',
     title: '多端交付，一屏掌控',
-    desc: '统一管理 Web、Electron 桌面端与移动端的发布单。桌面端复用 Web 构建产物，移动端共享业务层，从构建、测试、审批到发布全程可追踪。',
-  },
-  stats: {
-    active: '进行中',
-    approved: '待发布',
-    publishedToday: '今日发布',
-    failed: '失败待处理',
-  },
-  stages: {
-    draft: '草稿',
-    building: '构建',
-    testing: '测试',
-    approved: '审批',
-    published: '发布',
+    desc: '统一维护 Web、Electron 桌面端与移动端的多端基座：Web 为页面唯一来源，桌面端复用其构建产物，移动端共享业务层。',
   },
   cards: {
-    pipeline: '交付流水线',
-    pipelineTotal: '共 {{total}} 个发布单',
-    statusDistribution: '发布状态分布',
     trendChart: '近 14 日登录趋势',
     distributionChart: '审计动作分布',
-    recent: '最近更新',
-    activity: '动态',
-    recentAll: '全部',
   },
   actions: {
-    createRelease: '新建发布单',
-    viewAll: '查看全部发布',
     apps: '应用结构',
     files: '文件管理',
   },
@@ -53,9 +32,7 @@ export const dashboard = {
   quickAccess: {
     title: '快捷入口',
   },
-  noRelease: '暂无发布',
   mobile: {
-    heroDesc: '统一管理 Web、Electron 桌面端与移动端的发布单。移动端共享 @acme/core 业务层，从构建、测试、审批到发布全程可追踪。',
-    recentActivity: '最近动态',
+    heroDesc: '多端基座一屏掌控：Web 为页面唯一来源，Electron 复用 Web 产物，移动端共享 @acme/core 业务层。',
   },
 };

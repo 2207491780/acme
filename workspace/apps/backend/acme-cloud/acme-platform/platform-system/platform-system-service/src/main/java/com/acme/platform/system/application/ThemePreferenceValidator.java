@@ -21,6 +21,10 @@ import java.util.regex.Pattern;
  *   <li>THEME-4 v4 新增偏好键：layoutMode/tabStyle/siderTone（枚举）与 topbarWidgets
  *       （Record&lt;WidgetKey,boolean&gt;：键白名单、未知 widget 键按既有未知偏好键同口径
  *       拒绝）——沿用「显式存在才校验」，未传新字段的 v4 与 v3 载荷均合法；</li>
+ *   <li>legacy 容忍：{@code topbarWidgets.release} 是「多端发布」演示功能遗留的 widget 键，
+ *       REQ-20261126-125836 已移除前端对应入口（UI 不再渲染新建发布单按钮），但本校验器继续
+ *       接受该键，以兼容历史已持久化的偏好 blob——避免 fail-closed 校验对旧数据返回 400。
+ *       该键只保留不删除，且不得改变任何既有校验行为；其它键仍按白名单 fail-closed。</li>
  *   <li>semanticColors 三键 success/warning/danger 值 hex|null，多余键容忍透传
  *       （core isSemanticColorOverrides every 只查三键口径）；</li>
  *   <li>extensions 仅整体结构校验（object；单键 ≤16KB、总 ≤64KB 序列化计量在用例侧），
@@ -61,7 +65,11 @@ final class ThemePreferenceValidator {
     /** siderTone 半深色档（THEME-4 v4 确认记录②⑤，auto=现行为；dark 仅 light 模式生效，联动归前端）。 */
     private static final Set<String> SIDER_TONES = Set.of("auto", "dark");
 
-    /** topbarWidgets widget 键白名单（THEME-4 v4 确认记录②，10 键；未知键拒绝）。 */
+    /**
+     * topbarWidgets widget 键白名单（THEME-4 v4 确认记录②，10 键；未知键拒绝）。
+     * {@code release} 为 REQ-20261126-125836 的 legacy-tolerant 保留键：UI 已不再渲染新建发布单
+     * 按钮，后端仅为兼容历史偏好 blob 继续接受该键；不得删除，不得改变其校验行为。
+     */
     static final Set<String> TOPBAR_WIDGET_KEYS = Set.of(
             "search", "bell", "lang", "timezone", "appearance",
             "themeToggle", "lock", "fullscreen", "settings", "release");

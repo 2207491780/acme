@@ -430,17 +430,17 @@ describe('REQ20261119063129 AC-5 命令面板', () => {
     // 键盘导航：初始选中第一节首项，ArrowDown 下移
     expect(dialog.querySelector('.command-palette-item[data-active="true"]')?.textContent).toContain('概览');
     fireEvent.keyDown(input, { key: 'ArrowDown' });
-    expect(dialog.querySelector('.command-palette-item[data-active="true"]')?.textContent).toContain('发布单');
+    expect(dialog.querySelector('.command-palette-item[data-active="true"]')?.textContent).toContain('应用结构');
 
-    // 过滤 + Enter 执行：页面命令 =「打开为页签」（按 path 提示过滤，避免命中「新建发布单」动作项）
-    fireEvent.change(input, { target: { value: '/releases' } });
+    // 过滤 + Enter 执行：页面命令 =「打开为页签」（按 path 提示过滤，命中非发布域页面）
+    fireEvent.change(input, { target: { value: '/apps' } });
     await wait(() => {
-      expect(within(dialog).getByText('发布单')).toBeTruthy();
+      expect(within(dialog).getByText('应用结构')).toBeTruthy();
     });
     fireEvent.keyDown(input, { key: 'Enter' });
     await wait(() => {
-      expect(window.location.hash).toBe('#/releases');
-      expect(tabEl('/releases')).toBeTruthy();
+      expect(window.location.hash).toBe('#/apps');
+      expect(tabEl('/apps')).toBeTruthy();
     });
     await wait(() => {
       expect(screen.queryByRole('dialog')).toBeNull(); // 执行后关闭
