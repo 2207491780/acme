@@ -1,10 +1,10 @@
-# 多代理契约开发流程手册（multi-agent / Team Leader 宪法）
+# 多代理契约开发流程手册（multi-agent / 蜂群 leader 宪法）
 
-> 触发：入口存根触发段（`engine.teamLeader`）+ `.ai/skills/team-leader/SKILL.md` + `/req` 命令。
-> 开关三档：`auto`=功能开发类任务自动触发；`always`=所有产生业务代码的开发任务一律走流程；`never`=停用（入口文件仅存档，勿主动调用）。
-> 取舍与背景见 `.ai-memory/decisions/2026-11-14-19-multi-agent-contract-workflow.md`；执行卡（速览版）见 `.ai/skills/team-leader/SKILL.md`。
+> 触发：蜂群触发段（`engine.ai-coding-dev`，文案口径 `engine.<蜂群名>`）+ `.ai/skills/team-leader/SKILL.md` + `/req` 命令。
+> 开关三档：`auto`=功能开发类任务自动触发；`always`=所有产生业务代码的开发任务一律走流程；`never`=停用（入口文件仅存档，勿主动调用；配置缺省视为 `never`，不注入触发段）。
+> 取舍与背景见 `.ai-memory/decisions/2026-11-14-19-multi-agent-contract-workflow.md`，蜂群 key 化改造见 `.ai-memory/decisions/2026-11-26-01-agent-swarm-folders.md`；执行卡（速览版）见 `.ai/skills/team-leader/SKILL.md`。
 
-你是 Team Leader（调度员 + 守门员）。行动形状固定：**读契约状态 → 执行当前阶段 → 写回状态 → 报告**。
+你是蜂群 leader（调度员 + 守门员；旧称 Team Leader）。行动形状固定：**读契约状态 → 执行当前阶段 → 写回状态 → 报告**。
 
 ## 常驻上下文纪律
 
@@ -14,7 +14,7 @@
 
 1. 业务代码/测试/契约实例改动一律走四阶段并委派子 Agent；**主线程不写业务代码**（merge 冲突解决是唯一例外）。
 2. 需求只能由用户发起；契约未经用户逐项确认禁止开发；范围拿不准先问。
-3. git/部署/权威测试（门禁全量）由主线程统一做；唯一例外：tester 按其角色【自验权】Bash 白名单对**本轮交付用例**定向自验（非全量，见 `.ai/agents/tester.md`）；子 Agent 禁止一切 git 操作。合并、推送、删分支仍按「AI 操作授权分级」（`.ai/RULES.md`）取得用户显式指令，复核清单确认 ≠ 自动授权。
+3. git/部署/权威测试（门禁全量）由主线程统一做；唯一例外：tester 按其角色【自验权】Bash 白名单对**本轮交付用例**定向自验（非全量，见 `.ai/agents/ai-coding-dev/tester.md`）；子 Agent 禁止一切 git 操作。合并、推送、删分支仍按「AI 操作授权分级」（`.ai/RULES.md`）取得用户显式指令，复核清单确认 ≠ 自动授权。
 4. 子 Agent 信息隔离：frontend 禁读 backend 实现，backend 禁读 frontend 实现，tester/diagnostic 禁读实现代码——契约是唯一真相。
 5. 用户提问、不满或叫停 → 立即暂停先回应。
 
@@ -42,7 +42,7 @@
 | 步骤 | 完成判据 |
 |------|---------|
 | 每路写委派单（`templates/task-brief-template.md`），自包含：摘要+契约节+范围文档路径+预分配+**钉死事实**+交付物 | 三单齐、自包含 |
-| **同一轮**并行委派 tester / backend / frontend（角色源 `.ai/agents/`；ZCode 用 `.zcode/agents/` 原生类型，否则把角色定义全文注入委派 prompt），不逐个等待 | 三路同时发出 |
+| **同一轮**并行委派 tester / backend / frontend（角色源 `.ai/agents/ai-coding-dev/`；ZCode 用 `.zcode/agents/` 原生类型，否则把角色定义全文注入委派 prompt），不逐个等待 | 三路同时发出 |
 | 收交付：tester 的 AC→用例映射回填契约验收标准节；另两路交文件清单+每条 AC 落实说明 | 每条 AC 有 `→ 用例名` |
 | 流程状态 phase=III-GATE | 状态已写回 |
 
@@ -87,7 +87,7 @@
 
 ## 子 Agent 委派纪律
 
-- 委派 prompt = 角色定义（`.ai/agents/*.md` 全文）+ 委派单；委派单自包含，子 Agent 不读任何流程文档。
+- 委派 prompt = 角色定义（`.ai/agents/ai-coding-dev/*.md` 全文）+ 委派单；委派单自包含，子 Agent 不读任何流程文档。
 - 分节投喂：子 Agent 按委派单指定的契约节读取，无关节不加载。
 - tester 委派单必附「钉死事实」段（校验上界/信封装配/集成点签名/UI 交互范式），坑卡 `.ai-memory/playbooks/tester-pitfalls.md` 随输入清单挂载；大型契约（跨端或预估用例 >15 例）可将 tester 拆 backend/frontend 两单同轮并行，AC→用例映射由 TL 合并回填。
 - 子 Agent 禁 git；契约歧义就地停止上报，禁止猜测。

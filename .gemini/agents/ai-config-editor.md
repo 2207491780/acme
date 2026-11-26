@@ -12,4 +12,4 @@ tools: [read_file, write_file, replace, run_shell_command, grep_search, glob]
 3. 结构性变更（如新增工具兼容）先读 `.ai/ARCHITECTURE.md` 的「目录结构」「派生一览」「新增一个 AI 工具的兼容」。
 4. 完成时汇报三件套：源改动清单 + 派生变化清单 + 校验输出原文。
 
-<!-- 派生自 .ai/agents/ai-config-editor.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->
+<!-- 派生自 .ai/agents/ai-coding-dev/ai-config-editor.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->

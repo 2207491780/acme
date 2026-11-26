@@ -55,7 +55,7 @@ Claude Code / Gemini 有原生子代理与技能，后半句可省（自动接�
 
 | # | 提示词 | 预期 AI 行为 |
 |---|---|---|
-| 8 | 加一个 code-reviewer 子代理：专职评审，关注正确性、边界、测试覆盖，输出按严重度排序 | 新建 `.ai/agents/code-reviewer.md`（标准 frontmatter）→ 派生到 `.claude/`、`.gemini/` 两处 |
+| 8 | 加一个 code-reviewer 子代理：专职评审，关注正确性、边界、测试覆盖，输出按严重度排序 | 新建 `.ai/agents/ai-coding-dev/code-reviewer.md`（标准 frontmatter）→ 扁平派生到 `.claude/agents/`、`.gemini/agents/` 两处 |
 | 9 | 做一个 release-checklist 技能：对齐 CHANGELOG、全量测试、打 tag | 新建 `.ai/skills/release-checklist/SKILL.md` → 派生到 Claude 技能目录 |
 | 10 | 加 /deploy 命令：先测试、再构建 $ARGUMENTS 目标、部署测试环境；Gemini 也要能用 | 新建 `.ai/commands/deploy.md` **并主动补** `.ai/tools/gemini/commands/deploy.toml`（TOML 转换是 playbook 已知事项） |
 | 11 | Cursor 里改 SVG 总是破坏主题色，加一条只在触及 SVG 时生效的规则 | 新建 `.ai/tools/cursor/rules/svg.mdc`（`globs: "**/*.svg"`） |

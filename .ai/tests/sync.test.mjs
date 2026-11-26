@@ -99,7 +99,8 @@ test('should_sync_and_check_minimal_safe_sources_without_changing_formats', asyn
   const { repo } = await fixture(t);
   await put(repo, '.ai/rules/nested/02.md', '# Nested\r\n\r\nSecond rule.\r\n');
   await put(repo, '.ai/scopes/project/AGENTS.md', '# Project scope\n');
-  await put(repo, '.ai/agents/helper.md', '# Helper\n');
+  await putSwarm(repo, 'ai-coding-dev');
+  await put(repo, '.ai/agents/ai-coding-dev/helper.md', '# Helper\n');
   await put(repo, '.ai/agents/AGENT-POOL.md', 'Source-only documentation\n');
   await put(repo, '.ai/skills/review/SKILL.md', '# Review\n');
   await put(repo, '.ai/commands/review.md', '# Review command\n');
@@ -109,7 +110,7 @@ test('should_sync_and_check_minimal_safe_sources_without_changing_formats', asyn
   assert.ok(combined.endsWith(rule.trim() + '\n\n# Nested\n\nSecond rule.\n'));
   assert.match(await readFile(join(repo, 'CLAUDE.md'), 'utf8'), /@\.ai\/RULES\.md/);
   assert.match(await readFile(join(repo, 'project/CLAUDE.md'), 'utf8'), /^@AGENTS\.md\n/);
-  assert.match(await readFile(join(repo, '.claude/agents/helper.md'), 'utf8'), /派生自 \.ai\/agents\/helper\.md/);
+  assert.match(await readFile(join(repo, '.claude/agents/helper.md'), 'utf8'), /派生自 \.ai\/agents\/ai-coding-dev\/helper\.md/);
   await assert.rejects(lstat(join(repo, '.claude/agents/AGENT-POOL.md')), { code: 'ENOENT' });
   const before = await snapshot(repo);
   const checked = run(repo, ['--check']);
@@ -153,8 +154,9 @@ test('should_enforce_final_utf8_budget_before_any_write_including_link_probe', a
 const conflicts = [
   {
     name: 'pool_and_private_rule_share_target',
-    sources: ['.ai/agents/helper.md', '.ai/tools/claude/agents/helper.md'],
+    sources: ['.ai/agents/ai-coding-dev/helper.md', '.ai/tools/claude/agents/helper.md'],
     target: '.claude/agents/helper.md',
+    swarms: ['ai-coding-dev'],
   },
   {
     name: 'private_rule_overrides_public_entry',
@@ -175,8 +177,9 @@ const conflicts = [
   },
   {
     name: 'targets_differ_only_in_windows_case',
-    sources: ['.ai/agents/helper.md', '.ai/tools/claude/agents/HELPER.md'],
+    sources: ['.ai/agents/ai-coding-dev/helper.md', '.ai/tools/claude/agents/HELPER.md'],
     target: '.claude/agents/HELPER.md',
+    swarms: ['ai-coding-dev'],
   },
   {
     name: 'content_and_link_differ_only_in_windows_case',
@@ -188,6 +191,7 @@ const conflicts = [
 for (const conflict of conflicts) {
   test(`should_reject_conflicts_before_writing_when_${conflict.name}`, async (t) => {
     const { repo } = await fixture(t);
+    for (const name of conflict.swarms ?? []) await putSwarm(repo, name);
     for (const source of conflict.sources) await put(repo, source, '# Conflicting source\n');
     const before = await snapshot(repo);
     for (const args of [['--links'], ['--check']]) {
@@ -403,7 +407,7 @@ test('should_fall_back_to_stub_when_config_symlink_but_links_unavailable', async
 test('should_flag_orphan_by_default_and_skip_when_orphanDetection_false', async (t) => {
   const { repo } = await fixture(t);
   succeeds(run(repo));
-  await put(repo, '.claude/agents/stale.md', '# Stale\n\n<!-- 派生自 .ai/agents/gone.md -->\n');
+  await put(repo, '.claude/agents/stale.md', '# Stale\n\n<!-- 派生自 .ai/agents/ai-coding-dev/gone.md -->\n');
   fails(run(repo, ['--check']), /孤儿派生文件/);
   await put(repo, CONFIG, 'version: 1\nengine:\n  orphanDetection: false\n');
   const ok = run(repo, ['--check']);
@@ -415,9 +419,10 @@ test('should_map_claude_tool_names_for_gemini_agents_on_derive', async (t) => {
   // Gemini 子代理适配（ADR 2026-11-14-24）：派生到 .gemini/agents 时 frontmatter 工具名映射为 Gemini 内置名，
   // model: inherit 移除（Gemini 缺省即继承）；Claude 目标保持原样；正文不受映射影响。
   const { repo } = await fixture(t);
+  await putSwarm(repo, 'ai-coding-dev');
   await put(
     repo,
-    '.ai/agents/helper.md',
+    '.ai/agents/ai-coding-dev/helper.md',
     '---\nname: helper\ndescription: d\ntools: [Read, Write, Edit, Grep, Glob, Bash]\nmodel: inherit\n---\n\nBody mentions Read and Grep words.\n',
   );
   succeeds(run(repo));
@@ -436,7 +441,7 @@ test('should_flag_orphan_derived_files_beyond_tool_dirs', async (t) => {
   await put(repo, '.ai/scopes/project/AGENTS.md', '# Project scope\n');
   succeeds(run(repo));
   // 仓库根：带派生标记的未知残留（非递归扫描，子目录不受影响）
-  await put(repo, 'STALE.md', '# leftover\n\n<!-- 派生自 .ai/agents/gone.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->\n');
+  await put(repo, 'STALE.md', '# leftover\n\n<!-- 派生自 .ai/agents/ai-coding-dev/gone.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->\n');
   fails(run(repo, ['--check']), /孤儿派生文件 STALE\.md/);
   await rm(join(repo, 'STALE.md'));
   // scopes 派生目标的同级目录：带派生标记的残留；无标记的用户文件不受影响
@@ -455,25 +460,174 @@ test('should_enforce_custom_rulesBudgetBytes_from_config', async (t) => {
   assert.deepEqual(await snapshot(repo), before);
 });
 
-test('should_inject_team_leader_trigger_per_mode_into_entry_stubs', async (t) => {
+// ---- 蜂群（swarm）触发段：三档 / 多蜂群编号 / 键枚举 / 缺省停用 ----
+async function putSwarm(repo, name) {
+  // 蜂群目录必须自带同名 leader（普通文件），否则 sync 的布局校验会先于用例目标报错。
+  await put(
+    repo,
+    `.ai/agents/${name}/${name}-leader.md`,
+    `---\nname: ${name}-leader\ndescription: ${name} 蜂群 leader。\n---\n\n蜂群 ${name} 的四阶段契约调度。\n`,
+  );
+}
+
+test('should_inject_swarm_trigger_three_modes_into_entry_stubs', async (t) => {
   const { repo } = await fixture(t);
+  await putSwarm(repo, 'ai-coding-dev');
   const cases = [
-    ['engine:\n  teamLeader: auto\n', /teamLeader: auto）：功能开发类任务应按 team-leader/],
-    ['engine:\n  teamLeader: always\n', /teamLeader: always）：凡会产生业务代码的开发任务，一律按 team-leader/],
-    ['engine:\n  teamLeader: never\n', /teamLeader: never）：team-leader 四阶段契约流程已停用/],
+    ['auto', /5\. 蜂群流程开关（engine\.ai-coding-dev: auto）：蜂群 ai-coding-dev.*功能开发类任务自动/],
+    ['always', /5\. 蜂群流程开关（engine\.ai-coding-dev: always）：凡会产生业务代码的开发任务一律按蜂群 ai-coding-dev/],
+    ['never', /5\. 蜂群流程开关（engine\.ai-coding-dev: never）：蜂群 ai-coding-dev 的四阶段契约流程已停用/],
   ];
-  for (const [yaml, re] of cases) {
-    await put(repo, CONFIG, yaml);
+  for (const [mode, re] of cases) {
+    await put(repo, CONFIG, `version: 1\nengine:\n  ai-coding-dev: ${mode}\n`);
     succeeds(run(repo));
-    assert.match(await readFile(join(repo, 'AGENTS.md'), 'utf8'), re);
+    const agents = await readFile(join(repo, 'AGENTS.md'), 'utf8');
+    assert.match(agents, re);
+    assert.match(agents, /\.ai\/agents\/ai-coding-dev\/ai-coding-dev-leader\.md/);
+    assert.match(agents, /\.ai-memory\/playbooks\/multi-agent\.md/);
+    assert.match(agents, /\/req/);
+    // @import 去重存根同样注入蜂群触发段（不占 RULES.md 预算）
+    assert.match(await readFile(join(repo, 'CODEBUDDY.md'), 'utf8'), re);
     // Cursor project.mdc 为纯指针（ADR 2026-11-18-01），不重复入口存根的铁律节选正文
     assert.ok(!(await readFile(join(repo, '.cursor/rules/project.mdc'), 'utf8')).includes('铁律（节选'));
     succeeds(run(repo, ['--check']));
   }
-  // 缺省（配置缺失）= never：入口存根明示流程停用，向后兼容既有行为
-  await rm(join(repo, CONFIG));
+});
+
+test('should_number_swarm_triggers_from_five_for_each_swarm_key', async (t) => {
+  const { repo } = await fixture(t);
+  await putSwarm(repo, 'zeta');
+  await putSwarm(repo, 'alpha');
+  await put(repo, CONFIG, 'engine:\n  zeta: always\n  alpha: auto\n');
   succeeds(run(repo));
-  assert.match(await readFile(join(repo, 'AGENTS.md'), 'utf8'), /team-leader 四阶段契约流程已停用/);
+  const agents = await readFile(join(repo, 'AGENTS.md'), 'utf8');
+  assert.match(agents, /5\. 蜂群流程开关（engine\.alpha: auto）/);
+  assert.match(agents, /6\. 蜂群流程开关（engine\.zeta: always）/);
+  assert.match(agents, /\.ai\/agents\/alpha\/alpha-leader\.md/);
+  assert.match(agents, /\.ai\/agents\/zeta\/zeta-leader\.md/);
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_accept_swarm_key_only_when_swarm_directory_exists', async (t) => {
+  const { repo } = await fixture(t);
+  await put(repo, CONFIG, 'engine:\n  ai-coding-dev: auto\n');
+  // fixture 无蜂群目录 → 蜂群键视为未知键
+  fails(run(repo), /未知 engine 键「ai-coding-dev」/);
+  await putSwarm(repo, 'ai-coding-dev');
+  succeeds(run(repo));
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_generalize_swarm_trigger_text_without_swarm_purpose', async (t) => {
+  // 用途说明只登记在 AGENT-POOL.md：非 ai-coding-dev 蜂群的触发段不得硬编码「支撑 ai-coding 开发」。
+  const { repo } = await fixture(t);
+  await putSwarm(repo, 'alpha');
+  for (const [mode, re] of [
+    ['auto', /5\. 蜂群流程开关（engine\.alpha: auto）：蜂群 alpha 的功能开发类任务自动按其四阶段契约流程执行/],
+    ['always', /5\. 蜂群流程开关（engine\.alpha: always）：凡会产生业务代码的开发任务一律按蜂群 alpha 的四阶段契约流程执行/],
+  ]) {
+    await put(repo, CONFIG, `engine:\n  alpha: ${mode}\n`);
+    succeeds(run(repo));
+    const agents = await readFile(join(repo, 'AGENTS.md'), 'utf8');
+    assert.match(agents, re);
+    assert.doesNotMatch(agents, /支撑 ai-coding 开发/);
+    succeeds(run(repo, ['--check']));
+  }
+});
+
+test('should_reject_flat_md_file_at_agents_root', async (t) => {
+  // 布局不变量 1：.ai/agents/ 根级只允许蜂群目录与 AGENT-POOL.md（早于配置加载）。
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/agents/AGENT-POOL.md', 'Source-only documentation\n');
+  await put(repo, '.ai/agents/foo.md', '# Flat agent\n');
+  const before = await snapshot(repo);
+  for (const args of [[], ['--check']]) {
+    fails(run(repo, args), /\.ai\/agents\/foo\.md：根级只允许蜂群目录与唯一说明文件 AGENT-POOL\.md/);
+    assert.deepEqual(await snapshot(repo), before);
+  }
+});
+
+test('should_reject_swarm_directory_without_leader', async (t) => {
+  // 布局不变量 2：每个蜂群目录必须有 <蜂群名>-leader.md，保证触发段引用路径存在。
+  const { repo } = await fixture(t);
+  await mkdir(join(repo, '.ai/agents/alpha'), { recursive: true });
+  await put(repo, CONFIG, 'engine:\n  alpha: auto\n');
+  const before = await snapshot(repo);
+  for (const args of [[], ['--check']]) {
+    fails(run(repo, args), /蜂群 alpha 缺少 leader：\.ai\/agents\/alpha\/alpha-leader\.md/);
+    assert.deepEqual(await snapshot(repo), before);
+  }
+});
+
+test('should_reject_symlink_as_swarm_leader', async (t) => {
+  const { repo, outside } = await fixture(t);
+  await putSwarm(repo, 'alpha');
+  const leader = join(repo, '.ai/agents/alpha/alpha-leader.md');
+  await rm(leader);
+  await put(outside, 'external-leader.md', '# External leader\n');
+  if (!await makeLink(t, join(outside, 'external-leader.md'), leader)) return;
+  const before = await snapshot(repo);
+  for (const args of [[], ['--check']]) {
+    fails(run(repo, args), /拒绝符号链接路径：\.ai\/agents\/alpha\/alpha-leader\.md/);
+    assert.equal(await readFile(join(outside, 'external-leader.md'), 'utf8'), '# External leader\n');
+    assert.deepEqual(await snapshot(repo), before);
+  }
+});
+
+test('should_reject_directory_as_swarm_leader', async (t) => {
+  const { repo } = await fixture(t);
+  await putSwarm(repo, 'alpha');
+  const leader = join(repo, '.ai/agents/alpha/alpha-leader.md');
+  await rm(leader);
+  await mkdir(leader, { recursive: true });
+  const before = await snapshot(repo);
+  for (const args of [[], ['--check']]) {
+    fails(run(repo, args), /拒绝非普通文件目标（目录不会删除）：\.ai\/agents\/alpha\/alpha-leader\.md/);
+    assert.deepEqual(await snapshot(repo), before);
+  }
+});
+
+test('should_inject_no_swarm_trigger_when_swarm_key_absent', async (t) => {
+  const { repo } = await fixture(t);
+  await putSwarm(repo, 'ai-coding-dev');
+  succeeds(run(repo));
+  let agents = await readFile(join(repo, 'AGENTS.md'), 'utf8');
+  assert.doesNotMatch(agents, /蜂群流程开关/);
+  assert.doesNotMatch(agents, /engine\.ai-coding-dev/);
+  // 配置在位但无蜂群键（仅固定键）同样不注入
+  await put(repo, CONFIG, 'version: 1\nengine:\n  rulesBudgetBytes: 8192\n');
+  succeeds(run(repo));
+  agents = await readFile(join(repo, 'AGENTS.md'), 'utf8');
+  assert.doesNotMatch(agents, /蜂群流程开关/);
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_flatten_swarm_agent_sources_into_tool_dirs', async (t) => {
+  const { repo } = await fixture(t);
+  await putSwarm(repo, 'ai-coding-dev');
+  await put(
+    repo,
+    '.ai/agents/ai-coding-dev/helper.md',
+    '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\nmodel: inherit\n---\n\nNESTED-BODY\n',
+  );
+  succeeds(run(repo));
+  // Claude 目标为原样拷贝，溯源尾注保留完整源 rel
+  const claude = await readFile(join(repo, '.claude/agents/helper.md'), 'utf8');
+  assert.match(claude, /派生自 \.ai\/agents\/ai-coding-dev\/helper\.md/);
+  assert.ok(claude.includes('NESTED-BODY'));
+  // 引用存根目标也扁平到 basename，指针指向完整源 rel
+  for (const dir of ['.gemini/agents', '.qoder/agents', '.cursor/agents', '.trae/agents', '.codebuddy/agents']) {
+    assert.match(await readFile(join(repo, dir, 'helper.md'), 'utf8'), /\.ai\/agents\/ai-coding-dev\/helper\.md/, dir);
+  }
+  // 蜂群目录名不落入工具目录
+  for (const dir of ['.claude/agents', '.qoder/agents', '.cursor/agents', '.trae/agents', '.codebuddy/agents']) {
+    await assert.rejects(lstat(join(repo, dir, 'ai-coding-dev')), { code: 'ENOENT' });
+  }
+  // 不同蜂群同名 agent 仍经 destinations 登记簿判为冲突（先补 leader，避免被布局校验掩盖）
+  await putSwarm(repo, 'other-swarm');
+  await put(repo, '.ai/agents/other-swarm/helper.md', '# duplicate\n');
+  fails(run(repo), /派生目标冲突/);
+  await rm(join(repo, '.ai/agents/other-swarm'), { recursive: true });
   succeeds(run(repo, ['--check']));
 });
 
@@ -499,7 +653,9 @@ test('should_derive_codebuddy_entries_as_official_aligned_references', async (t)
   // `@` 导入引用（不重复铁律节选）；公共池 agents/skills/commands 派生为引用存根（frontmatter 保留供
   // 注册，正文仅指针）；tools 专属目录说明照常前置「生成产物」标头；localOnly 三段语义不变。
   const { repo } = await fixture(t);
-  await put(repo, '.ai/agents/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\n---\n\nSECRET-BODY-AGENT\n');
+  await putSwarm(repo, 'ai-coding-dev');
+  await put(repo, CONFIG, 'engine:\n  ai-coding-dev: auto\n');
+  await put(repo, '.ai/agents/ai-coding-dev/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\n---\n\nSECRET-BODY-AGENT\n');
   await put(repo, '.ai/skills/review/SKILL.md', '---\nname: review\ndescription: Review skill.\n---\n\nSECRET-BODY-SKILL\n');
   await put(repo, '.ai/commands/review.md', '---\ndescription: Review command.\n---\n\nSECRET-BODY-COMMAND\n');
   await put(repo, '.ai/commands/plain.md', '# Plain command\n');
@@ -508,10 +664,10 @@ test('should_derive_codebuddy_entries_as_official_aligned_references', async (t)
   const entry = await readFile(join(repo, 'CODEBUDDY.md'), 'utf8');
   assert.match(entry, /@\.ai\/RULES\.md/);
   assert.ok(!entry.includes('铁律（节选'), '入口用 @ 导入内联全文，不得重复铁律节选');
-  assert.match(entry, /多代理流程开关/, '引擎注入的多代理流程开关不属于 RULES.md，应保留');
+  assert.match(entry, /蜂群流程开关/, '引擎注入的蜂群流程开关不属于 RULES.md，应保留');
   const agent = await readFile(join(repo, '.codebuddy/agents/helper.md'), 'utf8');
   assert.match(agent, /tools: \[Read\]/);
-  assert.match(agent, /\.ai\/agents\/helper\.md/);
+  assert.match(agent, /\.ai\/agents\/ai-coding-dev\/helper\.md/);
   assert.ok(!agent.includes('SECRET-BODY-AGENT'));
   const skill = await readFile(join(repo, '.codebuddy/skills/review/SKILL.md'), 'utf8');
   assert.match(skill, /description: Review skill\./);
@@ -526,7 +682,7 @@ test('should_derive_codebuddy_entries_as_official_aligned_references', async (t)
   assert.match(plain, /^---\nname: plain\ndescription: /);
   assert.ok(!plain.includes('# Plain command'));
   // 派生标记在位（孤儿检测依赖）+ 目录说明标头 + --check 幂等
-  assert.match(agent, /派生自 \.ai\/agents\/helper\.md/);
+  assert.match(agent, /派生自 \.ai\/agents\/ai-coding-dev\/helper\.md/);
   assert.match(await readFile(join(repo, '.codebuddy/CODEBUDDY-CLI.md'), 'utf8'), /生成产物/);
   succeeds(run(repo, ['--check']));
   // localOnly 三段语义：缺失跳过 → 重建 → 漂移判错
@@ -543,7 +699,8 @@ test('should_derive_cursor_entries_as_official_aligned_references', async (t) =>
   // Cursor 官方对齐（ADR 2026-11-18-01）：rules 纯指针（不重复入口存根铁律/多代理开关），
   // 三池引用存根（frontmatter 原样保留供注册，正文仅指针，磁盘零重复）。
   const { repo } = await fixture(t);
-  await put(repo, '.ai/agents/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\nmodel: inherit\n---\n\nSECRET-BODY-AGENT\n');
+  await putSwarm(repo, 'ai-coding-dev');
+  await put(repo, '.ai/agents/ai-coding-dev/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\nmodel: inherit\n---\n\nSECRET-BODY-AGENT\n');
   await put(repo, '.ai/skills/review/SKILL.md', '---\nname: review\ndescription: Review skill.\n---\n\nSECRET-BODY-SKILL\n');
   await put(repo, '.ai/commands/review.md', '---\ndescription: Review command.\n---\n\nSECRET-BODY-COMMAND\n');
   await put(repo, '.ai/commands/plain.md', '# Plain command\n');
@@ -555,7 +712,7 @@ test('should_derive_cursor_entries_as_official_aligned_references', async (t) =>
   const agent = await readFile(join(repo, '.cursor/agents/helper.md'), 'utf8');
   assert.match(agent, /tools: \[Read\]/);
   assert.match(agent, /model: inherit/);
-  assert.match(agent, /\.ai\/agents\/helper\.md/);
+  assert.match(agent, /\.ai\/agents\/ai-coding-dev\/helper\.md/);
   assert.ok(!agent.includes('SECRET-BODY-AGENT'));
   const skill = await readFile(join(repo, '.cursor/skills/review/SKILL.md'), 'utf8');
   assert.match(skill, /description: Review skill\./);
@@ -568,7 +725,7 @@ test('should_derive_cursor_entries_as_official_aligned_references', async (t) =>
   const plain = await readFile(join(repo, '.cursor/commands/plain.md'), 'utf8');
   assert.match(plain, /^---\nname: plain\ndescription: /);
   assert.ok(!plain.includes('# Plain command'));
-  assert.match(agent, /派生自 \.ai\/agents\/helper\.md/);
+  assert.match(agent, /派生自 \.ai\/agents\/ai-coding-dev\/helper\.md/);
   succeeds(run(repo, ['--check']));
 });
 
@@ -576,7 +733,8 @@ test('should_derive_qoder_entries_as_non_duplicating_references', async (t) => {
   // Qoder 官方对齐（ADR 2026-11-17-02）：rules 纯指针（不重复入口存根铁律），
   // 三池引用存根（frontmatter 原样保留供注册，正文仅指针，磁盘零重复）。
   const { repo } = await fixture(t);
-  await put(repo, '.ai/agents/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\n---\n\nSECRET-BODY-AGENT\n');
+  await putSwarm(repo, 'ai-coding-dev');
+  await put(repo, '.ai/agents/ai-coding-dev/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\n---\n\nSECRET-BODY-AGENT\n');
   await put(repo, '.ai/skills/review/SKILL.md', '---\nname: review\ndescription: Review skill.\n---\n\nSECRET-BODY-SKILL\n');
   await put(repo, '.ai/commands/review.md', '---\ndescription: Review command.\n---\n\nSECRET-BODY-COMMAND\n');
   await put(repo, '.ai/commands/plain.md', '# Plain command\n');
@@ -587,7 +745,7 @@ test('should_derive_qoder_entries_as_non_duplicating_references', async (t) => {
   assert.ok(!rule.includes('铁律（节选'), 'rules 存根不得重复入口存根的铁律节选');
   const agent = await readFile(join(repo, '.qoder/agents/helper.md'), 'utf8');
   assert.match(agent, /tools: \[Read\]/);
-  assert.match(agent, /\.ai\/agents\/helper\.md/);
+  assert.match(agent, /\.ai\/agents\/ai-coding-dev\/helper\.md/);
   assert.ok(!agent.includes('SECRET-BODY-AGENT'));
   const skill = await readFile(join(repo, '.qoder/skills/review/SKILL.md'), 'utf8');
   assert.match(skill, /description: Review skill\./);
@@ -611,7 +769,8 @@ test('should_derive_trae_entries_as_official_aligned_references', async (t) => {
   // 不重复铁律节选）；三池引用存根（frontmatter 保留供注册，正文仅指针）；agents frontmatter 适配
   // （tools 数组→逗号分隔字符串、移除 model: inherit）。
   const { repo } = await fixture(t);
-  await put(repo, '.ai/agents/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read, Grep]\nmodel: inherit\n---\n\nSECRET-BODY-AGENT\n');
+  await putSwarm(repo, 'ai-coding-dev');
+  await put(repo, '.ai/agents/ai-coding-dev/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read, Grep]\nmodel: inherit\n---\n\nSECRET-BODY-AGENT\n');
   await put(repo, '.ai/skills/review/SKILL.md', '---\nname: review\ndescription: Review skill.\n---\n\nSECRET-BODY-SKILL\n');
   await put(repo, '.ai/commands/review.md', '---\ndescription: Review command.\n---\n\nSECRET-BODY-COMMAND\n');
   await put(repo, '.ai/commands/plain.md', '# Plain command\n');
@@ -625,7 +784,7 @@ test('should_derive_trae_entries_as_official_aligned_references', async (t) => {
   const agent = await readFile(join(repo, '.trae/agents/helper.md'), 'utf8');
   assert.match(agent, /tools: Read, Grep/);
   assert.ok(!agent.includes('model: inherit'), 'Trae 不支持 model: inherit，应移除');
-  assert.match(agent, /\.ai\/agents\/helper\.md/);
+  assert.match(agent, /\.ai\/agents\/ai-coding-dev\/helper\.md/);
   assert.ok(!agent.includes('SECRET-BODY-AGENT'));
   // skills：frontmatter 原样 + 正文零重复
   const skill = await readFile(join(repo, '.trae/skills/review/SKILL.md'), 'utf8');
@@ -642,7 +801,7 @@ test('should_derive_trae_entries_as_official_aligned_references', async (t) => {
   assert.match(plain, /^---\nname: plain\ndescription: /);
   assert.ok(!plain.includes('# Plain command'));
   // 派生标记在位（孤儿检测依赖）+ --check 幂等
-  assert.match(agent, /派生自 \.ai\/agents\/helper\.md/);
+  assert.match(agent, /派生自 \.ai\/agents\/ai-coding-dev\/helper\.md/);
   succeeds(run(repo, ['--check']));
 });
 
@@ -722,7 +881,8 @@ const badConfigs = [
   ['bad_orphan_type', 'engine:\n  orphanDetection: yes\n', /orphanDetection 必须为布尔/],
   ['bad_budget_negative', 'engine:\n  rulesBudgetBytes: -5\n', /rulesBudgetBytes 必须为正整数/],
   ['bad_budget_float', 'engine:\n  rulesBudgetBytes: 1.5\n', /rulesBudgetBytes 必须为正整数/],
-  ['bad_team_leader', 'engine:\n  teamLeader: maybe\n', /teamLeader 必须为/],
+  ['bad_swarm_mode', 'engine:\n  ai-coding-dev: maybe\n', /必须为 auto\|always\|never/, ['ai-coding-dev']],
+  ['unknown_swarm_key_without_directory', 'engine:\n  ai-coding-dev: auto\n', /未知 engine 键/, []],
   ['bad_version', 'version: 2\n', /version 必须为 1/],
   ['array_unsupported', 'engine:\n  - a\n', /不支持数组/],
   ['tab_indent', 'engine:\n\tentryMode: stub\n', /不支持 Tab/],
@@ -734,9 +894,10 @@ const badConfigs = [
   ['file_with_path', 'environment:\n  file: env/dev.yaml\n', /file 必须为/],
   ['environment_not_map', 'environment: cloud-dev.yaml\n', /environment 必须是映射/],
 ];
-for (const [name, yaml, msg] of badConfigs) {
+for (const [name, yaml, msg, swarms = []] of badConfigs) {
   test(`should_reject_invalid_config_before_writing_when_${name}`, async (t) => {
     const { repo } = await fixture(t);
+    for (const swarm of swarms) await putSwarm(repo, swarm);
     await put(repo, CONFIG, yaml);
     const before = await snapshot(repo);
     for (const args of [[], ['--check']]) {

@@ -8,7 +8,7 @@
 | [flex-test-assembly.md](flex-test-assembly.md) | 后端新增服务/仓储与集成测试的装配口径（MyBatis-Flex） | 分层规则（`.ai/scopes/workspace/apps/backend/AGENTS.md`，就近生效） |
 | [naming.md](naming.md) | 文件/文件夹/包/标识符的统一命名格式（含豁免清单与大小写红线） | 规则条款（`.ai/rules/coding-standards.md`「语言与格式」） |
 | [parallel-dev.md](parallel-dev.md) | AI 开发工作树标准流程与约束（所有产生提交的开发默认适用） | 默认适用：规则条款（`.ai/rules/git-workflow.md`「分支模型」），无需用户提示 |
-| [multi-agent.md](multi-agent.md) | 契约驱动多代理开发流程（Team Leader 宪法：四阶段/门禁/打回循环/并发规则/例外条款） | 引擎开关 `engine.teamLeader`（值注入入口存根触发段）+ `.ai/skills/team-leader/` 技能 + `/req` 命令 |
+| [multi-agent.md](multi-agent.md) | 契约驱动多代理开发流程（ai-coding-dev 蜂群 leader 宪法：四阶段/门禁/打回循环/并发规则/例外条款） | 蜂群开关 `engine.ai-coding-dev`（`engine.<蜂群名>` 动态键；值注入入口存根触发段）+ `.ai/skills/team-leader/` 技能 + `/req` 命令 |
 | [tester-pitfalls.md](tester-pitfalls.md) | tester 踩坑卡：历轮打回归因沉淀（框架上界/装配口径/antd 交互/flake 判定），写用例前对照自查 | tester 角色输入清单 + 委派单「钉死事实」段（multi-agent 流程内生效） |
 | [conversational-cd.md](conversational-cd.md) | 会话内部署/回滚：触发 GitHub CD → 轮询 → 服务器核验 | 规则条款（`.ai/rules/project.md`「命令与门禁」部署行） |
 | [two-tier-deployment.md](two-tier-deployment.md) | 两台云机分层部署形态 + 单套中间件两环境（prod/dev）隔离的实施步骤与腾讯云前置 | 规则条款（`.ai/rules/project.md`「命令与门禁」部署形态行） |

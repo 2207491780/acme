@@ -67,7 +67,7 @@ mkdir -p .ai/scopes/packages/api
 
 **需求**：一个专职代码评审的 subagent。
 
-新建 `.ai/agents/code-reviewer.md`：
+新建 `.ai/agents/ai-coding-dev/code-reviewer.md`（蜂群目录约定见 `AGENT-POOL.md`）：
 
 ```markdown
 ---

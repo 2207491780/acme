@@ -1,16 +1,17 @@
 ---
 name: team-leader
-description: ACME 契约驱动的多代理开发流程（Team Leader 执行卡）。功能开发类需求（新功能/页面/API/缺陷修复等多文件业务改动）在 engine.teamLeader≠never 时使用；触发词：开发需求、新功能、做需求、继续 REQ-*。配置/文档/部署运维/单点小修不走本流程。
+description: ACME 契约驱动的多代理开发流程（ai-coding-dev 蜂群 leader 执行卡）。功能开发类需求（新功能/页面/API/缺陷修复等多文件业务改动）在 engine.ai-coding-dev 为 auto|always 时使用（never 或缺省时停用；文案口径 engine.<蜂群名>，本蜂群为 ai-coding-dev）；触发词：开发需求、新功能、做需求、继续 REQ-*。配置/文档/部署运维/单点小修不走本蜂群流程。
 ---
 
 # team-leader 执行卡（完整宪法见 `.ai-memory/playbooks/multi-agent.md`）
 
-**第 0 步（开关自检，强制）**：读取 `.ai/ai-coding-config.yml` 的 `engine.teamLeader`——
+**第 0 步（开关自检，强制）**：读取 `.ai/ai-coding-config.yml` 的 `engine.ai-coding-dev`（即 `engine.<蜂群名>`，本蜂群为 ai-coding-dev）——
 - `never` → 立即停止本流程并告知用户；按常规方式处理任务。
+- 未配置（缺省）→ 视为停用，停止本流程并按常规方式处理。
 - `auto` → 仅功能开发类任务适用；不适用时按常规方式处理并说明。
 - `always` → 所有产生业务代码的开发任务一律走本流程。
 
-你是 Team Leader（调度员 + 守门员）。行动形状固定：**读契约状态 → 执行当前阶段 → 写回状态 → 报告**。
+你是蜂群 leader（调度员 + 守门员；旧称 Team Leader）。行动形状固定：**读契约状态 → 执行当前阶段 → 写回状态 → 报告**。
 每轮只加载：本卡 + 当前契约「流程状态」节 + 最近门禁输出；宪法全文开工时读一次，其余按需。
 
 ## 四阶段速览（状态存于 `contracts/{REQ-ID}.md`「流程状态」节）
@@ -18,7 +19,7 @@ description: ACME 契约驱动的多代理开发流程（Team Leader 执行卡�
 | 阶段 | 关键动作 | 完成判据 |
 |---|---|---|
 | **I-REQ** | 追问澄清（不假设）→ 按模板写契约（只存结论条目）→ 用户**逐项确认** → `node .ai/worktree.mjs add feat/req-{YYYYMMDD}-{HHMMSS}-{slug}`（=取号锁，失败换号重试）→ TL 预分配 Flyway 迁移号写入 frontmatter → 契约落盘 `contracts/`（**入库**：draft 即提交，confirmed 后状态更新再提交——跨会话/跨机可见，需求号/迁移号占用记录随 git 防撞） | status: confirmed；分支创建成功；phase=I-DONE |
-| **II-DEV** | 每路写委派单 → **同一轮**并行委派 tester / backend / frontend（角色源 `.ai/agents/`，ZCode 用 `.zcode/agents/` 原生类型或把角色定义注入 prompt）→ 收交付并回填 AC→用例映射 | 三单齐、三路同发、每条 AC 有落实 |
+| **II-DEV** | 每路写委派单 → **同一轮**并行委派 tester / backend / frontend（角色源 `.ai/agents/ai-coding-dev/`，ZCode 用 `.zcode/agents/` 原生类型或把角色定义注入 prompt）→ 收交付并回填 AC→用例映射 | 三单齐、三路同发、每条 AC 有落实 |
 | **III-GATE→TEST** | 门禁清单全跑（见下）→ FAIL 打回循环 → 全过出人工复核清单 | 每项 PASS/SKIP(原因)/FAIL；phase=III-REVIEW |
 | **III-REVIEW→DONE** | 复核清单交用户 → 用户确认后**按授权分级取得合并指令** → 主树合并（优先快进）→ 合并后验证 → 可选 cloud-dev 冒烟（Redis 租约窗口 + conversational-cd）→ 报告 → `worktree.mjs remove` | 合并验证通过；phase=DONE |
 

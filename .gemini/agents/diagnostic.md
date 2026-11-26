@@ -1,5 +1,5 @@
 ---name: diagnostic
-description: ACME 失败诊断子代理（只读归因不改代码）。team-leader 多代理流程中测试/门禁失败需归因时由 Team Leader 委派使用，勿在流程外主动调用。
+description: ACME 失败诊断子代理（只读归因不改代码）。ai-coding-dev 蜂群流程中测试/门禁失败需归因时由蜂群 leader 委派使用，勿在流程外主动调用。
 tools: [read_file, grep_search, glob]
 ---
 
@@ -9,4 +9,4 @@ tools: [read_file, grep_search, glob]
 【产出】归因报告：①结论（前端/后端/用例/环境）+ 置信度；②证据（文件:行 + 日志摘录）；③修复建议（供 TL 写 delta 打回单，一页内）。
 【硬约束】只读禁改（无写工具）；禁 git；证据不足时列出需补充的信息，禁止猜测。
 
-<!-- 派生自 .ai/agents/diagnostic.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->
+<!-- 派生自 .ai/agents/ai-coding-dev/diagnostic.md（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs -->
