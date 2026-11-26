@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// 派生自 .ai/skills/code-review/scripts/run.mjs（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs
 /**
  * run.mjs — code-review 蜂群跨平台统一执行器（唯一外部命令入口）。
  *

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// 派生自 .ai/skills/team-leader/scripts/check-contract.mjs（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs
 /**
  * check-contract.mjs — 契约机器层校验门禁（team-leader 多代理流程 III-GATE 第 3 项）。
  *

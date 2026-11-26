@@ -111,9 +111,19 @@ const TOOLS = [
   },
   { key: 'qoder', doc: 'QODER.md', target: '.qoder' },
   { key: 'github', doc: 'GITHUB-CONFIG.md', target: '.github' },
-  // ZCode 的 agents/commands 引用存根（正文指针指向 .ai/ 公共池源）；.zcode/ 本身 git 忽略、不入库，
-  // 故标记 localOnly：--check 对缺失不判错（全新检出/CI 无该目录），存在必须一致（防漂移）。
-  { key: 'zcode', doc: 'ZCODE.md', target: '.zcode', localOnly: true },
+  // ZCode 的 agents/commands 引用存根由 .ai/agents/、.ai/commands/ 公共池派生（正文指针指向唯一源，
+  // frontmatter 供 ZCode 注册）；不再保留手写镜像源，新增角色/命令自动纳入派生。
+  // .zcode/ 本身 git 忽略、不入库，故标记 localOnly：--check 对缺失不判错（全新检出/CI 无该目录），存在必须一致（防漂移）。
+  {
+    key: 'zcode',
+    doc: 'ZCODE.md',
+    target: '.zcode',
+    localOnly: true,
+    mirrorPools: [
+      { src: 'agents', transform: makeZcodeAgentStub, flat: true },
+      { src: 'commands', transform: makeZcodeCommandStub },
+    ],
+  },
   // CodeBuddy：用户本机工具，.codebuddy/ git 忽略、不入库（官方建议项目 .codebuddy/ 提交共享，但本目录
   // 与 teams/ 等本机运行数据混居、CI 全新检出无此目录 → 维持 localOnly 口径，差异记录见 ADR 2026-11-17-03）。
   // 公共池 agents/skills/commands 派生为引用存根（官方原生识别 frontmatter，正文指针指向 .ai/ 池源，
@@ -470,7 +480,7 @@ const stub = `本仓库所有 AI 规范统一维护于 \`.ai/\`。**开始任何
 
 /** 蜂群触发段：对 engine 中每个蜂群键按档位生成一条（编号从 5 递增），注入所有入口存根。
  *  蜂群键缺省 → 不生成任何条目（等价 never 停用）；存根不占 RULES.md 预算；档位语义见 ARCHITECTURE「行为/引擎开关」。
- *  manual 档不引用四阶段流程 / 手册 / 命令入口：评审蜂群只在用户显式要求时调用，唯一产物为 contracts/<REVIEW-ID>.md。 */
+ *  manual 档不引用四阶段流程 / 手册 / 命令入口：只在用户显式要求时调用，产物与流程口径见该蜂群说明文件。 */
 function buildSwarmTrigger(engine) {
   const swarms = Object.keys(engine).filter((k) => !FIXED_ENGINE_KEYS.has(k)).sort();
   return swarms
@@ -482,7 +492,7 @@ function buildSwarmTrigger(engine) {
       // 用途说明只登记在 .ai/agents/AGENT-POOL.md；触发段不写蜂群专属用途，避免新增蜂群时误标。
       if (mode === 'auto') return `${head}：蜂群 ${name} 的功能开发类任务自动按其四阶段契约流程执行——${refs}。`;
       if (mode === 'always') return `${head}：凡会产生业务代码的开发任务一律按蜂群 ${name} 的四阶段契约流程执行——${refs}。`;
-      if (mode === 'manual') return `${head}：蜂群 ${name} 仅在用户对话显式要求时调用，无自动触发、无命令入口；评审唯一产物为 contracts/<REVIEW-ID>.md。`;
+      if (mode === 'manual') return `${head}：蜂群 ${name} 仅在用户对话显式要求时调用，无自动触发、无命令入口；产物与流程口径见该蜂群说明文件。`;
       return `${head}：蜂群 ${name} 的四阶段契约流程已停用，开发任务按常规方式执行——${refs}，勿主动调用。`;
     })
     .join('\n');
@@ -593,6 +603,25 @@ function makeTraeAgentStub(content, rel) {
   return `${front}\n\n本文件为 Trae 引用存根：完整内容唯一源 \`.ai/agents/${rel}\`。\n\n执行前先完整读取该源文件并严格遵循；本存根不含正文，禁止在此手改内容。\n`;
 }
 
+/** ZCode Agent 注册存根：frontmatter 原样保留供 ZCode 注册，正文仅指针指向 .ai/agents/ 公共池源。
+ *  取代 .ai/tools/zcode/agents/ 手写镜像——新增蜂群/角色自动纳入派生，杜绝漏配（ADR 2026-11-26-01）。
+ *  无 frontmatter 的源按路径合成最小注册头（fixture 兼容）。rel 形如 ai-coding-dev/ai-coding-dev-leader.md。 */
+function makeZcodeAgentStub(content, rel) {
+  const m = content.match(/^---\n[\s\S]*?\n---/);
+  const name = rel.replace(/\.md$/, '').split('/').pop().toLowerCase();
+  const front = m ? m[0] : `---\nname: ${name}\ndescription: 引用存根（完整内容见 .ai/agents/${rel}）\n---`;
+  return `${front}\n\n你的完整角色定义唯一源：\`.ai/agents/${rel}\`（公共池）。\n\n被 spawn 后第一步：立即完整读取上述文件并严格遵循。本文件仅为 ZCode 注册存根（frontmatter 供工具识别），不含角色内容。\n`;
+}
+
+/** ZCode Command 注册存根：frontmatter 原样保留（description 与 .ai/commands/ 源逐字一致），正文沿用
+ *  现有 ZCode 命令存根口径（唯一源指针 + 立即读取执行提示 + $ARGUMENTS 占位）；rel 形如 req.md。 */
+function makeZcodeCommandStub(content, rel) {
+  const m = content.match(/^---\n[\s\S]*?\n---/);
+  const name = rel.replace(/\.md$/, '').toLowerCase();
+  const front = m ? m[0] : `---\ndescription: 命令 ${name}（完整内容见 .ai/commands/${rel}）\n---`;
+  return `${front}\n\n完整命令定义唯一源：\`.ai/commands/${rel}\`。立即读取并按其执行（含 \`engine.ai-coding-dev\` 蜂群开关自检与四阶段流程）。\n\n用户参数：$ARGUMENTS\n`;
+}
+
 /** 逐文件派生。flat=true：输出路径取源文件 basename（蜂群子目录不落到工具目录，保持原生发现能力），
  *  但 label / footer / transform 仍使用完整源 rel，登记簿按输出路径检测重名冲突。 */
 async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc = null, transform = null, flat = false } = {}) {
@@ -607,6 +636,19 @@ async function derive(srcDir, outRoot, srcLabel, { excludeDocs = [], placardDoc 
     if (rel.endsWith('.md')) content = content.trimEnd() + footer(label);
     else if (/\.(ya?ml|toml)$/.test(rel))
       content = `# 派生自 ${label}（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs\n\n` + content;
+    else if (/\.(mjs|js|ts|tsx)$/.test(rel)) {
+      // 脚本类派生物同样带标记：否则孤儿检测扫到它们时 DERIVED_MARK 匹配不上（源删后残留漏报）。
+      // shebang 必须在第 1 行，否则 node --check 报 Invalid or unexpected token；标记插到 shebang 行之后。
+      const mark = `// 派生自 ${label}（统一管理于 .ai/），请修改源文件后运行 node .ai/sync.mjs\n`;
+      if (content.startsWith('#!')) {
+        const nl = content.indexOf('\n');
+        content = nl === -1
+          ? `${content}\n${mark}`
+          : content.slice(0, nl + 1) + mark + content.slice(nl + 1);
+      } else {
+        content = mark + content;
+      }
+    }
     register(expected, `${outRoot}/${outRel}`, content, label);
   }
 }

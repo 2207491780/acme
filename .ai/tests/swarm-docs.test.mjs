@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-// 蜂群文档口径回归：上一轮审计发现三处漂移——工人角色仍称 Team Leader、leader description 用 ≠never
-// 且与 ZCode 存根措辞不一、第 0 步自检漏了「未配置（缺省）」停用分支。本文件只读真实仓库源文件，
-// 不建 fixture、不写任何文件（与 .ai/tests/*.test.mjs 风格一致）。
+// 蜂群文档口径回归：上一轮审计发现三处漂移——工人角色仍称 Team Leader、leader description 用 ≠never、
+// 第 0 步自检漏了「未配置（缺省）」停用分支。本文件只读真实仓库源文件，不建 fixture、不写任何文件
+// （与 .ai/tests/*.test.mjs 风格一致）。ZCode 存根逐字校验已改为 sync.test.mjs 的 fixture 驱动用例。
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const read = (rel) => readFile(join(root, rel), 'utf8');
@@ -14,7 +14,6 @@ const read = (rel) => readFile(join(root, rel), 'utf8');
 const BACKEND = '.ai/agents/ai-coding-dev/backend-dev.md';
 const FRONTEND = '.ai/agents/ai-coding-dev/frontend-dev.md';
 const LEADER = '.ai/agents/ai-coding-dev/ai-coding-dev-leader.md';
-const ZCODE_LEADER = '.ai/tools/zcode/agents/ai-coding-dev-leader.md';
 const SKILL = '.ai/skills/team-leader/SKILL.md';
 
 function bodyOf(text, file) {
@@ -48,15 +47,12 @@ test('should_use_swarm_leader_wording_in_worker_role_body_when_referring_to_dele
   }
 });
 
-test('should_keep_leader_descriptions_identical_when_zcode_stub_mirrors_public_pool', async () => {
-  const sourceDescription = descriptionOf(await read(LEADER), LEADER);
-  const stubDescription = descriptionOf(await read(ZCODE_LEADER), ZCODE_LEADER);
-  assert.equal(stubDescription, sourceDescription, `${ZCODE_LEADER} 的 description 必须与 ${LEADER} 逐字一致`);
-  for (const [rel, description] of [[LEADER, sourceDescription], [ZCODE_LEADER, stubDescription]]) {
-    assert.match(description, /auto\|always/, `${rel} 的 description 应含 auto|always 档位`);
-    assert.match(description, /never 或缺省时停用/, `${rel} 的 description 应含「never 或缺省时停用」口径`);
-    assert.doesNotMatch(description, /≠never/, `${rel} 的 description 不得再用 ≠never 旧口径`);
-  }
+test('should_describe_leader_trigger_modes_in_source_role_file', async () => {
+  // ZCode 存根 frontmatter 由 sync.mjs 从源逐字保留（见 sync.test.mjs 的派生用例），此处只校验源角色口径。
+  const description = descriptionOf(await read(LEADER), LEADER);
+  assert.match(description, /auto\|always/, `${LEADER} 的 description 应含 auto|always 档位`);
+  assert.match(description, /never 或缺省时停用/, `${LEADER} 的 description 应含「never 或缺省时停用」口径`);
+  assert.doesNotMatch(description, /≠never/, `${LEADER} 的 description 不得再用 ≠never 旧口径`);
 });
 
 test('should_treat_missing_swarm_key_as_disabled_in_both_step_zero_checks', async () => {
@@ -115,35 +111,17 @@ function toolsOf(text, file) {
   return line[1].split(',').map((tool) => tool.trim()).filter(Boolean);
 }
 
-function frontmatterLineOf(text, key, file) {
-  const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  assert.ok(fm, `${file} 应有 frontmatter`);
-  const line = fm[1].split(/\r?\n/).find((raw) => raw.startsWith(`${key}:`));
-  assert.ok(line, `${file} 的 frontmatter 应有 ${key} 行`);
-  return line;
-}
-
-const ZCODE_AGENTS = '.ai/tools/zcode/agents';
-
-test('should_keep_code_review_zcode_stubs_verbatim_when_registering_swarm_roles', async () => {
-  for (const role of CR_ROLES) {
-    const sourceRel = crPath(role);
-    const stubRel = `${ZCODE_AGENTS}/${role}.md`;
-    const stat = await lstat(join(root, stubRel));
-    assert.ok(stat.isFile(), `${stubRel} 应存在 ZCode 角色存根源`);
-    const source = await read(sourceRel);
-    const stub = await read(stubRel);
-    for (const key of ['description', 'tools']) {
-      assert.equal(
-        frontmatterLineOf(stub, key, stubRel),
-        frontmatterLineOf(source, key, sourceRel),
-        `${stubRel} 的 ${key} 必须与 ${sourceRel} 逐字一致`
-      );
-    }
-    const stubBody = bodyOf(stub, stubRel);
-    assert.ok(stubBody.includes(`.ai/agents/code-review/${role}.md`), `${stubRel} 正文应指向公共池源 ${sourceRel}`);
-    assert.match(stubBody, /被 spawn 后第一步：立即完整读取上述文件并严格遵循/, `${stubRel} 正文应写明 spawn 后先读源文件`);
+test('should_derive_zcode_stubs_from_pools_without_handwritten_sources', async () => {
+  // ZCode 存根不再有手写镜像：源目录必须消失，派生规则必须登记在 sync.mjs 的 zcode 工具项。
+  for (const dir of ['agents', 'commands']) {
+    await assert.rejects(lstat(join(root, '.ai/tools/zcode', dir)), { code: 'ENOENT' }, `.ai/tools/zcode/${dir}/ 不应再有手写源目录`);
   }
+  const sync = await read('.ai/sync.mjs');
+  assert.match(
+    sync,
+    /key: 'zcode',[\s\S]*?mirrorPools: \[[\s\S]*?\{ src: 'agents', transform: makeZcodeAgentStub, flat: true \},[\s\S]*?\{ src: 'commands', transform: makeZcodeCommandStub \}/,
+    'sync.mjs 的 zcode 工具项应含 agents/commands 的 mirrorPools'
+  );
 });
 
 test('should_keep_code_review_role_descriptions_and_names_consistent', async () => {
