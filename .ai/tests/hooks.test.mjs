@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
@@ -31,8 +32,22 @@ async function makeRepo(t, { withHooks = false, sha256 = false } = {}) {
   return { repo, g };
 }
 
-const commitMsg = (repo, msgFile) => spawnSync('sh', [join(HOOKS, 'commit-msg'), msgFile], { cwd: repo, encoding: 'utf8' });
-const prePush = (repo, input, env) => spawnSync('sh', [join(HOOKS, 'pre-push')], {
+/** 跨平台解析 POSIX shell：先试 PATH；Windows 从 Git 安装根（由 git --exec-path 反推）兜底。 */
+function shellForHooks() {
+  const probe = spawnSync('sh', ['-c', 'exit 0']);
+  if (!probe.error && probe.status === 0) return 'sh';
+  const execPath = spawnSync('git', ['--exec-path'], { encoding: 'utf8' });
+  if (!execPath.error && execPath.status === 0) {
+    const candidate = resolve(execPath.stdout.trim(), '../../../usr/bin/sh');
+    if (existsSync(candidate)) return candidate;
+    if (existsSync(`${candidate}.exe`)) return `${candidate}.exe`;
+  }
+  return 'sh'; // 保留原始 ENOENT 便于诊断
+}
+const HOOK_SHELL = shellForHooks();
+
+const commitMsg = (repo, msgFile) => spawnSync(HOOK_SHELL, [join(HOOKS, 'commit-msg'), msgFile], { cwd: repo, encoding: 'utf8' });
+const prePush = (repo, input, env) => spawnSync(HOOK_SHELL, [join(HOOKS, 'pre-push')], {
   cwd: repo,
   encoding: 'utf8',
   input,

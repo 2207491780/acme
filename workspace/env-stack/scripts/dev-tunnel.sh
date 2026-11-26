@@ -1,4 +1,6 @@
 #!/bin/sh
+# Windows 前置：须在 Git Bash / WSL 中运行（依赖 POSIX sh、mktemp、awk 与 POSIX 版 ssh；
+# Git for Windows 的 ssh 链接 msys-2.0.dll，可识别下面 /tmp 下的 #!/bin/sh askpass 助手）。
 # 用法：dev-tunnel.sh [dev] —— 本地 ↔ 云端中间件隧道（ADR 2026-11-18-02：SSH 连【应用面机】，
 # 纯 ssh -L 直达中间件 ClusterIP；test 已并入 dev（别名）；prod 禁用：只读红线）。
 # 前置：仓库根 cloud-servers.yml 的 app-plane 块（host/ssh_port/user/password）——认证方式 =
@@ -57,14 +59,15 @@ echo "  postgres/redis/nacos 端点已取得"
 echo "▶ 拉取云端 dev 凭证（本地启动服务前 export；敏感输出由用户终端承接）："
 ssh_run "cat /opt/acme/tunnel/dev.env"
 
-cat <<EOF
+cat <<'EOF'
 ▶ 隧道映射（本机回环，Ctrl-C 拆除，无远端进程）：
   15432 → postgres ClusterIP:5432   16379 → redis ClusterIP:6379
   18848 → nacos ClusterIP:8848      19848 → nacos ClusterIP:9848（gRPC）
 ▶ 本地后端联调示例（先 export 上方凭证）：
-  PG_HOST=127.0.0.1 PG_PORT=15432 REDIS_HOST=127.0.0.1 REDIS_PORT=16379 \\
-  NACOS_ADDR=http://127.0.0.1:18848 \\
-  mvn -f workspace/apps/backend/acme-cloud/pom.xml -pl acme-platform/platform-auth/platform-auth-service spring-boot:run
+  PG_HOST=127.0.0.1 PG_PORT=15432 REDIS_HOST=127.0.0.1 REDIS_PORT=16379 \
+  NACOS_ADDR=http://127.0.0.1:18848 \
+  ${MVN_CMD:-mvn} -f workspace/apps/backend/acme-cloud/pom.xml -pl acme-platform/platform-auth/platform-auth-service spring-boot:run
+  ⚠️ Maven 不在 PATH 时先 export MVN_CMD=<maven-home>/bin/mvn（Windows/macOS 同口径）
   ⚠️ platform-infra 本地启动另需 ACME_STORAGE_LOCAL_ROOT_DIR=<本机已存在目录>
     （文件服务落盘根；非集群 Secret，本地自定路径，不入库）
 EOF

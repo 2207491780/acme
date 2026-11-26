@@ -92,7 +92,9 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 cp -r "$ENVSTACK/k8s/base" "$TMP/base"
 cp -r "$ENVSTACK/k8s/overlays/$ENV" "$TMP/overlay"
-sed -i 's|\.\./\.\./base|../base|' "$TMP/overlay/kustomization.yaml"
+# 可移植写法：BSD sed（macOS）的 -i 必须带备份后缀参数，改用临时文件 + mv（POSIX 通用）
+sed 's|\.\./\.\./base|../base|' "$TMP/overlay/kustomization.yaml" > "$TMP/overlay/kustomization.yaml.tmp"
+mv "$TMP/overlay/kustomization.yaml.tmp" "$TMP/overlay/kustomization.yaml"
 {
   echo "images:"
   for svc in $ALL_SERVICES; do

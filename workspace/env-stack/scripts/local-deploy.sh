@@ -1,4 +1,6 @@
 #!/bin/sh
+# Windows 前置：须在 Git Bash / WSL 中运行（依赖 POSIX sh、mktemp、awk 与 POSIX 版 ssh；
+# Git for Windows 的 ssh 链接 msys-2.0.dll，可识别下面 /tmp 下的 #!/bin/sh askpass 助手）。
 # 用法：local-deploy.sh —— 消费本地产物部署（ADR 2026-11-18-03）：镜像推 TCR → 数据面机 deploy →
 # 隧道面同步（中间件端点 + dev 凭证到应用面机）。
 # 输入接口：产物目录（local-build.sh 产出；缺省取 .ai-tmp/build/ 下最新 prod-*，可 export

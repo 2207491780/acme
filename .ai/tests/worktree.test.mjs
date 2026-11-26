@@ -24,7 +24,12 @@ async function makeRepo(t) {
   return { repo, g };
 }
 
-const run = (repo, args) => spawnSync('node', [SCRIPT, ...args], { cwd: repo, encoding: 'utf8' });
+// 6h GC 宽限期会让刚创建的工作树一律跳过回收；测试注入 0 使 gc 用例可断言实际判定逻辑。
+const run = (repo, args) => spawnSync('node', [SCRIPT, ...args], {
+  cwd: repo,
+  encoding: 'utf8',
+  env: { ...process.env, ACME_WORKTREE_GC_MIN_AGE_MS: '0' },
+});
 
 test('should_create_worktree_and_branch_when_add', async (t) => {
   const { repo, g } = await makeRepo(t);
