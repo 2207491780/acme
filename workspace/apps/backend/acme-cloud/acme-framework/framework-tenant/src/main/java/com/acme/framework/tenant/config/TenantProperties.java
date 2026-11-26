@@ -18,6 +18,9 @@ public class TenantProperties {
      */
     private final Audit audit = new Audit();
 
+    /** 数据库 RLS 会话变量传播（REQ-20261125-001737，acme.tenant.rls.propagation）。 */
+    private final Rls rls = new Rls();
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -28,6 +31,25 @@ public class TenantProperties {
 
     public Audit getAudit() {
         return audit;
+    }
+
+    public Rls getRls() {
+        return rls;
+    }
+
+    /** 数据库 RLS 兜底（REQ-20261125-001737；仅 jdbc:postgresql 生效）。 */
+    public static class Rls {
+
+        /** 连接传播开关（默认 true；false=逃生开关，行为与现状一致）。 */
+        private boolean propagation = true;
+
+        public boolean isPropagation() {
+            return propagation;
+        }
+
+        public void setPropagation(boolean propagation) {
+            this.propagation = propagation;
+        }
     }
 
     /** 跨租户审计（FR-004；仅控制日志产生，关闭须知悉合规风险——架构设计 12）。 */
