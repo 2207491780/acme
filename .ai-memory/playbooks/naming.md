@@ -43,7 +43,7 @@
 
 ## 5. 前端（TypeScript / React）
 
-- **单组件/页面/屏幕文件** = PascalCase.tsx：`App.tsx`、`ReleaseFormModal.tsx`、`DashboardScreen.tsx`。
+- **单组件/页面/屏幕文件** = PascalCase.tsx：`App.tsx`、`AppFormModal.tsx`、`DashboardScreen.tsx`。
 - **非组件模块**（hooks/utils/store/atoms/icons/theme/types，含集合型 .tsx）= camelCase 或 lowercase：`useStore.ts`、`utils.ts`、`theme.ts`、`icons.tsx`、`ui.tsx`、`main.tsx`（入口）。
 - **标识符**：组件/类型 PascalCase，函数/变量 camelCase，常量 UPPER_SNAKE_CASE。
 - **测试** = `<subject>.test.ts(x)`：`reducer.test.ts`、`store.test.ts`。
