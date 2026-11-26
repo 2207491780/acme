@@ -248,8 +248,9 @@ const CONFIG_DEFAULTS = {
 };
 /** engine 固定键：其余键必须是 .ai/agents/ 下的蜂群名（见 listSwarmNames / validateConfig）。 */
 const FIXED_ENGINE_KEYS = new Set(['entryMode', 'orphanDetection', 'rulesBudgetBytes']);
-/** 蜂群触发模式档位（auto=功能开发类；always=所有产出业务代码的任务；never=停用）。 */
-const SWARM_TRIGGER_MODES = ['auto', 'always', 'never'];
+/** 蜂群触发模式档位（auto=功能开发类；always=所有产出业务代码的任务；never=停用；
+ *  manual=仅用户对话显式要求时调用，无自动触发、无命令入口，如 code-review 评审蜂群）。 */
+const SWARM_TRIGGER_MODES = ['auto', 'always', 'never', 'manual'];
 
 /** 极简 YAML 子集解析：仅两层标量映射 + 注释；拒绝数组/Tab/多行/锚点等未支持语法（无外部依赖）。 */
 function parseConfigYaml(text) {
@@ -322,7 +323,7 @@ async function listSwarmNames() {
 }
 
 /** 严格校验：未知键/错误类型/非法枚举一律报错，避免静默误配；与缺省合并。
- *  engine 除固定键外，仅允许键名属于传入的蜂群集合，取值必须是 auto|always|never。 */
+ *  engine 除固定键外，仅允许键名属于传入的蜂群集合，取值必须是 auto|always|never|manual。 */
 function validateConfig(parsed, swarmNames) {
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(`${CONFIG_FILE}：顶层必须是映射`);
   const swarms = new Set(swarmNames ?? []);
@@ -340,7 +341,7 @@ function validateConfig(parsed, swarmNames) {
         if (k === 'orphanDetection' && typeof v !== 'boolean') throw new Error(`${CONFIG_FILE}：orphanDetection 必须为布尔`);
         if (k === 'rulesBudgetBytes' && (!Number.isInteger(v) || v <= 0)) throw new Error(`${CONFIG_FILE}：rulesBudgetBytes 必须为正整数`);
       } else if (swarms.has(k)) {
-        if (!SWARM_TRIGGER_MODES.includes(v)) throw new Error(`${CONFIG_FILE}：${k} 必须为 auto|always|never`);
+        if (!SWARM_TRIGGER_MODES.includes(v)) throw new Error(`${CONFIG_FILE}：${k} 必须为 auto|always|never|manual`);
       } else {
         throw new Error(`${CONFIG_FILE}：未知 engine 键「${k}」`);
       }
@@ -468,7 +469,8 @@ const stub = `本仓库所有 AI 规范统一维护于 \`.ai/\`。**开始任何
 4. 凡修改 AI-Coding 配置（规范 / 分层规则 / 公共池 / 工具配置 / 钩子 / CI）：先读 \`.ai-memory/playbooks/ai-config.md\`，按其五步流程执行。`;
 
 /** 蜂群触发段：对 engine 中每个蜂群键按档位生成一条（编号从 5 递增），注入所有入口存根。
- *  蜂群键缺省 → 不生成任何条目（等价 never 停用）；存根不占 RULES.md 预算；档位语义见 ARCHITECTURE「行为/引擎开关」。 */
+ *  蜂群键缺省 → 不生成任何条目（等价 never 停用）；存根不占 RULES.md 预算；档位语义见 ARCHITECTURE「行为/引擎开关」。
+ *  manual 档不引用四阶段流程 / 手册 / 命令入口：评审蜂群只在用户显式要求时调用，唯一产物为 contracts/<REVIEW-ID>.md。 */
 function buildSwarmTrigger(engine) {
   const swarms = Object.keys(engine).filter((k) => !FIXED_ENGINE_KEYS.has(k)).sort();
   return swarms
@@ -480,6 +482,7 @@ function buildSwarmTrigger(engine) {
       // 用途说明只登记在 .ai/agents/AGENT-POOL.md；触发段不写蜂群专属用途，避免新增蜂群时误标。
       if (mode === 'auto') return `${head}：蜂群 ${name} 的功能开发类任务自动按其四阶段契约流程执行——${refs}。`;
       if (mode === 'always') return `${head}：凡会产生业务代码的开发任务一律按蜂群 ${name} 的四阶段契约流程执行——${refs}。`;
+      if (mode === 'manual') return `${head}：蜂群 ${name} 仅在用户对话显式要求时调用，无自动触发、无命令入口；评审唯一产物为 contracts/<REVIEW-ID>.md。`;
       return `${head}：蜂群 ${name} 的四阶段契约流程已停用，开发任务按常规方式执行——${refs}，勿主动调用。`;
     })
     .join('\n');
