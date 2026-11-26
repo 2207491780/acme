@@ -1,5 +1,6 @@
 package com.acme.platform.auth.application;
 
+import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
 import com.acme.common.core.BizException;
 import com.acme.platform.auth.AuthError;
@@ -60,10 +61,13 @@ class OnlineSessionUseCaseTest {
     @AfterEach
     void tearDown() {
         UserContext.clear();
+        TenantContext.clear();
     }
 
+    /** V34：kickAllByUsername 按操作者租户域收敛，须显式绑定 TenantContext（与 session()/profile() 的 default 对齐）。 */
     private void operator(String userId, String... roles) {
         UserContext.bind(new UserContext(userId, Set.of(roles)));
+        TenantContext.bind(new TenantContext("default"));
     }
 
     private void profiles(Map<Long, AuthProfileView> profileMap) {

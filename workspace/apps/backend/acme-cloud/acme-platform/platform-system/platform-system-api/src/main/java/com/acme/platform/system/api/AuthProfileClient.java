@@ -15,13 +15,16 @@ import java.util.List;
 public interface AuthProfileClient {
 
     /**
-     * 按用户名查认证画像（全局唯一键定位）。
+     * 按 (tenantCode, username) 域内查认证画像（REQ-20261125-001738 确认②；路径不变、两参数均必填）。
+     * 未知租户或域内无此用户与现状同口径失败（404，消费方统一映射 LOGIN_FAILED）。
      *
-     * @param username 用户名
-     * @return 信封携带画像；用户不存在时响应 404（不经本类型解码）
+     * @param tenantCode 租户编码（用户名唯一域，必填）
+     * @param username   租户域内用户名（必填）
+     * @return 信封携带画像；域内用户不存在时响应 404（不经本类型解码）
      */
     @GetMapping("/internal/v1/auth-profiles")
-    ContractResult<AuthProfileView> findByUsername(@RequestParam("username") String username);
+    ContractResult<AuthProfileView> findByUsername(@RequestParam("tenantCode") String tenantCode,
+                                                  @RequestParam("username") String username);
 
     /**
      * 按 userId 批量查认证画像（REQ-20261114-120105：在线用户列表 username/超管判定富化；

@@ -1,5 +1,6 @@
 package com.acme.platform.system.application;
 
+import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
 import com.acme.common.contract.PageQuery;
 import com.acme.common.contract.PageResult;
@@ -56,10 +57,11 @@ public class UserUseCase {
         this.dataScopeService = dataScopeService;
     }
 
-    /** 创建用户（无密码；username 全局唯一；deptId / positionId 非空时校验存在）。 */
+    /** 创建用户（无密码；username 租户域内唯一；deptId / positionId 非空时校验存在）。 */
     @Transactional
     public SysUser create(AdminUserCreate request) {
-        if (userRepository.existsByUsername(request.username())) {
+        // REQ-20261125-001738 确认①：查重按操作者当前租户域（TenantContext）——跨租户同名不再阻断
+        if (userRepository.existsByUsername(currentTenantId(), request.username())) {
             throw new BizException(SystemError.USERNAME_DUPLICATED);
         }
         checkOrgRefs(request.deptId(), request.positionId());
@@ -236,5 +238,11 @@ public class UserUseCase {
     private static String currentOperatorId() {
         UserContext context = UserContext.get();
         return context == null ? null : context.userId();
+    }
+
+    /** 操作者当前租户（数据域唯一事实源 TenantContext；缺失时仓储侧 fail-closed）。 */
+    private static String currentTenantId() {
+        TenantContext context = TenantContext.get();
+        return context == null ? null : context.tenantId();
     }
 }

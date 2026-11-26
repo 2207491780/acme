@@ -23,10 +23,11 @@ public interface SysUserRepository extends FlexRepository<SysUser> {
      */
     long countByTenantId(String tenantId);
 
-    boolean existsByUsername(String username);
+    /** 域内重名判定（REQ-20261125-001738；显式 tenantId 维度，不依赖调用方租户过滤是否旁路）。 */
+    boolean existsByUsername(String tenantId, String username);
 
-    /** 登录画像定位（@IgnoreTenant 旁路内显式按全局唯一键查询）。 */
-    SysUser findByUsername(String username);
+    /** 登录画像定位（@IgnoreTenant 旁路内显式按 (tenantCode, username) 域内键查询）。 */
+    SysUser findByUsername(String tenantCode, String username);
 
     /**
      * 按 PK 全局直读（REQ-20261117-025200 切换会话身份解析，12.4.2 显式旁路声明）：

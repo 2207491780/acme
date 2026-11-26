@@ -390,7 +390,7 @@ class SystemIntegrationTest {
         try {
             viewer = userUseCase.create(new AdminUserCreate("viewer", "视图用户", null, null, List.of()));
         } catch (com.acme.common.core.BizException duplicated) {
-            viewer = userRepository.findByUsername("viewer");
+            viewer = userRepository.findByUsername("tenant-a", "viewer");
         }
         var role = roleUseCase.create(new com.acme.platform.system.api.dto.AdminRoleCreate(
                 null, "it_viewer", "视图角色", null));
@@ -404,11 +404,12 @@ class SystemIntegrationTest {
         assertThat(snapshot.roles()).containsExactly("it_viewer");
 
         // 登录画像（@IgnoreTenant 平台级）：found 与 not-found
-        var profile = authProfileUseCase.findByUsername("viewer");
+        // REQ-20261125-001738：画像按 (tenantCode, username) 域内查档
+        var profile = authProfileUseCase.findByUsername("tenant-a", "viewer");
         assertThat(profile.username()).isEqualTo("viewer");
         assertThat(profile.roles()).containsExactly("it_viewer");
         org.assertj.core.api.Assertions.assertThatThrownBy(
-                        () -> authProfileUseCase.findByUsername("no-such-user-it"))
+                        () -> authProfileUseCase.findByUsername("tenant-a", "no-such-user-it"))
                 .isInstanceOf(com.acme.common.core.BizException.class);
 
         // 权限判定：无绑定权限 → false；super_admin 短路 → true

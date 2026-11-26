@@ -135,7 +135,8 @@ public class TenantInitUseCase {
     }
 
     /**
-     * 开通租户（含默认授权与初始管理员）；编码重复 / 用户名全局重复显式失败。
+     * 开通租户（含默认授权与初始管理员）；编码重复 / 用户名域内重复显式失败
+     * （REQ-20261125-001738 确认④：跨租户同名不再阻断开通）。
      * REQ-20261122-233426 确认③：templateCode 命中模板时按模板快照建角色集/写配置/默认套餐，
      * 跳过动态全量授权集计算；未传/未命中=现行为逐字不变（兼容零回归，裁决记录⑥）。
      */
@@ -156,6 +157,10 @@ public class TenantInitUseCase {
         try {
             if (tenantRepository.existsByTenantCode(request.tenantCode())) {
                 throw new BizException(SystemError.TENANT_CODE_DUPLICATED);
+            }
+            // REQ-20261125-001738 确认④：冲突校验放宽为域内——仅目标租户内同名阻断，跨租户同名放行
+            if (userRepository.existsByUsername(request.tenantCode(), adminUsername)) {
+                throw new BizException(SystemError.USERNAME_DUPLICATED);
             }
             SysTenant tenant = new SysTenant(request.tenantCode(), request.tenantName(), request.remark());
             applyParent(tenant, request.parentId());
@@ -179,7 +184,7 @@ public class TenantInitUseCase {
                     admin.getId(), admin.getUsername(),
                     admin.getNickname());
         } catch (DataIntegrityViolationException ex) {
-            // username 全局唯一约束兜底（前置跨租户查重不可靠，约束为唯一事实源）
+            // username 域内唯一约束兜底（前置同域查重不可靠，约束为唯一事实源）
             log.warn("租户开通撞唯一约束，按用户名重复收敛：tenantCode={}", request.tenantCode());
             throw new BizException(SystemError.USERNAME_DUPLICATED);
         } finally {
@@ -201,7 +206,8 @@ public class TenantInitUseCase {
     /**
      * 初始管理员用户名解析（确认③「adminUsername 优先模板前缀」——模板命中且有前缀时
      * 前缀优先于请求显式值，测试面 REQ20261122233426 同口径）：命中模板且有前缀 →
-     * 前缀+租户编码（全局唯一合成；越界 sys_user.username varchar(64) 显式失败）；
+     * 前缀+租户编码（跨租户可读的域内唯一合成，REQ-20261125-001738 确认④保留；
+     * 越界 sys_user.username varchar(64) 显式失败）；
      * 无前缀时请求显式值兜底；仍缺失 → VALIDATION_FAILED（400，与原 bean 校验同码同态）。
      */
     private String effectiveAdminUsername(AdminTenantInitRequest request,

@@ -159,7 +159,7 @@ class REQ20261114120105OnlineUsersIntegrationTest {
                 .build();
         doNothing().when(imageCaptchaUseCase).verify(anyString(), anyString());
         // 登录画像（单查）；列表 username 解析/超管判定走批量画像（TL 裁决确认记录⑤，backend 交付口径）
-        when(authProfileGateway.findByUsername("admin")).thenReturn(
+        when(authProfileGateway.findByUsername("default", "admin")).thenReturn(
                 new AuthProfileView("1", "admin", "超级管理员", "default", "ENABLED", Set.of("super_admin")));
         // REQ-20261117-025200：登录租户有效期校验数据源——default 租户启用且未过期
         when(tenantDirectoryGateway.findByCode("default")).thenReturn(
