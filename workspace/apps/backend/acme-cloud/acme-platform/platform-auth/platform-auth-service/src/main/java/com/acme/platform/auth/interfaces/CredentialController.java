@@ -1,5 +1,6 @@
 package com.acme.platform.auth.interfaces;
 
+import com.acme.common.core.Result;
 import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.auth.api.AdminPasswordSetRequest;
 import com.acme.platform.auth.application.ResetPasswordUseCase;
@@ -26,10 +27,12 @@ public class CredentialController {
         this.resetPasswordUseCase = resetPasswordUseCase;
     }
 
-    /** 设置 / 重置用户密码（审计只记 userId，不记任何凭据内容）。 */
+    /** 设置 / 重置用户密码（审计只记 userId，不记任何凭据内容；
+     * 统一响应体 Result 契约口径：void 语义显式出信封，code="0"，REQ-20261125-230807）。 */
     @PutMapping("/users/{userId}/password")
     @AuditLog(action = "auth.credential.reset", targetType = "credential", contentParams = {"userId"})
-    public void resetPassword(@PathVariable Long userId, @Valid @RequestBody AdminPasswordSetRequest request) {
+    public Result<Void> resetPassword(@PathVariable Long userId, @Valid @RequestBody AdminPasswordSetRequest request) {
         resetPasswordUseCase.resetPassword(userId, request);
+        return Result.ok(null);
     }
 }

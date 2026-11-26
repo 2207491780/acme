@@ -7,8 +7,13 @@ export const dicts = {
     columns: {
       dictCode: 'Code',
       dictName: 'Name',
+      dictKind: 'Kind',
       status: 'Status',
       actions: 'Actions',
+    },
+    kind: {
+      flat: 'Flat',
+      tree: 'Tree',
     },
     footer: 'Click a row to select the type and maintain its items on the right.',
     form: {
@@ -21,6 +26,8 @@ export const dicts = {
       name: 'Type name',
       nameRequired: 'Please enter the type name',
       namePlaceholder: 'Type display name',
+      dictKind: 'Dict kind',
+      dictKindExtra: 'TREE kinds support item hierarchy; it cannot be changed after creation',
       remark: 'Remark',
       created: 'Dict type created',
       updated: 'Dict type updated',
@@ -39,6 +46,9 @@ export const dicts = {
       sortOrder: 'Order',
       actions: 'Actions',
     },
+    parent: 'Parent item',
+    parentExtra: 'TREE kinds only; leave empty for a top-level item',
+    parentPlaceholder: 'Select a parent item (optional)',
     editTitle: 'Edit item',
     createTitle: 'New item ({{name}})',
     label: 'Label',

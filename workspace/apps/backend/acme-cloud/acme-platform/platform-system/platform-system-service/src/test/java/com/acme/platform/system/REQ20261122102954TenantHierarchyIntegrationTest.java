@@ -508,6 +508,8 @@ class REQ20261122102954TenantHierarchyIntegrationTest {
         body.putNull("remark");
         body.put("adminUsername", tenantCode.replace('-', '_') + "_admin");
         body.put("adminNickname", tenantCode + " 管理员");
+        // REQ-20261125-230807 确认③：templateCode HTTP 面必填（未命中模板=既有兜底行为，语义不变）
+        body.put("templateCode", "fixture-unmatched-template");
         if (parentId == null) {
             body.putNull("parentId");
         } else {
@@ -567,25 +569,19 @@ class REQ20261122102954TenantHierarchyIntegrationTest {
                 .content(JSON.writeValueAsString(body)));
     }
 
-    /** 停用/启用（成功路径 emptyAsSuccess 双口径兼容：空体 2xx 合成为成功信封；失败路径信封 code 断言用）。 */
+    /** 停用/启用（REQ-20261125-230807 信封化：成功 wire=Result 信封 code="0"；失败路径信封 code 断言用）。 */
     private JsonNode putStatus(long tenantId, String status) throws Exception {
         ObjectNode body = JSON.createObjectNode();
         body.put("status", status);
-        org.springframework.test.web.servlet.MvcResult result = performAs("1", "default", Set.of("super_admin"),
-                put(LIST_URL + "/" + tenantId + "/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(JSON.writeValueAsString(body)));
-        String content = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        if (content.isBlank()) {
-            assertThat(result.getResponse().getStatus())
-                    .as("void 状态端点空体应 2xx（emptyAsSuccess 既有惯例）")
-                    .isEqualTo(org.springframework.http.HttpStatus.OK.value());
-            ObjectNode ok = JSON.createObjectNode();
-            ok.put("success", true);
-            ok.put("code", "0");
-            return ok;
+        JsonNode envelope = callAsSuperAdmin(put(LIST_URL + "/" + tenantId + "/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(body)));
+        if (envelope.path("success").asBoolean()) {
+            assertThat(envelope.path("code").asText())
+                    .as("状态端点成功应返回 Result 信封 code=\"0\"（REQ-20261125-230807 信封化）")
+                    .isEqualTo("0");
         }
-        return JSON.readTree(content);
+        return envelope;
     }
 
     /** 创建套餐（仅名），返回套餐 id（REQ-022910 端点复用）。 */

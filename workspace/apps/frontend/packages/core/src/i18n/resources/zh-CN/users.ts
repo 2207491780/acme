@@ -9,6 +9,9 @@ export const users = {
   columns: {
     username: '账号',
     nickname: '昵称',
+    // AC-1：部门/岗位列（映射自目录源，空值 —）
+    dept: '部门',
+    position: '岗位',
     status: '状态',
     roles: '角色',
     updatedAt: '更新时间',
@@ -31,6 +34,8 @@ export const users = {
   },
   errors: {
     loadFailed: '用户清单加载失败',
+    // AC-3/AC-27：目录加载失败可见警告（不再静默空选项）
+    optionsLoadFailed: '用户表单目录加载失败，部门/岗位/角色选项不可用',
   },
   form: {
     editTitle: '编辑用户：{{name}}',

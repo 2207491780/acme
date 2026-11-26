@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Alert, App, Button, Card, Checkbox, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Table, Tag, Tree, Typography } from 'antd';
+import { Alert, App, Button, Card, Checkbox, Drawer, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Spin, Table, Tag, Tree, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -22,16 +22,26 @@ import {
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 import { flattenDeptOptions } from '../utils/dept';
+import { stripEmptyChildren } from '../utils/tree';
 
 const { Text } = Typography;
 
 const CODE_PATTERN = /^[a-z][a-z0-9_-]*$/;
+
+/** 权限点目录单页上界（=后端 PageQuery.MAX_SIZE；超出则目录可能被截断——AC-6 告警口径）。 */
+const PERMISSION_PAGE_SIZE = 200;
 
 interface RoleFormValues {
   parentId?: string;
   roleCode: string;
   roleName: string;
   remark?: string;
+}
+
+/** 平铺行兼容口径（AC-8）：wire DTO 归一可携带 children:[]（树响应口径），类型面补可选 children
+ *  供 stripEmptyChildren 收口（展示层剥空 children，叶子无无效展开图标）。 */
+interface AdminRoleRow extends AdminRoleView {
+  children?: AdminRoleRow[];
 }
 
 interface DataScopeValues {
@@ -48,8 +58,8 @@ const DATA_SCOPE_LABEL_KEYS: Record<RoleDataScope, string> = {
   CUSTOM: 'roles.scope.options.custom',
 };
 
-/** 角色管理（p3-admin）：分页/搜索/新建/编辑/启停/删除 + 权限点绑定抽屉（system:role:grant）。
- *  菜单绑定同抽屉形态（tree 勾选）随本页第二抽屉交付。
+/** 角色管理（p3-admin）：分页/搜索/新建/编辑/启停/删除 + 行内「授权」单一入口打开授权抽屉
+ *  （system:role:grant；REQ-20261125-230807 AC-6/7/9：权限点域分组列表+菜单授权树两块同屏）。
  *  REQ-20261114-120104 扩展：行内「数据范围」弹窗（system:role:scope）——五档 Select +
  *  CUSTOM 部门多选（useDeptTree），提交 PUT data-scope（dataScope+deptIds）。
  *  迁移 CRUD 范本（REQ-20261114-120101）：列表/表单走 useCrud + CrudTable/CrudFormModal；
@@ -63,7 +73,12 @@ export function RolesPage() {
   const permissions = useMeStore((s) => s.me?.permissions) ?? [];
 
   const crud = useCrud<AdminRoleView>({
-    fetchPage: ({ page, size, keyword, signal }) => systemApi.roleList(page, size, keyword || undefined, signal),
+    fetchPage: async ({ page, size, keyword, signal }) => {
+      const result = await systemApi.roleList(page, size, keyword || undefined, signal);
+      // AC-8（REQ-20261125-230807）：平铺行 wire 同样携带 children:[]（树响应 DTO 归一口径）
+      // → 展示层剥空 children（叶子无无效展开图标），与 utils/tree.ts 树表统一收口一致
+      return { ...result, records: stripEmptyChildren<AdminRoleRow>(result.records) };
+    },
     permissions,
     pageSize: 10,
     errorMessage: t('roles.errors.loadFailed'),
@@ -75,9 +90,13 @@ export function RolesPage() {
   const [form] = Form.useForm<RoleFormValues>();
 
   const [granting, setGranting] = useState<AdminRoleView | null>(null);
-  const [grantKind, setGrantKind] = useState<'permissions' | 'menus'>('permissions');
   const [catalog, setCatalog] = useState<AdminPermissionView[]>([]);
+  const [permTotal, setPermTotal] = useState(0);
+  // AC-6 域分组列表：关键字过滤（匹配 code/name）+ 过滤结果全选/反选 + 已选计数
+  const [permFilter, setPermFilter] = useState('');
   const [grantedIds, setGrantedIds] = useState<string[]>([]);
+  // 菜单授权树勾选集（AC-7）：与权限点勾选集分离；抽屉打开从空集开始（提交=全量覆盖）
+  const [menuCheckedIds, setMenuCheckedIds] = useState<string[]>([]);
   const [grantLoading, setGrantLoading] = useState(false);
 
   // 平铺/树形视图切换（REQ-20261124-213008 范式 D）：默认平铺；树形首次切入时拉取
@@ -161,13 +180,15 @@ export function RolesPage() {
         await systemApi.roleUpdate(editing.id, {
           roleName: values.roleName,
           remark: values.remark,
-          parentId: values.parentId ? Number(values.parentId) : null,
+          // AC-10 三态哨兵：清空→0（移为根，显式判空防 0 被 falsy 吞）；设父→字符串原样（防雪花精度丢失）
+          parentId: values.parentId != null && values.parentId !== '' ? values.parentId : 0,
           version: editing.version,
         });
         message.success(t('roles.form.updated'));
       } else {
         await systemApi.roleCreate({
-          parentId: values.parentId ? Number(values.parentId) : null,
+          // 新建：清空=顶级（null）；设父=字符串原样（AC-26）
+          parentId: values.parentId != null && values.parentId !== '' ? values.parentId : null,
           roleCode: values.roleCode,
           roleName: values.roleName,
           remark: values.remark,
@@ -176,6 +197,8 @@ export function RolesPage() {
       }
       setEditing(null);
       setCreating(false);
+      // AC-11 写后失效：平铺侧写操作成功后树形视图重拉（非旧快照）
+      setTreeData(null);
       crud.reload(1);
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
@@ -189,6 +212,8 @@ export function RolesPage() {
     try {
       await systemApi.roleStatus(record.id, next);
       message.success(next === 'ENABLED' ? t('roles.actions.enabledDone') : t('roles.actions.disabledDone'));
+      // AC-11 写后失效
+      setTreeData(null);
       crud.reload();
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));
@@ -199,30 +224,31 @@ export function RolesPage() {
     try {
       await systemApi.roleDelete(record.id);
       message.success(t('roles.deleted', { code: record.roleCode }));
+      // AC-11 写后失效
+      setTreeData(null);
       crud.reload();
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : t('common.errors.deleteFailed'));
     }
   };
 
-  /** 打开授权抽屉：加载角色已授予集合 + 目录（权限点全量 / 菜单树）。 */
-  const openGrant = async (record: AdminRoleView, kind: 'permissions' | 'menus') => {
+  /** 打开授权抽屉（AC-6/AC-7/AC-9）：加载权限点已授集合+全量目录；菜单树勾选集从空集开始
+   *  （提交=全量覆盖，AC-7 口径「勾选父节点→级联勾选→提交」）。响应兼容运行时校验：
+   *  数组/信封缺失降级空集（外部输入不信任，不因异常信封崩渲染）。 */
+  const openGrant = async (record: AdminRoleView) => {
     setGranting(record);
-    setGrantKind(kind);
+    setPermFilter('');
+    setMenuCheckedIds([]);
     setGrantLoading(true);
     try {
-      if (kind === 'permissions') {
-        const [granted, all] = await Promise.all([
-          systemApi.rolePermissions(record.id),
-          // size 上界=后端 PageQuery.MAX_SIZE（200），超界整单 400；此处单页取全量目录
-          systemApi.permissionList(1, 200),
-        ]);
-        setCatalog(all.records);
-        setGrantedIds(granted.map((p) => p.id));
-      } else {
-        const granted = await systemApi.roleMenus(record.id);
-        setGrantedIds(collectTreeIds(granted));
-      }
+      const [granted, all] = await Promise.all([
+        systemApi.rolePermissions(record.id),
+        // size 上界=后端 PageQuery.MAX_SIZE（200），超界整单 400；此处单页取全量目录
+        systemApi.permissionList(1, PERMISSION_PAGE_SIZE),
+      ]);
+      setCatalog(Array.isArray(all?.records) ? all.records : []);
+      setPermTotal(all?.total ?? 0);
+      setGrantedIds(Array.isArray(granted) ? granted.map((p) => p.id) : []);
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : t('roles.grant.loadFailed'));
       setGranting(null);
@@ -235,14 +261,14 @@ export function RolesPage() {
     if (!granting) return;
     setSubmitting(true);
     try {
-      if (grantKind === 'permissions') {
-        await systemApi.roleBindPermissions(granting.id, grantedIds);
-        message.success(t('roles.grant.permissionsUpdated', { code: granting.roleCode }));
-      } else {
-        await systemApi.roleBindMenus(granting.id, grantedIds.map(Number));
-        message.success(t('roles.grant.menusUpdated', { code: granting.roleCode }));
-      }
+      await systemApi.roleBindPermissions(granting.id, grantedIds);
+      message.success(t('roles.grant.permissionsUpdated', { code: granting.roleCode }));
+      // AC-26：menuIds 字符串原样提交（不做 map(Number) 数值化，防雪花精度丢失）
+      await systemApi.roleBindMenus(granting.id, menuCheckedIds);
+      message.success(t('roles.grant.menusUpdated', { code: granting.roleCode }));
       setGranting(null);
+      // AC-11 写后失效：授权影响树形展示语义不变，但保持写后重拉口径一致
+      setTreeData(null);
     } catch (ex: unknown) {
       message.error(ex instanceof ApiError ? ex.message : t('roles.grant.failed'));
     } finally {
@@ -272,10 +298,8 @@ export function RolesPage() {
             <Button size="small" onClick={() => openEdit(record)}>{t('roles.actions.edit')}</Button>
           </Auth>
           <Auth code="system:role:grant">
-            <Button size="small" onClick={() => void openGrant(record, 'permissions')}>{t('roles.actions.grantPermissions')}</Button>
-          </Auth>
-          <Auth code="system:role:grant">
-            <Button size="small" onClick={() => void openGrant(record, 'menus')}>{t('roles.actions.grantMenus')}</Button>
+            {/* AC-6/AC-7/AC-9：行内「授权」单一入口 → 授权抽屉（权限点域分组列表+菜单授权树同屏） */}
+            <Button size="small" onClick={() => void openGrant(record)}>{t('roles.actions.grant')}</Button>
           </Auth>
           <Auth code="system:role:scope">
             <Button size="small" onClick={() => openScope(record)}>{t('roles.actions.dataScope')}</Button>
@@ -313,6 +337,49 @@ export function RolesPage() {
   const countNodes = (nodes: AdminRoleTreeNode[]): number =>
     nodes.reduce((acc, node) => acc + 1 + countNodes(node.children ?? []), 0);
 
+  // AC-6 域分组列表：关键字过滤（匹配 code/name）→ 按域（permissionCode 首段）分组展示
+  const filteredPermissions = useMemo(() => {
+    const needle = permFilter.trim().toLowerCase();
+    if (!needle) {
+      return catalog;
+    }
+    return catalog.filter((p) =>
+      p.permissionCode.toLowerCase().includes(needle)
+      || p.permissionName.toLowerCase().includes(needle));
+  }, [catalog, permFilter]);
+  const permissionGroups = useMemo(() => {
+    const groups = new Map<string, AdminPermissionView[]>();
+    for (const p of filteredPermissions) {
+      const domain = p.permissionCode.split(':')[0] || p.permissionCode;
+      const bucket = groups.get(domain);
+      if (bucket) {
+        bucket.push(p);
+      } else {
+        groups.set(domain, [p]);
+      }
+    }
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([domain, items]) => ({ domain, items }));
+  }, [filteredPermissions]);
+  const filteredPermissionIds = useMemo(() => filteredPermissions.map((p) => p.id), [filteredPermissions]);
+  /** 已选计数（AC-6）：当前过滤范围内已勾选数（未过滤=全部已选），与全选/反选同范围口径。 */
+  const selectedInFilterCount = useMemo(
+    () => filteredPermissionIds.filter((id) => grantedIds.includes(id)).length,
+    [filteredPermissionIds, grantedIds],
+  );
+  /** 过滤结果全选/反选（AC-6）：反选=过滤集内勾选状态翻转，过滤集外保持不变。 */
+  const selectAllFiltered = () =>
+    setGrantedIds((prev) => Array.from(new Set([...prev, ...filteredPermissionIds])));
+  const invertFiltered = () =>
+    setGrantedIds((prev) => {
+      const filtered = new Set(filteredPermissionIds);
+      const toggled = filteredPermissionIds.filter((id) => !prev.includes(id));
+      return [...prev.filter((id) => !filtered.has(id)), ...toggled];
+    });
+  const togglePermission = (id: string, checked: boolean) =>
+    setGrantedIds((prev) => (checked ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id)));
+
   return (
     <>
       {view === 'tree' ? (
@@ -339,7 +406,7 @@ export function RolesPage() {
             <Table<AdminRoleView>
               rowKey="id"
               columns={viewColumns}
-              dataSource={treeData}
+              dataSource={stripEmptyChildren(treeData)}
               loading={treeLoading}
               size="small"
               scroll={{ x: 'max-content' }}
@@ -414,40 +481,93 @@ export function RolesPage() {
         ) : null}
       </CrudFormModal>
 
-      <Modal
+      {/* 授权抽屉（AC-6/AC-7/AC-9 契约形态）：权限点域分组列表 + 菜单授权树两块同屏；
+          行内「授权」单一入口打开；footer 保存/取消经 i18n 显式文案（不随装配 locale 缺省漂移）。 */}
+      <Drawer
         open={granting !== null}
-        title={
-          granting
-            ? `${grantKind === 'permissions' ? t('roles.grant.permissionsTitle', { name: granting.roleName }) : t('roles.grant.menusTitle', { name: granting.roleName })}`
-            : ''
-        }
-        width={grantKind === 'menus' ? 560 : 640}
-        onCancel={() => setGranting(null)}
-        onOk={() => void submitGrant()}
-        confirmLoading={submitting || grantLoading}
-        okButtonProps={{ disabled: grantLoading }}
+        title={granting ? t('roles.grant.title', { name: granting.roleName }) : ''}
+        width={640}
         destroyOnClose
-      >
-        {grantKind === 'permissions' ? (
-          <Checkbox.Group style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 420, overflow: 'auto' }} value={grantedIds} onChange={(v) => setGrantedIds(v as string[])}>
-            {catalog.map((p) => (
-              <Checkbox key={p.id} value={p.id}>{`${p.permissionName}（${p.permissionCode}）`}</Checkbox>
-            ))}
-          </Checkbox.Group>
-        ) : (
-          <div style={{ maxHeight: 420, overflow: 'auto' }}>
-            <RoleMenuTree checkedIds={grantedIds} onChange={setGrantedIds} />
+        onClose={() => setGranting(null)}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button onClick={() => setGranting(null)}>{t('common.actions.cancel')}</Button>
+            <Button
+              type="primary"
+              loading={submitting || grantLoading}
+              disabled={grantLoading}
+              onClick={() => void submitGrant()}
+            >
+              {t('common.actions.save')}
+            </Button>
           </div>
-        )}
-        {grantKind === 'menus' ? (
-          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 12 }}>
-            {t('roles.grant.menusButtonNote')}
-          </Text>
-        ) : null}
+        }
+      >
+        <Text strong style={{ display: 'block', marginBottom: 12 }}>
+          {granting ? t('roles.grant.permissionsTitle', { name: granting.roleName }) : ''}
+        </Text>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* AC-6 域分组列表：关键字过滤（匹配 code/name） */}
+            <Input
+              allowClear
+              placeholder={t('roles.grant.filterPlaceholder')}
+              aria-label={t('roles.grant.filterPlaceholder')}
+              value={permFilter}
+              onChange={(event) => setPermFilter(event.target.value)}
+            />
+            <Space align="center" wrap>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {t('roles.grant.selectedCount', { count: selectedInFilterCount })}
+              </Text>
+              <Button size="small" disabled={filteredPermissionIds.length === 0} onClick={selectAllFiltered}>
+                {t('roles.grant.selectAll')}
+              </Button>
+              <Button size="small" disabled={filteredPermissionIds.length === 0} onClick={invertFiltered}>
+                {t('roles.grant.invert')}
+              </Button>
+              {/* AC-6：目录总数超过单页上界 → 目录可能不完整告警 */}
+              {permTotal > PERMISSION_PAGE_SIZE ? <Tag color="warning">{t('roles.grant.truncatedWarning')}</Tag> : null}
+            </Space>
+            <div style={{ maxHeight: 420, overflow: 'auto' }}>
+              {permissionGroups.map((group) => (
+                <div key={group.domain} style={{ marginBottom: 12 }}>
+                  <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                    {t('roles.grant.domainTitle', { domain: group.domain, count: group.items.length })}
+                  </Text>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    {group.items.map((p) => (
+                      <Checkbox
+                        key={p.id}
+                        checked={grantedIds.includes(p.id)}
+                        onChange={(e) => togglePermission(p.id, e.target.checked)}
+                      >
+                        {/* 名称/编码独立文本节点：编码可被精确定位，语义不只靠颜色（UI-SPEC §7） */}
+                        <span>{p.permissionName}</span>
+                        {'（'}
+                        <Text code style={{ fontSize: 12 }}>{p.permissionCode}</Text>
+                        {'）'}
+                      </Checkbox>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {permissionGroups.length === 0 ? <Text type="secondary">{t('roles.grant.noMatch')}</Text> : null}
+          </div>
+        </div>
+        {/* 菜单授权树（AC-7 级联勾选 + AC-9 剥空 children 叶子无箭头）：勾选集独立于权限点（全量覆盖提交） */}
+        <Text strong style={{ display: 'block', margin: '16px 0 12px' }}>
+          {granting ? t('roles.grant.menusTitle', { name: granting.roleName }) : ''}
+        </Text>
+        <div style={{ maxHeight: 420, overflow: 'auto' }}>
+          <RoleMenuTree checkedIds={menuCheckedIds} onChange={setMenuCheckedIds} />
+        </div>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 12 }}>
+          {t('roles.grant.menusButtonNote')}
+        </Text>
         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 12 }}>
           {t('roles.grant.submitNote')}
         </Text>
-      </Modal>
+      </Drawer>
 
       <Modal
         open={scoping !== null}
@@ -489,36 +609,28 @@ export function RolesPage() {
   );
 }
 
-/** 递归收集菜单树全部节点 id（授权抽屉树形勾选的全集）。 */
-function collectTreeIds(nodes: AdminMenuView[]): string[] {
-  const out: string[] = [];
-  const walk = (list: AdminMenuView[]) => {
-    for (const n of list) {
-      out.push(String(n.id));
-      if (n.children?.length) walk(n.children);
-    }
-  };
-  walk(nodes);
-  return out;
-}
-
 /** 角色菜单树形勾选（antd Tree checkable；fieldNames 对齐 AdminMenuView）。
- *  REQ-20261119-051119：BUTTON 节点（按钮级操作权限投影）在标题旁展示「按钮」Tag，
- *  勾选语义由后端 bindMenus 联动承担（前端单树单提交不变）。 */
+ *  REQ-20261119-051119：BUTTON 节点（按钮级操作权限投影）在标题旁展示「按钮」Tag。
+ *  REQ-20261125-230807 AC-7：移除 checkStrictly——父子级联（勾选父级全选子级、取消父级级联取消子级），
+ *  祖先链由后端 withAncestors 兑底；AC-9：树数据剥空 children（叶子无展开箭头）。 */
 function RoleMenuTree({ checkedIds, onChange }: { checkedIds: string[]; onChange: (ids: string[]) => void }) {
   const { t } = useTranslation();
-  const [tree, setTree] = useState<AdminMenuView[]>([]);
+  // AC-7/AC-9：数据到位后再挂 Tree（antd defaultExpandAll 仅首挂生效，异步数据后挂会整树收起，
+  // MenusPage「数据到位后才挂 Table」同先例口径）
+  const [tree, setTree] = useState<AdminMenuView[] | null>(null);
   useEffect(() => {
     systemApi.menuTree()
-      .then(setTree)
+      .then((data) => setTree(stripEmptyChildren(Array.isArray(data) ? data : [])))
       .catch(() => setTree([]));
   }, []);
   // BUTTON 节点标题 → ReactNode（menuName + 「按钮」Tag）；其余保持纯文本（antd Tree title 接受 ReactNode）
-  const treeData = useMemo(() => decorateButtonTitles(tree, t('menus.type.button')), [tree, t]);
+  const treeData = useMemo(() => decorateButtonTitles(tree ?? [], t('menus.type.button')), [tree, t]);
+  if (tree === null) {
+    return <Spin size="small" />;
+  }
   return (
     <Tree
       checkable
-      checkStrictly
       selectable={false}
       defaultExpandAll
       blockNode
@@ -526,8 +638,9 @@ function RoleMenuTree({ checkedIds, onChange }: { checkedIds: string[]; onChange
       fieldNames={{ title: 'menuName', key: 'id', children: 'children' }}
       checkedKeys={checkedIds}
       onCheck={(checked) => {
-        const shape = checked as { checked: (string | number)[] };
-        onChange(shape.checked.map(String));
+        // 非严格模式：checkedKeys 为全选数组（父子级联由 antd Tree 承担）
+        const keys = Array.isArray(checked) ? checked : (checked as { checked: (string | number)[] }).checked;
+        onChange(keys.map(String));
       }}
     />
   );
@@ -536,21 +649,27 @@ function RoleMenuTree({ checkedIds, onChange }: { checkedIds: string[]; onChange
 /** 装饰后树节点：menuName 升级为 ReactNode（BUTTON 节点附「按钮」Tag），children 递归同型。 */
 interface MenuTreeNodeTitle extends Omit<AdminMenuView, 'menuName' | 'children'> {
   menuName: ReactNode;
-  children: MenuTreeNodeTitle[];
+  children?: MenuTreeNodeTitle[];
 }
 
-/** 递归装饰菜单树标题：menuType=BUTTON 节点附「按钮」Tag（其余节点原样）。 */
+/** 递归装饰菜单树标题：menuType=BUTTON 节点附「按钮」Tag（其余节点原样）；
+ *  叶子节点不携带 children 键（AC-9 剥空 children，防无效展开箭头）。 */
 function decorateButtonTitles(nodes: AdminMenuView[], buttonLabel: string): MenuTreeNodeTitle[] {
-  return nodes.map((node) => ({
-    ...node,
-    menuName: node.menuType === 'BUTTON'
-      ? (
-          <span>
-            {node.menuName}
-            <Tag style={{ marginLeft: 8 }} color="purple">{buttonLabel}</Tag>
-          </span>
-        )
-      : node.menuName,
-    children: node.children?.length ? decorateButtonTitles(node.children, buttonLabel) : [],
-  }));
+  return nodes.map((node) => {
+    const base: MenuTreeNodeTitle = {
+      ...node,
+      menuName: node.menuType === 'BUTTON'
+        ? (
+            <span>
+              {node.menuName}
+              <Tag style={{ marginLeft: 8 }} color="purple">{buttonLabel}</Tag>
+            </span>
+          )
+        : node.menuName,
+    };
+    if (node.children?.length) {
+      return { ...base, children: decorateButtonTitles(node.children, buttonLabel) };
+    }
+    return base;
+  });
 }

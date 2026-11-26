@@ -254,11 +254,12 @@ export const positions: AdminPositionView[] = [
 ];
 
 /** 权限点样例（REQ-20261120-214653）：含 1 条 DISABLED（用户删除）保证状态筛选可演示命中；
- *  httpMethod 覆盖 GET/POST/DELETE 三动词。 */
+ *  httpMethod 覆盖 GET/POST/DELETE 三动词。
+ *  REQ-20261125-230807（V36）：service=所属服务（path 第 4 段回填口径，三行均 system）。 */
 export const permissions: AdminPermissionView[] = [
-  { id: '1', permissionCode: 'system:user:list', permissionName: '用户查询', permissionType: 'API', httpMethod: 'GET', httpPath: '/admin/v1/system/users', status: 'ENABLED', version: '0' },
-  { id: '2', permissionCode: 'system:user:create', permissionName: '用户新建', permissionType: 'API', httpMethod: 'POST', httpPath: '/admin/v1/system/users', status: 'ENABLED', version: '0' },
-  { id: '3', permissionCode: 'system:user:delete', permissionName: '用户删除', permissionType: 'API', httpMethod: 'DELETE', httpPath: '/admin/v1/system/users/{id}', status: 'DISABLED', version: '0' },
+  { id: '1', permissionCode: 'system:user:list', permissionName: '用户查询', permissionType: 'API', httpMethod: 'GET', httpPath: '/admin/v1/system/users', service: 'system', status: 'ENABLED', version: '0' },
+  { id: '2', permissionCode: 'system:user:create', permissionName: '用户新建', permissionType: 'API', httpMethod: 'POST', httpPath: '/admin/v1/system/users', service: 'system', status: 'ENABLED', version: '0' },
+  { id: '3', permissionCode: 'system:user:delete', permissionName: '用户删除', permissionType: 'API', httpMethod: 'DELETE', httpPath: '/admin/v1/system/users/{id}', service: 'system', status: 'DISABLED', version: '0' },
 ];
 
 export const menus: AdminMenuView[] = [
@@ -344,7 +345,7 @@ export const menus: AdminMenuView[] = [
 ];
 
 export const dictTypes: AdminDictTypeView[] = [
-  { id: '8801', dictCode: 'release_env', dictName: '发布环境', status: 'ENABLED', remark: null, version: '0' },
+  { id: '8801', dictCode: 'release_env', dictName: '发布环境', dictKind: 'FLAT', status: 'ENABLED', remark: null, version: '0' },
 ];
 
 /** 租户套餐 fixtures（REQ-20261121-022910，AC-14）：≥2 条样例——「基础版」被 beta 租户绑定

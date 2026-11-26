@@ -17,6 +17,7 @@ export const tenantPackages = {
   },
   actions: {
     edit: '编辑',
+    bindMenus: '绑定菜单',
     delete: '删除',
     deleteConfirm: '确认删除套餐 {{name}}？删除后绑定关系一并清除。',
   },

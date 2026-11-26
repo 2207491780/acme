@@ -5,6 +5,7 @@ import com.acme.common.contract.PageResult;
 import com.acme.common.core.BizException;
 import com.acme.framework.web.support.WebError;
 import com.acme.platform.system.SystemError;
+import com.acme.platform.system.api.DictKind;
 import com.acme.platform.system.api.dto.AdminDictItemCreate;
 import com.acme.platform.system.api.dto.AdminDictItemUpdate;
 import com.acme.platform.system.api.dto.AdminDictTypeCreate;
@@ -21,6 +22,9 @@ import java.util.List;
 
 /**
  * 字典管理用例（FR-006，架构设计 5.1 字典两行；租户归属，dictCode / itemValue 唯一约束在租户内）。
+ * REQ-20261125-230807 树形支持：kind=TREE 条目可挂父（校验父存在/同类型/非自身或子孙——防环），
+ * FLAT 类型提交 parentId 拒绝（VALIDATION_FAILED 400=PARAM_INVALID 口径既有码，零新增错误码）；
+ * 平铺既有行为零变化（存量行迁移后全为 FLAT 默认值）。
  */
 @Service
 public class DictUseCase {
@@ -38,7 +42,8 @@ public class DictUseCase {
         if (dictTypeRepository.existsByDictCodeAndIdNot(request.dictCode(), -1L)) {
             throw new BizException(SystemError.DICT_CODE_DUPLICATED);
         }
-        return dictTypeRepository.save(new SysDictType(request.dictCode(), request.dictName(), request.remark()));
+        return dictTypeRepository.save(new SysDictType(request.dictCode(), request.dictName(),
+                request.remark(), request.dictKind()));
     }
 
     public SysDictType getType(Long typeId) {
@@ -81,11 +86,13 @@ public class DictUseCase {
     @Transactional
     public SysDictItem createItem(Long typeId, AdminDictItemCreate request) {
         SysDictType type = getType(typeId);
+        validateItemParent(type, request.parentId(), null);
         if (dictItemRepository.existsByDictType_IdAndItemValueAndIdNot(typeId, request.itemValue(), -1L)) {
             throw new BizException(SystemError.DICT_ITEM_DUPLICATED);
         }
-        return dictItemRepository.save(new SysDictItem(type, request.itemLabel(), request.itemValue(),
-                request.sortOrder()));
+        SysDictItem item = new SysDictItem(type, request.itemLabel(), request.itemValue(), request.sortOrder());
+        item.setParentId(request.parentId());
+        return dictItemRepository.save(item);
     }
 
     public SysDictItem getItem(Long itemId) {
@@ -103,9 +110,12 @@ public class DictUseCase {
                 request.itemValue(), itemId)) {
             throw new BizException(SystemError.DICT_ITEM_DUPLICATED);
         }
+        SysDictType type = getType(item.getDictTypeId());
+        validateItemParent(type, request.parentId(), itemId);
         item.setItemLabel(request.itemLabel());
         item.setItemValue(request.itemValue());
         item.setSortOrder(request.sortOrder());
+        item.setParentId(request.parentId());
         return dictItemRepository.save(item);
     }
 
@@ -118,5 +128,42 @@ public class DictUseCase {
     public List<SysDictItem> listItems(Long typeId) {
         getType(typeId);
         return dictItemRepository.findByDictType_IdOrderBySortOrderAscIdAsc(typeId);
+    }
+
+    /**
+     * 条目父级写入校验（REQ-20261125-230807，违规=VALIDATION_FAILED 400，PARAM_INVALID 口径既有码）：
+     * FLAT 类型提交 parentId 拒绝；TREE 类型父条目须存在、同字典类型、非自身/子孙（防环）。
+     * {@code selfItemId} 传 null=新建语义（新条目不可能是他人祖先，仅存在性 / 归属校验）。
+     */
+    private void validateItemParent(SysDictType type, Long parentId, Long selfItemId) {
+        if (type.getDictKind() != DictKind.TREE) {
+            if (parentId != null) {
+                throw new BizException(WebError.VALIDATION_FAILED,
+                        "平铺字典不支持父条目（dictKind=FLAT）");
+            }
+            return;
+        }
+        if (parentId == null) {
+            return;
+        }
+        if (parentId.equals(selfItemId)) {
+            throw new BizException(WebError.VALIDATION_FAILED, "父条目不能为自身");
+        }
+        SysDictItem parent = dictItemRepository.findById(parentId)
+                .orElseThrow(() -> new BizException(WebError.VALIDATION_FAILED,
+                        "父条目不存在: " + parentId));
+        if (!parent.getDictTypeId().equals(type.getId())) {
+            throw new BizException(WebError.VALIDATION_FAILED, "父条目须属同一字典类型");
+        }
+        if (selfItemId != null) {
+            // 防环：候选父沿 parent 链上行，命中自身即父在自身子树内（候选父为自身子孙）
+            Long cursor = parent.getParentId();
+            while (cursor != null) {
+                if (cursor.equals(selfItemId)) {
+                    throw new BizException(WebError.VALIDATION_FAILED, "父条目不能为自身子孙");
+                }
+                cursor = dictItemRepository.findById(cursor).map(SysDictItem::getParentId).orElse(null);
+            }
+        }
     }
 }

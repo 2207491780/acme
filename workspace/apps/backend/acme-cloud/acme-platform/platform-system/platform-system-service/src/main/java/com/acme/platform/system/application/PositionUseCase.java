@@ -108,4 +108,9 @@ public class PositionUseCase {
     public List<SysPosition> listEnabled() {
         return positionRepository.findByStatus(EnableStatus.ENABLED);
     }
+
+    /** 租户内全量岗位（REQ-20261125-230807 user-form-options 目录消费；含停用，按 id 升序）。 */
+    public List<SysPosition> listAll() {
+        return positionRepository.findAll(QueryWrapper.create().orderBy(SysPosition::getId, true));
+    }
 }

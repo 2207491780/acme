@@ -27,6 +27,13 @@ public class SysPermission extends AuditBase {
     @Column("http_path")
     private String httpPath;
 
+    /**
+     * 所属服务段（REQ-20261125-230807，V36 列）：迁移维护（split_part(http_path,'/',4) 主、
+     * permission_code 首段兜底、content→contents 归一），应用层只读不写入。
+     */
+    @Column("service")
+    private String service;
+
     @Column("status")
     private EnableStatus status;
 
@@ -73,6 +80,11 @@ public class SysPermission extends AuditBase {
 
     public void setHttpPath(String httpPath) {
         this.httpPath = httpPath;
+    }
+
+    /** 所属服务段（V36 迁移维护，只读透出）。 */
+    public String getService() {
+        return service;
     }
 
     public EnableStatus getStatus() {

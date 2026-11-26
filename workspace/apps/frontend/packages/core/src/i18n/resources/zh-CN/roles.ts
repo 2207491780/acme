@@ -14,8 +14,7 @@ export const roles = {
   },
   actions: {
     edit: '编辑',
-    grantPermissions: '权限',
-    grantMenus: '菜单',
+    grant: '授权',
     dataScope: '数据范围',
     delete: '删除',
     deleteConfirm: '确认删除角色 {{code}}？',
@@ -43,8 +42,17 @@ export const roles = {
     updated: '角色已更新',
   },
   grant: {
+    title: '角色授权：{{name}}',
     permissionsTitle: '权限点授权：{{name}}',
     menusTitle: '菜单授权：{{name}}',
+    // AC-6 域分组列表：关键字过滤 + 过滤结果全选/反选 + 已选计数 + 截断告警
+    filterPlaceholder: '搜索权限点（编码/名称）',
+    selectedCount: '已选 {{count}} 项',
+    selectAll: '全选',
+    invert: '反选',
+    truncatedWarning: '目录可能不完整（超出单页上限）',
+    domainTitle: '{{domain}}（{{count}}）',
+    noMatch: '无匹配权限点',
     menusButtonNote: '勾选「按钮」节点＝授予对应操作权限（随下次令牌签发生效）。',
     submitNote: '提交即全量覆盖；权限变更随下次令牌签发生效。',
     permissionsUpdated: '角色 {{code}} 权限已更新（新权限随下次令牌签发生效）',

@@ -87,8 +87,9 @@ export const tenants = {
     expiresAt: '有效期',
     expiresAtExtra: '到期后该租户不可登录；允许清空，清空=长期有效',
     template: '开通模板',
-    templatePlaceholder: '选择模板，不选则按动态授权集开通（可清空）',
-    templateExtra: '命中模板=按模板预置角色/授权/配置/默认套餐开通；未选=现行为不变',
+    templatePlaceholder: '选择开通模板',
+    templateExtra: '必选：命中模板=按模板预置角色/授权/配置/默认套餐开通（REQ-20261125-230807 AC-22）',
+    templateRequired: '请选择开通模板',
     templateLoadFailed: '模板选项加载失败',
     adminUsername: '初始管理员账号',
     adminUsernamePlaceholder: '模板已配置前缀时将自动合成最终账号',
@@ -110,6 +111,11 @@ export const tenants = {
     loadFailed: '租户清单加载失败',
     depthExceeded: '租户层级超过上限（最多 3 层）',
     cycle: '设置该父租户会形成层级环，操作已被拒绝',
+    // AC-19/AC-27：目录加载失败可见警告（不再静默置空）
+    catalogFailed: '部分目录数据加载失败，相关下拉选项可能不完整',
+    treeLoadFailed: '租户层级树加载失败，父租户候选不可用',
+    packagesLoadFailed: '套餐目录加载失败，套餐选项/名称映射不可用',
+    templatesLoadFailed: '模板目录加载失败，开通模板选项不可用',
   },
   // 模板管理 Tab（REQ-20261122-233426 确认⑦：模板 CRUD 表格+content 结构化编辑）
   templates: {
@@ -153,13 +159,14 @@ export const tenants = {
       title: '预置角色（rolePresets）',
       add: '添加角色',
       remove: '移除该角色',
-      roleKey: '角色编码',
+      // AC-23：预置角色改系统角色下拉（选中自动回填角色名与权限点）
+      systemRole: '系统角色',
+      systemRolePlaceholder: '选择系统角色（自动回填角色名与权限点）',
       roleName: '角色名称',
+      roleNameAuto: '选择角色后自动回填',
       permissionCodes: '权限点',
-      permissionPlaceholder: '输入权限点后回车，如 system:user:list',
-      roleKeyRequired: '请输入角色编码',
-      roleNameRequired: '请输入角色名称',
-      roleKeyPattern: '角色编码仅限小写字母/数字/中划线',
+      permissionPlaceholder: '从目录多选或手输权限点，如 system:user:list',
+      roleKeyRequired: '请选择系统角色',
       emptyRoles: '至少预置一个角色（空角色集会被拒绝）',
     },
     configs: {
