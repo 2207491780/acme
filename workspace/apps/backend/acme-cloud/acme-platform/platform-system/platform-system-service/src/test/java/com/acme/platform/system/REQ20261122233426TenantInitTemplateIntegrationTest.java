@@ -501,20 +501,43 @@ class REQ20261122233426TenantInitTemplateIntegrationTest {
         return count != null && count > 0;
     }
 
-    // ---------- AC-4：init 未传/未命中模板 → 现行为逐字不变（动态授权集兼容） ----------
+    // ---------- AC-4（REQ-20261125-230807 确认③/AC-22 更新）：templateCode 缺省/blank →
+    // PARAM_INVALID 族拒绝且不落任何开通产物；非空未命中 → 既有兜底动态授权保留
+    // （REQ-20261122-233426 确认③「未命中=现行为逐字不变」；TenantInitUseCase.resolveTemplate
+    // 查无此码→null 走动态授权，零回归） ----------
 
     @Test
-    void should_keep_dynamic_grant_when_no_template_given_or_missed() throws Exception {
-        // ① 未传 templateCode：tenant_admin 动态全量授权（既有语义）
-        String plainCode = initTenantOk(FIXTURE_PREFIX + "-compat-a", null);
-        assertDynamicGrantSurface(plainCode);
+    void should_reject_init_without_template_and_keep_dynamic_grant_when_unmatched() throws Exception {
+        // ① 未传 templateCode（字段缺省=null）：HTTP 面 bean 校验拦截（@NotBlank，blank→PARAM_INVALID 族；
+        //    拒绝口径对齐 REQ20261125230807TenantInitTemplateRequiredIntegrationTest）
+        String blankCode = FIXTURE_PREFIX + "-compat-a";
+        JsonNode blankResult = callAsSuperAdmin(post(TENANTS_URL + "/init")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(initBodyWithTemplate(blankCode, null,
+                        blankCode.replace('-', '_') + "_admin", blankCode + " 管理员"))));
+        assertThat(blankResult.path("success").asBoolean())
+                .as("templateCode 缺省开通应被拒绝（必填化确认③）：%s", blankResult).isFalse();
+        assertThat(blankResult.path("code").asText())
+                .as("拒绝走统一响应体 Result.code≠0（PARAM_INVALID 族，AMB-15 口径）").isNotEqualTo("0");
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from sys_tenant where tenant_code = ?", Long.class, blankCode))
+                .as("校验拒绝后不应落租户（拒绝即拦截）").isZero();
 
-        // ② 未命中 templateCode（查无此码）：同收敛现行为（确认③「未传/未命中」字面口径，AMB-3）
-        String missedCode = initTenantOk(FIXTURE_PREFIX + "-compat-b", FIXTURE_PREFIX + "-no-such");
+        // ② 未命中 templateCode（非空、查无此码）：兜底现行为保留（动态授权集逐字不变，AMB-3）
+        String missedCode = FIXTURE_PREFIX + "-compat-b";
+        JsonNode missedView = callAsSuperAdmin(post(TENANTS_URL + "/init")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(initBodyWithTemplate(missedCode, FIXTURE_PREFIX + "-no-such",
+                        missedCode.replace('-', '_') + "_admin", missedCode + " 管理员"))));
+        assertThat(missedView.path("success").asBoolean())
+                .as("非空未命中模板应保留兜底开通成功（兼容零回归）：%s", missedView).isTrue();
+        // 兜底路径 adminUsername=请求原值（无模板前缀改写）——TesterTest 冗余基线删除后的保留锚
+        assertThat(missedView.path("data").path("adminUsername").asText())
+                .as("未命中兜底 adminUsername=请求原值").isEqualTo(missedCode.replace('-', '_') + "_admin");
         assertDynamicGrantSurface(missedCode);
     }
 
-    /** 动态授权集既有面断言（开通语义照旧）：tenant_admin 角色 + 非保留授权 + 保留域排除（含 V32 新点）。 */
+    /** 动态授权集既有面断言（非空未命中兜底路径）：tenant_admin 角色 + 非保留授权 + 保留域排除（含 V32 新点）。 */
     private void assertDynamicGrantSurface(String tenantCode) {
         List<Long> roleIds = jdbcTemplate.queryForList(
                 "select id from sys_role where tenant_id = ? and role_code = 'tenant_admin'",
@@ -544,6 +567,9 @@ class REQ20261122233426TenantInitTemplateIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from sys_config where tenant_id = ?", Long.class, tenantCode))
                 .as("无模板不写 sys_config（无配置行按缺省生效，既有口径）").isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "select package_id from sys_tenant where tenant_code = ?", Long.class, tenantCode))
+                .as("兜底路径无默认套餐绑定（现行为）").isNull();
     }
 
     private String initTenantOk(String tenantCode, String templateCode) throws Exception {
@@ -563,10 +589,14 @@ class REQ20261122233426TenantInitTemplateIntegrationTest {
         Instant now = Instant.now();
 
         // ① 五租户：default（seed，启用）+ 普通开通 + 停用 + 宽限 + 过期
-        String plainCode = initTenantOk(FIXTURE_PREFIX + "-ov-plain", null);
-        String disabledCode = initTenantOk(FIXTURE_PREFIX + "-ov-disabled", null);
-        String graceCode = initTenantOk(FIXTURE_PREFIX + "-ov-grace", null);
-        String expiredCode = initTenantOk(FIXTURE_PREFIX + "-ov-expired", null);
+        // REQ-20261125-230807 确认③：templateCode 必填化后开通夹具统一走模板路径（原 setup 无模板 init
+        // 被 bean 校验拦截的级联修复；defaultPackageId=null 不改套餐分布断言口径，模板路径同样建 1 管理员）
+        String ovTemplateCode = FIXTURE_PREFIX + "-ov-tpl";
+        createTemplateOk(ovTemplateCode, "用量总览开通模板", buildFullContent(), null);
+        String plainCode = initTenantOk(FIXTURE_PREFIX + "-ov-plain", ovTemplateCode);
+        String disabledCode = initTenantOk(FIXTURE_PREFIX + "-ov-disabled", ovTemplateCode);
+        String graceCode = initTenantOk(FIXTURE_PREFIX + "-ov-grace", ovTemplateCode);
+        String expiredCode = initTenantOk(FIXTURE_PREFIX + "-ov-expired", ovTemplateCode);
         jdbcTemplate.update("update sys_tenant set status = 'DISABLED' where tenant_code = ?", disabledCode);
         jdbcTemplate.update(
                 "update sys_tenant set expires_at = ?, grace_until = ? where tenant_code = ?",

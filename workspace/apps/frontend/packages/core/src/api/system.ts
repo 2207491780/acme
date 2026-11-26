@@ -285,10 +285,11 @@ export interface AdminTenantInitRequest {
   contactName?: string | null;
   contactPhone?: string | null;
   expiresAt?: string | null;
-  packageId?: number | null;
+  packageId?: string | number | null;
   parentId?: string | null;
-  /** 开通模板编码（可空=不使用模板，走动态授权集现状）；未命中模板由后端按现状处理。 */
-  templateCode?: string | null;
+  /** 开通模板编码（REQ-20261125-230807 确认③必填化：blank → PARAM_INVALID；
+   *  前端新建租户必选模板且提交必走 tenantInit）。 */
+  templateCode: string;
 }
 
 /** 配额来源层级（REQ-20261122-150802 确认③解析链：租户覆盖 > 套餐默认 > 平台缺省）。 */
@@ -356,7 +357,9 @@ export interface AdminTenantPackageDetail extends AdminTenantPackageView {
 export interface TenantPackageSavePayload {
   packageName: string;
   remark?: string | null;
-  menuIds: number[];
+  /** 绑定菜单 id 全集（AC-26 字符串原样提交，不做 Number 数值化——menuId wire 字符串口径防雪花精度丢失；
+   *  更新时全量替换绑定表）。 */
+  menuIds: (string | number)[];
   /** 服务能力码集（REQ-20261121-054613；全量替换口径同 menuIds——前端创建/更新均显式提交，
    *  缺省/null=空集；未知能力码 → TENANT_CAPABILITY_INVALID 14-0006）。 */
   capabilities?: string[];
@@ -433,7 +436,8 @@ export interface TenantTemplateSavePayload {
   name: string;
   remark?: string | null;
   content: TenantInitTemplateContent;
-  defaultPackageId?: number | null;
+  /** 默认套餐 id（REQ-20261125-230807 AC-26：wire 字符串口径原样提交，不做 Number 数值化；null/缺省=未设置）。 */
+  defaultPackageId?: string | number | null;
 }
 
 /** 租户开通模板接口域（REQ-20261122-233426 确认④四端点；权限点 system:tenant-template:list/create/
@@ -518,7 +522,9 @@ export interface AdminRoleTreeNode extends AdminRoleView {
   children: AdminRoleTreeNode[];
 }
 
-/** 权限点视图（契约对齐 AdminPermissionView；平台级目录全租户统一）。 */
+/** 权限点视图（契约对齐 AdminPermissionView；平台级目录全租户统一）。
+ *  REQ-20261125-230807（V36）扩展 service（所属服务；由迁移按 http_path 第 4 段回填维护，
+ *  Create/Update DTO 不加——前端只读展示）。 */
 export interface AdminPermissionView {
   id: string;
   permissionCode: string;
@@ -526,6 +532,8 @@ export interface AdminPermissionView {
   permissionType: string;
   httpMethod: string | null;
   httpPath: string | null;
+  /** 所属服务（V36 回填；path 第 4 段为主、permission_code 首段兜底，content→contents 归一）。 */
+  service: string | null;
   status: 'ENABLED' | 'DISABLED';
   version: string;
 }
@@ -560,28 +568,51 @@ export interface AdminPositionView {
   version: string;
 }
 
+/** 用户表单目录视图（REQ-20261125-230807 契约对齐 UserFormOptionsView；GET /system/user-form-options）。
+ *  用户管理页筛选/表单/列名称映射的统一目录源——权限挂 system:user:list（无新权限点），
+ *  替代该页对 system:dept:list/system:position:list/角色分页接口的依赖；目录全量
+ *  （roles/positions 经仓储全查，规模受控）。 */
+export interface UserFormOptionsView {
+  /** 部门树（树形，children 恒数组，叶子 []；展示层剥空 children 口径见 web/src/utils/tree.ts）。 */
+  deptTree: AdminDeptView[];
+  positions: AdminPositionView[];
+  roles: AdminRoleView[];
+}
+
 /** 角色数据范围枚举（REQ-20261114-120104 确认记录①五档模型；wire 值契约字面）。 */
 export type RoleDataScope = 'ALL' | 'DEPT' | 'DEPT_AND_CHILD' | 'SELF' | 'CUSTOM';
 
 /** 数据范围五档 wire 值全集（展示名经 i18n roles.scope.options 映射）。 */
 export const DATA_SCOPE_VALUES: RoleDataScope[] = ['ALL', 'DEPT', 'DEPT_AND_CHILD', 'SELF', 'CUSTOM'];
 
-/** 字典类型视图（契约对齐 AdminDictTypeView）。 */
+/** 字典形态（REQ-20261125-230807 V35：sys_dict_type.dict_kind；FLAT=平铺（现状）/TREE=树形父子）。 */
+export type DictKind = 'FLAT' | 'TREE';
+
+/** 字典类型视图（契约对齐 AdminDictTypeView）。
+ *  REQ-20261125-230807（V35）扩展 dictKind：FLAT=平铺（既有数据迁移后全为默认值）、
+ *  TREE=条目支持父子层级；交互分支以该字段判定。 */
 export interface AdminDictTypeView {
   id: string;
   dictCode: string;
   dictName: string;
+  dictKind: DictKind;
   status: 'ENABLED' | 'DISABLED';
   remark: string | null;
   version: string;
 }
 
-/** 字典条目视图（契约对齐 AdminDictItemView）。 */
+/** 字典条目视图（契约对齐 AdminDictItemView）。
+ *  REQ-20261125-230807（V35）扩展 parentId/children：parentId 仅 TREE 类型有值（根=null），
+ *  children 为条目树形读取的嵌套子集（恒为数组，叶子 []）；FLAT 类型两字段恒空。 */
 export interface AdminDictItemView {
   id: string;
   dictTypeId: string;
   itemLabel: string;
   itemValue: string;
+  /** 父条目 id（仅 TREE 类型；根=null；FLAT 恒 null/缺省）。 */
+  parentId?: string | null;
+  /** 子条目（TREE 条目树形读取形状；恒为数组，叶子 []；FLAT 缺省）。 */
+  children?: AdminDictItemView[];
   sortOrder: number;
   status: 'ENABLED' | 'DISABLED';
   version: string;
@@ -644,7 +675,7 @@ export const systemApi = {
   /** 新建租户（tenantCode 全局唯一且不可改；REQ-20261117-025200 增联系人/联系电话/有效期，可空=长期；
    *  REQ-20261121-022910 增可选 packageId（可空=不受限）；
    *  REQ-20261122-102954 增可选 parentId（wire 字符串口径，null/缺省=顶层；父链深度超 3 → TENANT_DEPTH_EXCEEDED）。 */
-  tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; packageId?: number | null; parentId?: string | null }): Promise<AdminTenantView> =>
+  tenantCreate: (payload: { tenantCode: string; tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; packageId?: string | number | null; parentId?: string | null }): Promise<AdminTenantView> =>
     apiJson<AdminTenantView>('/admin/v1/system/tenants', 'POST', payload),
   /** 租户开通模板（REQ-20261122-102954 契约⑤⑨）：平台侧一次建租户+tenant_admin 角色+初始管理员+绑定；
    *  parentId 同 create（wire 字符串，null/缺省=顶层，父链超深 → TENANT_DEPTH_EXCEEDED）；
@@ -657,21 +688,24 @@ export const systemApi = {
    *  REQ-20261122-102954 增可选 parentId（改父=后端重校验环+深度并重算后代 level；
    *  环 → TENANT_CYCLE、深度超限 → TENANT_DEPTH_EXCEEDED）；
    *  REQ-20261122-150802 增可选 graceUntil（ISO-8601，null=清除宽限——update 收宽限字段，确认⑥）。 */
-  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; graceUntil?: string | null; packageId?: number | null; parentId?: string | null; version: string }): Promise<AdminTenantView> =>
+  tenantUpdate: (tenantId: string, payload: { tenantName: string; remark?: string; contactName?: string | null; contactPhone?: string | null; expiresAt?: string | null; graceUntil?: string | null; packageId?: string | number | null; parentId?: string | null; version: string }): Promise<AdminTenantView> =>
     apiJson<AdminTenantView>(`/admin/v1/system/tenants/${tenantId}`, 'PUT', payload),
   /** 停用/启用租户（停用即"删除"，FR-007；REQ-20261122-102954 契约⑦：停用后端级联停用全部后代
-   *  并逐租户撤会话，恢复父不自动恢复子——前端不重复提交级联）。 */
+   *  并逐租户撤会话，恢复父不自动恢复子——前端不重复提交级联）。
+   *  REQ-20261125-230807：void 端点信封化（Result<Void>），emptyAsSuccess 兼容空体 2xx 与信封双口径。 */
   tenantStatus: (tenantId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>
-    apiJson<void>(`/admin/v1/system/tenants/${tenantId}/status`, 'PUT', { status }),
+    apiJson<void>(`/admin/v1/system/tenants/${tenantId}/status`, 'PUT', { status }, { emptyAsSuccess: true }),
   /** 租户用量（REQ-20261122-150802 契约⑦：GET /tenants/{id}/usage，权限 system:tenant:list；
    *  实时旁路聚合 storageBytes/userCount + 有效配额/来源层级——用量 Modal 按需拉取，list 不带 usage）；
    *  signal 为可选取消信号，透传 apiFetch。 */
   tenantUsage: (tenantId: string, signal?: AbortSignal): Promise<TenantUsageView> =>
     apiFetch<TenantUsageView>(`/admin/v1/system/tenants/${tenantId}/usage`, { signal }),
   /** 租户覆盖配额（REQ-20261122-150802 契约⑦：PUT /tenants/{id}/quota，权限 system:tenant:update；
-   *  quotaStorageBytes 字节口径（0=不限），null=清除覆盖回落套餐默认/平台缺省；返回更新后租户视图）。 */
-  tenantQuota: (tenantId: string, quotaStorageBytes: number | null): Promise<AdminTenantView> =>
-    apiJson<AdminTenantView>(`/admin/v1/system/tenants/${tenantId}/quota`, 'PUT', { quotaStorageBytes }),
+   *  quotaStorageBytes 字节口径（0=不限），null=清除覆盖回落套餐默认/平台缺省。
+   *  REQ-20261125-230807：wire 变更为 Result<Void> 信封（原 ok(tenantView) 错形），
+   *  类型/JSDoc 对齐 Promise<void>；emptyAsSuccess 兼容空体 2xx 双口径。 */
+  tenantQuota: (tenantId: string, quotaStorageBytes: number | null): Promise<void> =>
+    apiJson<void>(`/admin/v1/system/tenants/${tenantId}/quota`, 'PUT', { quotaStorageBytes }, { emptyAsSuccess: true }),
   /** 租户层级树（REQ-20261122-102954 契约⑨：GET /tenants/tree 全量树形平台侧下发，
    *  行字段同 AdminTenantView（status/level/套餐）+children 嵌套；parent 下拉与层级展示数据源。
    *  page/size 为可选分页参数：全量树不截断，仅用于统一列表请求携带分页口径（menuTree 同先例）；
@@ -683,29 +717,35 @@ export const systemApi = {
   },
 
   // ---- 用户管理（USER_* 权限码） ----
+  /** 用户表单目录（REQ-20261125-230807 新增端点 GET /system/user-form-options；权限=system:user:list）。
+   *  返回 {deptTree, positions, roles} 全量目录；加载失败由调用方可见警告（AC-3/AC-27）。 */
+  userFormOptions: (): Promise<UserFormOptionsView> =>
+    apiFetch<UserFormOptionsView>('/admin/v1/system/user-form-options'),
   /** 用户分页（username 匹配、status/deptId 过滤——deptId 含子部门递归为后端语义；signal 为可选取消信号，透传 apiFetch）。 */
   userList: (page: number, size: number, username?: string, status?: 'ENABLED' | 'DISABLED', deptId?: string | null, signal?: AbortSignal): Promise<PageResult<AdminUserView>> =>
     apiFetch<PageResult<AdminUserView>>(`/admin/v1/system/users?page=${page}&size=${size}${username ? `&username=${encodeURIComponent(username)}` : ''}${status ? `&status=${status}` : ''}${deptId ? `&deptId=${encodeURIComponent(deptId)}` : ''}`, { signal }),
-  /** 新建用户（首密码经管理端 credentials 接口另行重置；deptId/positionId 可空=未分配）。 */
+  /** 新建用户（首密码经管理端 credentials 接口另行重置；deptId/positionId 可空=未分配）。
+   *  REQ-20261125-230807 AC-4：roleIds/deptId/positionId 字符串原样提交（>2^53 雪花 ID 精度无损），
+   *  不再做 Number()/map(Number) 数值化。 */
   userCreate: (payload: { username: string; nickname: string; email?: string; phone?: string; roleIds: string[]; deptId?: string | null; positionId?: string | null }): Promise<AdminUserView> =>
-    apiJson<AdminUserView>('/admin/v1/system/users', 'POST', { ...payload, roleIds: payload.roleIds.map(Number), deptId: payload.deptId ? Number(payload.deptId) : null, positionId: payload.positionId ? Number(payload.positionId) : null, }),
-  /** 用户改名/邮箱/手机/部门/岗位（version 乐观锁）。 */
+    apiJson<AdminUserView>('/admin/v1/system/users', 'POST', payload),
+  /** 用户改名/邮箱/手机/部门/岗位（version 乐观锁）；deptId/positionId 字符串原样提交（AC-4 同口径）。 */
   userUpdate: (userId: string, payload: { nickname: string; email?: string; phone?: string; deptId?: string | null; positionId?: string | null; version: string }): Promise<AdminUserView> =>
-    apiJson<AdminUserView>(`/admin/v1/system/users/${userId}`, 'PUT', { ...payload, deptId: payload.deptId ? Number(payload.deptId) : null, positionId: payload.positionId ? Number(payload.positionId) : null, }),
-  /** 删除用户（builtIn 内置账号由后端拒绝）。 */
+    apiJson<AdminUserView>(`/admin/v1/system/users/${userId}`, 'PUT', payload),
+  /** 删除用户（builtIn 内置账号由后端拒绝）。void 端点信封化，emptyAsSuccess 双口径兼容。 */
   userDelete: (userId: string): Promise<void> =>
-    apiFetch<void>(`/admin/v1/system/users/${userId}`, { method: 'DELETE' }),
-  /** 启用/停用用户。 */
+    apiFetch<void>(`/admin/v1/system/users/${userId}`, { method: 'DELETE' }, { emptyAsSuccess: true }),
+  /** 启用/停用用户。void 端点信封化，emptyAsSuccess 双口径兼容。 */
   userStatus: (userId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>
-    apiJson<void>(`/admin/v1/system/users/${userId}/status`, 'PUT', { status }),
-  /** 绑定角色（全量覆盖语义）。 */
+    apiJson<void>(`/admin/v1/system/users/${userId}/status`, 'PUT', { status }, { emptyAsSuccess: true }),
+  /** 绑定角色（全量覆盖语义）；roleIds 字符串原样提交（AC-4）。void 端点信封化，emptyAsSuccess 双口径。 */
   userBindRoles: (userId: string, roleIds: string[]): Promise<void> =>
-    apiJson<void>(`/admin/v1/system/users/${userId}/roles`, 'PUT', { roleIds: roleIds.map(Number) }),
+    apiJson<void>(`/admin/v1/system/users/${userId}/roles`, 'PUT', { roleIds }, { emptyAsSuccess: true }),
   /** 管理端重置用户密码（REQ-20261124-213008 契约①；权限点 auth:credential:manage）：
    *  PUT /auth/credentials/users/{userId}/password（body {password}，1~64 非空），
    *  upsert 凭据并撤销该用户全部活跃会话；策略违反 → PASSWORD_POLICY_VIOLATED。Result<Void>。 */
   userPasswordReset: (userId: string, password: string): Promise<void> =>
-    apiJson<void>(`/admin/v1/auth/credentials/users/${userId}/password`, 'PUT', { password }),
+    apiJson<void>(`/admin/v1/auth/credentials/users/${userId}/password`, 'PUT', { password }, { emptyAsSuccess: true }),
 
   // ---- 角色管理（ROLE_* / ROLE_GRANT 权限码，P3） ----
   /** 角色分页（keyword 匹配代码/名称；signal 为可选取消信号，透传 apiFetch）。 */
@@ -716,11 +756,13 @@ export const systemApi = {
    *  signal 为可选取消信号，透传 apiFetch。 */
   roleTree: (signal?: AbortSignal): Promise<AdminRoleTreeNode[]> =>
     apiFetch<AdminRoleTreeNode[]>('/admin/v1/system/roles/tree', { signal }),
-  /** 新建角色（roleCode 模式与租户代码同型；parentId 空为顶级）。 */
-  roleCreate: (payload: { parentId?: number | null; roleCode: string; roleName: string; remark?: string }): Promise<AdminRoleView> =>
+  /** 新建角色（roleCode 模式与租户代码同型；parentId 空=顶级；parentId 字符串口径防雪花精度丢失）。 */
+  roleCreate: (payload: { parentId?: string | number | null; roleCode: string; roleName: string; remark?: string }): Promise<AdminRoleView> =>
     apiJson<AdminRoleView>('/admin/v1/system/roles', 'POST', { ...payload, parentId: payload.parentId ?? null }),
-  /** 角色改名/父级/备注（version 乐观锁）。 */
-  roleUpdate: (roleId: string, payload: { roleName: string; remark?: string; parentId?: number | null; version: string }): Promise<AdminRoleView> =>
+  /** 角色改名/父级/备注（version 乐观锁）。
+   *  REQ-20261125-230807 AC-10 三态契约（AdminRoleUpdate javadoc）：parentId null/缺省=不调整、
+   *  0=移为根（哨兵显式判空防 0 被 falsy 吞）、>0=改父（字符串原样提交防雪花精度丢失）。 */
+  roleUpdate: (roleId: string, payload: { roleName: string; remark?: string; parentId?: string | number | null; version: string }): Promise<AdminRoleView> =>
     apiJson<AdminRoleView>(`/admin/v1/system/roles/${roleId}`, 'PUT', { ...payload, parentId: payload.parentId ?? null }),
   /** 启用/停用角色。 */
   roleStatus: (roleId: string, status: 'ENABLED' | 'DISABLED'): Promise<void> =>
@@ -731,18 +773,19 @@ export const systemApi = {
   /** 角色已授权限点全量清单（授权抽屉勾选数据源）。 */
   rolePermissions: (roleId: string): Promise<AdminPermissionView[]> =>
     apiFetch<AdminPermissionView[]>(`/admin/v1/system/roles/${roleId}/permissions`),
-  /** 绑定权限点（全量覆盖语义）。 */
+  /** 绑定权限点（全量覆盖语义）；permissionIds 字符串原样提交（AC-26：不做 map(Number) 数值化）。 */
   roleBindPermissions: (roleId: string, permissionIds: string[]): Promise<void> =>
-    apiJson<void>(`/admin/v1/system/roles/${roleId}/permissions`, 'PUT', { permissionIds: permissionIds.map(Number) }),
+    apiJson<void>(`/admin/v1/system/roles/${roleId}/permissions`, 'PUT', { permissionIds }),
   /** 角色已绑菜单全量清单（树形）。 */
   roleMenus: (roleId: string): Promise<AdminMenuView[]> =>
     apiFetch<AdminMenuView[]>(`/admin/v1/system/roles/${roleId}/menus`),
-  /** 绑定菜单（全量覆盖语义）。 */
-  roleBindMenus: (roleId: string, menuIds: number[]): Promise<void> =>
+  /** 绑定菜单（全量覆盖语义）；menuIds 字符串/数值 wire 双口径原样提交（AC-26：不做 map(Number)）。 */
+  roleBindMenus: (roleId: string, menuIds: (string | number)[]): Promise<void> =>
     apiJson<void>(`/admin/v1/system/roles/${roleId}/menus`, 'PUT', { menuIds }),
-  /** 设置角色数据范围（REQ-20261114-120104；CUSTOM 时 deptIds 必传非空，由后端校验 DATA_SCOPE_INVALID）。 */
+  /** 设置角色数据范围（REQ-20261114-120104；CUSTOM 时 deptIds 必传非空，由后端校验 DATA_SCOPE_INVALID；
+   *  AC-4：deptIds 字符串原样提交，不做 map(Number) 数值化）。 */
   roleDataScope: (roleId: string, dataScope: RoleDataScope, deptIds: string[]): Promise<AdminRoleView> =>
-    apiJson<AdminRoleView>(`/admin/v1/system/roles/${roleId}/data-scope`, 'PUT', { dataScope, deptIds: deptIds.map(Number) }),
+    apiJson<AdminRoleView>(`/admin/v1/system/roles/${roleId}/data-scope`, 'PUT', { dataScope, deptIds }),
 
   // ---- 权限点管理（PERMISSION_* 权限码，P3） ----
   /** 权限点分页（平台级目录；signal 为可选取消信号，透传 apiFetch）。
@@ -796,11 +839,11 @@ export const systemApi = {
   /** 部门树（全量、含禁用态；前端渲染树形表格/选择器）。signal 为可选取消信号，透传 apiFetch。 */
   deptTree: (signal?: AbortSignal): Promise<AdminDeptView[]> =>
     apiFetch<AdminDeptView[]>('/admin/v1/system/depts', { signal }),
-  /** 新建部门（parentId 空=根部门；sortOrder/status 随体提交）。 */
-  deptCreate: (payload: { parentId?: number | null; deptName: string; sortOrder: number; status?: 'ENABLED' | 'DISABLED' }): Promise<AdminDeptView> =>
+  /** 新建部门（parentId 空=根部门；sortOrder/status 随体提交；parentId 字符串口径防雪花精度丢失）。 */
+  deptCreate: (payload: { parentId?: string | number | null; deptName: string; sortOrder: number; status?: 'ENABLED' | 'DISABLED' }): Promise<AdminDeptView> =>
     apiJson<AdminDeptView>('/admin/v1/system/depts', 'POST', { ...payload, parentId: payload.parentId ?? null }),
-  /** 部门改名/父级/排序/状态（version 乐观锁）。 */
-  deptUpdate: (deptId: string, payload: { parentId?: number | null; deptName: string; sortOrder: number; status?: 'ENABLED' | 'DISABLED'; version: string }): Promise<AdminDeptView> =>
+  /** 部门改名/父级/排序/状态（version 乐观锁；parentId 字符串口径防雪花精度丢失）。 */
+  deptUpdate: (deptId: string, payload: { parentId?: string | number | null; deptName: string; sortOrder: number; status?: 'ENABLED' | 'DISABLED'; version: string }): Promise<AdminDeptView> =>
     apiJson<AdminDeptView>(`/admin/v1/system/depts/${deptId}`, 'PUT', { ...payload, parentId: payload.parentId ?? null }),
   /** 删除部门（有子部门/有用户由后端拒绝：DEPT_HAS_CHILDREN/DEPT_HAS_USERS）。 */
   deptDelete: (deptId: string): Promise<void> =>
@@ -827,28 +870,29 @@ export const systemApi = {
   /** 字典类型分页（signal 为可选取消信号，透传 apiFetch）。 */
   dictTypeList: (page = 1, size = 50, keyword?: string, signal?: AbortSignal): Promise<PageResult<AdminDictTypeView>> =>
     apiFetch<PageResult<AdminDictTypeView>>(`/admin/v1/system/dict-types?page=${page}&size=${size}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ''}`, { signal }),
-  /** 新建字典类型。 */
-  dictTypeCreate: (payload: { dictCode: string; dictName: string; remark?: string }): Promise<AdminDictTypeView> =>
+  /** 新建字典类型（REQ-20261125-230807 V35：可选 dictKind——FLAT=平铺（缺省，既有交互不变）/TREE=树形父子）。 */
+  dictTypeCreate: (payload: { dictCode: string; dictName: string; remark?: string; dictKind?: DictKind }): Promise<AdminDictTypeView> =>
     apiJson<AdminDictTypeView>('/admin/v1/system/dict-types', 'POST', payload),
-  /** 字典类型改名/备注（version 乐观锁）。 */
-  dictTypeUpdate: (typeId: string, payload: { dictName: string; remark?: string; version: string }): Promise<AdminDictTypeView> =>
+  /** 字典类型改名/备注（version 乐观锁；V35 可选 dictKind 契约同步——UI 创建后形态不可改，更新不主动提交）。 */
+  dictTypeUpdate: (typeId: string, payload: { dictName: string; remark?: string; dictKind?: DictKind; version: string }): Promise<AdminDictTypeView> =>
     apiJson<AdminDictTypeView>(`/admin/v1/system/dict-types/${typeId}`, 'PUT', payload),
-  /** 删除字典类型（含条目时由后端拒绝）。 */
+  /** 删除字典类型（含条目时由后端拒绝）。void 端点信封化，emptyAsSuccess 双口径兼容。 */
   dictTypeDelete: (typeId: string): Promise<void> =>
-    apiFetch<void>(`/admin/v1/system/dict-types/${typeId}`, { method: 'DELETE' }),
+    apiFetch<void>(`/admin/v1/system/dict-types/${typeId}`, { method: 'DELETE' }, { emptyAsSuccess: true }),
   /** 字典条目清单（按类型）。page/size 可选：useDict 消费时传大页取全量（确认记录⑥）；
    *  缺省不携带查询参数（既有管理端调用不变）；signal 为可选取消信号，透传 apiFetch。 */
   dictItemList: (typeId: string, page?: number, size?: number, signal?: AbortSignal): Promise<AdminDictItemView[]> => {
     const suffix = page !== undefined || size !== undefined ? `?${buildQuery({ page, size })}` : '';
     return apiFetch<AdminDictItemView[]>(`/admin/v1/system/dict-types/${typeId}/items${suffix}`, { signal });
   },
-  /** 新建字典条目。 */
-  dictItemCreate: (typeId: string, payload: { itemLabel: string; itemValue: string; sortOrder: number }): Promise<AdminDictItemView> =>
+  /** 新建字典条目（REQ-20261125-230807 V35：TREE 类型可携带 parentId（父条目同类型/存在/防环由后端校验）；
+   *  FLAT 类型提交 parentId → PARAM_INVALID；字符串口径原样提交）。 */
+  dictItemCreate: (typeId: string, payload: { itemLabel: string; itemValue: string; sortOrder: number; parentId?: string | null }): Promise<AdminDictItemView> =>
     apiJson<AdminDictItemView>(`/admin/v1/system/dict-types/${typeId}/items`, 'POST', payload),
   /** 字典条目改标签/值/排序（version 乐观锁）。 */
   dictItemUpdate: (itemId: string, payload: { itemLabel: string; itemValue: string; sortOrder: number; version: string }): Promise<AdminDictItemView> =>
     apiJson<AdminDictItemView>(`/admin/v1/system/dict-items/${itemId}`, 'PUT', payload),
-  /** 删除字典条目。 */
+  /** 删除字典条目。void 端点信封化，emptyAsSuccess 双口径兼容。 */
   dictItemDelete: (itemId: string): Promise<void> =>
-    apiFetch<void>(`/admin/v1/system/dict-items/${itemId}`, { method: 'DELETE' }),
+    apiFetch<void>(`/admin/v1/system/dict-items/${itemId}`, { method: 'DELETE' }, { emptyAsSuccess: true }),
 };

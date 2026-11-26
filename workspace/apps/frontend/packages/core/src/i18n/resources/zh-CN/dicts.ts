@@ -7,8 +7,13 @@ export const dicts = {
     columns: {
       dictCode: '代码',
       dictName: '名称',
+      dictKind: '字典形态',
       status: '状态',
       actions: '操作',
+    },
+    kind: {
+      flat: '平铺',
+      tree: '树形',
     },
     footer: '点击行选择类型，右侧维护其条目。',
     form: {
@@ -21,6 +26,8 @@ export const dicts = {
       name: '类型名称',
       nameRequired: '请输入类型名称',
       namePlaceholder: '类型显示名称',
+      dictKind: '字典形态',
+      dictKindExtra: '树形（TREE）类型条目支持父子层级；创建后不可修改',
       remark: '备注',
       created: '字典类型已创建',
       updated: '字典类型已更新',
@@ -39,6 +46,9 @@ export const dicts = {
       sortOrder: '排序',
       actions: '操作',
     },
+    parent: '父条目',
+    parentExtra: '仅树形（TREE）类型可选；不选则为顶级条目',
+    parentPlaceholder: '选择父条目（可选）',
     editTitle: '编辑条目',
     createTitle: '新建条目（{{name}}）',
     label: '标签',

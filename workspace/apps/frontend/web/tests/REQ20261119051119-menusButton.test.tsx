@@ -1,24 +1,21 @@
 /**
  * REQ-20261119-051119 AC-7/AC-9：MenusPage BUTTON 菜单节点回归。
  *
- * 覆盖：列表 BUTTON 行「按钮」Tag 展示；表单 menuTypes 含 BUTTON 选项；
- * menuType=BUTTON 时 permissionCode 必填校验（校验文案 + 拦截提交）与 path 可留空提示；
- * 通过校验后 POST body 携带 menuType=BUTTON + permissionCode。
+ * REQ-20261125-230807 delta-r3 基线更新（AC-16 仅浏览）：菜单页无新建/加子菜单/编辑/删除入口，
+ * 原“新建 BUTTON 节点表单校验/提交”两用例的表单语义已随契约移除；重写为仅浏览断言——
+ * （a）仅浏览权限下树表/BUTTON Tag/筛选可用且零 mutation 调用；（b）即便授予 mutation 权限，
+ * 入口仍不存在（前端收口与权限无关）。原 BUTTON Tag 展示用例保留。
  * 装配照既有范本 web/tests/REQ20261114120101-crudPages.test.tsx（fetch 弱匹配 + 权限播种 + AntApp）。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App as AntApp } from 'antd';
 import { MenusPage } from '../src/pages/MenusPage';
 import { useAuthStore, useMeStore } from '@acme/core';
 
 vi.setConfig({ testTimeout: 25000 });
 
-const ADD_BUTTON = /新\s*[建增]/;
-const CONFIRM_BUTTON = /确\s*定|^OK$/i;
 const BUTTON_OPTION = '按钮（操作权限）';
-const PERMISSION_CODE_REQUIRED = '按钮节点必须挂权限码';
-const PATH_OPTIONAL_HINT = '按钮节点无路由，路径可留空';
 
 const envelope = (data: unknown, status = 200) => new Response(
   JSON.stringify({ success: true, code: '0', message: null, data }), { status },
@@ -30,14 +27,6 @@ const asRequest = (input: RequestInfo | URL, init?: RequestInit) => {
   }
   const req = input as Request;
   return { url: new URL(req.url), method: (init?.method ?? req.method).toUpperCase(), body: init?.body };
-};
-
-const parseBody = (body: BodyInit | null | undefined): Record<string, unknown> => {
-  try {
-    return JSON.parse(String(body ?? '')) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
 };
 
 /** fixture 节点（宽松键面：仅服务渲染文本断言，无结构断言依赖）。 */
@@ -63,13 +52,9 @@ const setupMenusApi = () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const r = asRequest(input, init);
     if (!r.url.pathname.includes('/menus')) return envelope(null);
+    // GET 全量树（REQ-20261125-230807 确认②：mock mutation handler 已随仅浏览收口移除）
     if (r.method === 'GET') {
       return envelope({ records: MENUS, total: MENUS.length });
-    }
-    if (r.method === 'POST') {
-      const created: MenuFixture = { id: '9901', ...parseBody(r.body) };
-      MENUS.push(created);
-      return envelope(created);
     }
     return envelope(null);
   });
@@ -109,12 +94,11 @@ const rowOf = async (anchor: string) => {
   return cell.closest('tr') as HTMLElement;
 };
 
-/** 对话框内文本类输入框（排除 select 搜索框/hidden；crudPages 口径）。 */
-const dialogTextboxes = (dialog: HTMLElement) =>
-  Array.from(dialog.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')).filter(
-    (el) => !el.disabled && !el.readOnly
-      && (el.type === 'text' || el.type === '' || el.type === 'number' || el.tagName === 'TEXTAREA'),
-  );
+/** mutation 调用计数（POST/PUT/DELETE 任意路径）。 */
+const mutationCallsOf = (fetchMock: ReturnType<typeof vi.fn>) =>
+  (fetchMock.mock.calls as unknown as [input: RequestInfo | URL, init?: RequestInit][])
+    .map(([input, init]) => asRequest(input, init))
+    .filter((r) => ['POST', 'PUT', 'DELETE'].includes(r.method));
 
 beforeEach(() => {
   window.location.hash = '';
@@ -148,59 +132,45 @@ describe('REQ20261119051119 MenusPage BUTTON 节点（AC-7）', () => {
     expect(screen.getByText('按钮')).toBeTruthy();
   });
 
-  it('should_require_permission_code_when_menu_type_button_selected', async () => {
-    await seedMe(['system:menu:list', 'system:menu:create']);
+  it('should_not_render_mutation_entries_when_menus_page_browse_only', async () => {
+    await seedMe(['system:menu:list']);
     const fetchMock = setupMenusApi();
     render(<AntApp><MenusPage /></AntApp>);
 
-    await screen.findByText('系统管理', {}, { timeout: 5000 });
-    fireEvent.click((await screen.findAllByText(ADD_BUTTON, {}, { timeout: 5000 }))[0]);
-    const dialog = await screen.findByRole('dialog', {}, { timeout: 5000 });
+    const dirRow = await rowOf('系统管理');
+    // 树表可用：展开根行可见 MENU/BUTTON 子行；BUTTON 行「按钮」Tag 保留
+    fireEvent.click(dirRow.querySelector('.ant-table-row-expand-icon')!);
+    expect(await screen.findByText('用户新建按钮', {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getByText('按钮')).toBeTruthy();
 
-    // 类型选 BUTTON
-    fireEvent.mouseDown(within(dialog).getByLabelText('类型'));
-    fireEvent.click(await screen.findByText(BUTTON_OPTION, {}, { timeout: 5000 }));
-    await waitFor(() => {
-      const item = document.querySelector('.ant-select-selection-item');
-      expect(item?.textContent ?? '').toContain(BUTTON_OPTION);
-    }, { timeout: 5000 });
+    // AC-16：无新建/加子菜单/编辑/删除入口；无表单对话框（新建按 role=button 判定，避免撞 fixture 行名「用户新建按钮」）
+    expect(screen.queryByRole('button', { name: /新\s*[建增]/ })).toBeNull();
+    expect(screen.queryAllByText(/子\s*菜\s*单/)).toHaveLength(0);
+    expect(screen.queryAllByText(/编\s*辑/)).toHaveLength(0);
+    expect(screen.queryAllByText(/删\s*除/)).toHaveLength(0);
+    expect(screen.queryByRole('dialog')).toBeNull();
 
-    // path 非必填提示出现（BUTTON 无路由语义）
-    expect(await within(dialog).findByText(PATH_OPTIONAL_HINT, {}, { timeout: 5000 })).toBeTruthy();
+    // 筛选可用：关键字搜索框 + 类型筛选下拉在文档中
+    expect(document.querySelector('input[placeholder="搜索菜单名称/路径/权限码"]')).toBeTruthy();
+    expect(screen.getAllByLabelText('菜单类型').length).toBeGreaterThanOrEqual(1);
 
-    // 菜单名称已填，权限码留空提交 → 校验文案 + 无 POST
-    // 提交走原生 form submit 事件（rc-field-form 自身吞掉校验 rejection；页面 onOk 路径会产生 unhandled rejection 噪音）
-    fireEvent.change(dialogTextboxes(dialog)[0]!, { target: { value: '按钮节点X' } });
-    fireEvent.submit(dialog.querySelector('form')!);
-    expect(await screen.findByText(PERMISSION_CODE_REQUIRED, {}, { timeout: 5000 })).toBeTruthy();
-    expect(fetchMock.mock.calls.filter(([input, init]) => {
-      const r = asRequest(input as RequestInfo | URL, init);
-      return r.method === 'POST' && r.url.pathname.includes('/menus');
-    })).toHaveLength(0);
+    // 零 mutation 调用（渲染+展开全程）
+    await waitFor(() => expect(mutationCallsOf(fetchMock)).toHaveLength(0));
   });
 
-  it('should_submit_button_node_with_permission_code_when_valid', async () => {
-    await seedMe(['system:menu:list', 'system:menu:create']);
+  it('should_keep_entries_absent_even_when_mutation_permissions_granted', async () => {
+    // 前端收口与权限无关（AC-16）：授予全部菜单 mutation 权限，入口仍不存在
+    await seedMe(['system:menu:list', 'system:menu:create', 'system:menu:update', 'system:menu:delete']);
     const fetchMock = setupMenusApi();
     render(<AntApp><MenusPage /></AntApp>);
 
-    await screen.findByText('系统管理', {}, { timeout: 5000 });
-    fireEvent.click((await screen.findAllByText(ADD_BUTTON, {}, { timeout: 5000 }))[0]);
-    const dialog = await screen.findByRole('dialog', {}, { timeout: 5000 });
-
-    fireEvent.mouseDown(within(dialog).getByLabelText('类型'));
-    fireEvent.click(await screen.findByText(BUTTON_OPTION, {}, { timeout: 5000 }));
-
-    fireEvent.change(dialogTextboxes(dialog)[0]!, { target: { value: '按钮节点Y' } });
-    fireEvent.change(within(dialog).getByLabelText('权限码'), { target: { value: 'system:dict:create' } });
-    fireEvent.click(await screen.findByRole('button', { name: CONFIRM_BUTTON }, { timeout: 5000 }));
-
-    await waitFor(() => {
-      const posts = fetchMock.mock.calls.map(([input, init]) => asRequest(input as RequestInfo | URL, init))
-        .filter((r) => r.method === 'POST' && r.url.pathname.includes('/menus'));
-      expect(posts).toHaveLength(1);
-      expect(parseBody(posts[0]?.body).menuType).toBe('BUTTON');
-      expect(parseBody(posts[0]?.body).permissionCode).toBe('system:dict:create');
-    }, { timeout: 5000 });
+    await rowOf('系统管理');
+    expect(screen.queryByRole('button', { name: /新\s*[建增]/ })).toBeNull();
+    expect(screen.queryAllByText(/子\s*菜\s*单/)).toHaveLength(0);
+    expect(screen.queryAllByText(/编\s*辑/)).toHaveLength(0);
+    expect(screen.queryAllByText(/删\s*除/)).toHaveLength(0);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByText(BUTTON_OPTION)).toBeNull(); // 类型选项仅存在于（已移除的）表单
+    await waitFor(() => expect(mutationCallsOf(fetchMock)).toHaveLength(0));
   });
 });

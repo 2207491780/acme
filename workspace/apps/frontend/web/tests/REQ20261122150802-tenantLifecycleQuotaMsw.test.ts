@@ -145,12 +145,12 @@ describe('REQ20261122150802 msm 租户用量/配额/生命周期端点契约同�
     // 前置：beta 基线=套餐默认（PACKAGE 5GiB）
     expect((await getUsage('2')).quotaSource).toBe('PACKAGE');
 
-    // 覆盖：PUT quota 12345 → view 解析值即时切换（返回更新后租户视图）
+    // 覆盖：PUT quota 12345 → AC-20 信封 data=null（void 端点信封化，不再返回租户视图；
+    // 解析值语义经 usage/list 双面断言承载，不弱化）
     const putBody = (await putJson(`${BASE}/2/quota`, { quotaStorageBytes: 12_345 })).body;
     expect(putBody.success, `PUT quota 覆盖应业务成功：${JSON.stringify(putBody)}`).toBe(true);
     expect(putBody.code).toBe('0');
-    const view = putBody.data as Record<string, unknown>;
-    expect(Number(view.quotaStorageBytes), '覆盖后 view 解析值=覆盖值').toBe(12_345);
+    expect(putBody.data, 'AC-20：PUT quota 信封 data=null').toBeNull();
 
     // usage/list 双面同形：来源层级=TENANT_OVERRIDE、列表行解析值同步
     const overridden = await getUsage('2');
@@ -158,12 +158,14 @@ describe('REQ20261122150802 msm 租户用量/配额/生命周期端点契约同�
     expect(overridden.quotaSource).toBe('TENANT_OVERRIDE');
     expect(Number(rowByCode(await listPage(), 'beta').quotaStorageBytes)).toBe(12_345);
 
-    // 清除回落：PUT quota null → 回落套餐默认（AC-2 清除回落 mock 面）
+    // 清除回落：PUT quota null → 信封 data=null（AC-20），回落套餐默认值/来源经 usage 双面断言
     const clearBody = (await putJson(`${BASE}/2/quota`, { quotaStorageBytes: null })).body;
     expect(clearBody.success, `PUT quota 清除应业务成功：${JSON.stringify(clearBody)}`).toBe(true);
-    const clearedView = clearBody.data as Record<string, unknown>;
-    expect(Number(clearedView.quotaStorageBytes), '清除覆盖回落套餐默认（确认③）').toBe(PACKAGE_QUOTA);
-    expect((await getUsage('2')).quotaSource, '清除后来源层级回落 PACKAGE').toBe('PACKAGE');
+    expect(clearBody.code).toBe('0');
+    expect(clearBody.data, 'AC-20：清除 PUT 信封 data=null').toBeNull();
+    const fallbackUsage = await getUsage('2');
+    expect(fallbackUsage.quotaStorageBytes, '清除覆盖回落套餐默认值（确认③）').toBe(PACKAGE_QUOTA);
+    expect(fallbackUsage.quotaSource, '清除后来源层级回落 PACKAGE').toBe('PACKAGE');
 
     // 非法值拒绝（信封 code≠0，mock 面同形）：负数 → PARAM_INVALID
     const invalid = (await putJson(`${BASE}/2/quota`, { quotaStorageBytes: -1 })).body;

@@ -29,7 +29,7 @@ import { TenantsPage } from '../src/pages/TenantsPage';
 import { SystemConfigPage } from '../src/pages/SystemConfigPage';
 import { authApi, useAuthStore, useMeStore, useSystemConfigStore, type AdminSystemConfigView, type AdminTenantView } from '@acme/core';
 
-vi.setConfig({ testTimeout: 20000 });
+vi.setConfig({ testTimeout: 90000 }); // delta-r4：并行全量下超管租户切换例 20s 饥饿超时（串行 14/14 绿），对齐显式超时族
 
 // ————— 行为常量 —————
 const SAVE_BUTTON = /保\s*存/;
@@ -385,11 +385,16 @@ const setupTenantsApi = () => {
   const state = {
     rows: TENANT_ROWS.map((r) => ({ ...r })),
     posts: [] as Record<string, unknown>[],
+    postPaths: [] as string[],
     puts: [] as Record<string, unknown>[],
   };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const r = asRequest(input, init);
     const p = r.url.pathname;
+    // 模板目录（REQ-20261125-230807 AC-21：创建弹窗打开实时拉取；AC-22 模板必选的选项源）
+    if (p.includes('/system/tenant-templates')) {
+      return envelope({ records: TEMPLATE_ROWS, total: TEMPLATE_ROWS.length });
+    }
     if (!p.includes('/system/tenants')) {
       if (p === '/admin/v1/system/me') {
         return envelope({ user: meUser, roles: ['super_admin'], permissions: ['system:tenant:list', 'system:tenant:create', 'system:tenant:update'], menus: [] });
@@ -400,6 +405,7 @@ const setupTenantsApi = () => {
     if (r.method === 'POST') {
       const body = parseBody(r.body);
       state.posts.push(body);
+      state.postPaths.push(p);
       const created = { id: '9901', status: 'ENABLED', createdAt: '2026-06-01T00:00:00Z', version: '0', ...body };
       state.rows = [created as AdminTenantView, ...state.rows];
       return envelope(created);
@@ -432,6 +438,11 @@ const fillField = async (label: string, value: string, dialog?: HTMLElement) => 
   fireEvent.change(within(dialog ?? document.body).getByLabelText(label), { target: { value } });
 };
 
+// 开通模板目录 fixture（REQ-20261125-230807 AC-22：新建模板必选；选项源 tenant-templates）
+const TEMPLATE_ROWS: Record<string, unknown>[] = [
+  { id: '8101', code: 'std', name: '标准开通模板', status: 'ENABLED', createdAt: '2026-01-01T00:00:00Z', version: '0', content: { rolePresets: [], configEntries: [] } },
+];
+
 /** DatePicker 输入提交（照 antd 官方 jsdom 口径：focus → change → Enter 提交解析值）。 */
 const fillExpiryDate = async (dialog: HTMLElement, value: string) => {
   const input = within(dialog).getByLabelText('有效期') as HTMLInputElement;
@@ -451,6 +462,11 @@ describe('REQ20261117025200 AC-11 租户管理表单（联系人/联系电话/�
     const dialog = await screen.findByRole('dialog');
     await fillField('租户代码', 'xin-zu-hu-1', dialog);
     await fillField('租户名称', '新租户甲', dialog);
+    // AC-22：开通模板必选（选项源 tenant-templates 目录）+ 初始管理员账号必填；
+    // 原用例未填模板被表单拦截 → posts 空即红，属契约基线更新（非实现回归）
+    fireEvent.mouseDown(within(dialog).getByLabelText('开通模板'));
+    fireEvent.click(await screen.findByText('标准开通模板'));
+    await fillField('初始管理员账号', 'tenantadmin', dialog);
     await fillField('联系人', '李四', dialog);
     await fillField('联系电话', '13900000001', dialog);
     await fillExpiryDate(dialog, '2026-12-31');
@@ -464,6 +480,10 @@ describe('REQ20261117025200 AC-11 租户管理表单（联系人/联系电话/�
     // Dayjs → ISO-8601 字符串（所选日期语义一致）
     expect(typeof body.expiresAt).toBe('string');
     expect(dayjs(String(body.expiresAt)).format('YYYY-MM-DD')).toBe('2026-12-31');
+    // AC-22：提交必走 tenantInit 端点，模板/初始管理员随载荷提交
+    expect(state.postPaths[0]).toContain('/system/tenants/init');
+    expect(body.templateCode).toBe('std');
+    expect(body.adminUsername).toBe('tenantadmin');
   });
 
   it('should_echoContactFieldsAndClearExpiryToNull_when_editTenant', async () => {

@@ -14,6 +14,7 @@ import {
 import { CrudFormModal } from '../components/CrudFormModal';
 import { CrudTable } from '../components/CrudTable';
 import { countDeptTree, flattenDeptOptions } from '../utils/dept';
+import { stripEmptyChildren } from '../utils/tree';
 
 const { Text } = Typography;
 
@@ -33,13 +34,14 @@ export function DeptsPage() {
   const permissions = useMeStore((s) => s.me?.permissions) ?? [];
 
   const crud = useCrud<AdminDeptView>({
-    // 全量树：树数组字面口径（契约「树形返回」），响应兼容运行时校验（数组或 { records } 信封）
+    // 全量树：树数组字面口径（契约「树形返回」），响应兼容运行时校验（数组或 { records } 信封）；
+    // AC-8：展示层剥空 children（叶子无无效展开图标）
     fetchPage: async ({ signal }) => {
       const tree = await systemApi.deptTree(signal);
       const rows = Array.isArray(tree)
         ? tree
         : ((tree as unknown as { records?: AdminDeptView[] }).records ?? []);
-      return { records: rows, total: countDeptTree(rows) };
+      return { records: stripEmptyChildren(rows), total: countDeptTree(rows) };
     },
     permissions,
     errorMessage: t('depts.errors.loadFailed'),
@@ -74,7 +76,8 @@ export function DeptsPage() {
     try {
       if (editing) {
         await systemApi.deptUpdate(editing.id, {
-          parentId: values.parentId ? Number(values.parentId) : null,
+          // AC-4/AC-26：parentId 字符串原样提交（雪花精度无损，不做 Number 数值化）
+          parentId: values.parentId || null,
           deptName: values.deptName,
           sortOrder: values.sortOrder,
           status: values.status ?? 'ENABLED',
@@ -83,7 +86,7 @@ export function DeptsPage() {
         message.success(t('depts.form.updated'));
       } else {
         await systemApi.deptCreate({
-          parentId: values.parentId ? Number(values.parentId) : null,
+          parentId: values.parentId || null,
           deptName: values.deptName,
           sortOrder: values.sortOrder,
           status: values.status ?? 'ENABLED',

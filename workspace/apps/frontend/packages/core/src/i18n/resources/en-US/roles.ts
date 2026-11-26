@@ -14,8 +14,7 @@ export const roles = {
   },
   actions: {
     edit: 'Edit',
-    grantPermissions: 'Permissions',
-    grantMenus: 'Menus',
+    grant: 'Authorize',
     dataScope: 'Data scope',
     delete: 'Delete',
     deleteConfirm: 'Confirm deletion of role {{code}}?',
@@ -43,8 +42,17 @@ export const roles = {
     updated: 'Role updated',
   },
   grant: {
+    title: 'Authorize role: {{name}}',
     permissionsTitle: 'Grant permissions: {{name}}',
     menusTitle: 'Grant menus: {{name}}',
+    // AC-6 domain-grouped list: keyword filter + select all/invert of filtered results + selected count + truncation warning
+    filterPlaceholder: 'Filter permissions (code / name)',
+    selectedCount: '{{count}} selected',
+    selectAll: 'Select all',
+    invert: 'Invert',
+    truncatedWarning: 'Catalog may be truncated (exceeds single-page limit)',
+    domainTitle: '{{domain}} ({{count}})',
+    noMatch: 'No matching permissions',
     menusButtonNote: 'Checking a "Button" node grants the corresponding action permission (effective with the next token issuance).',
     submitNote: 'Submitting fully overwrites the grants; permission changes take effect with the next token issuance.',
     permissionsUpdated: 'Permissions updated for role {{code}} (new permissions take effect with the next token issuance)',

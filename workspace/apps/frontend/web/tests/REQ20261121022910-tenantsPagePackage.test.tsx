@@ -3,8 +3,11 @@
  *
  * 覆盖 AC-13 should_assign_package_on_tenants_page_when_created_or_edited：
  *   - 列表增「套餐」列：绑定租户直显套餐名（packageName 冗余/或选项解析双兼容），未绑定不误显；
- *   - 创建：套餐选择（可清空=不受限）→ POST body 携带 packageId；
- *   - 编辑：绑定租户套餐回显 → 清空 → PUT body packageId=null（解除绑定）；未绑定租户 → 选择 → PUT 携带 packageId。
+ *   - 创建（REQ-20261125-230807 delta-r3 基线更新，AC-22）：新建弹窗已无套餐字段
+ *     （创建不再绑定套餐；提交改走 tenantInit 且模板必选，由 tenants/tenantEnhance 套件钉死）——
+ *     本用例改为断言创建弹窗无套餐选择字段；
+ *   - 编辑（AC-22 保留语义）：绑定租户套餐回显 → 清空 → PUT body packageId=null（解除绑定）；
+ *     未绑定租户 → 选择 → PUT 携带 packageId。
  *
  * 装配照既有范本 web/tests/REQ20261117025200-tenantEnhance.test.tsx（fetch stubGlobal 精确
  * pathname 路由 + useMeStore 权限播种 + <AntApp> 包裹）＋ REQ20261120213603-menuFilter.test.tsx
@@ -24,12 +27,13 @@ import { App as AntApp } from 'antd';
 import { i18n, useAuthStore, useMeStore, type AdminTenantView } from '@acme/core';
 import { TenantsPage } from '../src/pages/TenantsPage';
 
-vi.setConfig({ testTimeout: 25000 });
+vi.setConfig({ testTimeout: 90000 }); // delta-r3：同机后端全量测试 CPU 争抢下 25s 饥饿超时，对齐新套件显式超时口径
 
 // ————— 行为常量（tenantEnhance 口径） —————
 const ADD_BUTTON = /新\s*[建增]/;
 const EDIT_BUTTON = /编\s*辑/; // 宽容匹配（autoInsertSpace 兼容，pitfall 10/14）
 const CONFIRM_BUTTON = /确\s*定|^OK$/i;
+const CANCEL_BUTTON = /取\s*消|^Cancel$/i; // 裸渲染无 ConfigProvider：antd 缺省英文 Cancel（CONFIRM 同口径 |OK|）
 const PACKAGE_LABEL = /套\s*餐/;
 const PACKAGE_OPTION_A = '基础版';
 const PACKAGE_OPTION_B = '全功能版';
@@ -203,10 +207,6 @@ const pickOption = async (optionText: string): Promise<void> => {
   fireEvent.click(target);
 };
 
-const fillField = async (dialog: HTMLElement, label: RegExp, value: string): Promise<void> => {
-  fireEvent.change(within(dialog).getByLabelText(label), { target: { value } });
-};
-
 const rowAction = async (anchor: string, action: RegExp): Promise<void> => {
   const cell = await screen.findByText(anchor, {}, { timeout: 5000 });
   const row = cell.closest('tr') as HTMLElement;
@@ -248,26 +248,19 @@ describe('REQ20261121022910 TenantsPage 套餐扩展（AC-13）', () => {
     expect(within(freeRow).queryByText(PACKAGE_OPTION_A),
       '未绑定租户不得误显他人套餐').toBeNull();
 
-    // —— 创建：套餐选择「基础版」→ POST body 携带 packageId=1 ——
+    // —— 创建（AC-22 delta-r3 基线更新）：新建弹窗无套餐字段（创建不再绑定套餐）——
     fireEvent.click((await screen.findAllByText(ADD_BUTTON))[0]);
     const createDialog = await screen.findByRole('dialog');
-    await fillField(createDialog, /租\s*户\s*代\s*码/, 'xin-zu-hu-it');
-    await fillField(createDialog, /租\s*户\s*名\s*称/, '新租户甲');
-    const createSelect = Array.from(createDialog.querySelectorAll('.ant-select'))
-      .find((select) => PACKAGE_LABEL.test(selectDescriptor(select))) as HTMLElement;
-    expect(createSelect, '创建弹窗应含套餐选择下拉').toBeTruthy();
-    openSelectDropdown(createSelect);
-    await pickOption(PACKAGE_OPTION_A);
     await waitFor(() => {
-      expect(createSelect.querySelector('.ant-select-selection-item')?.textContent).toBe(PACKAGE_OPTION_A);
+      // 弹窗就绪锚：租户代码字段已渲染
+      expect(within(createDialog).queryByLabelText(/租\s*户\s*代\s*码/)).toBeTruthy();
     });
-    fireEvent.click(await within(createDialog).findByRole('button', { name: CONFIRM_BUTTON }));
-
-    await waitFor(() => expect(state.posts).toHaveLength(1));
-    expect(state.posts[0]?.tenantCode).toBe('xin-zu-hu-it');
-    expect(Number(state.posts[0]?.packageId),
-      '创建提交应携带所选套餐 id（number|null 载荷口径）').toBe(1);
-    await screen.findByText(/已创建/, {}, { timeout: 5000 });
+    const createPackageSelect = Array.from(createDialog.querySelectorAll('.ant-select'))
+      .find((select) => PACKAGE_LABEL.test(selectDescriptor(select)));
+    expect(createPackageSelect, 'AC-22：新建弹窗不应含套餐选择字段（编辑态保留绑定）').toBeUndefined();
+    // 关闭创建弹窗（后续编辑段复用 dialog 角色，避免双 dialog 撞车）
+    fireEvent.click(await within(createDialog).findByRole('button', { name: CANCEL_BUTTON }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     // —— 编辑（已绑定租户）：套餐回显「基础版」→ 清空 → PUT packageId=null ——
     await rowAction('爱思蜜科技', EDIT_BUTTON);

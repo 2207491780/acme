@@ -27,7 +27,7 @@ import { findPageRoute } from '../src/routes';
 import { useTabsStore } from '../src/store/tabsStore';
 import { useAuthStore, useLockStore, useMeStore, useNotifyStore } from '@acme/core';
 
-vi.setConfig({ testTimeout: 30000 });
+vi.setConfig({ testTimeout: 90000 }); // delta-r4：并行全量下 30s 饥饿超时（串行 18/18 绿），对齐显式超时族
 
 /**
  * 全套件并行负载下默认 1s 查找窗口偏紧（nav.test 同款放宽口径）：统一 10s 上限的 waitFor。

@@ -9,6 +9,10 @@
  *     父租户出现级联提示 → 确认后 PUT /tenants/{id}/status（AC-10 status 同形面）；
  *   - should_submit_parentId_when_creating_child_tenant：创建携 parentId / 未选父提交 null（顶层）。
  *
+ * REQ-20261125-230807 delta-r3 基线更新（AC-22）：新建必选模板+初始管理员且提交改走
+ * POST /admin/v1/system/tenants/init（tenantCreate 不再被前端调用）；原用例未填模板被表单
+ * 拦截 → posts 空。本用例保持 parentId 断言不变（init 载荷仍携 parentId），补填模板/管理员。
+ *
  * 装配照既有范本 web/tests/REQ20261121022910-tenantsPagePackage.test.tsx（fetch stubGlobal
  * 精确 pathname 路由 + useMeStore 权限播种 + <AntApp> 包裹 + 下拉防坑口径：mousedown 打
  * .ant-select-selector、选项限定浮层容器内匹配——pitfall 7/8/10/14）。
@@ -29,7 +33,7 @@ import { App as AntApp } from 'antd';
 import { i18n, useAuthStore, useMeStore, type AdminTenantView } from '@acme/core';
 import { TenantsPage } from '../src/pages/TenantsPage';
 
-vi.setConfig({ testTimeout: 25000 });
+vi.setConfig({ testTimeout: 90000 }); // delta-r3：同机后端全量测试 CPU 争抢下 25s 饥饿超时，对齐新套件显式超时口径
 
 // ————— 行为常量（tenantsPagePackage / tenantEnhance 口径） —————
 const ADD_BUTTON = /新\s*[建增]/;
@@ -37,6 +41,12 @@ const EDIT_BUTTON = /编\s*辑/; // 宽容匹配（autoInsertSpace 兼容，pitf
 const CONFIRM_BUTTON = /确\s*定|^OK$/i;
 const CANCEL_BUTTON = /取\s*消|^Cancel$/i;
 const PARENT_LABEL = /上\s*级|父\s*级|父\s*租\s*户|parent/i;
+const TEMPLATE_LABEL = /开\s*通\s*模\s*板/;
+
+// 开通模板目录 fixture（REQ-20261125-230807 AC-22：新建模板必选；选项源 tenant-templates）
+const TEMPLATE_ROWS: Record<string, unknown>[] = [
+  { id: '8101', code: 'std', name: '标准开通模板', status: 'ENABLED', createdAt: '2026-01-01T00:00:00Z', version: '0', content: { rolePresets: [], configEntries: [] } },
+];
 
 const PERMS = ['system:tenant:list', 'system:tenant:create', 'system:tenant:update'];
 
@@ -137,6 +147,21 @@ const setupTenantsApi = () => {
         children: state.rows.filter((row) => row.parentId === top.id).map((child) => ({ ...child, children: [] })),
       }));
       return envelope(tree);
+    }
+    if (p === '/admin/v1/system/tenant-templates' && r.method === 'GET') {
+      // 模板目录（AC-21 创建弹窗实时拉取；AC-22 模板必选的选项源）
+      return envelope({ records: TEMPLATE_ROWS, total: TEMPLATE_ROWS.length });
+    }
+    if (p === '/admin/v1/system/tenants/init' && r.method === 'POST') {
+      // AC-22：新建提交必走 init 端点（载荷仍携 parentId，本套件 A-3 口径不变）
+      const body = parseBody(r.body);
+      state.posts.push(body);
+      const created = {
+        id: '9901', status: 'ENABLED', createdAt: '2026-06-01T00:00:00Z', version: '0',
+        packageId: null, packageName: null, level: 1, ...body,
+      } as unknown as AdminTenantView;
+      state.rows = [created, ...state.rows];
+      return envelope(created);
     }
     if (p === '/admin/v1/system/tenants') {
       if (r.method === 'GET') return envelope({ records: state.rows, total: state.rows.length });
@@ -388,11 +413,16 @@ describe('REQ20261122102954 TenantsPage 子租户层级（AC-9）', () => {
   it('should_submit_parentId_when_creating_child_tenant', async () => {
     const { state } = await renderPage();
 
-    // 创建子租户：选父「贝塔租户」→ POST body 携 parentId（A-3 wire 字符串口径）
+    // 创建子租户：选父「贝塔租户」→ init POST body 携 parentId（A-3 wire 字符串口径；AC-22 补填必选模板/管理员）
     fireEvent.click((await screen.findAllByText(ADD_BUTTON))[0]);
     const dialog = await screen.findByRole('dialog');
     await fillField(dialog, /租\s*户\s*代\s*码/, 'child-zu-hu-it');
     await fillField(dialog, /租\s*户\s*名\s*称/, '子租户甲');
+    const templateSelect = findSelectByLabel(dialog, TEMPLATE_LABEL);
+    expect(templateSelect, '创建弹窗应含开通模板下拉（AC-22 必选）').toBeTruthy();
+    openSelectDropdown(templateSelect);
+    await pickOption('标准开通模板');
+    await fillField(dialog, /初\s*始\s*管\s*理\s*员\s*账\s*号/, 'childadmin');
     const parentSelect = findSelectByLabel(dialog, PARENT_LABEL);
     expect(parentSelect, '创建弹窗应含上级/父租户下拉（A-2）').toBeTruthy();
     openSelectDropdown(parentSelect);
@@ -405,6 +435,9 @@ describe('REQ20261122102954 TenantsPage 子租户层级（AC-9）', () => {
     await waitFor(() => expect(state.posts).toHaveLength(1));
     expect(state.posts[0]?.tenantCode).toBe('child-zu-hu-it');
     expect(String(state.posts[0]?.parentId), '创建提交应携带所选父租户 id（A-3 字符串口径）').toBe('3002');
+    // AC-22 wire 钉死：提交走 init 且模板/初始管理员随载荷提交
+    expect(state.posts[0]?.templateCode, 'AC-22：init 载荷携所选模板 code').toBe('std');
+    expect(state.posts[0]?.adminUsername, 'AC-22：init 载荷携初始管理员账号').toBe('childadmin');
     await screen.findByText(/已创建/, {}, { timeout: 5000 });
 
     // 第二次创建：不选父 → parentId 提交 null（顶层默认语义）
@@ -412,6 +445,10 @@ describe('REQ20261122102954 TenantsPage 子租户层级（AC-9）', () => {
     const dialog2 = await screen.findByRole('dialog');
     await fillField(dialog2, /租\s*户\s*代\s*码/, 'top-zu-hu-it');
     await fillField(dialog2, /租\s*户\s*名\s*称/, '顶层租户乙');
+    const templateSelect2 = findSelectByLabel(dialog2, TEMPLATE_LABEL);
+    openSelectDropdown(templateSelect2);
+    await pickOption('标准开通模板');
+    await fillField(dialog2, /初\s*始\s*管\s*理\s*员\s*账\s*号/, 'topadmin');
     fireEvent.click(await within(dialog2).findByRole('button', { name: CONFIRM_BUTTON }));
 
     await waitFor(() => expect(state.posts).toHaveLength(2));

@@ -2,6 +2,7 @@ package com.acme.platform.system.interfaces;
 
 import com.acme.common.util.TreeBuilder;
 import com.acme.common.util.TreeNode;
+import com.acme.platform.system.api.DictKind;
 import com.acme.platform.system.domain.SysCapability;
 import com.acme.platform.system.domain.SysConfig;
 import com.acme.platform.system.domain.SysDept;
@@ -89,8 +90,12 @@ public final class EntityViews {
                 position.getVersion());
     }
 
+    /**
+     * 角色平铺视图（根角色 parentId 0→null wire 归一，REQ-20261124-213008 §API / REQ-20261125-230807；
+     * children 恒空）。
+     */
     public static AdminRoleView roleView(SysRole role) {
-        return new AdminRoleView(role.getId(), role.getParentId(), role.getRoleCode(), role.getRoleName(),
+        return new AdminRoleView(role.getId(), normalizedRoleParentId(role), role.getRoleCode(), role.getRoleName(),
                 role.getStatus(), role.getBuiltIn(), role.getRemark(), role.getDataScope(),
                 role.getCreatedAt(), List.of(), role.getVersion());
     }
@@ -107,18 +112,23 @@ public final class EntityViews {
         List<AdminRoleView> views = new ArrayList<>();
         for (TreeNode<SysRole> node : nodes) {
             SysRole role = node.payload();
-            views.add(new AdminRoleView(role.getId(), role.getParentId(), role.getRoleCode(), role.getRoleName(),
+            views.add(new AdminRoleView(role.getId(), normalizedRoleParentId(role), role.getRoleCode(), role.getRoleName(),
                     role.getStatus(), role.getBuiltIn(), role.getRemark(), role.getDataScope(),
                     role.getCreatedAt(), mapRoleNodes(node.children()), role.getVersion()));
         }
         return views;
     }
 
+    /** 角色父 id wire 归一（根哨兵 0 → null，REQ-20261124-213008 §API「根 parentId 归一 null」）。 */
+    private static Long normalizedRoleParentId(SysRole role) {
+        return role.getParentId() == SysRole.ROOT_PARENT_ID ? null : role.getParentId();
+    }
+
     public static AdminPermissionView permissionView(SysPermission permission) {
         return new AdminPermissionView(permission.getId(), permission.getPermissionCode(),
                 permission.getPermissionName(), permission.getPermissionType(), permission.getHttpMethod(),
-                permission.getHttpPath(), permission.getStatus(), permission.getCreatedAt(),
-                permission.getVersion());
+                permission.getHttpPath(), permission.getService(), permission.getStatus(),
+                permission.getCreatedAt(), permission.getVersion());
     }
 
     /**
@@ -172,14 +182,41 @@ public final class EntityViews {
         return views;
     }
 
+    /** 字典类型视图（REQ-20261125-230807 增补 dictKind 透出）。 */
     public static AdminDictTypeView dictTypeView(SysDictType type) {
-        return new AdminDictTypeView(type.getId(), type.getDictCode(), type.getDictName(), type.getStatus(),
-                type.getRemark(), type.getCreatedAt(), type.getVersion());
+        return new AdminDictTypeView(type.getId(), type.getDictCode(), type.getDictName(), type.getDictKind(),
+                type.getStatus(), type.getRemark(), type.getCreatedAt(), type.getVersion());
     }
 
+    /** 字典项平铺视图（children 不披露——wire 零变化，创建 / 修改 / FLAT 列表响应用；parentId 透传）。 */
     public static AdminDictItemView dictItemView(SysDictItem item) {
-        return new AdminDictItemView(item.getId(), item.getDictTypeId(), item.getItemLabel(),
-                item.getItemValue(), item.getSortOrder(), item.getStatus(), item.getVersion());
+        return new AdminDictItemView(item.getId(), item.getDictTypeId(), item.getParentId(),
+                item.getItemLabel(), item.getItemValue(), item.getSortOrder(), item.getStatus(),
+                item.getVersion(), null);
+    }
+
+    /**
+     * 字典项视图列表（REQ-20261125-230807：kind=TREE 嵌套树（TreeBuilder 组装，环 / 重复 id / 孤儿
+     * 显式失败，叶子 children 恒数组）、kind=FLAT 平铺现状不变（不披露 children 键，wire 零变化））。
+     */
+    public static List<AdminDictItemView> dictItemViews(DictKind kind, List<SysDictItem> items) {
+        if (kind == DictKind.TREE) {
+            List<TreeNode<SysDictItem>> roots = TreeBuilder.build(items,
+                    SysDictItem::getId, SysDictItem::getParentId);
+            return mapDictItemNodes(roots);
+        }
+        return items.stream().map(EntityViews::dictItemView).toList();
+    }
+
+    private static List<AdminDictItemView> mapDictItemNodes(List<TreeNode<SysDictItem>> nodes) {
+        List<AdminDictItemView> views = new ArrayList<>();
+        for (TreeNode<SysDictItem> node : nodes) {
+            SysDictItem item = node.payload();
+            views.add(new AdminDictItemView(item.getId(), item.getDictTypeId(), item.getParentId(),
+                    item.getItemLabel(), item.getItemValue(), item.getSortOrder(), item.getStatus(),
+                    item.getVersion(), mapDictItemNodes(node.children())));
+        }
+        return views;
     }
 
     /** 租户级系统配置视图（REQ-20261116-230354；captchaEnabled 口径 REQ-20261117-011514，页脚 REQ-20261117-025200，水印模板 REQ-20261117-180000）。 */

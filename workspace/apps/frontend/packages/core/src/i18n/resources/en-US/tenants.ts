@@ -87,8 +87,9 @@ export const tenants = {
     expiresAt: 'Expires at',
     expiresAtExtra: 'The tenant cannot sign in after expiry; clear the field for a long-term tenant',
     template: 'Init template',
-    templatePlaceholder: 'Select a template; leave empty to provision with the dynamic grant set (clearable)',
-    templateExtra: 'When matched, the tenant is provisioned with the template roles / grants / config / default package; leaving it empty keeps the current behavior',
+    templatePlaceholder: 'Select a template',
+    templateExtra: 'Required: when matched, the tenant is provisioned with the template roles / grants / config / default package (REQ-20261125-230807 AC-22)',
+    templateRequired: 'Please select an init template',
     templateLoadFailed: 'Failed to load template options',
     adminUsername: 'Initial admin username',
     adminUsernamePlaceholder: 'The final username is composed with the template prefix when configured',
@@ -110,6 +111,11 @@ export const tenants = {
     loadFailed: 'Failed to load tenants',
     depthExceeded: 'Tenant hierarchy exceeds the maximum depth of 3',
     cycle: 'Setting this parent would create a hierarchy cycle; the operation was rejected',
+    // AC-19/AC-27: catalog load failures surface as visible warnings (no more silent empty options)
+    catalogFailed: 'Some catalogs failed to load; related dropdown options may be incomplete',
+    treeLoadFailed: 'Failed to load the tenant tree; parent tenant candidates are unavailable',
+    packagesLoadFailed: 'Failed to load the package catalog; package options / name mapping are unavailable',
+    templatesLoadFailed: 'Failed to load the template catalog; init template options are unavailable',
   },
   // Templates tab (REQ-20261122-233426 confirmation ⑦: template CRUD table + structured content editing)
   templates: {
@@ -153,13 +159,14 @@ export const tenants = {
       title: 'Role presets (rolePresets)',
       add: 'Add role',
       remove: 'Remove this role',
-      roleKey: 'Role key',
+      // AC-23: preset roles switch to a system-role dropdown (auto-fills role name and permissions)
+      systemRole: 'System role',
+      systemRolePlaceholder: 'Select a system role (auto-fills role name and permissions)',
       roleName: 'Role name',
+      roleNameAuto: 'Auto-filled after selecting a role',
       permissionCodes: 'Permissions',
-      permissionPlaceholder: 'Type a permission code and press Enter, e.g. system:user:list',
-      roleKeyRequired: 'Please enter the role key',
-      roleNameRequired: 'Please enter the role name',
-      roleKeyPattern: 'Role key accepts lowercase letters / digits / dashes only',
+      permissionPlaceholder: 'Pick from the catalog or type a code, e.g. system:user:list',
+      roleKeyRequired: 'Please select a system role',
       emptyRoles: 'At least one role preset is required (an empty role set is rejected)',
     },
     configs: {
