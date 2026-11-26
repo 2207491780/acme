@@ -24,12 +24,14 @@ async function makeRepo(t) {
   return { repo, g };
 }
 
-// 6h GC 宽限期会让刚创建的工作树一律跳过回收；测试注入 0 使 gc 用例可断言实际判定逻辑。
-const run = (repo, args) => spawnSync('node', [SCRIPT, ...args], {
-  cwd: repo,
-  encoding: 'utf8',
-  env: { ...process.env, ACME_WORKTREE_GC_MIN_AGE_MS: '0' },
-});
+// GC 用例默认把宽限期压到 0：fixture 工作树年龄≈0，不覆盖运行时 6h 默认值的话三例会被宽限期提前跳过，
+// 测不到 dirty/pushed/auto-gc 的真实分支。envOverrides 供「宽限期正向用例」显式传入更大阈值。
+const run = (repo, args, envOverrides = {}) =>
+  spawnSync('node', [SCRIPT, ...args], {
+    cwd: repo,
+    encoding: 'utf8',
+    env: { ...process.env, ACME_WORKTREE_GC_MIN_AGE_MS: '0', ...envOverrides },
+  });
 
 test('should_create_worktree_and_branch_when_add', async (t) => {
   const { repo, g } = await makeRepo(t);
@@ -138,6 +140,18 @@ test('should_gc_merged_pushed_clean_worktree_when_gc', async (t) => {
   const g = (args) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
   assert.equal(g(['rev-parse', '--verify', 'refs/heads/feat/1-done']).status, 0, '分支应保留（授权分级）');
   assert.match(r.stdout, /已清理/);
+});
+
+test('should_keep_new_worktree_within_grace_period_when_gc', async (t) => {
+  // 正向用例：显式把宽限期设为 6h（运行时默认值），新建工作树即使已 push 且干净也必须保留。
+  const { repo, commitInWorktree, mergeAndPush } = await makeRepoWithOrigin(t);
+  run(repo, ['add', 'feat/0-grace']);
+  commitInWorktree('feat/0-grace', 'feat: grace');
+  mergeAndPush('feat/0-grace');
+  const r = run(repo, ['gc'], { ACME_WORKTREE_GC_MIN_AGE_MS: String(6 * 60 * 60 * 1000) });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(repo, '.worktrees/feat-0-grace')), '宽限期内的新工作树必须保留');
+  assert.match(r.stdout, /宽限期/, '保留原因应写明宽限期');
 });
 
 test('should_keep_dirty_worktree_when_gc', async (t) => {

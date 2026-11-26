@@ -452,6 +452,25 @@ test('should_flag_orphan_derived_files_beyond_tool_dirs', async (t) => {
   succeeds(run(repo, ['--check']));
 });
 
+test('should_mark_script_derived_files_and_flag_them_as_orphans_when_source_removed', async (t) => {
+  // P2-A：脚本类派生物（.mjs）此前无派生标记 → 源删除后孤儿检测盲区。派生时插入 // 头注，
+  // 但源以 shebang 开头时必须保留其在第 1 行（前置会令 node --check 报 Invalid or unexpected token）。
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/skills/x/scripts/probe.mjs', '#!/usr/bin/env node\nconsole.log("probe");\n');
+  succeeds(run(repo));
+  const derivedPath = join(repo, '.claude/skills/x/scripts/probe.mjs');
+  const derived = await readFile(derivedPath, 'utf8');
+  const lines = derived.split('\n');
+  assert.equal(lines[0], '#!/usr/bin/env node', 'shebang 必须留在派生文件首行');
+  assert.match(lines[1], /^\/\/ 派生自 \.ai\/skills\/x\/scripts\/probe\.mjs（统一管理于 \.ai\/）/, '第 2 行应是派生标记');
+  const checked = spawnSync(process.execPath, ['--check', derivedPath], { encoding: 'utf8' });
+  assert.equal(checked.status, 0, checked.stderr);
+  succeeds(run(repo, ['--check']));
+  // 删源后派生物残留 → --check 应报孤儿（标记可被 DERIVED_MARK 匹配）
+  await rm(join(repo, '.ai/skills/x'), { recursive: true });
+  fails(run(repo, ['--check']), /孤儿派生文件 \.claude\/skills\/x\/scripts\/probe\.mjs/);
+});
+
 test('should_enforce_custom_rulesBudgetBytes_from_config', async (t) => {
   const { repo } = await fixture(t);
   await put(repo, CONFIG, 'version: 1\nengine:\n  rulesBudgetBytes: 200\n');
@@ -502,10 +521,11 @@ test('should_inject_manual_swarm_trigger_into_entry_stubs_without_command_entry'
   await put(repo, CONFIG, 'engine:\n  code-review: manual\n');
   succeeds(run(repo));
   const manual =
-    /5\. 蜂群流程开关（engine\.code-review: manual）：蜂群 code-review 仅在用户对话显式要求时调用，无自动触发、无命令入口；评审唯一产物为 contracts\/<REVIEW-ID>\.md/;
+    /5\. 蜂群流程开关（engine\.code-review: manual）：蜂群 code-review 仅在用户对话显式要求时调用，无自动触发、无命令入口；产物与流程口径见该蜂群说明文件。/;
   for (const file of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'CODEBUDDY.md']) {
     const text = await readFile(join(repo, file), 'utf8');
     assert.match(text, manual, `${file} 应注入 manual 档触发段`);
+    assert.doesNotMatch(text, /contracts\/<REVIEW-ID>\.md/, `${file} manual 档不写评审专属产物语义`);
     assert.doesNotMatch(text, /\.ai\/agents\/code-review\/code-review-leader\.md/, `${file} manual 档不注入 leader 路径`);
     assert.doesNotMatch(text, /\/req/, `${file} manual 档不注入命令入口`);
     assert.doesNotMatch(text, /multi-agent\.md/, `${file} manual 档不注入四阶段手册`);
@@ -522,7 +542,7 @@ test('should_number_ai_coding_dev_and_code_review_from_five_when_both_swarms_exi
   const agents = await readFile(join(repo, 'AGENTS.md'), 'utf8');
   assert.match(agents, /5\. 蜂群流程开关（engine\.ai-coding-dev: auto）/);
   assert.match(agents, /6\. 蜂群流程开关（engine\.code-review: manual）：蜂群 code-review 仅在用户对话显式要求时调用/);
-  assert.match(agents, /6\. 蜂群流程开关（engine\.code-review: manual）[^]*评审唯一产物为 contracts\/<REVIEW-ID>\.md/);
+  assert.match(agents, /6\. 蜂群流程开关（engine\.code-review: manual）[^]*产物与流程口径见该蜂群说明文件。/);
   succeeds(run(repo, ['--check']));
 });
 
@@ -676,7 +696,9 @@ test('should_flatten_swarm_agent_sources_into_tool_dirs', async (t) => {
 test('should_treat_missing_local_only_target_as_ok_in_check_but_mismatch_as_fail', async (t) => {
   const { repo } = await fixture(t);
   await put(repo, '.ai/tools/zcode/ZCODE.md', '# ZCode dir\n');
-  await put(repo, '.ai/tools/zcode/agents/helper.md', '# Helper stub\n');
+  // ZCode 存根不再有手写源：用蜂群代理源生成 .zcode/agents/helper.md，再对其漂移。
+  await putSwarm(repo, 'ai-coding-dev');
+  await put(repo, '.ai/agents/ai-coding-dev/helper.md', '---\nname: helper\ndescription: Helper agent.\ntools: [Read]\nmodel: inherit\n---\n\nHELPER-BODY\n');
   succeeds(run(repo)); // sync：写本机 .zcode
   succeeds(run(repo, ['--check']));
   await rm(join(repo, '.zcode'), { recursive: true }); // 模拟全新检出/CI：本机目标缺失
@@ -688,6 +710,31 @@ test('should_treat_missing_local_only_target_as_ok_in_check_but_mismatch_as_fail
   // 存在但内容不一致 → 仍判错（localOnly 只豁免缺失，不豁免漂移）
   await put(repo, '.zcode/agents/helper.md', '# drifted\n');
   fails(run(repo, ['--check']), /与 \.ai\/ 不同步/);
+});
+
+test('should_derive_zcode_agent_and_command_stubs_from_public_pools', async (t) => {
+  // P1：ZCode 存根改为公共池派生（消除手写镜像漏配）。frontmatter 原样保留供注册，正文仅指针。
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/tools/zcode/ZCODE.md', '# ZCode dir\n');
+  await putSwarm(repo, 'ai-coding-dev');
+  const agentSource = '---\nname: helper\ndescription: Helper agent for zcode.\ntools: [Read]\nmodel: inherit\n---\n\nSECRET-AGENT-BODY\n';
+  await put(repo, '.ai/agents/ai-coding-dev/helper.md', agentSource);
+  await put(repo, '.ai/commands/ping.md', '---\ndescription: Ping command.\n---\n\nSECRET-COMMAND-BODY\n');
+  succeeds(run(repo));
+
+  const descriptionOf = (text) => text.match(/^---\n[\s\S]*?\n---/)[0].split('\n').find((line) => line.startsWith('description:'));
+  const agent = await readFile(join(repo, '.zcode/agents/helper.md'), 'utf8');
+  assert.equal(descriptionOf(agent), descriptionOf(agentSource), '.zcode agent frontmatter description 应与源逐字一致');
+  assert.match(agent, /\.ai\/agents\/ai-coding-dev\/helper\.md/);
+  assert.match(agent, /被 spawn 后第一步：立即完整读取上述文件并严格遵循/);
+  assert.ok(!agent.includes('SECRET-AGENT-BODY'), '存根不得包含源正文');
+
+  const command = await readFile(join(repo, '.zcode/commands/ping.md'), 'utf8');
+  assert.match(command, /description: Ping command\./);
+  assert.match(command, /\.ai\/commands\/ping\.md/);
+  assert.match(command, /\$ARGUMENTS/);
+  assert.ok(!command.includes('SECRET-COMMAND-BODY'), '存根不得包含源正文');
+  succeeds(run(repo, ['--check']));
 });
 
 test('should_derive_codebuddy_entries_as_official_aligned_references', async (t) => {
