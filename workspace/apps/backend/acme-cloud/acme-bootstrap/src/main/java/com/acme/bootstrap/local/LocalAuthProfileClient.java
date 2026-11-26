@@ -27,10 +27,10 @@ public class LocalAuthProfileClient implements AuthProfileClient {
         this.authProfileUseCase = authProfileUseCase;
     }
 
-    /** 按用户名查认证画像（查无此用户 → 用例显式失败，消费方按 USER_NOT_FOUND 统一映射 LOGIN_FAILED）。 */
+    /** 按 (tenantCode, username) 域内查画像（查无此用户 → 用例显式失败，消费方统一映射 LOGIN_FAILED）。 */
     @Override
-    public ContractResult<AuthProfileView> findByUsername(String username) {
-        return LocalContractResults.ok(authProfileUseCase.findByUsername(username));
+    public ContractResult<AuthProfileView> findByUsername(String tenantCode, String username) {
+        return LocalContractResults.ok(authProfileUseCase.findByUsername(tenantCode, username));
     }
 
     /** 按 userId 批量查认证画像（不存在的 userId 不在结果中，消费方按缺省展示处理）。 */

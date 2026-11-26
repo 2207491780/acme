@@ -38,13 +38,25 @@ public class SysUserRepositoryImpl extends FlexRepositorySupport<SysUser> implem
     }
 
     @Override
-    public boolean existsByUsername(String username) {
-        return exists(QueryWrapper.create().where(SysUser::getUsername).eq(username));
+    public boolean existsByUsername(String tenantId, String username) {
+        if (tenantId == null || tenantId.isBlank()) {
+            // 缺租户维度 fail-closed：不命中任何既有用户（写入仍由 TenantWriteGuard 拒绝）
+            return false;
+        }
+        return exists(QueryWrapper.create()
+                .where(SysUser::getTenantId).eq(tenantId.trim())
+                .and(SysUser::getUsername).eq(username));
     }
 
     @Override
-    public SysUser findByUsername(String username) {
-        return mapper().selectOneByQuery(QueryWrapper.create().where(SysUser::getUsername).eq(username));
+    public SysUser findByUsername(String tenantCode, String username) {
+        if (tenantCode == null || tenantCode.isBlank()) {
+            // 缺租户编码 fail-closed：画像不命中 → USER_NOT_FOUND → 统一 LOGIN_FAILED
+            return null;
+        }
+        return mapper().selectOneByQuery(QueryWrapper.create()
+                .where(SysUser::getTenantId).eq(tenantCode.trim())
+                .and(SysUser::getUsername).eq(username));
     }
 
     @Override

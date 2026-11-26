@@ -199,9 +199,9 @@ class REQ20261117061017OnlineBatchKickIntegrationTest {
         redisTemplate.delete(SessionRedis.SESSION_INDEX_PREFIX + "1");
         redisTemplate.delete(SessionRedis.SESSION_INDEX_PREFIX + "3");
         doNothing().when(imageCaptchaUseCase).verify(anyString(), anyString());
-        when(authProfileGateway.findByUsername("admin")).thenReturn(
+        when(authProfileGateway.findByUsername("default", "admin")).thenReturn(
                 new AuthProfileView("1", "admin", "超级管理员", "default", "ENABLED", Set.of("super_admin")));
-        when(authProfileGateway.findByUsername(OPERATOR_USERNAME)).thenReturn(
+        when(authProfileGateway.findByUsername("default", OPERATOR_USERNAME)).thenReturn(
                 new AuthProfileView("3", OPERATOR_USERNAME, "演示操作员", "default", "ENABLED", Set.of("operator")));
         when(authProfileGateway.findByUserIds(any())).thenReturn(Map.of(
                 1L, new AuthProfileView("1", "admin", "超级管理员", "default", "ENABLED", Set.of("super_admin")),

@@ -100,8 +100,9 @@ public class LoginUseCase {
             if (loginGuard.isLocked(normalized)) {
                 throw new BizException(AuthError.ACCOUNT_LOCKED);
             }
-            // 3. 画像查询（事务外远程调用，Q-D06/Q-D08；404 → 统一失败）
-            AuthProfileView profile = authProfileGateway.findByUsername(normalized);
+            // 3. 画像查询（事务外远程调用，Q-D06/Q-D08；REQ-20261125-001738 确认②按当前登录
+            //    tenantCode + username 域内定位；404 → 统一失败，不泄露账号存在性差异）
+            AuthProfileView profile = authProfileGateway.findByUsername(normalizedTenant, normalized);
             // 4. 租户一致性（多租户口径：SysUser.tenantId 存租户代码；不匹配按统一失败，不泄露归属差异 FR-005）
             if (!normalizedTenant.equals(profile.tenantId())) {
                 throw new BizException(AuthError.LOGIN_FAILED);

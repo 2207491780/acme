@@ -466,11 +466,12 @@ class SystemApiSurfaceTest {
     @Test
     void internalAuthProfileControllerReturnsEnvelope() {
         AuthProfileUseCase useCase = mock(AuthProfileUseCase.class);
-        when(useCase.findByUsername(anyString())).thenReturn(
+        // REQ-20261125-001738：internal 查档两参数（tenantCode, username）
+        when(useCase.findByUsername(anyString(), anyString())).thenReturn(
                 new com.acme.platform.system.api.AuthProfileView("1", "admin", "超级管理员",
                         "default", "ENABLED", java.util.Set.of("super_admin")));
         AuthProfileController controller = new AuthProfileController(useCase);
-        var result = controller.findByUsername("admin");
+        var result = controller.findByUsername("default", "admin");
         assertThat(result.getSuccess()).isTrue();
         assertThat(result.getData().userId()).isEqualTo("1");
     }

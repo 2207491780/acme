@@ -1,5 +1,6 @@
 package com.acme.platform.auth.application;
 
+import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
 import com.acme.common.core.BizException;
 import com.acme.common.core.CommonError;
@@ -31,6 +32,9 @@ import java.util.Map;
  * 权限点 auth:online:list / auth:online:revoke（经 system 判定，越权 403 PERMISSION_DENIED）。
  * REQ-20261117-061017 确认⑥：批量下线（枚举该用户全部 ACTIVE 未过期会话逐个 kick，
  * 超管会话跳过并计数；未知 username 空集语义 0/0）。
+ * REQ-20261125-001738 确认③：按名批量踢收敛为操作者租户域内——仅匹配 TenantContext 指向的
+ * 租户会话（会话底账 tenant_id 存租户代码），跨租户同名会话不受影响；超管跨租户运维须先
+ * 经租户切换取得目标上下文。
  */
 @Service
 public class OnlineSessionUseCase {
@@ -93,17 +97,26 @@ public class OnlineSessionUseCase {
     }
 
     /**
-     * 批量下线（REQ-20261117-061017 确认⑥）：按 username 枚举全部 ACTIVE 未过期会话逐个 kick
-     * （复用 kick 语义含超管保护）；超管会话跳过并计数 skipped（操作者非超管时）；
-     * 未知 username 空集语义（kicked=0/skipped=0，不报 USER_NOT_FOUND）；
-     * 竞态消失的会话（kick 时已过期/终态）计入 skipped，不阻断批内其余会话。
+     * 批量下线（REQ-20261117-061017 确认⑥ + REQ-20261125-001738 确认③）：在当前操作者租户域内
+     * 按 username 枚举 ACTIVE 未过期会话逐个 kick（复用 kick 语义含超管保护）；超管会话跳过并计数
+     * skipped（操作者非超管时）；未知 username / 租户上下文缺失均空集语义（kicked=0/skipped=0，
+     * 不报 USER_NOT_FOUND）；竞态消失的会话（kick 时已过期/终态）计入 skipped，不阻断批内其余会话。
      *
      * @param username 目标用户名（B 端用户名 / C 端手机号；空白会话无匹配 → 空集语义）
      * @return 被踢/跳过计数
      */
     public BatchKickView kickAllByUsername(String username) {
         authorizationGateway.requirePermission(SystemPermissions.AUTH_ONLINE_REVOKE);
-        List<AuthSession> sessions = sessionRecorder.activeNotExpired();
+        TenantContext operatorTenant = TenantContext.get();
+        String tenantId = operatorTenant == null ? null : operatorTenant.tenantId();
+        if (tenantId == null || tenantId.isBlank()) {
+            // 域内踢的租户来源缺失：fail-closed 空集，不得退化为跨租户全局踢
+            return new BatchKickView(0, 0);
+        }
+        String tenantCode = tenantId.trim();
+        List<AuthSession> sessions = sessionRecorder.activeNotExpired().stream()
+                .filter(session -> tenantCode.equals(session.getTenantId()))
+                .toList();
         Map<Long, AuthProfileView> profiles = bProfiles(sessions);
         Map<Long, String> phones = cPhones(sessions);
         String target = username == null ? "" : username.trim();

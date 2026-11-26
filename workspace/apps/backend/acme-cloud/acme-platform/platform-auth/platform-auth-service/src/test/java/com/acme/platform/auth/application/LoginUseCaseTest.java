@@ -82,7 +82,7 @@ class LoginUseCaseTest {
     }
 
     private void stubLoginSuccessPath() {
-        when(authProfileGateway.findByUsername("admin")).thenReturn(profile("ENABLED"));
+        when(authProfileGateway.findByUsername("default", "admin")).thenReturn(profile("ENABLED"));
         when(credentialRepository.findByUserId(1001L)).thenReturn(new AuthCredential(1001L, "default", passwordHash));
         when(sessionRecorder.kickActiveSessions(1001L)).thenReturn(List.of());
     }
@@ -96,7 +96,7 @@ class LoginUseCaseTest {
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.CAPTCHA_INVALID.code()));
-        verify(authProfileGateway, never()).findByUsername(anyString());
+        verify(authProfileGateway, never()).findByUsername(anyString(), anyString());
     }
 
     @Test
@@ -127,7 +127,7 @@ class LoginUseCaseTest {
     @Test
     void missingCredentialUnifiedLoginFailed() {
         // 未设置密码与凭证错误统一失败（FR-005：不泄露账号存在性差异）
-        when(authProfileGateway.findByUsername("admin")).thenReturn(profile("ENABLED"));
+        when(authProfileGateway.findByUsername("default", "admin")).thenReturn(profile("ENABLED"));
         when(credentialRepository.findByUserId(1001L)).thenReturn(null);
         when(loginGuard.recordFailure("admin")).thenReturn(false);
         assertThatThrownBy(() -> useCase.login("default", "admin", "whatever1", CAPTCHA_ID, CAPTCHA_CODE, "10.0.0.1", "JUnit"))
@@ -143,7 +143,7 @@ class LoginUseCaseTest {
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.ACCOUNT_LOCKED.code()));
-        verify(authProfileGateway, never()).findByUsername(anyString());
+        verify(authProfileGateway, never()).findByUsername(anyString(), anyString());
     }
 
     @Test
@@ -158,7 +158,7 @@ class LoginUseCaseTest {
 
     @Test
     void disabledAccountRejected403() {
-        when(authProfileGateway.findByUsername("admin")).thenReturn(profile("DISABLED"));
+        when(authProfileGateway.findByUsername("default", "admin")).thenReturn(profile("DISABLED"));
         assertThatThrownBy(() -> useCase.login("default", "admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE, "10.0.0.1", "JUnit"))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
@@ -190,6 +190,9 @@ class LoginUseCaseTest {
     void tenantMismatchUnifiedLoginFailed() {
         // 多租户口径（login-tenant-select）：所选租户与账号归属不一致按统一失败（FR-005 不泄露归属）
         stubLoginSuccessPath();
+        // REQ-20261125-001738：查档收敛为 (tenantCode, username) 后，旧「全局同名画像」桩不再命中本租户；
+        // 显式桩出「所选租户下命中但归属他域」的画像，继续验证租户不一致的统一失败守卫（断言不放宽）。
+        when(authProfileGateway.findByUsername("other-tenant", "admin")).thenReturn(profile("ENABLED"));
         assertThatThrownBy(() -> useCase.login("other-tenant", "admin", "Correct@123", CAPTCHA_ID, CAPTCHA_CODE, "10.0.0.1", "JUnit"))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
@@ -229,7 +232,7 @@ class LoginUseCaseTest {
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.CAPTCHA_INVALID.code()));
         verify(imageCaptchaUseCase, never()).verify(any(), any());
-        verify(authProfileGateway, never()).findByUsername(anyString());
+        verify(authProfileGateway, never()).findByUsername(anyString(), anyString());
     }
 
     @Test
@@ -253,7 +256,7 @@ class LoginUseCaseTest {
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.CAPTCHA_INVALID.code()));
         verify(imageCaptchaUseCase, never()).verify(any(), any());
-        verify(authProfileGateway, never()).findByUsername(anyString());
+        verify(authProfileGateway, never()).findByUsername(anyString(), anyString());
     }
 
     @Test
@@ -270,7 +273,7 @@ class LoginUseCaseTest {
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(AuthError.CAPTCHA_EXPIRED.code()));
         verify(imageCaptchaUseCase).verify(CAPTCHA_ID, CAPTCHA_CODE);
-        verify(authProfileGateway, never()).findByUsername(anyString());
+        verify(authProfileGateway, never()).findByUsername(anyString(), anyString());
     }
 
     // ---------- REQ-20261117-025200 确认记录③：租户有效期校验（AC-5 后半） ----------

@@ -1,5 +1,6 @@
 package com.acme.platform.system.application;
 
+import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
 import com.acme.common.core.BizException;
 import com.acme.platform.system.SystemError;
@@ -15,6 +16,7 @@ import com.acme.platform.system.infrastructure.repository.SysUserRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRoleRepository;
 import com.acme.platform.system.security.DataScopeService;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -45,23 +47,32 @@ class UserUseCaseTest {
     private final UserUseCase useCase = new UserUseCase(userRepository, roleRepository, userRoleRepository,
             deptRepository, positionRepository, dataScopeService);
 
+    /** REQ-20261125-001738：查重签名收敛为 (tenantId, username)，显式绑定租户域以钉死域内语义。 */
+    @BeforeEach
+    void bindTenant() {
+        TenantContext.bind(new TenantContext("default"));
+    }
+
     @AfterEach
     void cleanup() {
         UserContext.clear();
+        TenantContext.clear();
     }
 
     @Test
     void createDuplicateUsernameRejected409() {
-        when(userRepository.existsByUsername("admin")).thenReturn(true);
+        when(userRepository.existsByUsername("default", "admin")).thenReturn(true);
         assertThatThrownBy(() -> useCase.create(new AdminUserCreate("admin", "昵称", null, null, List.of())))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(SystemError.USERNAME_DUPLICATED.code()));
+        // REQ-20261125-001738：查重按 (tenantId, username) 两参数域内进行
+        verify(userRepository).existsByUsername("default", "admin");
     }
 
     @Test
     void createSavesUserAndBindsRoles() {
-        when(userRepository.existsByUsername("u1")).thenReturn(false);
+        when(userRepository.existsByUsername("default", "u1")).thenReturn(false);
         when(userRepository.save(any(SysUser.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         // 绑定角色存在性校验打桩（5L 角色存在）
@@ -142,7 +153,7 @@ class UserUseCaseTest {
     @Test
     void createWithMissingDeptOrPositionRejected() {
         // REQ-20261114-120104：归属校验（跨租户 id 经租户过滤天然不存在）
-        when(userRepository.existsByUsername("u1")).thenReturn(false);
+        when(userRepository.existsByUsername("default", "u1")).thenReturn(false);
         when(deptRepository.findById(11L)).thenReturn(java.util.Optional.empty());
         assertThatThrownBy(() -> useCase.create(new AdminUserCreate("u1", "用户", null, null,
                 List.of(), 11L, null)))
@@ -160,7 +171,7 @@ class UserUseCaseTest {
     @Test
     void createWithOrgRefsSavesAssignment() {
         // REQ-20261114-120104：合法归属字段随实体落库
-        when(userRepository.existsByUsername("u1")).thenReturn(false);
+        when(userRepository.existsByUsername("default", "u1")).thenReturn(false);
         when(deptRepository.findById(11L)).thenReturn(Optional.of(new SysDept(0L, "总部", 0, null)));
         when(positionRepository.findById(21L)).thenReturn(java.util.Optional.of(
                 new com.acme.platform.system.domain.SysPosition("eng", "工程师", null)));

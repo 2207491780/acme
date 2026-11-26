@@ -165,7 +165,7 @@ class REQ20261117025200PublicConfigIntegrationTest {
                 .addFilters(new InternalTokenAuthFilter(tokenVerifier, securityProperties.getPublicPaths()))
                 .build();
         // 画像桩返回种子超管画像（user_id=1 对齐 V2 凭据种子，LoginCaptchaPolicy 口径）
-        when(authProfileGateway.findByUsername("admin")).thenReturn(
+        when(authProfileGateway.findByUsername("default", "admin")).thenReturn(
                 new AuthProfileView("1", "admin", "超级管理员", "default", "ENABLED", Set.of("super_admin")));
         // 登录验证码策略关闭（免验证码字段登录，LoginCaptchaPolicy AC-2 口径）
         when(systemConfigGateway.findCaptchaPolicy("default")).thenReturn(new CaptchaPolicyView(false));

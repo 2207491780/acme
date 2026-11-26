@@ -46,7 +46,7 @@ class AuthProfileUseCaseTest {
         when(userRoleRepository.findByUserId(1L)).thenReturn(List.of(binding(5L)));
         when(roleRepository.findAllById(List.of(5L))).thenReturn(List.of(role));
 
-        AuthProfileView profile = useCase.findByUsername("u1");
+        AuthProfileView profile = useCase.findByUsername("acme", "u1");
         assertThat(profile.status()).isEqualTo("ENABLED");
         assertThat(profile.tenantId()).isEqualTo("acme");
         assertThat(profile.roles()).containsExactly("ops");
@@ -56,7 +56,7 @@ class AuthProfileUseCaseTest {
     void disabledUserYieldsDisabledProfile() {
         user("u1", "acme", EnableStatus.DISABLED);
         tenant("acme", EnableStatus.ENABLED);
-        assertThat(useCase.findByUsername("u1").status()).isEqualTo("DISABLED");
+        assertThat(useCase.findByUsername("acme", "u1").status()).isEqualTo("DISABLED");
     }
 
     /** 停用级联：用户启用但所属租户停用 → 画像 DISABLED（tenant-management-complete）。 */
@@ -64,20 +64,20 @@ class AuthProfileUseCaseTest {
     void disabledTenantCascadesToDisabledProfile() {
         user("u1", "acme", EnableStatus.ENABLED);
         tenant("acme", EnableStatus.DISABLED);
-        assertThat(useCase.findByUsername("u1").status()).isEqualTo("DISABLED");
+        assertThat(useCase.findByUsername("acme", "u1").status()).isEqualTo("DISABLED");
     }
 
     @Test
     void missingTenantRecordFallsBackToUserStatus() {
         user("u1", "ghost", EnableStatus.ENABLED);
         when(tenantRepository.findByTenantCode("ghost")).thenReturn(Optional.empty());
-        assertThat(useCase.findByUsername("u1").status()).isEqualTo("ENABLED");
+        assertThat(useCase.findByUsername("ghost", "u1").status()).isEqualTo("ENABLED");
     }
 
     @Test
     void unknownUserRejected404() {
-        when(userRepository.findByUsername("nobody")).thenReturn(null);
-        assertThatThrownBy(() -> useCase.findByUsername("nobody"))
+        when(userRepository.findByUsername("default", "nobody")).thenReturn(null);
+        assertThatThrownBy(() -> useCase.findByUsername("default", "nobody"))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo(SystemError.USER_NOT_FOUND.code()));
@@ -88,7 +88,7 @@ class AuthProfileUseCaseTest {
         setId(user, 1L);
         setTenantId(user, tenantCode);
         user.setStatus(status);
-        when(userRepository.findByUsername(username)).thenReturn(user);
+        when(userRepository.findByUsername(tenantCode, username)).thenReturn(user);
         tenant(tenantCode, EnableStatus.ENABLED);
     }
 

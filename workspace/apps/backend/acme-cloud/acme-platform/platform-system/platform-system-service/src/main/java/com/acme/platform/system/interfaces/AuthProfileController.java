@@ -22,9 +22,11 @@ public class AuthProfileController {
         this.authProfileUseCase = authProfileUseCase;
     }
 
+    /** 按 (tenantCode, username) 域内查画像（REQ-20261125-001738；两参数均必填，返回形状不变）。 */
     @GetMapping("/internal/v1/auth-profiles")
-    public Result<AuthProfileView> findByUsername(@RequestParam("username") String username) {
-        return Result.ok(authProfileUseCase.findByUsername(username));
+    public Result<AuthProfileView> findByUsername(@RequestParam("tenantCode") String tenantCode,
+                                                  @RequestParam("username") String username) {
+        return Result.ok(authProfileUseCase.findByUsername(tenantCode, username));
     }
 
     /** 按 userId 批量画像（REQ-20261114-120105：在线用户列表 username/超管判定富化）。 */

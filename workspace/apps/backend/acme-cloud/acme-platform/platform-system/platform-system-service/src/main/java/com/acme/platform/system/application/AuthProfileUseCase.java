@@ -27,7 +27,8 @@ import java.util.stream.Collectors;
 
 /**
  * 登录认证画像用例（架构设计 3.3 / 4.2，FR-001）：
- * 按 username 全局定位（@IgnoreTenant 显式声明 + 审计，12.4.2）；无租户上下文的服务身份调用（Q-D08）。
+ * 按 (tenantCode, username) 域内定位（REQ-20261125-001738 确认②；@IgnoreTenant 显式声明 + 审计，12.4.2，
+ * 域隔离由显式 tenantCode 查参承载）；无租户上下文的服务身份调用（Q-D08）。
  * 停用级联（tenant-management-complete）：所属租户停用 → 画像状态归一 DISABLED（统一停用语义，
  * 消费方 auth 零改动映射 ACCOUNT_DISABLED）；租户目录缺失（脏数据）按用户自身状态判定。
  */
@@ -47,10 +48,13 @@ public class AuthProfileUseCase {
         this.tenantRepository = tenantRepository;
     }
 
-    /** 按用户名查认证画像；查无此用户抛 USER_NOT_FOUND（404，消费方映射统一失败 FR-005）。 */
+    /**
+     * 按 (tenantCode, username) 域内查认证画像；未知租户或域内查无此用户抛 USER_NOT_FOUND
+     * （404，消费方映射统一失败 FR-005，不泄露差异）。
+     */
     @IgnoreTenant("login-profile-lookup")
-    public AuthProfileView findByUsername(String username) {
-        SysUser user = userRepository.findByUsername(username);
+    public AuthProfileView findByUsername(String tenantCode, String username) {
+        SysUser user = userRepository.findByUsername(tenantCode, username);
         if (user == null) {
             throw new BizException(SystemError.USER_NOT_FOUND);
         }

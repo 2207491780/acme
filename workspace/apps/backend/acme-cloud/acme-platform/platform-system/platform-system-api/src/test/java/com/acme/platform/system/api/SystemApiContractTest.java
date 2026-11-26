@@ -73,12 +73,16 @@ class SystemApiContractTest {
         assertThat(feignClient.name()).isEqualTo("platform-system");
         assertThat(feignClient.contextId()).isEqualTo("authProfileClient");
 
-        Method method = AuthProfileClient.class.getMethod("findByUsername", String.class);
+        // REQ-20261125-001738：签名由 findByUsername(username) 改为 (tenantCode, username)，
+        // path 与返回形状不变；反射断言不删，改为校验两参数顺序与 @RequestParam 名。
+        Method method = AuthProfileClient.class.getMethod("findByUsername", String.class, String.class);
         GetMapping getMapping = method.getAnnotation(GetMapping.class);
         assertThat(getMapping).isNotNull();
         assertThat(getMapping.value()).containsExactly("/internal/v1/auth-profiles");
-        Parameter parameter = method.getParameters()[0];
-        assertThat(parameter.getAnnotation(RequestParam.class).value()).isEqualTo("username");
+        Parameter[] parameters = method.getParameters();
+        assertThat(parameters).as("查档契约应为 tenantCode + username 两必填参数").hasSize(2);
+        assertThat(parameters[0].getAnnotation(RequestParam.class).value()).isEqualTo("tenantCode");
+        assertThat(parameters[1].getAnnotation(RequestParam.class).value()).isEqualTo("username");
         assertThat(method.getReturnType()).isEqualTo(ContractResult.class);
     }
 

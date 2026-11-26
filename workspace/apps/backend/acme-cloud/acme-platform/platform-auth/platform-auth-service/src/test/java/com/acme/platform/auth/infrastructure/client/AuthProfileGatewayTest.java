@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -33,13 +34,15 @@ class AuthProfileGatewayTest {
     @Test
     void callsWithServiceIdentitySubject() {
         AtomicReference<String> userIdAtCall = new AtomicReference<>();
-        when(client.findByUsername(anyString())).thenAnswer(invocation -> {
+        when(client.findByUsername(anyString(), anyString())).thenAnswer(invocation -> {
             UserContext context = UserContext.get();
             userIdAtCall.set(context == null ? null : context.userId());
             return new ContractResult<>(true, "0", null,
                     new AuthProfileView("1", "admin", "昵称", "default", "ENABLED", Set.of()));
         });
-        new AuthProfileGateway(client).findByUsername("admin");
+        new AuthProfileGateway(client).findByUsername("default", "admin");
+        // REQ-20261125-001738：两参数 (tenantCode, username) 透传钉死
+        verify(client).findByUsername("default", "admin");
         // Q-D08：内部令牌 userId=服务名（经 framework-feign 主体构造链路）
         assertThat(userIdAtCall.get()).isEqualTo(AuthProfileGateway.SERVICE_IDENTITY);
         // 调用结束恢复原上下文（无主体）
@@ -48,9 +51,9 @@ class AuthProfileGatewayTest {
 
     @Test
     void userNotFoundMappedToUnifiedLoginFailed() {
-        when(client.findByUsername(anyString())).thenThrow(new BizException(new ErrorCodeOf(
+        when(client.findByUsername(anyString(), anyString())).thenThrow(new BizException(new ErrorCodeOf(
                 SystemErrorCodes.USER_NOT_FOUND)));
-        assertThatThrownBy(() -> new AuthProfileGateway(client).findByUsername("nobody"))
+        assertThatThrownBy(() -> new AuthProfileGateway(client).findByUsername("default", "nobody"))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code())
                         .isEqualTo("platform-auth-01-0001"));
@@ -59,8 +62,8 @@ class AuthProfileGatewayTest {
     @Test
     void otherDownstreamErrorsPropagate() {
         // 下游故障不掩盖为认证失败（可观测）
-        when(client.findByUsername(anyString())).thenThrow(new BizException(new ErrorCodeOf("SYS-09-0001")));
-        assertThatThrownBy(() -> new AuthProfileGateway(client).findByUsername("admin"))
+        when(client.findByUsername(anyString(), anyString())).thenThrow(new BizException(new ErrorCodeOf("SYS-09-0001")));
+        assertThatThrownBy(() -> new AuthProfileGateway(client).findByUsername("default", "admin"))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).errorCode().code()).isEqualTo("SYS-09-0001"));
     }

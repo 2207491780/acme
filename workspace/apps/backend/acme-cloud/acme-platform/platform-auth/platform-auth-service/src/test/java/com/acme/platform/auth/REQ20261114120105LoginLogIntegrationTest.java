@@ -152,7 +152,7 @@ class REQ20261114120105LoginLogIntegrationTest {
                 .build();
         // 验证码前置桩放行（AMB-2）；画像桩返回种子超管画像（user_id=1 对齐 V2 凭据种子）
         doNothing().when(imageCaptchaUseCase).verify(anyString(), anyString());
-        when(authProfileGateway.findByUsername("admin")).thenReturn(
+        when(authProfileGateway.findByUsername("default", "admin")).thenReturn(
                 new AuthProfileView("1", "admin", "超级管理员", "default", "ENABLED", Set.of("super_admin")));
         // REQ-20261117-025200：登录租户有效期校验数据源——default 租户启用且未过期
         when(tenantDirectoryGateway.findByCode("default")).thenReturn(

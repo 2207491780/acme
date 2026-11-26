@@ -16,8 +16,9 @@ import java.util.Map;
 
 /**
  * 登录认证画像网关（架构设计 3.3，Q-D08）：登录场景无用户主体，
- * 以服务身份主体（内部令牌 userId=platform-auth）调用（system 侧 @IgnoreTenant 平台级查询）；
- * 查无此用户按统一失败映射 LOGIN_FAILED（FR-005 不区分账号存在性），其余下游错误透传（可观测不掩盖故障）。
+ * 以服务身份主体（内部令牌 userId=platform-auth）调用（system 侧 @IgnoreTenant 域内显式查询——
+ * tenantCode + username，REQ-20261125-001738 确认②）；查无此用户按统一失败映射 LOGIN_FAILED
+ * （FR-005 不区分账号存在性），其余下游错误透传（可观测不掩盖故障）。
  */
 @Component
 public class AuthProfileGateway {
@@ -31,11 +32,11 @@ public class AuthProfileGateway {
         this.authProfileClient = authProfileClient;
     }
 
-    /** 按用户名查画像；404 → 统一 LOGIN_FAILED。 */
-    public AuthProfileView findByUsername(String username) {
+    /** 按 (tenantCode, username) 域内查画像；404 → 统一 LOGIN_FAILED（不泄露差异）。 */
+    public AuthProfileView findByUsername(String tenantCode, String username) {
         return ServiceIdentityScope.runAs(SERVICE_IDENTITY, () -> {
             try {
-                ContractResult<AuthProfileView> result = authProfileClient.findByUsername(username);
+                ContractResult<AuthProfileView> result = authProfileClient.findByUsername(tenantCode, username);
                 return result.payload();
             } catch (BizException ex) {
                 if (SystemErrorCodes.USER_NOT_FOUND.equals(ex.errorCode().code())) {
