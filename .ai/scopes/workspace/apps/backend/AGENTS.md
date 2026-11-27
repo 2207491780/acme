@@ -10,8 +10,8 @@ acme-common 公共池、acme-framework 框架层、acme-platform 平台服务、
   与装配踩坑口径）；数据访问取舍背景见 `.ai-memory/decisions/2026-11-12-02-flex-data-access-residuals.md`。
 - 仓储实现继承 `FlexRepositorySupport`；删除统一经 `FlexDeletes`（绑定表物理删除走旁路）。
 - 计数用独立无排序 QueryWrapper（`selectCountByQuery` 不剥离 ORDER BY；分页用 `paginate`）。
-- PG 集成测试无 Docker 自动跳过——跳过不等于验证，合并前必须在有 Docker 环境跑过。
-- 构建与全量测试：`acme-cloud/` 下 `mvn test`；Maven 不在 PATH（完整路径唯一口径见
+- **零 Docker 本地测试底座**（ADR `2026-11-27-01`）：集成测试统一基于 `common-test` 嵌入式原生中间件直跑，无需 Docker Desktop（test-only 依赖：`io.zonky.test:embedded-postgres` + PG 17.12 binaries、`com.github.codemonstur:embedded-redis`、`org.springframework.kafka:spring-kafka-test`）；新增服务集成测试优先继承模块 `Abstract*IntegrationTest` 共享上下文与快照还原，破坏性 DDL/非超管/Kafka 场景用独立库名隔离。
+- 构建与全量测试：`acme-cloud/` 下推荐 `mvn -T 4 -B test`（全仓 54 模块 0 跳过约 7 分钟；Maven 完整路径见
   `.ai-memory/playbooks/flex-test-assembly.md`「构建与运行」）。
 - **本地调试环境**：后端连接的运行环境按根配置 `.ai/ai-coding-config.yml` 的 `environment.file` 所指 `.ai/env/` 定义：
   `local.yaml`=本地中间件（PG/Redis/Nacos）；`cloud-*.yaml`=云端 k3s 环境中间件。

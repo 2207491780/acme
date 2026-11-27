@@ -12,7 +12,7 @@
 ## 后端测试装配（细则以 flex-test-assembly.md 为准，此处只列翻过车的）
 
 4. **standalone MockMvc 切片断言成功信封必须显式注册 `StandardResponseAdvice`**（`mvcFor` 注册），否则 body 无信封包裹（REQ-213603 round1）；或改用 `@SpringBootTest` 全上下文。
-5. **同模块混跑 H2 切片 + PG 集成必须 `reuseForks=false`**（Flex 全局方言 JVM 级静态污染）；装配照抄参考实现，不另起炉灶。
+5. **同模块混跑 H2 切片 + PG 集成必须经 surefire 双 `<execution>` 分 JVM 隔离**（Flex 全局方言 JVM 级静态污染；H2 切片须命名 `*SliceTest`，见 `flex-test-assembly.md` 与 ADR `2026-11-27-01`）；新集成测试继承模块 `Abstract*IntegrationTest` 共享零 Docker 嵌入式底座，含 `DROP TABLE`/非超管/独立 Kafka 等特殊类独占库名隔离。
 6. **Integration oracle 按「库中真实状态」推演**：祖先链组装/软删/租户过滤/种子幂等都会改行集，断言前先想清楚数据落库后应查到什么（REQ-213603 round2 两处 oracle 判用例错）。
 
 ## 前端交互事实（antd v5 / Testing Library）
@@ -31,8 +31,8 @@
 
 ## 环境与 flake（tester 自验与 TL 判定同口径）
 
-15. **前端重 jsdom 文件并行会崩 Tinypool worker / 超时 flake**：先 `vitest run <file> --no-file-parallelism` 串行复跑判别，串行过 ≠ 回归，不进打回循环。
-16. **跑后端 IT 前先 `docker version`** 确认 daemon 活着；日志见 `Could not find a valid Docker environment` = 全跳过 ≠ 验证（`Tests run: N, Skipped: 0` 才算）。
+15. **前端定向排错**：`@acme/web` 全量测试已通过 `scripts/run-tests.mjs` 按 5 进程并发分片（~80s）；排查单文件波动时直接 `pnpm --filter @acme/web test <file> --no-file-parallelism` 透传串行复跑。
+16. **后端零 Docker 直跑判定口径**：全仓后端集成测试已迁至嵌入式 PG 17 / Redis / Kafka KRaft，本地无需启动 Docker Desktop；日志须见 `Tests run: N, Failures: 0, Errors: 0, Skipped: 0` 才算验证通过。
 17. **先跑完后端再跑前端**，避免 CPU 争抢放大超时假失败。
 
 ## 坑 16：跨 REQ 基线计数漂移（2026-11-21 JOB-1 终验实证）

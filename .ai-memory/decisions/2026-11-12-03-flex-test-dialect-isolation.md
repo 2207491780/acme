@@ -1,7 +1,7 @@
 # Flex 测试 JVM 全局方言污染：H2 切片与 PG 集成必须隔离
 
-> 承接 `2026-11-12-02-flex-data-access-residuals.md` 决定 1（AC-013 由 PG 集成测试兜底，合并前必须在有 Docker 环境跑过一轮）。
-> 本记录是该轮真库验证的发现与修复定稿，不取代 02。装配操作细节见 `.ai-memory/playbooks/flex-test-assembly.md`。
+> **状态更新（2026-11-27）**：本记录“H2 切片与 PG 集成必须分 JVM 隔离 Flex 全局静态方言”的核心结论继续生效；但具体执行方案已由 `2026-11-27-01-zero-docker-fast-test-architecture.md` 取代——由整模块 `reuseForks=false` 升级为 surefire 双 `<execution>`（`default-test` 与 `slice-tests` 各自 `reuseForks=true`，仅 2 个 JVM），且 PG 集成已迁至零 Docker 嵌入式 PG 17。
+> 承接 `2026-11-12-02-flex-data-access-residuals.md` 决定 1。装配操作细节见 `.ai-memory/playbooks/flex-test-assembly.md`。
 
 ## 背景
 
