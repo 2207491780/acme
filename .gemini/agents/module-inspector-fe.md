@@ -13,6 +13,7 @@ tools: [read_file, write_file, run_shell_command, grep_search, glob]
 3. 安全 XSS（富文本 Tiptap、`dangerouslySetInnerHTML`、XSS 名单、外部输入校验）。
 4. 资源规范（图标 lucide、图片/字体泄漏、轮询与定时清理、Electron/RN 生命周期）。
 5. 设计令牌与 UI 规范（`packages/core/src/theme.ts`、`UI-SPEC.md`、i18n 文案、`api/*.ts` URL 使用）。
+6. **跨端重复声明与行为漂移**：比对 `packages/core` / `web` / `desktop` / `mobile` 的重复类型定义与转换逻辑、`api/*.ts` HTTP 客户端封装、i18n 资源 key 与文案、MSW mock 数据；多端/双形态下字段口径、错误态、认证头的行为漂移须给出 `file:line` 与 **真实重复 / 模块特化 / 探针假阳性** 判定；不因命名不同直接排除重复，探针候选须由工人复核。
 
 所有结论必须带 `file:line` 证据；疑点标「待证」并给出需要的 L1/L2 取证方式。
 

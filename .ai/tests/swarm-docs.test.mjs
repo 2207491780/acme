@@ -192,3 +192,58 @@ test('should_declare_manual_swarm_and_cross_platform_rules_in_code_review_skill'
   const config = await read('.ai/ai-coding-config.yml');
   assert.match(config, /^  code-review: manual$/m, '引擎开关应配置 code-review: manual');
 });
+
+// ---- 重复声明与冗余逻辑维度：阶段 0 / 委派 / 三类判定回归（来自 REVIEW-20261127-010308 漏检教训） ----
+const CR_SKILL = '.ai/skills/code-review/SKILL.md';
+const CR_TEMPLATE = '.ai/skills/code-review/templates/task-brief-template.md';
+
+function sectionAfter(text, heading, nextHeading, file) {
+  const start = text.indexOf(heading);
+  assert.notEqual(start, -1, `${file} 应含「${heading}」节`);
+  const rest = text.slice(start + heading.length);
+  const next = rest.indexOf(nextHeading);
+  assert.notEqual(next, -1, `${file}「${heading}」节后应有下一节标题 ${nextHeading}`);
+  return rest.slice(0, next);
+}
+
+test('should_list_duplication_dimension_in_code_review_stage_zero_fact_sources', async () => {
+  const leaderRel = crPath('code-review-leader');
+  const skillStage0 = sectionAfter(await read(CR_SKILL), '### 阶段 0：事实清单（不写脚本）', '\n### 阶段 2', CR_SKILL);
+  const leaderStage0 = sectionAfter(await read(leaderRel), '## 阶段 0：事实清单（Read / Grep / Glob，不写脚本）', '\n## 委派纪律', leaderRel);
+  for (const [file, section] of [[CR_SKILL, skillStage0], [leaderRel, leaderStage0]]) {
+    assert.match(section, /重复声明与冗余逻辑/, `${file} 阶段 0 应含「重复声明与冗余逻辑」事实源`);
+    assert.match(section, /@interface/, `${file} 阶段 0 应覆盖自定义注解声明`);
+    assert.match(section, /file:line/, `${file} 阶段 0 的重复清单应带 file:line`);
+  }
+});
+
+test('should_enforce_nogreylist_and_three_way_verdict_when_checking_duplication', async () => {
+  const qaRel = crPath('quality-reviewer');
+  for (const rel of [CR_SKILL, qaRel]) {
+    const text = await read(rel);
+    assert.match(text, /无白名单/, `${rel} 应要求无白名单扫描`);
+    assert.match(text, /真实重复[\s\S]*模块特化[\s\S]*探针假阳性/, `${rel} 应含三类判定口径`);
+    assert.match(text, /bean 名不同[\s\S]*不得据此排除代码重复/, `${rel} 应禁止用 bean 名不同排除代码重复`);
+    assert.match(text, /@Target/, `${rel} 应要求比对注解元信息后才可结案`);
+  }
+  assert.match(await read(CR_SKILL), /不得由 leader 单方面按命名冲突排除/, 'SKILL 应禁止 leader 单方面排除探针候选');
+  const qa = bodyOf(await read(qaRel), qaRel);
+  assert.match(qa, /安全\/权限相关分叉[^\n]*P2 起/, 'quality-reviewer 应对安全/权限分叉按 P2 起');
+  assert.match(qa, /纯重复[^\n]*P3/, 'quality-reviewer 应对纯重复按 P3');
+});
+
+test('should_carry_duplication_dimension_in_every_delegation_and_both_inspectors', async () => {
+  const leader = await read(crPath('code-review-leader'));
+  assert.match(leader, /每份委派单必须下发[\s\S]*重复声明与冗余逻辑/, 'leader 应随每份委派单下发该维度');
+  const template = await read(CR_TEMPLATE);
+  assert.match(template, /重复\/冗余维度/, '委派单模板应含该维度占位');
+  assert.match(template, /无白名单/, '委派单模板应自带无白名单检测口径');
+  assert.match(template, /真实重复[\s\S]*模块特化[\s\S]*探针假阳性/, '委派单模板应自带三类判定口径');
+  for (const role of ['module-inspector-be', 'module-inspector-fe']) {
+    const rel = crPath(role);
+    const body = bodyOf(await read(rel), rel);
+    assert.match(body, /跨(?:模块|端)重复声明与行为漂移/, `${rel} 应负责跨模块/跨端重复声明与行为漂移`);
+    assert.match(body, /真实重复[\s\S]*模块特化[\s\S]*探针假阳性/, `${rel} 应给出三类判定口径`);
+  }
+  assert.match(leader, /第 7 节追加/, '多轮打回第 7 节追加口径应保持');
+});
