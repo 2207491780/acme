@@ -101,8 +101,9 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-REQ            # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: I-DONE           # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
 - round: 0
+- 取号锁：worktree 已创建（2026-11-28）——分支 `feat/req-20261127-235808-leave-authz-tri-state`，基点 f3bf0c1（含本契约 confirmed 版），路径 `C:/MyWorkSpace/ai-coding-worker/.worktrees/feat-req-20261127-235808-leave-authz-tri-state`；本批无 Flyway 迁移（migrations: {} 维持）。
 - 门禁台账：
   - （阶段一未触发门禁；基线口径：后端模块级 `mvn -pl <模块> -am -B test`（Maven 完整路径 flex-test-assembly.md；acme-cloud/ 下无 run.mjs，B1 leader 实测）；全量 mvn 交 CI；无统一 lint 脚本）
 - 委派历史：
