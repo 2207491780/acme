@@ -1,7 +1,7 @@
 ---
 requirementId: "REQ-20261127-235505"
 title: "B2a 后端正确性·注销与幂等（P1-01/P1-02/P2-17）：scheduler DELETE 注销端点补齐 + 幂等门 complete 失败不释放"
-status: draft              # 用户逐项确认后置 confirmed；未 confirmed 禁止进入 II-DEV
+status: confirmed          # 2026-11-28 用户对话确认（见确认记录⑥）；confirmed 后方进 II-DEV
 branchContext:
   baseBranch: acme-foundation
   mergeTarget: acme-foundation
@@ -35,6 +35,8 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 - [2026-11-27] ③ P1-02 语义：complete() 失败不 release、保留 P 至 claimProcessingTtl；action 失败仍 release 允许重试（10.3.3 语义不变）。
 - [2026-11-27] ④ 测试落点：新增测试一律用新增独立测试类（不改动既有 REQ 命名测试文件），避免与并行批 B3a 在 platform-scheduler-service 新增的 wire 测试文件相撞。
 - [2026-11-27] ⑤ 待确认项①~④未获用户裁决前，对应改动面冻结不下发阶段二。
+- [2026-11-28] ⑥ 用户对话指示「继续」，按 leader 推荐口径逐项确认四项待确认项：①=framework-feign 入批、方案 A（新增公共 BizException 子类携带 httpStatus，`RemoteErrorCode` 与既有 catch 面不动）；②=DUPLICATE+findResult=null 抛 STORE_UNAVAILABLE（SYS-11-0003/503，fail-closed）；③=isDuplicateKey 随批改结构化 errorCode 判定（锚点常量 `SchedulerErrorCodes.SCHEDULER_JOB_KEY_DUPLICATE="platform-scheduler-01-0001"`）；④=DELETE 不限制仅 ONCE 类型。
+- [2026-11-28] ⑦ AC-1 的「时间轮条目移除」无独立 HTTP 观测面：集成测试以「注销后再注册同 jobKey 成功」作软删查无的黑盒代理断言；时间轮移除由 backend-dev 以复用 `JobUseCase.delete` 同款代码路径落实并在交付说明中声明。
 
 ## API
 
@@ -45,8 +47,8 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 - jobKey 不限制任务类型（默认口径，待确认④）；返回：`Result<Void>`（code="0"，data=null）。
 
 ### workflow 客户端语义（SchedulerRegistrationClient.unregister，无 HTTP 面）
-- isNotFound 改按 HTTP 状态码判定（异常携带状态的载体见待确认①）：仅 404 收敛为幂等成功；其余失败照常上抛（TimerScheduler 告警不阻断本地清理，语义不变）。
-- isDuplicateKey 字符串匹配保持现状不动（待确认③裁决前禁顺手改）。
+- isNotFound 改按 HTTP 状态码判定（异常携带状态的载体=确认⑥方案 A 新增公共异常类型）：仅 404 收敛为幂等成功；其余失败照常上抛（TimerScheduler 告警不阻断本地清理，语义不变）。
+- isDuplicateKey 随批改结构化 errorCode 判定（确认⑥③）：`failure.errorCode().code()` 与锚点常量 `SchedulerErrorCodes.SCHEDULER_JOB_KEY_DUPLICATE`（platform-scheduler-01-0001）相等判定，弃 message 字符串包含。
 
 ### 幂等门语义（framework-idempotent，无 HTTP 面）
 - complete 失败（P1-02）：不 release；记录维持 P 至 claimProcessingTtl；对调用方抛 `BizException(STORE_UNAVAILABLE / SYS-11-0003)`。
@@ -61,7 +63,7 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 - AC-4 given: 注册→注销→再注销全链（嵌入式 PG 集成测试，真实 MVC，禁 mock 假绿） when: 依序 POST 注册、DELETE、DELETE then: 三步全 success，再注销幂等；测试落新增独立测试类 → {用例名}
 - AC-5 given: action 执行成功但 store.markDone 抛 RuntimeException when: gate.execute 同 key 首次调用 then: 抛 BizException(STORE_UNAVAILABLE)、认领不释放（记录维持 P）、action 恰执行一次 → {用例名}
 - AC-6 given: complete 失败后记录维持 P 且未过 claimProcessingTtl when: 同 token 重试 then: 得 BizException(IN_FLIGHT / SYS-11-0002)，不重执行（action 调用计数不变） → {用例名}
-- AC-7 given: 记录 s=D 但 findResult=null when: 同 key execute 走 DUPLICATE 分支 then: 抛 BizException（错误码=待确认②裁决值），绝不静默返回 null → {用例名}
+- AC-7 given: 记录 s=D 但 findResult=null when: 同 key execute 走 DUPLICATE 分支 then: 抛 BizException(STORE_UNAVAILABLE / SYS-11-0003)，绝不静默返回 null → {用例名}
 - AC-8 given: 业务合法返回 null（encode 产出 JSON "null" 字面量） when: 首次执行与重复执行 then: 首次返回 null、重复回放 null（不落入 AC-7 异常分支；合法 null 回放回归护栏） → {用例名}
 - AC-9 given: action 抛异常 when: gate.execute then: 认领释放、同 token 重试可重执行（既有 failureReleasesClaimAndAllowsRetry 语义保持） → {用例名}
 - AC-10 given: tryBegin 抛异常 when: gate.execute then: STORE_UNAVAILABLE fail-closed（既有 storeFailureIsFailClosed 保持），既有 9 例单测全绿不回归 → {用例名}
@@ -73,13 +75,13 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
   - platform-scheduler-service：`InternalJobRegistrationController` 增 `@DeleteMapping("/internal/v1/scheduler/jobs/{jobKey}")`；`JobUseCase` 增 `deleteByJobKey(String)`（幂等软删，复用 kernel.removeWheel + repository.delete）；两处 Javadoc「未交付」表述更新为已交付。
   - platform-workflow-service：`SchedulerRegistrationClient.isNotFound` 改按 HTTP 状态码判定（载体=待确认①裁决产物）；类 Javadoc 同步收敛。
   - framework-idempotent：`HttpIdempotentGate` CLAIMED 分支拆分 action/complete 失败路径（complete 失败不 release）；`replay` 对 DUPLICATE+findResult=null 改抛错。
-  - framework-feign（待确认①）：`FeignErrorDecoder` 产物携带 HTTP 状态码——方案 A（推荐）：新增公共异常类型（support 包，`extends BizException`，携带 int httpStatus），RemoteErrorCode 与既有 catch(RuntimeException) 面不变；方案 B：RemoteErrorCode 增 httpStatus 分量。
+  - framework-feign（确认⑥方案 A）：`FeignErrorDecoder` 产物改投新增公共异常类型（support 包，`extends BizException`，携带 int httpStatus）；`RemoteErrorCode` 不动，既有 `BizException` catch 面不变（既有 FeignErrorDecoderTest 断言 isInstanceOf(BizException) 兼容子类，保持全绿）。
 - 测试（新增独立测试类/用例）：
   - platform-scheduler-service：注册→注销→再注销集成契约测试（`EmbeddedPostgresSupport` 底座 + 真实 MVC + internal token）。
   - platform-workflow-service：SchedulerRegistrationClient 404 状态码判定单测（404 收敛 / 非 404 上抛）。
   - framework-idempotent：markDone 失败分支（AC-5/6）、DUPLICATE+null 分支（AC-7）、合法 null 回放护栏（AC-8）用例。
-  - framework-feign（随待确认①）：解码产物状态码携带用例。
-- 删除：无端点删除；仅 `isNotFound` 字符串匹配逻辑被替换（isDuplicateKey 待确认③裁决前不动）。
+  - framework-feign（确认⑥方案 A）：解码产物状态码携带用例（新增独立测试类，含 404/非 404 状态保真断言）。
+- 删除：无端点删除；`isNotFound` 与 `isDuplicateKey` 的 message 字符串匹配逻辑均被替换（确认⑥③）。
 - 数据：无表变更（`migrations: {}`，无 Flyway）。
 - 前端：无（internal 协议域不经网关、无 FE 面）。
 
@@ -88,21 +90,21 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 - 禁改占用文件：B1/REQ-20261127-234335（platform-system RLS 相关）、B2b（business-leave / platform-auth / 网关适配层）、B3a（前端 mobile/web 及其在 platform-scheduler-service 的 wire 测试文件；B3a 仅新增测试文件、不动 scheduler main 源，与本批 main 改动无碰撞）。
 - 本批测试落新增独立测试类，不编辑既有 REQ 命名测试文件（确认④）。
 - 禁改任何错误码映射/新增错误码（B3b 独立后批；本批 DELETE 成功语义零新错误码）。
-- isDuplicateKey 字符串匹配属 plan 外同型反模式：待确认③裁决前禁顺手改。
+- isDuplicateKey 已裁决随批修（确认⑥③）：按结构化 errorCode 判定实现，禁止保留 message 字符串包含逻辑。
 - 不做 git merge/push/删共享分支；不做 `.ai/` / `.ai-memory/` 写入；契约与委派单禁存凭证。
 - 发现所需触碰文件与并行批次冲突：就地停止上报，禁止猜测。
 
-## 待确认项（未裁决不下发）
+## 待确认项（已于 2026-11-28 用户确认⑥全部裁决；下列留档结论）
 
-1. **HTTP 状态码判定载体（P1-01 前置，plan 涉及模块外一行 framework-feign）**：FeignErrorDecoder 现状丢弃 HTTP 状态，「isNotFound 改按状态码判定」需最小扩展。方案 A（推荐）：新增公共异常类型（framework-feign support 包，`extends BizException`，携带 httpStatus；RemoteErrorCode 不动，既有 BizException catch 面不变）；方案 B：`RemoteErrorCode` 增 httpStatus 分量（record 签名变更，引用不出 framework-feign）。请批准 A 或 B（即批准 framework-feign 进本批模块清单）。
-2. **P2-17 异常语义二选一**：DUPLICATE 且 findResult=null 抛——推荐 STORE_UNAVAILABLE（SYS-11-0003/503，记录态异常 fail-closed 口径）；备选 IN_FLIGHT（SYS-11-0002/409，引导客户端稍后重试）。plan 原文两可，请定一个。
-3. **isDuplicateKey 是否随批修**：同文件同型字符串匹配反模式（contains "platform-scheduler-01-0001"/"409"），plan 未列。推荐随批改为结构化 errorCode 判定（workflow 侧一行 + 用例，无需 framework 改动）；若坚守「不顺手修无关项」则登记整改方案另批。请定夺。
-4. **DELETE 是否限制仅 ONCE 类型任务可注销**：推荐不限制（internal token 保护域、调用方仅 workflow、jobKey 约定 wf-timer:*；限制引入多余失败态）。默认不限制，如需收紧请明示。
+1. **HTTP 状态码判定载体** → 已裁决：framework-feign 入批，方案 A——新增公共异常类型（support 包，`extends BizException` 携带 int httpStatus），`RemoteErrorCode` 不动。
+2. **P2-17 异常语义** → 已裁决：DUPLICATE 且 findResult=null 抛 STORE_UNAVAILABLE（SYS-11-0003/503，fail-closed）。
+3. **isDuplicateKey** → 已裁决：随批改结构化 errorCode 判定（`SchedulerErrorCodes.SCHEDULER_JOB_KEY_DUPLICATE="platform-scheduler-01-0001"` 锚点常量比较，弃 message 字符串包含）。
+4. **DELETE 任务类型限制** → 已裁决：不限制仅 ONCE 类型（幂等软删任意 jobKey，internal token 保护域）。
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-REQ            # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: I-DONE           # 2026-11-28 confirmed（用户对话确认⑥）；worktree 已创建；委派单备妥待主线程 spawn
 - round: 0
-- 门禁台账：未开跑（阶段一）
-- 委派历史：暂无
+- 门禁台账：未开跑（阶段一收尾）
+- 委派历史：暂无（backend-dev / tester 委派单已交主线程，spawn 顺序由主线程调度）
 - 升级记录：暂无
