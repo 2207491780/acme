@@ -40,14 +40,14 @@ apis: []                           # 无 HTTP API 变更（纯 DB 迁移 + 测�
 
 ## 验收标准（AC 为规格核心；用例名=计划名，tester 交付后回填确认）
 
-- AC-1 given: V37 已应用（超管会话重放 V37 全部语句后） when: 以 `acme_rls_app` + 旧口令尝试 JDBC 直连，并查 `pg_roles.rolcanlogin` then: 直连被拒（`is not permitted to log in`），rolcanlogin=false → `should_rejectLegacyPasswordLogin_when_v37NologinApplied`（policy 测试新增）
-- AC-2 given: 非旁路成员的普通登录角色（测试临时创建：非超管、非 acme_rls_bypass 成员、仅授试点表 SELECT） when: 该角色会话仅自设 `app.tenant_bypass='on'`（不设 app.tenant_id）后 SELECT/INSERT/UPDATE/DELETE 试点表 then: 全部 0 行命中（旁路分支单独失效，fail-closed）→ `should_hitZeroRows_when_plainRoleSelfSetsBypassGuc`（non-superuser 测试新增铁证）
-- AC-3 given: `acme_rls_app`（acme_rls_bypass 成员） when: 经框架合法路径 `TenantBypassScope.open` + 事务传播 then: 旁路生效（成员 + GUC 可信组合，可见全租户）——既有旁路铁证保持全绿 → `should_seeAndModifyAllTenants_when_bypassActiveOnNonSuperuserConnection`（既有改造保持）
-- AC-4 given: 未设任何会话变量 when: `acme_rls_app` 查询/写试点表 then: fail-closed 空集（既有语义不回归）→ `should_returnEmptySet_when_noContextAndNoBypassOnNonSuperuserConnection`（既有保持）
-- AC-5 given: 绑定租户上下文 when: `acme_rls_app` SELECT/UPDATE/DELETE then: 仅命中本租户行（租户隔离铁证不回归）→ `should_isolateDirectSqlToBoundTenant_when_nonSuperuserApplicationRoleUsed`（既有保持）
-- AC-6 given: V37 已应用 when: 依次重放 V33、V37 全部语句 then: 无报错、策略数量与试点表集合不变，且策略表达式 = 新联合判定式 → `should_replayV33ThenV37WithoutErrorOrDuplicatePolicies_when_migrationsReplayed`（既有重放用例改造）
-- AC-7 given: V37 已应用 when: 检查角色与授权矩阵 then: `acme_rls_bypass` 存在且 NOLOGIN/非超管；`acme_rls_app` 为其成员；13 张试点表全部 ENABLE+FORCE RLS 且策略口径 = 新联合判定式 → `should_bindBypassToTrustedRole_when_v37Applied`（policy 测试新增）
-- AC-8 given: 测试代码与配置 when: NonSuperuser 铁证用例以配置注入口令建立 `acme_rls_app` 连接 then: 连接成功且 current_user=acme_rls_app、非超管；Java 源无口令明文常量（旧常量移除，来源=属性键，见钉死事实）→ `should_connectAsNonSuperuserApplicationRole_when_usingConfiguredCredentials`（既有用例改造）
+- AC-1 given: V37 已应用（超管会话重放 V37 全部语句后） when: 以 `acme_rls_app` + 旧口令尝试 JDBC 直连，并查 `pg_roles.rolcanlogin` then: 直连被拒（`is not permitted to log in`），rolcanlogin=false → `should_rejectLegacyPasswordLogin_when_v37NologinApplied`（policy 测试；断言按裁决④=SQLException + SQLSTATE 28000 + 消息含角色名，locale 无关，旧明文不进测试）
+- AC-2 given: 非旁路成员的普通登录角色（测试运行时创建：非超管、非 acme_rls_bypass 成员；授权=SCHEMA public USAGE + sys_user 的 SELECT/UPDATE/DELETE——裁决①：PG 先 ACL 后 RLS，无写权限时 DML 在 permission denied 处失败，证不了 RLS 层旁路失效） when: 该角色会话仅自设 `app.tenant_bypass='on'`（不设 app.tenant_id）后 SELECT/UPDATE/DELETE sys_user then: SELECT 空集、UPDATE/DELETE 命中 0 行（旁路分支单独失效，fail-closed）→ `should_hitZeroRows_when_plainRoleSelfSetsBypassGuc`（non-superuser 测试；tester 规格「仅 SELECT+断言 42501」被裁决①取代，映射以 backend 实现为准）
+- AC-3 given: `acme_rls_app`（acme_rls_bypass 成员） when: 经框架合法路径 `TenantBypassScope.open` + 事务传播 then: 旁路生效（成员 + GUC 可信组合，可见全租户）——既有旁路铁证保持全绿 → `should_seeAndModifyAllTenants_when_bypassActiveOnNonSuperuserConnection`（non-superuser 测试，既有保持）
+- AC-4 given: 未设任何会话变量 when: `acme_rls_app` 查询/写试点表 then: fail-closed 空集（既有语义不回归）→ `should_returnEmptySet_when_noContextAndNoBypassOnNonSuperuserConnection`（non-superuser 测试，既有保持）
+- AC-5 given: 绑定租户上下文 when: `acme_rls_app` SELECT/UPDATE/DELETE then: 仅命中本租户行（租户隔离铁证不回归）→ `should_isolateDirectSqlToBoundTenant_when_nonSuperuserApplicationRoleUsed`（non-superuser 测试，既有保持）
+- AC-6 given: V37 已应用 when: 依次重放 V33、V37 全部语句 then: 无报错、策略数量与试点表集合不变，且策略表达式 = 新联合判定式 → `should_replayV33ThenV37WithoutErrorOrDuplicatePolicies_when_migrationsReplayed`（policy 测试，组序重放 V33→V37）
+- AC-7 given: V37 已应用 when: 检查角色与授权矩阵 then: `acme_rls_bypass` 存在且 NOLOGIN/非超管；`acme_rls_app` 为其成员；13 张试点表全部 ENABLE+FORCE RLS 且策略口径 = 新联合判定式 → `should_bindBypassToTrustedRole_when_v37Applied`（policy 测试；成员关系 pg_auth_members 目录直查）
+- AC-8 given: 测试代码与配置 when: NonSuperuser 铁证用例以配置注入口令建立 `acme_rls_app` 连接 then: 连接成功且 current_user=acme_rls_app、非超管；Java 源无口令明文常量（旧常量移除，来源=属性键，见钉死事实）→ `should_connectAsNonSuperuserApplicationRole_when_usingConfiguredCredentials`（non-superuser 测试；口令零字面量另经门禁 grep 复核）
 
 ## 变更清单（差异契约）
 
@@ -87,10 +87,20 @@ apis: []                           # 无 HTTP API 变更（纯 DB 迁移 + 测�
 
 ## 流程状态（TL 每次行动后更新；唯一现场）
 
-- phase: I-DONE           # 2026-11-28：status=confirmed；V37 防撞重测通过（git fetch 后 origin/acme-foundation 无占用）；worktree add 成功（基点 90a093f）；两单委派单已交主线程 spawn
+- phase: III-REVIEW       # 2026-11-28：两路交付收讫并经主线程裁决，五项门禁全过；人工复核清单已交主线程
 - round: 0
-- 门禁台账：（阶段三填写）
+- 门禁台账：
+  - 1 三向一致: PASS（apis=[]路径零变更口径；worktree git status 变更面=契约 4 文件，无 Controller/网关路由/DTO 触碰）
+  - 2 AC 覆盖率: PASS（AC-1~AC-8 逐条回填映射，用例名以交付文件实测为准；AC-2 按裁决①口径）
+  - 3 契约机器层: PASS（check-contract.mjs → [GATE] contract-valid PASS，2026-11-28，status=confirmed）
+  - 4 本地测试: PASS（采信 backend-dev 交付自检：acme-cloud 下 `mvn -pl acme-platform/platform-system/platform-system-service -am -B test` → Tests run: 505, Failures: 0, Errors: 0, Skipped: 0，BUILD SUCCESS 39 模块全链，含 tester RlsPolicyIntegrationTest 5/5；嵌入式 PG 集成实跑满足「PG 集成必须跑过」不豁免口径；主线程合并前复核性重跑兜底）
+  - 5 跨需求冲突: PASS（contracts/*.md 扫描：V37 仅本契约预分配；B3a=REQ-20261127-234158 migrations:{} 且 api 不重叠；B2b=REQ-20261127-235808 migrations:{} 且显式标注与 B1 避让协调；历史 system 域占用至 V36）
 - 委派历史：
-  - backend-dev: 已派（委派单见阶段二，主线程 spawn）
-  - tester: 已派（同轮并行）
+  - backend-dev: 交付（V37 迁移 + NonSuperuser 测试改造 + test yml 注入键 + BACKEND.md 红线 4 行；自检 505 绿）
+  - tester: 交付（Policy 测试 AC-1/6/7 + assertPolicyExpression 升级含 ::name 剥离 + AC-2 规格上报触发裁决①）
+- 裁决记录（主线程 2026-11-28，TL 补记进契约）：
+  - ① AC-2 探针授权采纳 backend 方案：SCHEMA public USAGE + sys_user SELECT,UPDATE,DELETE（无 INSERT/非成员/非超管），断言 SELECT 空集 + UPDATE/DELETE 0 行——理由：PG 先 ACL 后 RLS，tester 规格第 5 条（仅 SELECT+断言 42501）只证权限层拦截、证不了旁路失效，被本裁决取代；AC-2 映射以 backend 实现为准
+  - ② PG17 参数绑定限制成立（ALTER/CREATE ROLE PASSWORD ? 协议层拒绝）：pg_temp plpgsql 中转 + quote_literal/quote_ident 方案采纳；TL 门禁复核通过——Java/SQL 文本零口令字面量（git grep：旧明文仅存于禁改 V33:20），口令仅经 JDBC 绑定参数进入中转函数（夹具与探针两处均参数化）
+  - ③ @AfterAll restoreClusterRoleState（NOLOGIN+PASSWORD NULL 复位）采纳——集群级角色卫生，护 tester AC-1 时序
+  - ④ 两处机械适配采纳：mvn `-pl` 裸名在 reactor 不可解析 → 模块相对路径/`:artifactId` 选择器（语义不变）；AC-1 断言改 SQLException + 消息含角色名 + SQLSTATE=28000（locale 无关）；initdb --locale=C 根治点登记为 common-test 候选改进（不进本批）
 - 升级记录：—
