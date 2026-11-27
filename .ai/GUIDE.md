@@ -220,7 +220,7 @@ AI 工具会自动执行五步：读手册 → 只改 `.ai/` 源 → `node .ai/s
 
 | 文档 | 内容 |
 |---|---|
-| [.ai/TUTORIAL.md](TUTORIAL.md) | **分工具教程**：11 类工具的读取入口、冒烟测试、维护方式 |
+| [.ai/TUTORIAL.md](TUTORIAL.md) | **分工具教程**：10 节（9 个具体工具 + AGENTS.md 标准族）的读取入口、冒烟测试、维护方式 |
 | [.ai/PROMPTS.md](PROMPTS.md) | **提示词案例库**：21 条让 AI 自维护的指令 + 验收核对单 |
 | [.ai/ARCHITECTURE.md](ARCHITECTURE.md) | 体系结构 / 派生一览 / 联动防线 / 新增工具 |
 | [.ai-memory/playbooks/ai-config.md](../.ai-memory/playbooks/ai-config.md) | AI 工具执行配置修改的五步流程 |

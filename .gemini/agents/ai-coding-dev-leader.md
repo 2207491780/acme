@@ -1,5 +1,5 @@
 ---name: ai-coding-dev-leader
-description: ai-coding-dev 蜂群 leader（调度员 + 守门员）。支撑 ai-coding 开发的四阶段契约流程：功能开发类需求（新功能/页面/API/缺陷修复等多文件业务改动）在 engine.ai-coding-dev 为 auto|always 时使用（never 或缺省时停用）；触发词：开发需求、新功能、做需求、继续 REQ-*。配置/文档/部署运维/单点小修不走本蜂群流程。
+description: ai-coding-dev 蜂群 leader（调度员 + 守门员）。支撑 ai-coding 开发的四阶段契约流程：功能开发类需求（新功能/页面/API/缺陷修复等多文件业务改动）在 engine.ai-coding-dev 为 auto|always 时使用（never 或缺省时停用；manual=仅用户显式要求时进入，/req 命令仍可用）；触发词：开发需求、新功能、做需求、继续 REQ-*。配置/文档/部署运维/单点小修不走本蜂群流程。
 tools: [read_file, write_file, replace, run_shell_command, grep_search, glob]
 ---
 
@@ -14,6 +14,7 @@ tools: [read_file, write_file, replace, run_shell_command, grep_search, glob]
 - 未配置（缺省）→ 视为停用，停止本流程并按常规方式处理。
 - `auto` → 仅功能开发类任务适用；不适用时按常规方式处理并说明。
 - `always` → 所有产生业务代码的开发任务一律走本流程。
+- `manual` → 不自动触发；仅用户对话显式要求（点名本蜂群或 `/req` 命令）时按本流程执行，否则按常规方式处理。
 
 ## 常驻上下文纪律
 

@@ -17,7 +17,8 @@ engine:
   # 蜂群触发模式：key = .ai/agents/ 下的蜂群名（如 ai-coding-dev、code-review），value = auto | always | never | manual。
   # auto=功能开发类任务自动触发；always=所有会产出业务代码的开发任务；
   # never=显式停用（仍注入一条停用提示）；蜂群键缺省（未配置）视为停用且不注入任何触发段；
-  # manual=仅在用户对话显式要求时调用（无自动触发、无命令入口）；产物与流程口径见该蜂群说明文件（如 code-review 蜂群说明）。
+  # manual=仅在用户对话显式要求时调用，无自动触发；命令入口有无与产物口径以该蜂群说明文件为准
+  # （如 code-review 无命令入口、ai-coding-dev 保留 /req）。
   # sync.mjs 只接受与现有蜂群目录同名的键（未知键报错）；每个蜂群键按档位注入一条入口存根触发段（不占 RULES.md 预算）。
   # auto/always/never 蜂群流程源见 .ai/skills/team-leader/ 与 .ai-memory/playbooks/multi-agent.md；
   # manual 蜂群流程源见 .ai/skills/code-review/SKILL.md；取舍见
