@@ -107,7 +107,7 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 - 门禁台账：
   - （阶段一未触发门禁；基线口径：后端模块级 `mvn -pl <模块> -am -B test`（Maven 完整路径 flex-test-assembly.md；acme-cloud/ 下无 run.mjs，B1 leader 实测）；全量 mvn 交 CI；无统一 lint 脚本）
 - 委派历史：
-  - （阶段一未委派）
+  - （阶段二待发：backend-dev / tester 委派单已备妥（2026-11-28，leader 报告回传主线程），主线程同轮 spawn 后置 phase=II-DEV）
 - 升级记录：
   - （无）
 - 并行避让注记：B1=REQ-20261127-234335（platform-system RLS + V37）；B2a=REQ-20261127-235505（scheduler DELETE 端点 + framework-idempotent）；B3a=REQ-20261127-234158（前端 DTO 面 + auth/scheduler/system DTO）。本批 apis 与三份并行契约零交叠（冲突预检 2026-11-27 通过）。
