@@ -1,7 +1,7 @@
 ---
 requirementId: "REQ-20261127-235808"
 title: "B2b 后端正确性·越权与权限三态（P1-05/P1-08）：请假单越权收口（本人+授权角色）+ 权限判定 fail-closed 与完成链三态"
-status: draft              # 用户逐项确认后置 confirmed；未 confirmed 禁止进入 II-DEV
+status: confirmed          # 2026-11-28 用户对话指示继续，按 leader 推荐口径确认（案B+两项默认）；未 confirmed 禁止进入 II-DEV
 branchContext:
   baseBranch: acme-foundation
   mergeTarget: acme-foundation
@@ -36,12 +36,13 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 - [2026-11-27] ④ **B7 边界**（主线程下达）：本批只做 fail-closed 与三态**语义**（行为修复）；「抽公共 AuthorizationGateway」的跨域结构上提（公共类/公共注解/拦截器收敛、四份副本合一）一律归 B7——四域网关仍为各自副本，本批不改其 API 形状。
 - [2026-11-27] ⑤ 本批无 Flyway 迁移（frontmatter migrations 留空）；无前端改动；错误码全码统一属 B3b、事务/补偿属 B4、DLQ/重投基建属 B4——均不进本批。
 - [2026-11-27] ⑥ 门禁口径（主线程下达）：后端本机按模块 `mvn -pl <模块> -am -B test`（Maven 完整路径见 flex-test-assembly.md；run.mjs 不存在，B1 leader 实测）；全量 mvn 交 CI，如实登记 SKIP≠全量通过；必须实际尝试本机模块级 mvn test，不得凭旧前提直接 SKIP。
+- [2026-11-28] ⑦ 用户对话指示「继续」，按 leader 推荐口径确认全部待确认项：**①=案B**——授权角色放行复用 workflow 域既有种子码 `workflow:task:list`（审批面）/ `workflow:instance:manage`（管理面），**任一持有即放行**，零迁移；**②=接受** UNKNOWN 窗口单据滞留非终态取舍（消息重投/对账归 B4，本批不建）；**③=网关保持 boolean fail-closed**（不改 API 形状），三态 API 归 B7；**④=案B 组合按「任一持有」钉死**。AC-3 随之解冻，given 钉死为案B 两码任一持有。
 
 ## API
 
 ### 请假单详情（GET /admin/v1/leave/requests/{id}）——语义变更，路径/响应结构不变
 
-- 鉴权面：B 端用户令牌（不变）；细粒度规则（决策③）：**owner 直读**（不经权限服务）→ 未命中 owner 时按授权权限码经 platform-system 实查放宽 → 全不命中返回与「单据不存在」同口径响应（HTTP 400 + `InvalidRequestException("请假单不存在：...")`，不泄露单据存在性）。
+- 鉴权面：B 端用户令牌（不变）；细粒度规则（决策③ + 确认记录⑦案B）：**owner 直读**（不经权限服务）→ 未命中 owner 时按授权权限码 `workflow:task:list` / `workflow:instance:manage` **任一持有即放行**（经 platform-system 实查，roles 不作信任锚）→ 全不命中返回与「单据不存在」同口径响应（HTTP 400 + `InvalidRequestException("请假单不存在：...")`，不泄露单据存在性）。
 - 放行判定顺序：owner 判定先行（避免无谓跨域调用）；授权判定 UNKNOWN（权限服务异常/不可达）→ 不放行（fail-closed，查无）。
 - 租户维维持 framework-tenant 自动过滤（跨租户 id 恒查无）。
 - 返回：`Result<LeaveRequestView>`（不变）。新增失败语义：越权=查无（400，与不存在不可区分）；无新增错误码、无 500 口径。
@@ -61,7 +62,7 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 - AC-1 given: 租户 T 用户 U1 已提交请假单 L（owner=U1） when: U1 携本人令牌 GET /admin/v1/leave/requests/{L} then: 200 返回 L 视图（owner 直读，不经权限服务） → 待回填
 - AC-2 given: 同租户用户 U2（非 owner、不持授权权限码） when: U2 凭 id GET 他人单据 L then: 与「单据不存在」同口径（HTTP 400 + 请假单不存在），不泄露存在性 → 待回填
-- AC-3 given: 同租户用户 U2 非 owner 但持有授权权限码（载体与组合待确认项①钉死，默认案 B=审批面/管理面 workflow 种子码任一持有） when: U2 GET 单据 L then: 200 返回 L 视图（授权角色放行） → 待回填【待确认项①未决前冻结】
+- AC-3 given: 同租户用户 U2 非 owner 但持有 `workflow:task:list` 或 `workflow:instance:manage` 任一权限码（案B，确认记录⑦） when: U2 GET 单据 L then: 200 返回 L 视图（授权角色放行） → 待回填
 - AC-4 given: U2 非 owner 且授权判定 UNKNOWN（权限服务异常/不可达，故障注入） when: U2 GET 他人单据 then: 查无（UNKNOWN 不放行）；同场景 U1 读本人单据仍 200（owner 路径不依赖权限服务） → 待回填
 - AC-5 given: 租户 T1 用户凭 id 读取租户 T2 单据 when: GET 详情 then: 查无（租户过滤维持，框架层回归锁定） → 待回填
 - AC-6 given: 事件（TASK_COMPLETED/TASK_REJECTED/INSTANCE_COMPLETED/ServiceTask 下发）携带 instanceId 可解析 when: 事件回写 then: 以 instanceId 为唯一锚点解析单据；数字形态 businessKey 不再触发 `findById(Long.parseLong)` 兜底；instanceId 查无 → 幂等跳过（warn 留痕），禁写单 → 待回填
@@ -79,7 +80,7 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 - **business-leave**：
   - `LeaveRequestUseCase`：`get(id)` 增 owner 判定 + 授权放行（owner 先行、授权 UNKNOWN fail-closed）；`resolveByRuntimeQuietly` 删数字 businessKey `Long.parseLong` 兜底（instanceId 唯一锚点）；`instanceVariablesFiled` 三态化（TRUE/FALSE/UNKNOWN）；`onInstanceCompleted` UNKNOWN 不写终态。
   - `LeaveRequestRepository`(+Impl)：增 owner 维度查询（tenant 维由框架承载）。
-  - 新增 leave 域权限判定适配器（消费 `AuthorizationClient`，对齐四域 `AuthorizationGateway` 先例：显式 bean 名消歧 + fail-closed javadoc 口径；单体经 `LocalAuthorizationClient` @Primary 短路）。
+  - 新增 leave 域权限判定适配器（消费 `AuthorizationClient`，对齐四域 `AuthorizationGateway` 先例：显式 bean 名消歧 + fail-closed javadoc 口径；单体经 `LocalAuthorizationClient` @Primary 短路）；放行码 = `workflow:task:list` / `workflow:instance:manage` 任一持有（案B，确认记录⑦）。
   - `pom`：增 `platform-system-api` 显式依赖（现仅经 platform-workflow-api 传递可得）。
   - `LeaveRequestController`：javadoc/openapi 注记细粒度口径。
 - **platform-auth-service**：`AuthorizationGateway.hasPermission` 补 try/catch（异常→false→`requirePermission` 抛既有 CrossDomainPermissionDenied 403）；javadoc 口径与三域对齐。
@@ -88,15 +89,15 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 - 数据：无表变更、无迁移。前端：无。
 - 禁改（并行避让）：platform-system 全部（B1，含 V37 迁移目录）；platform-scheduler/platform-workflow 的客户端与 ServiceTask 注册面、framework-idempotent（B2a）；前端 mobile/web（B3a）。本批在 scheduler/workflow 域仅触碰各自 `infrastructure/client/AuthorizationGateway.java`（如需）及其测试，不涉 B2a 占用文件。
 
-## 待确认项（报告时一并交主线程转用户；未决项对应 AC 冻结）
+## 待确认项（已于 2026-11-28 全部经用户确认，结论见确认记录⑦；条目留档为追溯依据）
 
-1. **授权角色权限码载体（待确认项①，影响 AC-3）**——决策③「具备请假查看权限的管理员/审批人」的判定实现，三案：
+1. **授权角色权限码载体（待确认项①，影响 AC-3）——已确认：案B（复用 `workflow:task:list`/`workflow:instance:manage`，任一持有即放行，零迁移）**。原三案留档：
    - **案 A（新权限点，语义最正）**：`SystemPermissions` 增 `leave:request:view` + platform-system-service 种子迁移（sys_permission 行 + super_admin 等内置角色绑定）。与本批「无 Flyway 迁移」边界冲突，需 owner 解锁；解锁则 frontmatter migrations 增 platform-system-service 号（顺延 B1 的 V37 → V38，需与 B1 并行避让协调，取号时 git fetch 防撞）。
    - **案 B（复用既有种子码，本批默认草案）**：复用 workflow 域既有种子码（V27 种子 78~82）——审批面 `workflow:task:list` / 管理面 `workflow:instance:manage`，任一持有即放行（组合可调，见 4）。零迁移、super_admin 天然具备（全量绑定）、租户管理员可经既有角色授权面授予审批/管理角色；代价=语义为「借用工作流域权限码」，与「请假查看权限」命名不严格一致，且授权面粒度与 workflow 域共享。
    - **案 C（按实例审批人实查，备选记档）**：经 `processInstanceDetail` 活动任务 TaskView assignee 实查「本实例审批人」+ owner；不引权限点、语义最紧，但读路径增 workflow 查询依赖且「管理员」维仍需权限/角色承载，本轮不推荐。
-2. **UNKNOWN 落点窗口语义**：AC-9 下单据保持非终态，依赖消息重投/后续对账收敛——重投与对账基建属 B4，本批不建；即 B4 落地前存在「滞留非终态」窗口。确认接受该 fail-safe 取舍（对照现状：瞬时故障即错杀 REJECTED 终态且不可逆）。
-3. **三态 API 形状边界**：本批网关保持 `boolean hasPermission` fail-closed（不改 API 形状），三态仅落在 leave 完成链下游查询（`instanceVariablesFiled`）；如未来调用方需区分 UNKNOWN，网关层三态 API 归 B7 结构收敛一并定。确认此口径与整改方案「下游查询改三态」原文的对应关系（评审证据 `:196-206`/`:184` 即 leave 完成链查询，四域网关非该条证据主体）。
-4. **案 B 权限码组合钉死**：若用户选案 B，需钉死「任一持有即放行」（默认草案）还是仅 `workflow:instance:manage` 单码（更收窄）或加 `workflow:task:operate`（覆盖办理面审批人）。
+2. **UNKNOWN 落点窗口语义——已确认：接受**（AC-9 下单据保持非终态，依赖消息重投/后续对账收敛；重投与对账基建属 B4，本批不建；fail-safe 取舍成立，对照现状：瞬时故障即错杀 REJECTED 终态且不可逆）。
+3. **三态 API 形状边界——已确认：本批网关保持 `boolean hasPermission` fail-closed**（不改 API 形状），三态仅落在 leave 完成链下游查询（`instanceVariablesFiled`）；网关层三态 API 归 B7 结构收敛一并定（与整改方案「下游查询改三态」原文的对应关系已按评审证据 `:196-206`/`:184` = leave 完成链查询口径落地）。
+4. **案 B 权限码组合——已确认：「任一持有即放行」**（`workflow:task:list` OR `workflow:instance:manage`）。
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
