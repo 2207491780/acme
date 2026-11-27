@@ -14,6 +14,8 @@
 
 > 原独立的 `ai-rules-sync.yml` 已裁撤（ADR 2026-11-14-23）：其校验职责被 ci.yml 的 ai-config 作业完全覆盖（同校验 + 引擎回归测试，且全分支触发）。
 
+> 回归测试可本机直跑：`node --test ".ai/tests/*.test.mjs"`。Windows 本机同样全绿——钩子用例经 Git 自带 sh 触发并把 `<git>/usr/bin` 注入 PATH、脚本路径转正斜杠，与真实钩子执行链路等价（2026-11-27 体检 #4 修复 `.ai/tests/hooks.test.mjs` 后达成）。
+
 ## 环境与发布（CI/CD 本地化后）
 
 - 构建发布已本地化（ADR 2026-11-18-03）：本机 `local-build.sh` 产物 → `local-deploy.sh` 推 TCR +
