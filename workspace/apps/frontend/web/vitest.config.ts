@@ -12,16 +12,12 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    // 组件测试（*.test.tsx）需要真实 DOM → jsdom；store/工具测试维持 node + 最小桩
-    environmentMatchGlobs: [['**/*.test.tsx', 'jsdom']],
+    // 组件测试（*.test.tsx）使用持久化 jsdom 环境（同 worker 复用 window/document，消除 70+ 文件重复加载 antd）
+    environmentMatchGlobs: [['**/*.test.tsx', './tests/shared-jsdom-env.ts']],
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     // 全量并行 jsdom worker 在负载/CI 下把交互式 CRUD 用例拖至 5s 超时（S14 基线对照实验
     // 证实为既有环境性偶发，与改动无关）——全局放宽至 20s（单测实际耗时 0.1-8s）。
     testTimeout: 20000,
-    // worker 上限（2026-11-20）：本机多会话/多代理并发跑套件时出现过 9x 过载（wall 718s vs
-    // 冷静基线 197s），63~73 条交互式用例撞超时形成轮换误报——上限 4 封顶最坏扇出，
-    // 正常环境吞吐无损（单套件实测并行收益在 4 worker 后已趋平）。minWorkers 须显式
-    // 降配：vitest 默认 minWorkers=核数/2，多核机上会与 maxWorkers=4 冲突（RangeError）。
     minWorkers: 1,
     maxWorkers: 4,
     setupFiles: ['./tests/setup.ts'],
