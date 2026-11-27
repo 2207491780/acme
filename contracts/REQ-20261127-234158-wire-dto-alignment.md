@@ -97,8 +97,10 @@ apis:                      # 端点路径不变，仅下列端点的 wire 载荷
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-REQ            # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: I-DONE           # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
 - round: 0
-- 门禁台账：未开跑（阶段一）
-- 委派历史：暂无
+- worktree: `.worktrees/feat-req-20261127-234158-wire-dto-alignment`（分支 feat/req-20261127-234158-wire-dto-alignment，基点=确认入库 667c511）
+- 门禁台账：未开跑（阶段三才跑）
+- 委派历史：
+  - 计划（2026-11-28，三路同轮待主线程 spawn）：frontend-dev（P1-06 mobile 四处 + P1-10/P2-02 core/web 类型与 MSW + FE 非 MSW wire 对照测试）；backend-dev（仅测试侧三件 wire 测试，案A 落点）；tester 拆两单（backend：AC-3/6/8+AC-9 golden 侧；frontend：AC-1/2/4/5/7/10+AC-9 fixture 侧）
 - 升级记录：暂无
