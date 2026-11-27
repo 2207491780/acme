@@ -3,9 +3,12 @@
  * run.mjs — code-review 蜂群跨平台统一执行器（唯一外部命令入口）。
  *
  * 用法：
- *   node <run.mjs> <script.mjs> [args...]   # 用 node 运行审核脚本（execFile，shell 关闭）
- *   node <run.mjs> --mvn [args...]          # 经 Java 启动器执行 Maven（无需平台专属包装脚本）
- *   node <run.mjs> --cleanup <dir>          # 用 fs.rm 递归清理临时目录
+ *   node <run.mjs> [--timeout <ms>] <script.mjs> [args...]  # 用 node 运行审核脚本（execFile，shell 关闭）
+ *   node <run.mjs> [--timeout <ms>] --mvn [args...]         # 经 Java 启动器执行 Maven（无需平台专属包装脚本）
+ *   node <run.mjs> --cleanup <dir>                          # 用 fs.rm 递归清理临时目录（限 .ai-tmp/code-review/ 子目录）
+ *
+ * --timeout 放在子命令前；超时输出结构化 `SKIP(超时 <ms>ms，信号 <signal>)`，
+ * 不把裸信号终止当作唯一口径；退出码沿用现有约定（异常=1、用法错误=2）。
  *
  * 硬规范：只用 execFile(file, args[], { shell: false })；不拼命令字符串；不按平台分支；
  * 路径经 path.resolve / path.join；Node 路径用 process.execPath；环境变量只经 process.env。
@@ -19,8 +22,19 @@ import { rm } from 'node:fs/promises';
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { basename, dirname, join } from 'node:path';
+import { isAbsolute, relative } from 'node:path';
 
-const [command, ...args] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+let timeoutMs;
+if (argv[0] === '--timeout') {
+  const raw = argv[1];
+  if (raw === undefined || !/^\d+$/.test(raw) || Number(raw) <= 0) {
+    fail('用法: node run.mjs [--timeout <ms>] <script.mjs>；--timeout 必须为正整数毫秒');
+  }
+  timeoutMs = Number(raw);
+  argv.splice(0, 2);
+}
+const [command, ...args] = argv;
 
 function fail(message) {
   console.error(message);
@@ -28,8 +42,10 @@ function fail(message) {
 }
 
 /** 统一执行：参数数组直传，不经过任何字符串命令拼接。 */
-function run(file, fileArgs, missingHint = '') {
-  const child = execFile(file, fileArgs, { shell: false });
+function run(file, fileArgs, missingHint = '', timeout) {
+  const child = timeout === undefined
+    ? execFile(file, fileArgs, { shell: false })
+    : execFile(file, fileArgs, { shell: false, timeout });
   child.stdout?.pipe(process.stdout);
   child.stderr?.pipe(process.stderr);
   child.on('error', (error) => {
@@ -39,7 +55,8 @@ function run(file, fileArgs, missingHint = '') {
   });
   child.on('close', (code, signal) => {
     if (signal) {
-      console.error(`命令被信号终止：${signal}`);
+      if (timeout !== undefined) console.log(`SKIP(超时 ${timeout}ms，信号 ${signal}：${file})`);
+      else console.error(`命令被信号终止：${signal}`);
       process.exitCode = 1;
     } else if (code !== null && code !== 0) {
       process.exitCode = code;
@@ -49,7 +66,13 @@ function run(file, fileArgs, missingHint = '') {
 
 if (command === '--cleanup') {
   if (args.length !== 1) fail('用法: node run.mjs --cleanup <dir>');
-  await rm(resolve(args[0]), { recursive: true, force: true });
+  const target = resolve(args[0]);
+  const reviewRoot = resolve('.ai-tmp', 'code-review');
+  const rel = relative(reviewRoot, target);
+  if (rel === "" || rel.startsWith('..') || isAbsolute(rel)) {
+    fail(`越权清理：目标必须位于 .ai-tmp/code-review/ 之下的评审子目录（收到：${args[0]}）`);
+  }
+  await rm(resolve(target), { recursive: true, force: true });
   process.exit(0);
 }
 
@@ -79,9 +102,9 @@ if (command === '--mvn') {
     `-Dmaven.multiModuleProjectDirectory=${resolve('.')}`,
     'org.codehaus.plexus.classworlds.launcher.Launcher',
     ...args,
-  ]);
+  ], '', timeoutMs);
 } else if (command) {
-  run(process.execPath, [resolve(command), ...args]);
+  run(process.execPath, [resolve(command), ...args], '', timeoutMs);
 } else {
-  fail('用法: node run.mjs <script.mjs> [args...]，或 --mvn [args...]，或 --cleanup <dir>');
+  fail('用法: node run.mjs [--timeout <ms>] <script.mjs> [args...]，或 --mvn [args...]，或 --cleanup <dir>');
 }

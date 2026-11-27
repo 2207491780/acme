@@ -37,14 +37,15 @@ tools: [read_file, write_file, replace, run_shell_command, grep_search, glob]
 
 - 委派单 = 角色定义（`.ai/agents/code-review/*.md` 全文）+ 自包含委派单（`templates/task-brief-template.md`：评审号 + 事实清单指定节 + 范围文档 + 验证级别 + 边界 + 交付物）；子 Agent 不读任何流程文档。
 - **每份委派单必须下发**阶段 0 第 6 类「重复声明与冗余逻辑」清单节（带 `file:line`）与重复检测强制口径：**无白名单**扫描（覆盖自定义注解与自定义类型）；候选判定为 **真实重复 / 模块特化 / 探针假阳性** 三类之一；「bean 名不同」「显式限定符不同」只能排除 Spring bean 冲突，**不得据此排除代码重复**；同名类须比对方法体、注解元信息（如 `@Target`）、异常口径后才可结案；探针候选不得由你单方面按命名冲突排除，须回传工人复核。
+- **每份委派单还必须下发** `.ai/skills/code-review/review-checklist.md` 中**按该角色节选的维度、优先级与交给 CI/L1 的项**：Tier0（架构/设计/依赖/模块职责）最高，**安全与架构重大缺陷一票否决**，Tier3 交 CI/L1、蜂群只抽样复核并标「交 L1」，不得把 typecheck 或测试通过表述为 lint 通过、禁止新增依赖；角色节选口径见 SKILL「评审维度清单与角色映射」与清单角色映射表。
 - **同一轮**并行委派四路：A 契约事实（`contract-preflight`）；B 双端实现（`module-inspector-be` + `module-inspector-fe`，互禁读对端实现）；C 链路与影响（`flow-simulator` + `cross-contract-verifier` + `impact-oracle`，只用清单内调用边）；D 质量（`quality-reviewer`）。不逐个等待。
 - 阶段 3 再委派 `verdict-arbitrator`（纯只读、不落盘）：去重分级 / 历史新增隔离 / 生成结论回传你。
 - 工人不得写仓库内任何文件、不得写第二份 md、不得写业务代码；结论歧义就地停止上报，禁止猜测。
 
 ## 验证纪律（你负责 L1/L2）
 
-- L0 静态由 8 个角色 Read/Grep/Glob 完成；L1 由你经执行器跑**已有**检查（`node .ai/sync.mjs --check`、`check-contract.mjs`、`pnpm typecheck`、命中模块既有 vitest、Maven 测试），不写新文件；L2 由工人写 `.ai-tmp/code-review/<REVIEW-ID>/probe*.mjs`，你经执行器运行。
-- 分级：认证 / 租户 / 事务 / MQ 幂等顺序 / 双形态 / DTO 序列化 → L0+L1+必要时 L2；普通 CRUD → L0+L1；纯文档样式 → L0。
+- L0 静态由 8 个角色 Read/Grep/Glob 完成；L1 由你经执行器跑**已有**检查（`node .ai/sync.mjs --check`、`check-contract.mjs`、`pnpm typecheck`、命中模块既有 vitest、Maven 测试、`l1-checks.mjs` 的 desktop-check/theme-tests/test-shard/build），不写新文件；L2 由工人写 `.ai-tmp/code-review/<REVIEW-ID>/<role>/probe*.mjs`（每工人独立子目录），你经执行器运行；工人只清理本人子目录，你收尾用 `run.mjs --cleanup` 统一清理，白名单禁止越权删共享目录。
+- 分级：Tier0 架构/设计/依赖/模块职责与 Tier1 认证 / 租户 / 事务 / MQ 幂等顺序 / 双形态 / DTO 序列化 → L0+L1+必要时 L2；普通 CRUD → L0+L1；Tier3 纯文档样式 → L0（交 L1）。**安全与架构重大缺陷一票否决**；定稿前用 `validate-report.mjs` 机器校验结构，FAIL 项修好才交付。
 - L1/L2 命令与输出摘录写入唯一 md 第 6 节；失败或超时标 `SKIP(原因)`。
 
 ## 你的 Bash 边界

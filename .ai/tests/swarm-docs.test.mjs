@@ -247,3 +247,62 @@ test('should_carry_duplication_dimension_in_every_delegation_and_both_inspectors
   }
   assert.match(leader, /第 7 节追加/, '多轮打回第 7 节追加口径应保持');
 });
+
+// ---- 评审清单一等能力：四层 / 角色映射 / 不变量不回退 / 契约清单六类 ----
+const CR_CHECKLIST = '.ai/skills/code-review/review-checklist.md';
+const CR_RUNNER = '.ai/skills/code-review/scripts/run.mjs';
+
+test('should_keep_review_checklist_as_four_tier_single_source_with_role_mapping', async () => {
+  const checklist = await read(CR_CHECKLIST);
+  for (const tier of ['Tier0', 'Tier1', 'Tier2', 'Tier3']) {
+    assert.ok(checklist.includes(tier), `清单应含 ${tier} 层`);
+  }
+  assert.match(checklist, /## 角色映射/, '清单应含角色映射表');
+  for (const role of CR_ROLES.filter((role) => role !== 'code-review-leader')) {
+    assert.ok(checklist.includes(role), `清单应给出 ${role} 的角色归属`);
+  }
+  const skill = await read(CR_SKILL);
+  assert.match(skill, /## 评审维度清单与角色映射/, 'SKILL 应含评审维度清单与角色映射节');
+  assert.match(skill, /review-checklist\.md/, 'SKILL 应引用清单唯一源');
+  assert.match(skill, /Tier0 最高/, 'SKILL 应声明 Tier0 最高');
+  assert.match(skill, /一票否决/, 'SKILL 应声明安全/架构重大缺陷一票否决');
+  assert.match(skill, /Tier3 交 CI\/L1/, 'SKILL 应声明 Tier3 交 CI/L1');
+});
+
+test('should_keep_manual_no_command_single_report_and_script_boundaries_when_upgrading_capabilities', async () => {
+  const skill = await read(CR_SKILL);
+  assert.match(skill, /engine\.code-review: manual/, 'manual 档不得回退');
+  assert.match(skill, /无命令入口/, '无命令入口不得回退');
+  assert.match(skill, /唯一(?:入库文件|产物) `contracts\/<REVIEW-ID>\.md`/, '唯一产物不得回退');
+  assert.match(skill, /不产生 REQ/, '不产生 REQ 不得回退');
+  for (const role of CR_ROLES) {
+    const text = await read(crPath(role));
+    assert.match(text, /engine\.code-review: manual/, `${role} 应保持 manual 文案`);
+    assert.match(text, /回传/, `${role} 应保持结论回传 leader`);
+  }
+  const leader = await read(crPath('code-review-leader'));
+  assert.match(leader, /唯一写入口/, 'leader 唯一写入口不得回退');
+  assert.match(leader, /第 7 节追加/, '多轮打回第 7 节追加不得回退');
+  assert.match(leader, /按(?:该)?角色节选的维度/, 'leader 应随每份委派单下发角色节选维度');
+});
+
+test('should_fix_contract_preflight_fact_categories_from_five_to_six', async () => {
+  const cp = await read(crPath('contract-preflight'));
+  assert.doesNotMatch(cp, /五类/, 'contract-preflight 不得再写五类清单');
+  assert.match(cp, /六类/, 'contract-preflight 应写六类事实清单');
+});
+
+test('should_scope_l2_probes_to_worker_subdirectories_and_cleanup_whitelist', async () => {
+  for (const rel of [CR_SKILL, crPath('code-review-leader')]) {
+    const text = await read(rel);
+    assert.match(text, /<REVIEW-ID>\/<role>\/probe\*\.mjs/, `${rel} 应规定每工人独立 L2 子目录`);
+  }
+  const skill = await read(CR_SKILL);
+  assert.match(skill, /每工人独立子目录/, 'SKILL 应声明每工人独立子目录');
+  assert.match(skill, /白名单禁止越权清理共享根目录/, 'SKILL 应声明清理白名单口径');
+  const runner = await read(CR_RUNNER);
+  assert.match(runner, /'code-review'/, 'run.mjs 应锚定 .ai-tmp/code-review 白名单根');
+  assert.match(runner, /越权清理/, 'run.mjs 越权清理应报错');
+  assert.match(runner, /relative\(/, 'run.mjs 应用 relative 判定白名单');
+  assert.match(runner, /--timeout/, 'run.mjs 应支持 --timeout');
+});

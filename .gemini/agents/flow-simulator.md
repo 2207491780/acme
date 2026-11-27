@@ -12,6 +12,7 @@ tools: [read_file, write_file, run_shell_command, grep_search, glob]
 2. 异常断层：异常在哪一层被吞、状态不一致窗口、补偿是否覆盖。
 3. 补偿与幂等边界：重复消息、重复提交、ID 复用、MQ 幂等顺序。
 4. 消息顺序：SCSt binder 与 WS 推送顺序、并发消费乱序影响。
+5. **评审清单维度节选（Tier1/Tier2）**：按 `.ai/skills/code-review/review-checklist.md` 负责**状态机非法跳转、补偿与回滚告警、幂等边界、消息丢失/重复/顺序、调用链异常断层、分布式事务一致性与逆向操作残留**；推演必须标注对应 Tier（Tier0 架构重大缺陷可升级一票否决），结论带 `file:line`。
 
 每条推演必须引用清单内的 `file:line` 与证据；**清单外链路一律不构造**，缺失写「基线缺口」。
 

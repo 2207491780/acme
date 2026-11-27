@@ -29,7 +29,7 @@ description: 全面代码评审蜂群（code-review）执行卡。engine.code-re
 | **2 四路并行** | **同一轮**并行委派四路（见下），不逐个等待 | 7 个工人角色全部回报；信息隔离成立 |
 | **3 裁决** | `verdict-arbitrator` 纯只读：去重分级 / 历史新增隔离 / 生成结论 | 结论回传 leader，**不落盘** |
 | **4 多轮打回** | 有 FAIL / 争议则按轮次补证与复核；每轮结论回传 leader | 每轮记录可追溯；无新增 md 文件 |
-| **5 定稿并写 md** | leader 按模板写入唯一 `contracts/<REVIEW-ID>.md` | 七节齐全；L1/L2 证据入第 6 节；SKIP 标明原因 |
+| **5 定稿并写 md** | leader 按模板写入唯一 `contracts/<REVIEW-ID>.md`，再用 `validate-report.mjs` 机器校验结构 | 七节齐全；L1/L2 证据入第 6 节；SKIP 标明原因；校验 FAIL 项修复后才交付 |
 
 ### 阶段 0：事实清单（不写脚本）
 
@@ -55,12 +55,19 @@ leader 用 Read/Grep/Glob 静态读取以下**固定事实源**，逐条形成�
 
 四路之外，`verdict-arbitrator` 在阶段 3 调用，纯只读、不落盘。委派单模板见 `.ai/skills/code-review/templates/task-brief-template.md`；信息隔离边界由 leader 在每份委派单中写死。
 
+## 评审维度清单与角色映射
+
+- **唯一源**：`.ai/skills/code-review/review-checklist.md`（Tier0 架构/设计/依赖/模块职责最高、Tier1 业务与正确性、Tier2 安全/性能/并发/数据库/异常日志/接口 RPC MQ/部署、Tier3 交 CI/L1）。清单四层之外的维度不得临时发明；用户 6 类概要已并入四层。
+- **优先级**：Tier0 最高；**安全与架构重大缺陷一票否决**，优先级高于意见数量与其他层级；Tier3 由 L1/CI 或现有工具处理，蜂群只抽样复核并标「交 L1」，**不得把 typecheck 或测试通过表述为 lint 通过**，禁止为过检查新增依赖。
+- **角色节选**：CP 契约预检=契约/版本兼容/DTO-VO 边界/返回字段脱敏/API 文档；BE 后端=**Tier0 全部** + Tier1/Tier2 后端部分；FE 前端=组件/状态/表单/防抖/路由权限/兼容/资源/内存泄漏/打包 + 前端 XSS/a11y 人工复核（禁读后端）；FS 链路=状态机/补偿/幂等/消息顺序/调用链异常；CV 跨契约=三向一致/DTO-BO-DO-VO 不混用/错误码/版本兼容/字段脱敏；IO 影响面=依赖引入/版本冲突/废弃漏洞/环境隔离/灰度回滚/容量/SLA/降级；QR 质量=技术债/复杂度/复用重复/方法长度/扩展点，风格类只抽样并标「交 L1」；VA 裁决=按 Tier 分级与一票否决，历史债隔离不变。详细映射见清单文件「角色映射」表。
+- **委派**：阶段 1 的**每份委派单必须下发按角色节选的维度、优先级（Tier0 最高 / 一票否决）与交给 CI/L1 的项**；子 Agent 不读流程文档，委派单须自包含。
+
 ## 验证纪律（动态取证三层）
 
 - **L0 静态**：8 个角色用 Read/Grep/Glob 分析事实清单与源码；不写任何文件。
-- **L1 既有检查**：leader 经统一执行器 `run.mjs` 跑**已有**检查——`node .ai/sync.mjs --check`、`node .ai/skills/team-leader/scripts/check-contract.mjs <file>`、`pnpm typecheck`、命中模块既有 vitest、Maven 测试；**不写新文件**（仅允许既有构建产物）。
-- **L2 探针**：高危怀疑点写 `.ai-tmp/code-review/<REVIEW-ID>/probe*.mjs`（跨平台），`node` 运行，结束用 `run.mjs --cleanup` 经 `fs.rm` 删除。
-- **分级**：认证 / 租户 / 事务 / MQ 幂等顺序 / 双形态 / DTO 序列化 → L0 + L1 + 必要时 L2；普通 CRUD → L0 + L1；纯文档样式 → L0。
+- **L1 既有检查**：leader 经统一执行器 `run.mjs` 跑**已有**检查——`node .ai/sync.mjs --check`、`node .ai/skills/team-leader/scripts/check-contract.mjs <file>`、`pnpm typecheck`、命中模块既有 vitest、Maven 测试，以及 `.ai/skills/code-review/scripts/l1-checks.mjs` 的 `desktop-check` / `theme-tests` / `test-shard <包名>` / `build`（从 PATH 扫描 pnpm 入口，零新增依赖）；**不写新文件**（仅允许既有构建产物）。Tier3 交这些 L1/CI 项处理，蜂群只抽样复核；**不得把 typecheck 或测试通过表述为 lint 通过**，禁止造 lint、禁止新增依赖。
+- **L2 探针**：高危怀疑点写 `.ai-tmp/code-review/<REVIEW-ID>/<role>/probe*.mjs`（**每工人独立子目录**，跨平台），`node` 运行；工人只清理本人子目录，leader 收尾统一经 `run.mjs --cleanup` 以 `fs.rm` 删除；`--cleanup` 作用域白名单禁止越权清理共享根目录。
+- **分级**：Tier0（架构/设计/依赖/模块职责）与 Tier1 认证 / 租户 / 事务 / MQ 幂等顺序 / 双形态 / DTO 序列化 → L0 + L1 + 必要时 L2；普通 CRUD → L0 + L1；Tier3 纯文档样式 → L0（交 L1）。**安全与架构重大缺陷一票否决**，按 Tier 分级与 Veto 裁决。
 - L1/L2 的**命令与输出摘录写入唯一 md 第 6 节**；失败或超时标 `SKIP(原因)`，不得静默略过。
 
 **重复检测强制口径（防漏检）**：
@@ -88,8 +95,8 @@ leader 用 Read/Grep/Glob 静态读取以下**固定事实源**，逐条形成�
 
 ## 路径速查
 
-- 执行卡：`.ai/skills/code-review/SKILL.md`（本文件）；角色源：`.ai/agents/code-review/`
-- 执行器：`.ai/skills/code-review/scripts/run.mjs`；模板：`.ai/skills/code-review/templates/`
+- 执行卡：`.ai/skills/code-review/SKILL.md`（本文件）；评审清单：`.ai/skills/code-review/review-checklist.md`；角色源：`.ai/agents/code-review/`
+- 脚本：`.ai/skills/code-review/scripts/`（`run.mjs`、`l1-checks.mjs`、`validate-report.mjs`）；模板：`.ai/skills/code-review/templates/`
 - 唯一产物：`contracts/<REVIEW-ID>.md`；临时脚本：`.ai-tmp/code-review/<REVIEW-ID>/`（用完删除）
 - 取舍与边界：`.ai-memory/decisions/2026-11-26-02-code-review-swarm.md`
 

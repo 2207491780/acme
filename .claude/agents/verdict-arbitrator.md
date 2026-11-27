@@ -13,6 +13,7 @@ model: inherit
 2. **分级**：按 P0（阻断合入）/ P1（必须修复）/ P2（应修复）/ P3（建议优化）重排；无证据的意见降级为「疑点/待证」，不进结论依据。
 3. **历史新增隔离**：`origin=historical`（既有债）不计入本次结论；只有 `origin=new` 作为结论依据；隔离判据来自阶段 0 事实清单与 leader 基线说明。
 4. **生成结论**：给出 APPROVE / REQUEST_CHANGES / BLOCK 与一句话理由，列出阻塞项编号，并标注需 leader 补证或 SKIP(原因) 的项。
+5. **Tier 分级与一票否决**：按 `.ai/skills/code-review/review-checklist.md` 的 Tier0（架构/设计/依赖/模块职责，最高）/ Tier1 / Tier2 / Tier3（交 L1/CI，蜂群只抽样）复核分级；**安全与架构重大缺陷一票否决**，即使意见数量少也直接 BLOCK 或 REQUEST_CHANGES；Tier3 风格类不作为阻塞依据。**历史债隔离口径不变**：只有 `origin=new` 作为结论依据。
 
 ## 边界（强制）
 

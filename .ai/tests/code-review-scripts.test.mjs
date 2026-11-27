@@ -18,7 +18,10 @@ async function sandboxFor(t) {
   const temp = join(root, '.ai-tmp');
   const tempStat = await lstat(temp);
   assert.ok(tempStat.isDirectory() && !tempStat.isSymbolicLink(), 'fixtures must stay in repository .ai-tmp/');
-  const sandbox = await mkdtemp(join(temp, 'code-review-scripts-test-'));
+  // --cleanup 白名单要求目标位于 .ai-tmp/code-review/ 之下，fixture 随之落在该评审根内。
+  const reviewRoot = join(temp, 'code-review');
+  await mkdir(reviewRoot, { recursive: true });
+  const sandbox = await mkdtemp(join(reviewRoot, 'scripts-test-'));
   t.after(() => rm(sandbox, { recursive: true, force: true }));
   return sandbox;
 }
@@ -95,4 +98,49 @@ test('should_cleanup_probe_fixture_through_fs_rm', async (t) => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /CLEANED:/, result.stdout);
   await assert.rejects(stat(join(sandbox, 'probe-target')), { code: 'ENOENT' });
+});
+
+// ---- 能力升级：--timeout 结构化 SKIP / --cleanup 白名单 / l1-checks 零依赖入口 ----
+test('should_accept_timeout_before_subcommand_and_report_structured_skip', async (t) => {
+  const src = await runnerCode();
+  assert.match(src, /--timeout/, 'run.mjs 应解析 --timeout');
+  assert.match(src, /execFile\([^;]*timeout/, 'execFile 应传 timeout 选项');
+  assert.match(src, /SKIP\(超时/, '超时应输出结构化 SKIP');
+  const sandbox = await sandboxFor(t);
+  const probe = join(sandbox, 'slow.mjs');
+  await writeFile(probe, "setTimeout(() => { console.log('DONE'); }, 5000);", 'utf8');
+  const result = runRunner(['--timeout', '50', probe]);
+  assert.notEqual(result.status, 0, '超时应非零退出');
+  assert.match(result.stdout + result.stderr, /SKIP\(超时 50ms/, result.stdout + result.stderr);
+});
+
+test('should_reject_cleanup_outside_whitelisted_review_subdirectory', async () => {
+  const outside = join(root, '.ai-tmp', 'not-code-review');
+  const first = runRunner(['--cleanup', outside]);
+  assert.notEqual(first.status, 0, '白名单外清理应失败');
+  assert.match(first.stderr, /越权清理/, first.stderr);
+
+  const sharedRoot = join(root, '.ai-tmp', 'code-review');
+  const second = runRunner(['--cleanup', sharedRoot]);
+  assert.notEqual(second.status, 0, '共享评审根目录不可清理');
+  assert.match(second.stderr, /越权清理/, second.stderr);
+});
+
+test('should_run_l1_checks_only_through_pnpm_cli_without_new_dependencies', async () => {
+  // shebang 的 /usr/bin/env 不是硬编码业务路径，与 runnerCode() 同口径剥离后校验。
+  const src = (await readFile(join(root, '.ai/skills/code-review/scripts/l1-checks.mjs'), 'utf8')).replace(/^#![^\n]*\n/, '');
+  assert.match(src, /import\s*\{\s*execFile\s*\}\s*from\s*'node:child_process'/, '必须导入 execFile');
+  assert.match(src, /execFile\(process\.execPath,\s*\[pnpmCli, \.\.\.args\],\s*\{\s*shell:\s*false\s*\}/, '必须用 execFile 直传 pnpm CLI');
+  assert.doesNotMatch(src, /shell\s*:\s*true/, '禁止 shell 真值');
+  assert.match(src, /'pnpm', 'bin', 'pnpm\.cjs'/, '应从 PATH 扫描 pnpm.cjs 入口');
+  assert.match(src, /delimiter/, 'PATH 分隔应跨平台');
+  assert.doesNotMatch(src, /process\.platform|win32|darwin|linux/, '禁止按平台分支');
+  assert.doesNotMatch(src, /C:\\|\\usr\\|\/usr\//, '禁止硬编码绝对路径');
+  for (const subcommand of ['desktop-check', 'theme-tests', 'test-shard', 'build']) {
+    assert.ok(src.includes(subcommand), `l1-checks 应支持 ${subcommand}`);
+  }
+  assert.match(src, /不新增依赖/, '应声明不新增依赖');
+  const result = runRunner(['.ai/skills/code-review/scripts/l1-checks.mjs', 'unknown-cmd']);
+  assert.notEqual(result.status, 0, '未知子命令应报错');
+  assert.match(result.stderr, /用法/, result.stderr);
 });
