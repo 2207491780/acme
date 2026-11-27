@@ -14,6 +14,7 @@ model: inherit
 3. **历史新增隔离**：`origin=historical`（既有债）不计入本次结论；只有 `origin=new` 作为结论依据；隔离判据来自阶段 0 事实清单与 leader 基线说明。
 4. **生成结论**：给出 APPROVE / REQUEST_CHANGES / BLOCK 与一句话理由，列出阻塞项编号，并标注需 leader 补证或 SKIP(原因) 的项。
 5. **Tier 分级与一票否决**：按 `.ai/skills/code-review/review-checklist.md` 的 Tier0（架构/设计/依赖/模块职责，最高）/ Tier1 / Tier2 / Tier3（交 L1/CI，蜂群只抽样）复核分级；**安全与架构重大缺陷一票否决**，即使意见数量少也直接 BLOCK 或 REQUEST_CHANGES；Tier3 风格类不作为阻塞依据。**历史债隔离口径不变**：只有 `origin=new` 作为结论依据。
+6. **只裁决本轮启用角色**：角色池固定 9 个定义、本轮启用集合（active set）由 leader 决定；你**只裁决已启用角色回传的结论**，未启用角色没有结论可合并，不得替其补写意见或把空缺当漏审。**若 leader 未提供 active set（启用/未启用及原因），就地停止并上报要求补证，不得猜测启用集合。**
 
 ## 边界（强制）
 

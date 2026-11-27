@@ -3,9 +3,9 @@
  * validate-report.mjs — code-review 唯一报告的机器结构校验（只读，不改任何文件）。
  *
  * 用法：node validate-report.mjs <报告路径>
- * 校验：七节 `## 1.`～`## 7.` 齐全；第 3 节 P0/P1/P2/P3 小节存在且每条意见含
- *       origin: / 证据 / 建议 / 归属 / 文件:行 样式；第 6 节有 L1/L2 行且失败或超时项
- *       标 SKIP(原因)；第 7 节有轮次记录。
+ * 校验：七节 `## 1.`～`## 7.` 齐全；第 2 节含本轮启用角色登记行（启用角色 / 未启用及原因）；
+ *       第 3 节 P0/P1/P2/P3 小节存在且每条意见含 origin: / 证据 / 建议 / 归属 / 文件:行 样式；
+ *       第 6 节有 L1/L2 行且失败或超时项标 SKIP(原因)；第 7 节有轮次记录。
  * 输出：PASS/FAIL 与缺失项；退出码 0=PASS / 1=FAIL / 2=用法或读取失败。
  * 硬规范：只用 node 内置模块；路径经 path.resolve；不写文件、不拼命令。
  */
@@ -37,6 +37,10 @@ headings.forEach((heading, index) => {
 
 for (let number = 1; number <= 7; number += 1) {
   if (!sections.has(String(number))) missing.push(`缺第 ${number} 节（## ${number}.）`);
+}
+
+if (!/启用角色/.test(sections.get('2') ?? '')) {
+  missing.push('第 2 节缺启用角色登记行（本轮启用角色 / 未启用及原因）');
 }
 
 const opinions = sections.get('3') ?? '';
@@ -75,4 +79,4 @@ if (missing.length) {
   process.exit(1);
 }
 
-console.log(`PASS: ${reportPath}（七节齐全；P0-P3 条目字段完整；第 6 节 L1/L2 证据与 SKIP 口径符合；第 7 节轮次记录存在）`);
+console.log(`PASS: ${reportPath}（七节齐全；第 2 节启用角色登记齐全；P0-P3 条目字段完整；第 6 节 L1/L2 证据与 SKIP 口径符合；第 7 节轮次记录存在）`);

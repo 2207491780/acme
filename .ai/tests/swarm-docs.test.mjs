@@ -295,7 +295,7 @@ test('should_fix_contract_preflight_fact_categories_from_five_to_six', async () 
 test('should_scope_l2_probes_to_worker_subdirectories_and_cleanup_whitelist', async () => {
   for (const rel of [CR_SKILL, crPath('code-review-leader')]) {
     const text = await read(rel);
-    assert.match(text, /<REVIEW-ID>\/<role>\/probe\*\.mjs/, `${rel} 应规定每工人独立 L2 子目录`);
+    assert.match(text, /<REVIEW-ID>\/<(?:role|worker)>\/probe\*\.mjs/, `${rel} 应规定每工人独立 L2 子目录`);
   }
   const skill = await read(CR_SKILL);
   assert.match(skill, /每工人独立子目录/, 'SKILL 应声明每工人独立子目录');
@@ -305,4 +305,72 @@ test('should_scope_l2_probes_to_worker_subdirectories_and_cleanup_whitelist', as
   assert.match(runner, /越权清理/, 'run.mjs 越权清理应报错');
   assert.match(runner, /relative\(/, 'run.mjs 应用 relative 判定白名单');
   assert.match(runner, /--timeout/, 'run.mjs 应支持 --timeout');
+});
+
+// ---- 动态启用集合：角色池固定、启用集合按范围/风险/维度命中裁剪 ----
+test('should_select_active_set_from_scope_risk_and_hit_dimensions_in_skill', async () => {
+  const skill = await read(CR_SKILL);
+  const stage1 = sectionAfter(skill, '### 阶段 1：启用集合（active set）选择（leader 职责）', '\n### 阶段 2', CR_SKILL);
+  assert.match(stage1, /角色池固定、启用集合可变/, '应声明角色池固定、启用集合可变');
+  assert.match(stage1, /不默认全开/, '不得默认全员启用');
+  assert.match(stage1, /最多 7 工人 \+ 1 裁决员/, '应有启用上限');
+  for (const scene of [
+    '纯文档 / 样式 / 生成物',
+    '单端单模块普通 CRUD',
+    '跨模块契约 / API 一致性',
+    '认证 / 租户 / 事务 / MQ 幂等 / 安全 / 双端形态',
+    '全分支 / 高风险',
+  ]) {
+    assert.ok(stage1.includes(scene), `选择矩阵应覆盖场景「${scene}」`);
+  }
+  assert.match(stage1, /A 路[\s\S]*仅契约\/API 变更时启用/, 'A 路仅契约/API 变更时启用');
+  assert.match(stage1, /B 路按命中端选择/, 'B 路按命中端选择');
+  assert.match(stage1, /C 路[\s\S]*对应调用边[\s\S]*impact-oracle/, 'C 路按清单内边/契约/部署/影响面启用');
+  assert.match(stage1, /D 路[\s\S]*quality-reviewer[\s\S]*始终启用/, 'QR 始终启用');
+  assert.match(stage1, /未启用角色必须在报告第 2 节写明/, '未启用须写原因');
+  assert.match(skill, /四路是[^\n]*可用路由[\s\S]*启用集合裁剪/, '阶段 2 应声明四路为可用路由');
+});
+
+test('should_register_active_set_and_limit_delegation_in_leader_and_arbitrator', async () => {
+  const leader = await read(crPath('code-review-leader'));
+  assert.match(leader, /阶段 1 先选启用集合（active set）/, 'leader 应在阶段 1 选择 active set');
+  assert.match(leader, /不默认全开/, 'leader 不得默认全开');
+  assert.match(leader, /本轮启用角色：/, '报告第 2 节应登记启用角色');
+  assert.match(leader, /未启用：/, '报告第 2 节应登记未启用角色及原因');
+  assert.match(leader, /不向未启用角色派单/, '不得给未启用角色派单');
+  assert.match(leader, /多轮打回可调整 active set/, '多轮可调整 active set');
+  const arbitrator = await read(crPath('verdict-arbitrator'));
+  assert.match(arbitrator, /只裁决本轮启用角色/, '裁决员只裁决已启用角色');
+  assert.match(arbitrator, /未提供 active set[\s\S]*停止/, '缺 active set 应停止上报');
+  assert.match(arbitrator, /不得猜测/, '不得猜测启用集合');
+});
+
+test('should_carry_active_set_in_both_templates_and_report_validator', async () => {
+  const brief = await read(CR_TEMPLATE);
+  assert.match(brief, /本轮启用集合 \/ 本角色命中维度 \/ 未启用角色及原因/, '委派单应自带 active set 占位');
+  const report = await read('.ai/skills/code-review/templates/review-report-template.md');
+  assert.match(report, /本轮启用角色：/, '报告模板第 2 节应含必填启用角色行');
+  assert.match(report, /未启用：/, '报告模板应含未启用及原因');
+  const validator = await read('.ai/skills/code-review/scripts/validate-report.mjs');
+  assert.match(validator, /启用角色/, '校验器应检查启用角色登记行');
+});
+
+test('should_keep_fixed_nine_role_pool_and_invariants_when_active_set_is_dynamic', async () => {
+  assert.equal(CR_ROLES.length, 9, '角色池仍有 9 个固定定义');
+  assert.equal(CR_WORKERS.length, 7, '工人角色池仍固定 7 个');
+  for (const role of CR_ROLES) {
+    const rel = crPath(role);
+    const text = await read(rel);
+    assert.match(text, /engine\.code-review: manual/, `${role} 应保持 manual`);
+    assert.ok(toolsOf(text, rel).length > 0, `${role} tools 不应为空`);
+  }
+  const leader = await read(crPath('code-review-leader'));
+  assert.match(leader, /唯一写入口/, 'leader 唯一写入口不变');
+  assert.match(leader, /contracts\/<REVIEW-ID>\.md/, '唯一 md 不变');
+  assert.match(leader, /第 7 节追加/, '多轮追加同一 md 不变');
+  const skill = await read(CR_SKILL);
+  assert.match(skill, /无命令入口/, '无命令入口不变');
+  assert.match(skill, /不产生 REQ/, '不产生 REQ 不变');
+  assert.match(skill, /<REVIEW-ID>\/<worker>\/probe\*\.mjs/, '工人脚本子目录边界不变');
+  assert.deepEqual(toolsOf(await read(crPath('verdict-arbitrator')), crPath('verdict-arbitrator')), ['Read', 'Grep', 'Glob'], '裁决员纯只读不变');
 });

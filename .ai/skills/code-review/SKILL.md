@@ -25,8 +25,8 @@ description: 全面代码评审蜂群（code-review）执行卡。engine.code-re
 | 阶段 | 关键动作 | 完成判据 |
 |---|---|---|
 | **0 事实清单** | leader 用 Read/Grep/Glob 读固定事实源，形成带 `file:line` 的清单；缺失标「基线缺口」 | 清单覆盖全部事实源，每条可定位；角色不得自行推导补充 |
-| **1 取号与委派上下文** | 评审开始时生成 `REVIEW-YYYYMMDD-HHMMSS`；把事实清单 + 范围 + 边界写入委派单 | 评审号确定；每路委派单自包含 |
-| **2 四路并行** | **同一轮**并行委派四路（见下），不逐个等待 | 7 个工人角色全部回报；信息隔离成立 |
+| **1 取号与委派上下文** | 评审开始时生成 `REVIEW-YYYYMMDD-HHMMSS`；leader 选择并登记**启用集合（active set）**；把事实清单 + 范围 + 边界 + 命中维度写入委派单 | 评审号确定；启用/未启用及原因可追溯；每份委派单自包含 |
+| **2 按启用集合并行委派** | 四路为可用路由，按启用集合裁剪；**同一轮并行委派所有已启用角色**，不逐个等待 | 所有已启用角色回报；信息隔离成立 |
 | **3 裁决** | `verdict-arbitrator` 纯只读：去重分级 / 历史新增隔离 / 生成结论 | 结论回传 leader，**不落盘** |
 | **4 多轮打回** | 有 FAIL / 争议则按轮次补证与复核；每轮结论回传 leader | 每轮记录可追溯；无新增 md 文件 |
 | **5 定稿并写 md** | leader 按模板写入唯一 `contracts/<REVIEW-ID>.md`，再用 `validate-report.mjs` 机器校验结构 | 七节齐全；L1/L2 证据入第 6 节；SKIP 标明原因；校验 FAIL 项修复后才交付 |
@@ -44,7 +44,27 @@ leader 用 Read/Grep/Glob 静态读取以下**固定事实源**，逐条形成�
 
 清单缺失的项写「基线缺口」并附检索范围；任何角色**不得自行推导补充**清单外链路或事实。
 
-### 阶段 2：四路并行（同一轮委派，7 个工人角色）
+### 阶段 1：启用集合（active set）选择（leader 职责）
+
+**角色池固定、启用集合可变**：角色池仍是 9 个固定定义（7 工人 + `code-review-leader` + `verdict-arbitrator`）；tools / `engine.code-review: manual` / 无命令入口 / 唯一 md / leader 唯一写入口 / 工人只在 `.ai-tmp/code-review/<REVIEW-ID>/<worker>/` 写脚本 / 裁决员纯只读**全部不变**，不删除角色定义、不新增角色或命令。leader 依据**评审范围、风险等级、阶段 0 清单命中维度**决定本轮启用角色（active set），**不默认全开**；一次评审**最多 7 工人 + 1 裁决员**（VA 始终参与裁决）。
+
+选择矩阵（按命中取最贴合的一行，可叠加；叠加后仍不超过 7 工人）：
+
+| 场景 | 启用集合 |
+|---|---|
+| 纯文档 / 样式 / 生成物 | QR + VA（质量 + 裁决） |
+| 单端单模块普通 CRUD | CP（**仅 API/契约变更时**）+ 对应端 BE 或 FE + QR + VA |
+| 跨模块契约 / API 一致性 | CP + BE + FE（前端命中时）+ CV + VA |
+| 认证 / 租户 / 事务 / MQ 幂等 / 安全 / 双端形态 | 全 7 工人 + VA |
+| 全分支 / 高风险 | 全 7 工人 + VA；第二轮可重派**已启用角色**做专项补证，仍只追加同一 md 第 7 节 |
+
+分工按「维度命中」而非固定四路全开：A 路 `contract-preflight` **仅契约/API 变更时启用**；B 路按命中端选择 BE / FE（双端命中才都启用，仍互禁读对端实现）；C 路**仅当阶段 0 清单内有对应调用边 / 契约 / 部署 / 影响面时**启用 `flow-simulator` / `cross-contract-verifier` / `impact-oracle`；D 路 `quality-reviewer` **始终启用**。
+
+**未启用角色必须在报告第 2 节写明「未启用 + 原因（无相关调用边 / 无契约变更 / 不在范围）」**，不得把空缺当漏审；基线缺口照写。委派只发给已启用角色，每份委派单写明本轮启用集合、本角色命中维度与未启用角色及原因。
+
+### 阶段 2：四路并行（可用路由，按启用集合裁剪；同一轮委派所有已启用角色）
+
+四路是**可用路由**，不是固定全员名单；leader 按阶段 1 的启用集合裁剪，不逐个等待，同一轮并行委派所有已启用角色：
 
 | 路 | 角色 | 职责要点 |
 |---|---|---|
@@ -64,9 +84,9 @@ leader 用 Read/Grep/Glob 静态读取以下**固定事实源**，逐条形成�
 
 ## 验证纪律（动态取证三层）
 
-- **L0 静态**：8 个角色用 Read/Grep/Glob 分析事实清单与源码；不写任何文件。
+- **L0 静态**：**本轮已启用角色**（含裁决员）用 Read/Grep/Glob 分析事实清单与源码；不写任何文件。
 - **L1 既有检查**：leader 经统一执行器 `run.mjs` 跑**已有**检查——`node .ai/sync.mjs --check`、`node .ai/skills/team-leader/scripts/check-contract.mjs <file>`、`pnpm typecheck`、命中模块既有 vitest、Maven 测试，以及 `.ai/skills/code-review/scripts/l1-checks.mjs` 的 `desktop-check` / `theme-tests` / `test-shard <包名>` / `build`（从 PATH 扫描 pnpm 入口，零新增依赖）；**不写新文件**（仅允许既有构建产物）。Tier3 交这些 L1/CI 项处理，蜂群只抽样复核；**不得把 typecheck 或测试通过表述为 lint 通过**，禁止造 lint、禁止新增依赖。
-- **L2 探针**：高危怀疑点写 `.ai-tmp/code-review/<REVIEW-ID>/<role>/probe*.mjs`（**每工人独立子目录**，跨平台），`node` 运行；工人只清理本人子目录，leader 收尾统一经 `run.mjs --cleanup` 以 `fs.rm` 删除；`--cleanup` 作用域白名单禁止越权清理共享根目录。
+- **L2 探针**：高危怀疑点写 `.ai-tmp/code-review/<REVIEW-ID>/<worker>/probe*.mjs`（**每工人独立子目录**，跨平台），`node` 运行；工人只清理本人子目录，leader 收尾统一经 `run.mjs --cleanup` 以 `fs.rm` 删除；`--cleanup` 作用域白名单禁止越权清理共享根目录。
 - **分级**：Tier0（架构/设计/依赖/模块职责）与 Tier1 认证 / 租户 / 事务 / MQ 幂等顺序 / 双形态 / DTO 序列化 → L0 + L1 + 必要时 L2；普通 CRUD → L0 + L1；Tier3 纯文档样式 → L0（交 L1）。**安全与架构重大缺陷一票否决**，按 Tier 分级与 Veto 裁决。
 - L1/L2 的**命令与输出摘录写入唯一 md 第 6 节**；失败或超时标 `SKIP(原因)`，不得静默略过。
 
