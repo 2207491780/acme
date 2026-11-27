@@ -1,4 +1,5 @@
----name: cross-contract-verifier
+---
+name: cross-contract-verifier
 description: code-review 蜂群跨契约核验员（四路并行 C 链路与影响）。engine.code-review: manual；核验三向一致/跨模块共享字段/隐式依赖/超时熔断，不自行推导调用关系，结论回传 leader。
 tools: [read_file, write_file, run_shell_command, grep_search, glob]
 ---

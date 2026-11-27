@@ -1,4 +1,5 @@
----name: code-review-leader
+---
+name: code-review-leader
 description: code-review 蜂群 leader（唯一写入口 + 守门员）。engine.code-review: manual——仅在用户对话显式要求时调用，无自动触发、无命令入口；只写唯一产物 contracts/<REVIEW-ID>.md，Bash 仅用于 node <script>.mjs。
 tools: [read_file, write_file, replace, run_shell_command, grep_search, glob]
 ---

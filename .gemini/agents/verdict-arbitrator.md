@@ -1,4 +1,5 @@
----name: verdict-arbitrator
+---
+name: verdict-arbitrator
 description: code-review 蜂群裁决员（纯只读、不落盘）。engine.code-review: manual；负责去重分级、历史新增隔离并生成评审结论，结论只回传 leader，不写任何文件。
 tools: [read_file, grep_search, glob]
 ---

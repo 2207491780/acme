@@ -96,6 +96,10 @@ const TOOLS = [
   { key: 'claude', doc: 'CLAUDE-CODE.md', target: '.claude' },
   { key: 'cursor', doc: 'CURSOR.md', target: '.cursor' },
   { key: 'gemini', doc: 'GEMINI-CLI.md', target: '.gemini' },
+  // Antigravity（Google）：工作区定制目录为 .agents/（官方规则走根/分层 AGENTS.md + GEMINI.md；
+  // 技能经 .agents/skills.json 直接指向 .ai/skills，磁盘零重复且避免与 Cursor .agents/skills/ 冲突，
+  // 详见 ADR 2026-11-27-05）。
+  { key: 'antigravity', doc: 'ANTIGRAVITY.md', target: '.agents' },
   {
     // Trae：公共池派生为引用存根（frontmatter 保留供官方注册，正文指针指向 .ai/ 池源，磁盘零重复）。
     // agents 需额外适配 frontmatter：tools 数组→逗号分隔字符串、移除 model: inherit（Trae 缺省即继承
@@ -214,6 +218,7 @@ async function walk(dir, { source = true, shallow = false } = {}) {
     if (error.code === 'ENOENT') return [];
     throw error;
   }
+  entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   const files = [];
   for (const e of entries) {
     const p = join(dir, e.name);
@@ -452,7 +457,15 @@ function register(collection, rel, value, source) {
 
 // ---- 1. 公共规范：拼接为唯一完整副本 .ai/RULES.md ----
 let body = '';
-for (const f of (await walk(join(AI, 'rules'))).filter((f) => f.endsWith('.md')).sort()) {
+const rulesDir = join(AI, 'rules');
+const ruleFiles = (await walk(rulesDir))
+  .filter((f) => f.endsWith('.md'))
+  .sort((a, b) => {
+    const ra = normLink(relative(rulesDir, a));
+    const rb = normLink(relative(rulesDir, b));
+    return ra < rb ? -1 : ra > rb ? 1 : 0;
+  });
+for (const f of ruleFiles) {
   body += norm(await readFile(f, 'utf8')).trim() + '\n\n';
 }
 if (!body.trim()) {
@@ -534,7 +547,8 @@ for (const f of await walk(SCOPES)) {
     register(links, rel.replace(/AGENTS\.md$/, 'CLAUDE.md'), {
       target: 'AGENTS.md',
       fallback: norm(
-        `@AGENTS.md\n\n本目录的目录级规范在同目录 \`AGENTS.md\`（唯一事实源：\`.ai/scopes/${rel}\`）。\n`
+        `@AGENTS.md\n\n本目录的目录级规范在同目录 \`AGENTS.md\`（唯一事实源：\`.ai/scopes/${rel}\`）。` +
+          footer(`.ai/scopes/${rel}`)
       ),
     }, `.ai/scopes/${rel}（同级 CLAUDE.md 入口）`);
   }
@@ -564,8 +578,10 @@ function transformGeminiAgent(content) {
           .map((n) => GEMINI_TOOL_MAP[n] || n)
           .join(', ')}]`,
     )
-    .replace(/^model:\s*inherit\s*$/m, '');
-  return `${content.slice(0, m.index)}---${front.replace(/\n+$/, '\n')}---${content.slice(m.index + m[0].length)}`;
+    .replace(/^model:\s*inherit[ \t]*(?:\r?\n|$)/gm, '')
+    .replace(/\n+$/, '');
+  const fmBlock = front ? `---\n${front}\n---` : '---\n---';
+  return `${content.slice(0, m.index)}${fmBlock}${content.slice(m.index + m[0].length)}`;
 }
 
 /** 公共池引用存根（ADR 2026-11-17-02 Qoder / 2026-11-17-03 CodeBuddy）：frontmatter 原样保留供工具
@@ -595,8 +611,9 @@ function makeTraeAgentStub(content, rel) {
         /^tools:\s*\[([^\]]*)\]\s*$/m,
         (_, list) => `tools: ${list.split(',').map((s) => s.trim()).join(', ')}`,
       )
-      .replace(/^model:\s*inherit\s*$/m, '');
-    front = `---\n${fm.replace(/\n+$/, '\n')}---`;
+      .replace(/^model:\s*inherit[ \t]*(?:\r?\n|$)/gm, '')
+      .replace(/\n+$/, '');
+    front = fm ? `---\n${fm}\n---` : '---\n---';
   } else {
     front = `---\nname: ${name}\ndescription: 引用存根（完整内容见 .ai/agents/${rel}）\n---`;
   }

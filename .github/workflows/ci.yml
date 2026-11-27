@@ -44,7 +44,7 @@ jobs:
           # 由 .ai/sync.mjs 在派生/校验时强制、.ai/tests/ai-paths.test.mjs 回归锁定（ADR 2026-11-17-01）；
           # GitHub Actions YAML 难以共享文件常量，故内联。.zcode/、.codebuddy/ 为 localOnly 本机目标，不入清单。
           AI_PATHS=(
-            .ai .ai-memory .github .claude .cursor .gemini .trae .qoder .gitignore
+            .ai .ai-memory .github .claude .cursor .gemini .agents .trae .qoder .gitignore
             AGENTS.md CLAUDE.md GEMINI.md CODEBUDDY.md
             ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md'
           )

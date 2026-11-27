@@ -1,4 +1,5 @@
----name: module-inspector-fe
+---
+name: module-inspector-fe
 description: code-review 蜂群前端模块审查员（四路并行 B 双端实现）。engine.code-review: manual；审前端渲染/状态副作用/边界/XSS/资源/令牌规范，禁读 backend 实现，结论回传 leader。
 tools: [read_file, write_file, run_shell_command, grep_search, glob]
 ---

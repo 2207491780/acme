@@ -18,6 +18,7 @@ node .ai/sync.mjs
 | `claude/` | Claude Code | `.claude/` | 目录说明 + 私有配置 |
 | `cursor/` | Cursor | `.cursor/` | 目录说明 + 私有规则等；agents/skills/commands 由公共池派生为引用存根（ADR 2026-11-18-01） |
 | `gemini/` | Gemini CLI | `.gemini/` | 目录说明 + 私有配置（命令为手工 TOML） |
+| `antigravity/` | Google Antigravity | `.agents/` | 目录说明 + `skills.json`（官方 JSON 配置直引 `.ai/skills`，ADR 2026-11-27-05） |
 | `trae/` | 字节 Trae | `.trae/` | 目录说明 + 私有配置 |
 | `qoder/` | 阿里 Qoder | `.qoder/` | 目录说明 + 私有配置 |
 | `github/` | GitHub Copilot | `.github/` | 目录说明 + instructions |

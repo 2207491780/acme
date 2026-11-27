@@ -41,7 +41,7 @@ test('should_keep_ci_inline_ai_paths_identical_to_single_list', async () => {
 
 test('should_cover_core_entries_and_exclude_retired_and_local_only_paths', async () => {
   const list = parseList(await readFile(LIST_FILE, 'utf8'));
-  for (const p of ['.ai', '.ai-memory', '.github', '.gitignore', 'AGENTS.md', 'CLAUDE.md', ':(glob)**/AGENTS.md', ':(glob)**/CLAUDE.md']) {
+  for (const p of ['.ai', '.ai-memory', '.github', '.agents', '.gitignore', 'AGENTS.md', 'CLAUDE.md', ':(glob)**/AGENTS.md', ':(glob)**/CLAUDE.md']) {
     assert.ok(list.includes(p), `清单应包含 ${p}`);
   }
   const joined = list.join('\n');

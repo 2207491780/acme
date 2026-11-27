@@ -1,4 +1,5 @@
----name: impact-oracle
+---
+name: impact-oracle
 description: code-review 蜂群影响面预言员（四路并行 C 链路与影响）。engine.code-review: manual；评估链式副作用/发布顺序/灰度回滚，不列举评审范围外下游，结论回传 leader。
 tools: [read_file, write_file, run_shell_command, grep_search, glob]
 ---

@@ -12,6 +12,7 @@
 .claude
 .cursor
 .gemini
+.agents
 .trae
 .qoder
 .gitignore

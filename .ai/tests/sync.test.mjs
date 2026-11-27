@@ -418,6 +418,7 @@ test('should_flag_orphan_by_default_and_skip_when_orphanDetection_false', async 
 test('should_map_claude_tool_names_for_gemini_agents_on_derive', async (t) => {
   // Gemini 子代理适配（ADR 2026-11-14-24）：派生到 .gemini/agents 时 frontmatter 工具名映射为 Gemini 内置名，
   // model: inherit 移除（Gemini 缺省即继承）；Claude 目标保持原样；正文不受映射影响。
+  // 同时锁定 frontmatter 边界（首行严格为 `---\n`、闭合严格为 `\n---\n`、无 model: inherit 与中间行移除均不损坏 YAML）。
   const { repo } = await fixture(t);
   await putSwarm(repo, 'ai-coding-dev');
   await put(
@@ -425,13 +426,81 @@ test('should_map_claude_tool_names_for_gemini_agents_on_derive', async (t) => {
     '.ai/agents/ai-coding-dev/helper.md',
     '---\nname: helper\ndescription: d\ntools: [Read, Write, Edit, Grep, Glob, Bash]\nmodel: inherit\n---\n\nBody mentions Read and Grep words.\n',
   );
+  await put(
+    repo,
+    '.ai/agents/ai-coding-dev/no-model.md',
+    '---\nname: no-model\ndescription: no model field\ntools: [Read, Grep]\n---\n\nNo model body.\n',
+  );
+  await put(
+    repo,
+    '.ai/agents/ai-coding-dev/mid-model.md',
+    '---\nname: mid-model\nmodel: inherit\ndescription: model in middle\ntools: [Edit]\n---\n\nMid model body.\n',
+  );
   succeeds(run(repo));
   const gemini = await readFile(join(repo, '.gemini/agents/helper.md'), 'utf8');
-  assert.match(gemini, /tools: \[read_file, write_file, replace, grep_search, glob, run_shell_command\]/);
+  assert.match(gemini, /^---\nname: helper\ndescription: d\ntools: \[read_file, write_file, replace, grep_search, glob, run_shell_command\]\n---\n\n/);
   assert.doesNotMatch(gemini, /^model:/m);
   assert.match(gemini, /Body mentions Read and Grep words\./);
+
+  const geminiNoModel = await readFile(join(repo, '.gemini/agents/no-model.md'), 'utf8');
+  assert.match(geminiNoModel, /^---\nname: no-model\ndescription: no model field\ntools: \[read_file, grep_search\]\n---\n\n/);
+
+  const geminiMidModel = await readFile(join(repo, '.gemini/agents/mid-model.md'), 'utf8');
+  assert.match(geminiMidModel, /^---\nname: mid-model\ndescription: model in middle\ntools: \[replace\]\n---\n\n/);
+
+  const traeNoModel = await readFile(join(repo, '.trae/agents/no-model.md'), 'utf8');
+  assert.match(traeNoModel, /^---\nname: no-model\ndescription: no model field\ntools: Read, Grep\n---\n\n/);
+
+  const traeMidModel = await readFile(join(repo, '.trae/agents/mid-model.md'), 'utf8');
+  assert.match(traeMidModel, /^---\nname: mid-model\ndescription: model in middle\ntools: Edit\n---\n\n/);
+
   const claude = await readFile(join(repo, '.claude/agents/helper.md'), 'utf8');
   assert.match(claude, /tools: \[Read, Write, Edit, Grep, Glob, Bash\]/);
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_sort_rules_deterministically_with_posix_relative_paths', async (t) => {
+  // 跨平台排序回归：POSIX 相对路径 `/` (ASCII 47) < `0` (ASCII 48)，在 Windows 下也不受 `\` (ASCII 92) 影响。
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/rules/a0.md', '# Rule a0\n');
+  await put(repo, '.ai/rules/a/01.md', '# Rule a-nested\n');
+  succeeds(run(repo));
+  const combined = await readFile(join(repo, '.ai/RULES.md'), 'utf8');
+  const nestedIdx = combined.indexOf('# Rule a-nested');
+  const siblingIdx = combined.indexOf('# Rule a0');
+  assert.ok(nestedIdx !== -1 && siblingIdx !== -1 && nestedIdx < siblingIdx, 'a/01.md 应按 POSIX 路径排在 a0.md 之前');
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_mark_scoped_claude_stub_with_derived_mark', async (t) => {
+  const { repo } = await fixture(t);
+  await put(repo, '.ai/scopes/project/AGENTS.md', '# Project scope\n');
+  succeeds(run(repo));
+  const claudeStub = await readFile(join(repo, 'project/CLAUDE.md'), 'utf8');
+  assert.match(claudeStub, /^@AGENTS\.md\n/);
+  assert.match(claudeStub, /派生自 \.ai\/scopes\/project\/AGENTS\.md/);
+  succeeds(run(repo, ['--check']));
+});
+
+test('should_derive_antigravity_workspace_config_and_flag_orphans', async (t) => {
+  // Antigravity 官方对齐（ADR 2026-11-27-05）：.ai/tools/antigravity/ → .agents/（skills.json 原样派生、
+  // ANTIGRAVITY.md 自动前置「生成产物」标头并带派生标记、目录纳入孤儿检测）。
+  const { repo } = await fixture(t);
+  const skillsJson = '{\n  "entries": [\n    {\n      "path": ".ai/skills"\n    }\n  ]\n}\n';
+  await put(repo, '.ai/tools/antigravity/skills.json', skillsJson);
+  await put(repo, '.ai/tools/antigravity/ANTIGRAVITY.md', '# .agents/ — Google Antigravity\n');
+  succeeds(run(repo));
+  const derivedJson = await readFile(join(repo, '.agents/skills.json'), 'utf8');
+  assert.equal(derivedJson, skillsJson, 'skills.json 应原样派生且保持合法 JSON');
+  assert.deepEqual(JSON.parse(derivedJson), { entries: [{ path: '.ai/skills' }] });
+  const placard = await readFile(join(repo, '.agents/ANTIGRAVITY.md'), 'utf8');
+  assert.match(placard, /生成产物/);
+  assert.match(placard, /派生自 \.ai\/tools\/antigravity\/ANTIGRAVITY\.md/);
+  succeeds(run(repo, ['--check']));
+  // 孤儿检测覆盖 .agents/
+  await put(repo, '.agents/stale.md', '# stale\n\n<!-- 派生自 .ai/tools/antigravity/gone.md -->\n');
+  fails(run(repo, ['--check']), /孤儿派生文件 \.agents\/stale\.md/);
+  await rm(join(repo, '.agents/stale.md'));
   succeeds(run(repo, ['--check']));
 });
 
