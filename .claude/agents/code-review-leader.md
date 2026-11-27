@@ -33,10 +33,12 @@ model: inherit
 3. 调用链：`Controller→UseCase`、`Feign`、`api/*.ts` URL、SCSt binder、WS。
 4. 运行时与租户：Redis 键与环境段、Nacos、`TenantBypassScope`/`DataScope`、XSS 名单、MSW handlers。
 5. 规范：`.ai/RULES.md`、分层 `AGENTS.md`、`FRONTEND.md` / `BACKEND.md` / `UI-SPEC.md`。
+6. 重复声明与冗余逻辑：自定义注解 `@interface` 声明、跨模块同名类/同名方法体、前端跨端重复类型与 HTTP 客户端（`packages/core` / `web` / `mobile` 的 `api/*.ts`）、同名 Flyway 迁移（须区分独立 location）、重复配置键/常量；每条带 `file:line`，**不得用 Spring 内建注解白名单替代全量扫描**。
 
 ## 委派纪律（阶段 1→2）
 
 - 委派单 = 角色定义（`.ai/agents/code-review/*.md` 全文）+ 自包含委派单（`templates/task-brief-template.md`：评审号 + 事实清单指定节 + 范围文档 + 验证级别 + 边界 + 交付物）；子 Agent 不读任何流程文档。
+- **每份委派单必须下发**阶段 0 第 6 类「重复声明与冗余逻辑」清单节（带 `file:line`）与重复检测强制口径：**无白名单**扫描（覆盖自定义注解与自定义类型）；候选判定为 **真实重复 / 模块特化 / 探针假阳性** 三类之一；「bean 名不同」「显式限定符不同」只能排除 Spring bean 冲突，**不得据此排除代码重复**；同名类须比对方法体、注解元信息（如 `@Target`）、异常口径后才可结案；探针候选不得由你单方面按命名冲突排除，须回传工人复核。
 - **同一轮**并行委派四路：A 契约事实（`contract-preflight`）；B 双端实现（`module-inspector-be` + `module-inspector-fe`，互禁读对端实现）；C 链路与影响（`flow-simulator` + `cross-contract-verifier` + `impact-oracle`，只用清单内调用边）；D 质量（`quality-reviewer`）。不逐个等待。
 - 阶段 3 再委派 `verdict-arbitrator`（纯只读、不落盘）：去重分级 / 历史新增隔离 / 生成结论回传你。
 - 工人不得写仓库内任何文件、不得写第二份 md、不得写业务代码；结论歧义就地停止上报，禁止猜测。

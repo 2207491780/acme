@@ -40,6 +40,7 @@ leader 用 Read/Grep/Glob 静态读取以下**固定事实源**，逐条形成�
 3. 调用链：`Controller→UseCase`、`Feign`、`api/*.ts` URL、SCSt binder、WS。
 4. 运行时与租户：Redis 键与环境段、Nacos、`TenantBypassScope`/`DataScope`、XSS 名单、MSW handlers。
 5. 规范：`.ai/RULES.md`、分层 `AGENTS.md`、`FRONTEND.md` / `BACKEND.md` / `UI-SPEC.md`。
+6. 重复声明与冗余逻辑：自定义注解 `@interface` 声明、跨模块同名类/同名方法体、前端跨端重复类型与 HTTP 客户端（`packages/core` / `web` / `mobile` 的 `api/*.ts`）、同名 Flyway 迁移（须区分独立 location）、重复配置键/常量；每条带 `file:line`，**不得用 Spring 内建注解白名单替代全量扫描**。
 
 清单缺失的项写「基线缺口」并附检索范围；任何角色**不得自行推导补充**清单外链路或事实。
 
@@ -50,7 +51,7 @@ leader 用 Read/Grep/Glob 静态读取以下**固定事实源**，逐条形成�
 | A 契约事实 | `contract-preflight` | 契约质量、破坏性/静默变更、事实清单复核；形成带 `file:line` 的**事实清单** |
 | B 双端实现 | `module-inspector-be`、`module-inspector-fe` | 后端正确性/边界/异常/并发/事务/安全/性能/时序；前端渲染/状态副作用/边界/XSS/资源/令牌规范；**互禁读对端实现** |
 | C 链路与影响 | `flow-simulator`、`cross-contract-verifier`、`impact-oracle` | 沿事实清单推演时序/异常断层/补偿/幂等边界/消息顺序；三向一致/共享字段/隐式依赖/超时熔断；链式副作用/发布顺序/灰度回滚。**不构造清单外链路、不自行推导调用关系、不列举范围外下游** |
-| D 质量 | `quality-reviewer` | 命名/复杂度/重复/分层边界/注释 TODO/i18n/设计令牌/可维护性 |
+| D 质量 | `quality-reviewer` | 命名/复杂度/重复声明与冗余逻辑（无白名单扫描 + 三类判定）/分层边界/注释 TODO/i18n/设计令牌/可维护性 |
 
 四路之外，`verdict-arbitrator` 在阶段 3 调用，纯只读、不落盘。委派单模板见 `.ai/skills/code-review/templates/task-brief-template.md`；信息隔离边界由 leader 在每份委派单中写死。
 
@@ -61,6 +62,12 @@ leader 用 Read/Grep/Glob 静态读取以下**固定事实源**，逐条形成�
 - **L2 探针**：高危怀疑点写 `.ai-tmp/code-review/<REVIEW-ID>/probe*.mjs`（跨平台），`node` 运行，结束用 `run.mjs --cleanup` 经 `fs.rm` 删除。
 - **分级**：认证 / 租户 / 事务 / MQ 幂等顺序 / 双形态 / DTO 序列化 → L0 + L1 + 必要时 L2；普通 CRUD → L0 + L1；纯文档样式 → L0。
 - L1/L2 的**命令与输出摘录写入唯一 md 第 6 节**；失败或超时标 `SKIP(原因)`，不得静默略过。
+
+**重复检测强制口径（防漏检）**：
+
+- **无白名单扫描**：重复检测必须覆盖自定义注解 `@interface` 与自定义类型，不得仅用 Spring 内建注解白名单或已知类清单过滤候选；候选一律按 `file:line` 登记。
+- **三类判定**：每个候选必须判定为 **真实重复 / 模块特化 / 探针假阳性** 之一并写出依据。「bean 名不同」「显式限定符不同」**只能**排除 Spring bean 冲突，**不得据此排除代码重复本身**；同名类必须进一步比对方法体、注解元信息（如 `@Target`）、异常口径差异后才可结案。
+- **复核归属**：探针报出的候选（如 `RequirePermissionInterceptor`×4）不得由 leader 单方面按命名冲突排除，须回传 `quality-reviewer` / 对应 `module-inspector` 复核，按三类判定后再写入结论与第 7 节轮次记录。
 
 ## 唯一事实源约束
 

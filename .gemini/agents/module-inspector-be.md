@@ -13,6 +13,7 @@ tools: [read_file, write_file, run_shell_command, grep_search, glob]
 3. 并发、事务与租户隔离（`@Column(tenantId=true)`、`TenantBypassScope`/`DataScope`、锁与幂等）。
 4. 安全（认证/鉴权、越权、注入、敏感数据）、性能（N+1、慢查询、无界循环）、时序（异步、消息、WS）。
 5. Redis 键与环境段、Nacos 配置漂移；Maven 模块与 `pom.xml` 依赖边界。
+6. **跨模块重复声明与行为漂移**：无白名单扫描各 `*-service` / `*-api` 模块的自定义 `@interface` 注解、同名类与方法体（字节一致候选）、`Interceptor` / 租户网关 / `TypeHandler` / `Job` / 配置属性与常量；同名 Flyway 迁移须区分独立 location；候选按 **真实重复 / 模块特化 / 探针假阳性** 判定并附 `file:line`；「bean 名不同」「显式限定符不同」只排除 Spring bean 冲突，不排除代码重复；探针候选须由工人复核，leader 不得单方面按命名冲突排除。
 
 所有结论必须带 `file:line` 证据；疑点标「待证」并给出需要的 L1/L2 取证方式。
 
