@@ -1,4 +1,5 @@
----name: tester
+---
+name: tester
 description: ACME 测试子代理。ai-coding-dev 蜂群流程中按契约编写用例（可按 Bash 白名单自验本轮交付；全量门禁仍由蜂群 leader 统一执行）时由蜂群 leader 委派使用，勿在流程外主动调用。
 tools: [read_file, write_file, replace, grep_search, glob, run_shell_command]
 ---

@@ -41,10 +41,10 @@
 
 ## 5. Gemini CLI / Antigravity（Google）
 
-- **读什么**：根 `GEMINI.md`（引用存根）→ `.ai/RULES.md`；`.gemini/agents/` 下有派生子代理（引擎派生时自动把 frontmatter 工具名映射为 Gemini 内置名，见 ADR 2026-11-14-24）。
-- **冒烟**：问通用测试句；子代理列表应含 `ai-config-editor`（Gemini CLI ≥ v0.24 支持 `.gemini/agents/`）。
-- **维护配置**：说意图（可点名 `ai-config-editor`）。
-- **注意**：Gemini 的自定义命令是 **TOML**——斜杠命令需在 `.ai/tools/gemini/commands/` 手工建 TOML 版（见 GUIDE 案例 5）。
+- **Gemini CLI 读什么**：根 `GEMINI.md`（引用存根）→ `.ai/RULES.md`；`.gemini/agents/` 下有派生子代理（引擎派生时自动把 frontmatter 工具名映射为 Gemini 内置名，见 ADR 2026-11-14-24）；斜杠命令在 `.ai/tools/gemini/commands/*.toml` 手工维护并派生到 `.gemini/commands/`（见 GUIDE 案例 5）。
+- **Antigravity 读什么**：根/分层 `AGENTS.md` + 根 `GEMINI.md`（分层自动向上发现）→ `.ai/RULES.md`；工作区技能通过 `.agents/skills.json` 直接指向 `.ai/skills/`（渐进式自动发现 `ai-config` / `team-leader` / `code-review`，磁盘零重复，见 ADR 2026-11-27-05）。Antigravity 不扫描 `.gemini/agents/` 与 `.gemini/commands/*.toml`，子代理委派由内置/动态 `define_subagent` 配合 `.ai/agents/` 源完成。
+- **冒烟**：问通用测试句；Gemini CLI 子代理列表应含 `ai-config-editor`（≥ v0.24）；Antigravity 会话可用技能列表应自动出现 `ai-config` / `team-leader` / `code-review`。
+- **维护配置**：Gemini CLI 可点名 `ai-config-editor`；Antigravity 直接说意图即可自动触发 `ai-config` 技能。
 
 ## 6. CodeBuddy（腾讯）
 
@@ -88,6 +88,7 @@
 |---|---|---|---|---|
 | Claude Code | `CLAUDE.md` + `.claude/` | ✅ | ✅ | 不必（自动） |
 | Gemini CLI | `GEMINI.md` + `.gemini/` | ✅ | — | 可省 |
+| Antigravity | `AGENTS.md` / `GEMINI.md` + `.agents/` | 内置/动态 | ✅（`skills.json` 直引 `.ai/skills`） | 不必（自动触发 `ai-config` 技能） |
 | CodeBuddy | `CODEBUDDY.md`（`@` 导入）+ `.codebuddy/`（本机 localOnly） | ✅（引用存根） | ✅（引用存根） | **建议加** |
 | Qoder | `AGENTS.md` + `.qoder/` | ✅（引用存根） | ✅（引用存根） | **建议加** |
 | Cursor | `AGENTS.md` + `.cursor/rules/`（纯指针）+ `.cursor/` | ✅（引用存根） | ✅（引用存根） | **建议加** |

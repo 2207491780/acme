@@ -1,4 +1,5 @@
----name: frontend-dev
+---
+name: frontend-dev
 description: ACME 前端开发子代理。ai-coding-dev 蜂群流程中按契约实现 web/desktop/mobile/packages/core 时由蜂群 leader 委派使用，勿在流程外主动调用。
 tools: [read_file, write_file, replace, grep_search, glob, run_shell_command]
 ---

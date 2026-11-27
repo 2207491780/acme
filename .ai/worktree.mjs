@@ -15,8 +15,12 @@ import { basename, join, resolve } from 'node:path';
 
 const MAIN_BRANCH = 'acme-foundation';
 const MIRROR_BRANCH = 'ai-coding-support';
-// GC 宽限期：新建未满此年龄的工作树一律跳过（默认 6h；ADR 2026-11-21-03）
-const GC_MIN_AGE_MS = Number(process.env.ACME_WORKTREE_GC_MIN_AGE_MS ?? 6 * 60 * 60 * 1000);
+// GC 宽限期：新建未满此年龄的工作树一律跳过（默认 6h；ADR 2026-11-21-03）。
+// 非法/空/负值一律回退默认 6h，避免 NaN 令 `ageMs < NaN` 恒为 false 静默失效宽限期保护。
+const DEFAULT_GC_MIN_AGE_MS = 6 * 60 * 60 * 1000;
+const rawGrace = process.env.ACME_WORKTREE_GC_MIN_AGE_MS;
+const parsedGrace = rawGrace !== undefined && rawGrace.trim() !== '' ? Number(rawGrace) : DEFAULT_GC_MIN_AGE_MS;
+const GC_MIN_AGE_MS = Number.isFinite(parsedGrace) && parsedGrace >= 0 ? parsedGrace : DEFAULT_GC_MIN_AGE_MS;
 // 工作树年龄：取 .git/worktrees/<name> 管理目录的创建时间（≈ worktree add 时刻）。
 // 管理目录不可读时按「足够老」处理，走后续 dirty/pushed 判定（不放宽、不加严）。
 const worktreeAgeMs = (dir) => {
@@ -58,18 +62,20 @@ const isPushed = (branch) => {
   }
 };
 
+const samePath = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+
 // 遍历工作树（porcelain 分块；返回 { dir, branch }，主工作树/detached 不在列）。
 const listBranchWorktrees = () =>
   git(['worktree', 'list', '--porcelain'])
-    .split('\n\n')
+    .split(/\r?\n\r?\n/)
     .filter(Boolean)
     .map((block) => {
-      const lines = block.split('\n');
+      const lines = block.split(/\r?\n/);
       const wt = lines.find((l) => l.startsWith('worktree '));
       const br = lines.find((l) => l.startsWith('branch refs/heads/'));
       if (!wt || !br) return null;
       const dir = norm(unquoted(wt.slice('worktree '.length)));
-      if (dir === root) return null; // 主工作树永不触碰
+      if (samePath(dir, root)) return null; // 主工作树永不触碰
       return { dir, branch: br.slice('branch refs/heads/'.length) };
     })
     .filter(Boolean);
@@ -117,7 +123,7 @@ const gcWorktrees = ({ dryRun }) => {
     }
     try {
       git(['worktree', 'remove', dir]);
-      if (branch && !git(['branch', '--list', branch]).includes(branch)) {
+      if (branch && !branchExists(branch)) {
         throw new Error(`分支 ${branch} 在移除工作树后丢失`);
       }
       cleaned.push(`${branch}（${dir}）`);
@@ -226,19 +232,20 @@ if (cmd === 'remove') {
   const name = rest[0];
   if (!name) usage();
   const dir = name.includes('/') ? dirFor(name) : norm(join(root, '.worktrees', name));
-  const blocks = git(['worktree', 'list', '--porcelain']).split('\n\n');
-  const block = blocks.find((b) => b.split('\n').some((l) => l === `worktree ${dir}`));
+  const blocks = git(['worktree', 'list', '--porcelain']).split(/\r?\n\r?\n/);
+  const block = blocks.find((b) =>
+    b.split(/\r?\n/).some((l) => l.startsWith('worktree ') && samePath(norm(unquoted(l.slice('worktree '.length))), dir)),
+  );
   if (!block) {
     console.error(`未找到工作树：${dir}（node .ai/worktree.mjs list 查看）`);
     process.exit(1);
   }
-  const branchLine = block.split('\n').find((l) => l.startsWith('branch refs/heads/'));
+  const branchLine = block.split(/\r?\n/).find((l) => l.startsWith('branch refs/heads/'));
   const branch = branchLine ? branchLine.slice('branch refs/heads/'.length) : '';
   git(['worktree', 'remove', dir]);
   // 防御校验（REQ-20261119-063129/S12 与 S13 期间两次实证）：remove 后分支 ref 必须仍存在，
   // 丢失（如目录硬删竞态）会导致分支指向的提交悬空、后续合并丢失全部工作。
-  const branchStillThere = git(['branch', '--list', branch]).includes(branch);
-  if (branch && !branchStillThere) {
+  if (branch && !branchExists(branch)) {
     console.error(`❌ 防御校验失败：分支 ${branch} 在移除工作树后丢失，请立即检查 .git/refs/heads`);
     process.exit(1);
   }

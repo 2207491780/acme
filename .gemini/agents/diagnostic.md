@@ -1,4 +1,5 @@
----name: diagnostic
+---
+name: diagnostic
 description: ACME 失败诊断子代理（只读归因不改代码）。ai-coding-dev 蜂群流程中测试/门禁失败需归因时由蜂群 leader 委派使用，勿在流程外主动调用。
 tools: [read_file, grep_search, glob]
 ---

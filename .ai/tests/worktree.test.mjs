@@ -154,6 +154,20 @@ test('should_keep_new_worktree_within_grace_period_when_gc', async (t) => {
   assert.match(r.stdout, /宽限期/, '保留原因应写明宽限期');
 });
 
+test('should_fallback_to_default_grace_period_when_env_is_invalid', async (t) => {
+  // 边界回归：ACME_WORKTREE_GC_MIN_AGE_MS 为非数字/空串/负数时回退默认 6h，防止 NaN 静默禁用宽限期。
+  const { repo, commitInWorktree, mergeAndPush } = await makeRepoWithOrigin(t);
+  run(repo, ['add', 'feat/0-bad-env']);
+  commitInWorktree('feat/0-bad-env', 'feat: bad env');
+  mergeAndPush('feat/0-bad-env');
+  for (const bad of ['not-a-number', '', '-100']) {
+    const r = run(repo, ['gc'], { ACME_WORKTREE_GC_MIN_AGE_MS: bad });
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(existsSync(join(repo, '.worktrees/feat-0-bad-env')), `非法值「${bad}」下新工作树必须保留`);
+    assert.match(r.stdout, /宽限期/);
+  }
+});
+
 test('should_keep_dirty_worktree_when_gc', async (t) => {
   const { repo, writeFileIn } = await makeRepoWithOrigin(t);
   run(repo, ['add', 'feat/2-dirty']);

@@ -1,4 +1,5 @@
----name: contract-preflight
+---
+name: contract-preflight
 description: code-review 蜂群契约预检员（四路并行 A 契约事实）。engine.code-review: manual；审契约质量与破坏性/静默变更，复核并形成带 file:line 的事实清单，结论回传 leader。
 tools: [read_file, write_file, run_shell_command, grep_search, glob]
 ---

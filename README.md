@@ -89,7 +89,7 @@ acme/
 │   ├── apps/backend/             # Java 25 多模块 Maven 工程 / multi-module Maven backend
 │   ├── env-stack/                # k8s manifests、部署脚本 / k8s manifests and deploy scripts
 │   └── ui-prototype/             # 已归档的 UI 原型专区 / archived UI prototype zone
-└── .claude/ .cursor/ .gemini/ .trae/ .qoder/ .github/   # ⚙️ 全部为生成产物 / generated only
+└── .claude/ .cursor/ .gemini/ .agents/ .trae/ .qoder/ .github/  # ⚙️ 全部为生成产物 / generated only
 ```
 
 ## 快速开始 / Quick Start
@@ -148,7 +148,7 @@ node .ai/worktree.mjs add feat/<简述>
 | Anysphere | Cursor | `.cursor/rules/*.mdc` + `AGENTS.md` |
 | GitHub | Copilot | `.github/copilot-instructions.md` |
 | OpenAI | Codex | `AGENTS.md` |
-| Google | Gemini CLI / Antigravity | `GEMINI.md` + `.gemini/` |
+| Google | Gemini CLI / Antigravity | `GEMINI.md` + `.gemini/` / `.agents/` |
 | 腾讯 / Tencent | CodeBuddy | `CODEBUDDY.md` |
 | 字节 / ByteDance | Trae | `.trae/rules/project_rules.md` |
 | 阿里 / Alibaba | Qoder | `.qoder/rules/project_rules.md` |
