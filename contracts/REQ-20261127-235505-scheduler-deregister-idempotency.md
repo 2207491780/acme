@@ -57,17 +57,17 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 验收标准
 
-- AC-1 given: scheduler 已注册一次性任务（jobKey=wf-timer:t1） when: 经真实 MVC 调用 DELETE /internal/v1/scheduler/jobs/wf-timer:t1（internal token） then: HTTP 200、Result.success=true、任务定义按 jobKey 软删（查无）、时间轮条目移除 → {用例名，tester 交付后回填}
-- AC-2 given: jobKey wf-timer:t1 已注销或从未注册 when: 再次 DELETE 同 jobKey then: HTTP 200、Result.success=true（幂等收敛，不抛 NOT_FOUND） → {用例名}
-- AC-3 given: 注销请求命中旧版 scheduler/路由缺失返回的 HTTP 404（非标准信封） when: SchedulerRegistrationClient.unregister 捕获解码异常 then: 按异常携带的 HTTP 状态码 404 判定收敛为幂等成功，不因消息字符串误判；非 404 失败照常上抛 → {用例名}
-- AC-4 given: 注册→注销→再注销全链（嵌入式 PG 集成测试，真实 MVC，禁 mock 假绿） when: 依序 POST 注册、DELETE、DELETE then: 三步全 success，再注销幂等；测试落新增独立测试类 → {用例名}
-- AC-5 given: action 执行成功但 store.markDone 抛 RuntimeException when: gate.execute 同 key 首次调用 then: 抛 BizException(STORE_UNAVAILABLE)、认领不释放（记录维持 P）、action 恰执行一次 → {用例名}
-- AC-6 given: complete 失败后记录维持 P 且未过 claimProcessingTtl when: 同 token 重试 then: 得 BizException(IN_FLIGHT / SYS-11-0002)，不重执行（action 调用计数不变） → {用例名}
-- AC-7 given: 记录 s=D 但 findResult=null when: 同 key execute 走 DUPLICATE 分支 then: 抛 BizException(STORE_UNAVAILABLE / SYS-11-0003)，绝不静默返回 null → {用例名}
-- AC-8 given: 业务合法返回 null（encode 产出 JSON "null" 字面量） when: 首次执行与重复执行 then: 首次返回 null、重复回放 null（不落入 AC-7 异常分支；合法 null 回放回归护栏） → {用例名}
-- AC-9 given: action 抛异常 when: gate.execute then: 认领释放、同 token 重试可重执行（既有 failureReleasesClaimAndAllowsRetry 语义保持） → {用例名}
-- AC-10 given: tryBegin 抛异常 when: gate.execute then: STORE_UNAVAILABLE fail-closed（既有 storeFailureIsFailClosed 保持），既有 9 例单测全绿不回归 → {用例名}
-- AC-11 given: platform-scheduler-service / platform-workflow-service / framework-idempotent（及待确认①批准后的 framework-feign） when: 本机模块级 mvn test（`-pl <模块> -am -B test`） then: 全绿 0 FAIL（SKIP 逐条归因登记；不表述 lint） → {门禁台账}
+- AC-1 given: scheduler 已注册一次性任务（jobKey=wf-timer:t1） when: 经真实 MVC 调用 DELETE /internal/v1/scheduler/jobs/wf-timer:t1（internal token） then: HTTP 200、Result.success=true、任务定义按 jobKey 软删（查无）、时间轮条目移除 → REQ20261127235505SchedulerJobDeregisterIntegrationTest#再注册代理腿（当前 RED=round1 打回项；时间轮移除=backend-dev 落实声明，契约确认⑦）
+- AC-2 given: jobKey wf-timer:t1 已注销或从未注册 when: 再次 DELETE 同 jobKey then: HTTP 200、Result.success=true（幂等收敛，不抛 NOT_FOUND） → REQ20261127235505SchedulerJobDeregisterIntegrationTest#再注销幂等腿
+- AC-3 given: 注销请求命中旧版 scheduler/路由缺失返回的 HTTP 404（非标准信封） when: SchedulerRegistrationClient.unregister 捕获解码异常 then: 按异常携带的 HTTP 状态码 404 判定收敛为幂等成功，不因消息字符串误判；非 404 失败照常上抛 → REQ20261127235505SchedulerRegistrationClientTest（404 收敛/500 上抛/无状态 BizException 上抛三腿）+ REQ20261127235505FeignErrorDecoderHttpStatusTest（状态码载体四腿）
+- AC-4 given: 注册→注销→再注销全链（嵌入式 PG 集成测试，真实 MVC，禁 mock 假绿） when: 依序 POST 注册、DELETE、DELETE then: 三步全 success，再注销幂等；测试落新增独立测试类 → REQ20261127235505SchedulerJobDeregisterIntegrationTest#全链腿
+- AC-5 given: action 执行成功但 store.markDone 抛 RuntimeException when: gate.execute 同 key 首次调用 then: 抛 BizException(STORE_UNAVAILABLE)、认领不释放（记录维持 P）、action 恰执行一次 → REQ20261127235505HttpIdempotentGateCompleteFailureTest#complete 失败腿
+- AC-6 given: complete 失败后记录维持 P 且未过 claimProcessingTtl when: 同 token 重试 then: 得 BizException(IN_FLIGHT / SYS-11-0002)，不重执行（action 调用计数不变） → REQ20261127235505HttpIdempotentGateCompleteFailureTest#P 存续重试腿
+- AC-7 given: 记录 s=D 但 findResult=null when: 同 key execute 走 DUPLICATE 分支 then: 抛 BizException(STORE_UNAVAILABLE / SYS-11-0003)，绝不静默返回 null → REQ20261127235505HttpIdempotentGateCompleteFailureTest#s=D 空结果腿
+- AC-8 given: 业务合法返回 null（encode 产出 JSON "null" 字面量） when: 首次执行与重复执行 then: 首次返回 null、重复回放 null（不落入 AC-7 异常分支；合法 null 回放回归护栏） → REQ20261127235505HttpIdempotentGateCompleteFailureTest#合法 null 回放腿
+- AC-9 given: action 抛异常 when: gate.execute then: 认领释放、同 token 重试可重执行（既有 failureReleasesClaimAndAllowsRetry 语义保持） → 既有 HttpIdempotentGateTest#failureReleasesClaimAndAllowsRetry + CompleteFailureTest 复证腿
+- AC-10 given: tryBegin 抛异常 when: gate.execute then: STORE_UNAVAILABLE fail-closed（既有 storeFailureIsFailClosed 保持），既有 9 例单测全绿不回归 → 既有 HttpIdempotentGateTest#storeFailureIsFailClosed + CompleteFailureTest 复证腿
+- AC-11 given: platform-scheduler-service / platform-workflow-service / framework-idempotent / framework-feign（确认⑥入批） when: 本机模块级 mvn test（`-pl <模块> -am -B test`） then: 全绿 0 FAIL（SKIP 逐条归因登记；不表述 lint） → {门禁台账，阶段三}
 
 ## 变更清单（差异契约）
 
@@ -103,8 +103,25 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-DONE           # 2026-11-28 confirmed（用户对话确认⑥）；worktree 已创建；委派单备妥待主线程 spawn
-- round: 0
-- 门禁台账：未开跑（阶段一收尾）
-- 委派历史：暂无（backend-dev / tester 委派单已交主线程，spawn 顺序由主线程调度）
-- 升级记录：暂无
+- phase: II-DEV           # 2026-11-28 confirmed→worktree 已建→两单已 spawn；tester 已交付，backend-dev 打回 round 1
+- round: 1                # backend-dev 连续修复轮次（AC-1 真实违约 delta 打回）
+- 门禁台账：未开跑（阶段二进行中；tester 自验 11 项场景 GREEN/AC-1 RED 见委派历史）
+- 委派历史：
+  - tester: 已交付——4 新增测试类（REQ20261127235505 前缀：SchedulerJobDeregisterIntegrationTest /
+    SchedulerRegistrationClientTest / HttpIdempotentGateCompleteFailureTest / FeignErrorDecoderHttpStatusTest），
+    AC-2~AC-10 映射齐（11 项场景 GREEN，含裁决③撞键结构化判定三腿反例）；AC-1 RED 判定为真实契约违约。
+  - backend-dev: 打回(round 1)——delta 单「AC-1 再注册撞全列唯一键 500」。
+- 升级记录：
+  - [2026-11-28] AC-1 RED 裁决（leader，tester 证据两轮确定性复现 + TL 只读核验）：根因=注销为 Flex 逻辑删
+    （AuditBase isLogicDelete，行物理保留）而 `V1__init_schema.sql:35` uk_sch_job_definition_key 为全列唯一
+    → 再注册 INSERT 必撞；`SchedulerKernel.registerOneShot` 撞键检查被逻辑删自动过滤（deleted=false）看不到软删行
+    → 500 SYS-00-0006。裁决=方向 A「复活软删行」，范围收窄至内部一次性注册路径（jobKey=wf-timer:{timerJobId}
+    确定性键，注销→再注册是协议生命周期常态，复活即正确语义）；否决 B（偏离契约钉死「软删、执行历史保留」，
+    且孤儿化 sch_job_execution.job_id 引用面）、否决 C（需迁移，migrations:{} 冻结，除非 A 证实不可行再经用户走范围变更）。
+    同型既有隐患登记不修（不顺手修无关项）：管理面 JobUseCase.create 对「已删键重建」同样 500（先 admin 删后同键重建），
+    待登记整改方案另批。
+  - [2026-11-28] tester 知情项①：自验环境修复执行了 `mvn -pl acme-framework/framework-feign install -DskipTests`
+    （.m2 快照早于 worktree 新增 RemoteCallException；flex-test-assembly 既定 .m2 刷新口径，非验证性跑测，
+    不计入自验白名单违规，登记备查；后续同类需求先报 TL）。②机械勘误备案：ErrorCode 接口=2 抽象方法
+    （code/defaultMessage；HttpStatusAware 为独立接口）；SchedulerRegistrationClient FQN=
+    com.acme.platform.workflow.infrastructure.client（委派单原口径一致，无误导）。
