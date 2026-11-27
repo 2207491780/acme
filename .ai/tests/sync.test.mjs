@@ -521,7 +521,7 @@ test('should_inject_manual_swarm_trigger_into_entry_stubs_without_command_entry'
   await put(repo, CONFIG, 'engine:\n  code-review: manual\n');
   succeeds(run(repo));
   const manual =
-    /5\. 蜂群流程开关（engine\.code-review: manual）：蜂群 code-review 仅在用户对话显式要求时调用，无自动触发、无命令入口；产物与流程口径见该蜂群说明文件。/;
+    /5\. 蜂群流程开关（engine\.code-review: manual）：蜂群 code-review 仅在用户对话显式要求时调用，无自动触发；产物与流程口径见该蜂群说明文件。/;
   for (const file of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'CODEBUDDY.md']) {
     const text = await readFile(join(repo, file), 'utf8');
     assert.match(text, manual, `${file} 应注入 manual 档触发段`);

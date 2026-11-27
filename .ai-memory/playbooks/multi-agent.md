@@ -1,7 +1,7 @@
 # 多代理契约开发流程手册（multi-agent / 蜂群 leader 宪法）
 
 > 触发：蜂群触发段（`engine.ai-coding-dev`，文案口径 `engine.<蜂群名>`）+ `.ai/skills/team-leader/SKILL.md` + `/req` 命令。
-> 开关三档：`auto`=功能开发类任务自动触发；`always`=所有产生业务代码的开发任务一律走流程；`never`=停用（入口文件仅存档，勿主动调用；配置缺省视为 `never`，不注入触发段）。
+> 开关档位：`auto`=功能开发类任务自动触发；`always`=所有产生业务代码的开发任务一律走流程；`never`=停用（入口文件仅存档，勿主动调用；配置缺省视为 `never`，不注入触发段）；`manual`=不自动触发，仅用户显式要求（点名蜂群或 `/req` 命令）时进入。
 > 取舍与背景见 `.ai-memory/decisions/2026-11-14-19-multi-agent-contract-workflow.md`，蜂群 key 化改造见 `.ai-memory/decisions/2026-11-26-01-agent-swarm-folders.md`；执行卡（速览版）见 `.ai/skills/team-leader/SKILL.md`。
 
 你是蜂群 leader（调度员 + 守门员；旧称 Team Leader）。行动形状固定：**读契约状态 → 执行当前阶段 → 写回状态 → 报告**。

@@ -259,7 +259,7 @@ const CONFIG_DEFAULTS = {
 /** engine 固定键：其余键必须是 .ai/agents/ 下的蜂群名（见 listSwarmNames / validateConfig）。 */
 const FIXED_ENGINE_KEYS = new Set(['entryMode', 'orphanDetection', 'rulesBudgetBytes']);
 /** 蜂群触发模式档位（auto=功能开发类；always=所有产出业务代码的任务；never=停用；
- *  manual=仅用户对话显式要求时调用，无自动触发、无命令入口，如 code-review 评审蜂群）。 */
+ *  manual=仅用户对话显式要求时调用，无自动触发——命令入口有无属蜂群自身属性，以其说明文件为准）。 */
 const SWARM_TRIGGER_MODES = ['auto', 'always', 'never', 'manual'];
 
 /** 极简 YAML 子集解析：仅两层标量映射 + 注释；拒绝数组/Tab/多行/锚点等未支持语法（无外部依赖）。 */
@@ -492,7 +492,7 @@ function buildSwarmTrigger(engine) {
       // 用途说明只登记在 .ai/agents/AGENT-POOL.md；触发段不写蜂群专属用途，避免新增蜂群时误标。
       if (mode === 'auto') return `${head}：蜂群 ${name} 的功能开发类任务自动按其四阶段契约流程执行——${refs}。`;
       if (mode === 'always') return `${head}：凡会产生业务代码的开发任务一律按蜂群 ${name} 的四阶段契约流程执行——${refs}。`;
-      if (mode === 'manual') return `${head}：蜂群 ${name} 仅在用户对话显式要求时调用，无自动触发、无命令入口；产物与流程口径见该蜂群说明文件。`;
+      if (mode === 'manual') return `${head}：蜂群 ${name} 仅在用户对话显式要求时调用，无自动触发；产物与流程口径见该蜂群说明文件。`;
       return `${head}：蜂群 ${name} 的四阶段契约流程已停用，开发任务按常规方式执行——${refs}，勿主动调用。`;
     })
     .join('\n');

@@ -11,7 +11,7 @@
 .ai/
 ├── ARCHITECTURE.md # 本文件（体系唯一权威说明）
 ├── GUIDE.md       # 使用指南（9 个实操案例 + 故障排查）
-├── TUTORIAL.md    # 分工具教程（11 类工具的入口、冒烟测试、维护方式）
+├── TUTORIAL.md    # 分工具教程（10 节：9 个具体工具 + AGENTS.md 标准族）
 ├── PROMPTS.md     # 提示词案例库（21 条让 AI 自维护的指令 + 验收核对单）
 ├── sync.mjs       # 派生引擎：node .ai/sync.mjs（--check 为校验模式）
 ├── worktree.mjs   # 开发工作树管理：node .ai/worktree.mjs add|remove|list（口径见 playbooks/parallel-dev.md）
@@ -23,8 +23,8 @@
 ├── skills/        # 跨工具技能公共池（格式见 SKILL-POOL.md）
 ├── commands/      # 跨工具命令公共池（格式见 COMMAND-POOL.md）
 ├── tools/         # 各工具专属配置源（用法见 TOOL-SOURCES.md）
-├── env/           # 运行环境与 MCP 连接定义 local/cloud-dev/cloud-test/cloud-prod（AI 按需读取，见 ENV-GUIDE.md）
-├── ci/            # CI/CD 工作流源 → .github/workflows/（ci / cd / ai-rules-sync，见 CI-GUIDE.md）
+├── env/           # 运行环境与 MCP 连接定义 local/cloud-dev/cloud-prod（AI 按需读取，见 ENV-GUIDE.md）
+├── ci/            # CI 门禁工作流源（仅 ci.yml）→ .github/workflows/（发布已本地化，见 CI-GUIDE.md）
 ├── tests/         # 回归测试（引擎 / 钩子 / 镜像预检 / 工作树）：node --test ".ai/tests/*.test.mjs"（CI ai-config 作业运行）
 └── hooks/         # git 钩子：pre-commit（AI 配置完整性）/ commit-msg（提交规范）/ pre-push（main 保护、任务分支不推远端、镜像预检、强推拦截）+ mirror-check.mjs；node .ai/hooks/enable.mjs 启用
 ```
@@ -78,9 +78,9 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | `engine.entryMode` | `stub` \| `symlink` | `stub` | 根部/分层入口默认形态；CLI `--links` / `AI_SYNC_LINK=1` 优先（强制 symlink），无符号链接权限时自动降级 stub |
 | `engine.orphanDetection` | 布尔 | `true` | 是否在 sync/--check 扫描工具目录孤儿派生文件；关闭会削弱联动防线 |
 | `engine.rulesBudgetBytes` | 正整数 | `8192` | `RULES.md` 拼接后的字节预算上限 |
-| `<蜂群名>`（动态键，如 `ai-coding-dev`、`code-review`） | `auto` \| `always` \| `never` \| `manual` | `never`（缺省不注入触发段） | 蜂群触发开关：键名必须对应 `.ai/agents/<蜂群名>/` 目录（未知键报错）；auto=功能开发类任务自动触发；always=所有会产出业务代码的开发任务；never=停用勿主动调用；**manual=仅在用户对话显式要求时调用，无自动触发、无命令入口；产物与流程口径见该蜂群说明文件**（如 `code-review` 评审蜂群）。每个蜂群键由引擎注入一条入口存根触发段（从编号 5 递增，不占 RULES.md 预算）；auto/always/never 流程源 `skills/team-leader/` + `.ai-memory/playbooks/multi-agent.md`，manual 流程源 `skills/code-review/SKILL.md`（取舍见 ADR 2026-11-14-19，key 化见 ADR 2026-11-26-01，manual 档与双蜂群并存见 ADR 2026-11-26-02） |
+| `<蜂群名>`（动态键，如 `ai-coding-dev`、`code-review`） | `auto` \| `always` \| `never` \| `manual` | `never`（缺省不注入触发段） | 蜂群触发开关：键名必须对应 `.ai/agents/<蜂群名>/` 目录（未知键报错）；auto=功能开发类任务自动触发；always=所有会产出业务代码的开发任务；never=停用勿主动调用；**manual=仅在用户对话显式要求时调用，无自动触发；命令入口有无与产物口径以该蜂群说明文件为准**（如 `code-review` 评审蜂群：无命令入口；`ai-coding-dev` 若设 manual，`/req` 仍可用）。每个蜂群键由引擎注入一条入口存根触发段（从编号 5 递增，不占 RULES.md 预算）；auto/always/never 流程源 `skills/team-leader/` + `.ai-memory/playbooks/multi-agent.md`，manual 流程源 `skills/code-review/SKILL.md`（取舍见 ADR 2026-11-14-19，key 化见 ADR 2026-11-26-01，manual 档与双蜂群并存见 ADR 2026-11-26-02） |
 
-当前仓库并存两个蜂群：`ai-coding-dev: auto`（功能开发，四阶段契约流程）与 `code-review: manual`（全面代码评审，仅用户显式要求时调用）。`manual` 档**不创建任何命令入口**（无 `/review`、无 ZCode/各工具命令指针），触发段不含 leader/手册/命令引用，也不写死任何蜂群专属产物语义——具体产物与流程以该蜂群说明文件为准。其中 `code-review` 蜂群（而非 manual 档通用语义）不产生 REQ、不写第二份 md，唯一入库产物为 `contracts/<REVIEW-ID>.md`。完整规格见 `.ai/skills/code-review/SKILL.md` 与 ADR 2026-11-26-02。
+当前仓库并存两个蜂群：`ai-coding-dev: auto`（功能开发，四阶段契约流程）与 `code-review: manual`（全面代码评审，仅用户显式要求时调用）。其中 `code-review` 蜂群的 manual 档**不创建任何命令入口**（无 `/review`、无 ZCode/各工具命令指针），触发段不含 leader/手册/命令引用，也不写死任何蜂群专属产物语义——具体产物与流程以该蜂群说明文件为准。其中 `code-review` 蜂群（而非 manual 档通用语义）不产生 REQ、不写第二份 md，唯一入库产物为 `contracts/<REVIEW-ID>.md`。完整规格见 `.ai/skills/code-review/SKILL.md` 与 ADR 2026-11-26-02。
 
 **环境上下文（`environment.*`）**——不是引擎开关，是当前运行环境定义文件的指针；AI 在调试任务前读取所指 `.ai/env/` 定义，切换环境时改本文件并重跑 sync：
 
@@ -118,7 +118,8 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 | 工作流 | 触发 | 职责 |
 |---|---|---|
 | `ci.yml` | 全分支 push / PR | 门禁：AI 配置同步校验 + 派生引擎回归测试（`.ai/tests/`，全分支）；应用质量作业仅主线 `acme-foundation` 直推与 PR；mirror-sync 校验两策略分支 AI 路径一致 |
-| `cd.yml` | dispatch 选环境 / `v*` 标签 → prod | 构建 → `env-stack/scripts/deploy.sh` 部署 → 健康检查；prod 走 GitHub Environment 审批 |
+
+> 原 `cd.yml` 与 `ai-rules-sync.yml` 已退役：CD 本地化为本机 `local-build.sh` / `local-deploy.sh`（RUNBOOK 第 6/7 步，ADR 2026-11-18-03）；ai-rules-sync 的校验并入 ci.yml 的 ai-config 作业（ADR 2026-11-14-23）。GitHub 仅承担代码托管与 ci.yml 门禁，发布不再走 dispatch / Environment 审批。
 
 ## 新增一个 AI 工具的兼容
 
@@ -132,7 +133,7 @@ node .ai/sync.mjs --check  # 校验一致性（提交钩子与 CI 自动执行�
 
 | 层级 | 源位置 | 说明 |
 |---|---|---|
-| 环境级端点（跨工具） | `.ai/env/{local,cloud-dev,cloud-test,cloud-prod}.yaml`（见 [ENV-GUIDE.md](env/ENV-GUIDE.md)） | cloud-dev 已登记 dev-db MCP，其余为空模板；AI 按需读取，各工具原生 MCP 配置由此适配 |
+| 环境级端点（跨工具） | `.ai/env/{local,cloud-dev,cloud-prod}.yaml`（见 [ENV-GUIDE.md](env/ENV-GUIDE.md)） | cloud-dev 已登记 dev-db MCP，其余为空模板；AI 按需读取，各工具原生 MCP 配置由此适配 |
 | 工具级配置 | `.ai/tools/<工具>/`（按需新增，如 `cursor/mcp.json`、`gemini/settings.json`，镜像目标路径） | **当前未配置**任何工具级 MCP；需要时在此建源，经 `node .ai/sync.mjs` 派生到对应工具目录 |
 | Claude Code（如需） | 根目录 `.mcp.json` | 例外：根级文件，手工维护 |
 | ZCode | `.zcode/` 目录（工作区作用域） | agents/commands 由 `.ai/agents/`、`.ai/commands/` 公共池派生的**引用存根**（frontmatter 供注册、正文指针指向唯一源；git 忽略、本机生效）；其余 ZCode 自管理 |

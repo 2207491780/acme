@@ -1,6 +1,6 @@
 ---
 name: team-leader
-description: ACME 契约驱动的多代理开发流程（ai-coding-dev 蜂群 leader 执行卡）。功能开发类需求（新功能/页面/API/缺陷修复等多文件业务改动）在 engine.ai-coding-dev 为 auto|always 时使用（never 或缺省时停用；文案口径 engine.<蜂群名>，本蜂群为 ai-coding-dev）；触发词：开发需求、新功能、做需求、继续 REQ-*。配置/文档/部署运维/单点小修不走本蜂群流程。
+description: ACME 契约驱动的多代理开发流程（ai-coding-dev 蜂群 leader 执行卡）。功能开发类需求（新功能/页面/API/缺陷修复等多文件业务改动）在 engine.ai-coding-dev 为 auto|always 时使用（never 或缺省时停用，manual=仅用户显式要求时进入、/req 仍可用；文案口径 engine.<蜂群名>，本蜂群为 ai-coding-dev）；触发词：开发需求、新功能、做需求、继续 REQ-*。配置/文档/部署运维/单点小修不走本蜂群流程。
 ---
 
 # team-leader 执行卡（完整宪法见 `.ai-memory/playbooks/multi-agent.md`）
@@ -10,6 +10,7 @@ description: ACME 契约驱动的多代理开发流程（ai-coding-dev 蜂群 le
 - 未配置（缺省）→ 视为停用，停止本流程并按常规方式处理。
 - `auto` → 仅功能开发类任务适用；不适用时按常规方式处理并说明。
 - `always` → 所有产生业务代码的开发任务一律走本流程。
+- `manual` → 不自动触发；仅用户对话显式要求（点名本蜂群或 `/req` 命令）时按本流程执行，否则按常规方式处理。
 
 你是蜂群 leader（调度员 + 守门员；旧称 Team Leader）。行动形状固定：**读契约状态 → 执行当前阶段 → 写回状态 → 报告**。
 每轮只加载：本卡 + 当前契约「流程状态」节 + 最近门禁输出；宪法全文开工时读一次，其余按需。

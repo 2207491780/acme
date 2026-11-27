@@ -32,27 +32,44 @@ async function makeRepo(t, { withHooks = false, sha256 = false } = {}) {
   return { repo, g };
 }
 
-/** 跨平台解析 POSIX shell：先试 PATH；Windows 从 Git 安装根（由 git --exec-path 反推）兜底。 */
+/** 跨平台解析 POSIX shell：要求 sh 与 coreutils（dirname 等）齐备——真实 git 钩子链路会注入
+ *  /usr/bin，而直启 sh.exe 时 msys 转换后的 PATH 不含它（Windows 实测，2026-11-27 体检 #4），
+ *  pre-push 的 `dirname "$0"` 会失效。先探测 PATH 上的 sh（连带验证 dirname 在位）；失败时从
+ *  git --exec-path 反推 Git 自带 usr/bin/sh，并返回其目录供 spawn 时补进 PATH（等价还原真实链路）。 */
 function shellForHooks() {
-  const probe = spawnSync('sh', ['-c', 'exit 0']);
-  if (!probe.error && probe.status === 0) return 'sh';
+  const probe = spawnSync('sh', ['-c', 'command -v dirname >/dev/null 2>&1']);
+  if (!probe.error && probe.status === 0) return { shell: 'sh', dir: null };
   const execPath = spawnSync('git', ['--exec-path'], { encoding: 'utf8' });
   if (!execPath.error && execPath.status === 0) {
-    const candidate = resolve(execPath.stdout.trim(), '../../../usr/bin/sh');
-    if (existsSync(candidate)) return candidate;
-    if (existsSync(`${candidate}.exe`)) return `${candidate}.exe`;
+    const dir = resolve(execPath.stdout.trim(), '../../../usr/bin');
+    if (existsSync(join(dir, 'sh'))) return { shell: join(dir, 'sh'), dir };
+    if (existsSync(`${join(dir, 'sh')}.exe`)) return { shell: `${join(dir, 'sh')}.exe`, dir };
   }
-  return 'sh'; // 保留原始 ENOENT 便于诊断
+  return { shell: 'sh', dir: null }; // 保留原始 ENOENT 便于诊断
 }
-const HOOK_SHELL = shellForHooks();
+const { shell: HOOK_SHELL, dir: HOOK_USR_BIN } = shellForHooks();
+/** 直启 sh.exe（绕过 git 钩子执行链路）时补齐真实链路注入的环境：/usr/bin 进 PATH；
+ *  POSIX 上 dir 为 null，env 原样传递（CI 行为不变）。 */
+const HOOK_ENV = HOOK_USR_BIN
+  ? (() => {
+      const key = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') || 'PATH';
+      const sep = process.platform === 'win32' ? ';' : ':';
+      return { ...process.env, [key]: `${HOOK_USR_BIN}${sep}${process.env[key] || ''}` };
+    })()
+  : process.env;
+/** 钩子脚本路径转正斜杠：$0 要经 dirname 解析，msys 的 dirname 只认 `/` 分隔
+ *  （Windows 反斜杠路径会得到 `.`，导致 hookdir 错位）。 */
+const posix = (p) => p.split('\\').join('/');
 
-const commitMsg = (repo, msgFile) => spawnSync(HOOK_SHELL, [join(HOOKS, 'commit-msg'), msgFile], { cwd: repo, encoding: 'utf8' });
-const prePush = (repo, input, env) => spawnSync(HOOK_SHELL, [join(HOOKS, 'pre-push')], {
-  cwd: repo,
-  encoding: 'utf8',
-  input,
-  env: env ? { ...process.env, ...env } : process.env,
-});
+const commitMsg = (repo, msgFile) =>
+  spawnSync(HOOK_SHELL, [posix(join(HOOKS, 'commit-msg')), msgFile], { cwd: repo, encoding: 'utf8', env: HOOK_ENV });
+const prePush = (repo, input, env) =>
+  spawnSync(HOOK_SHELL, [posix(join(HOOKS, 'pre-push'))], {
+    cwd: repo,
+    encoding: 'utf8',
+    input,
+    env: env ? { ...HOOK_ENV, ...env } : HOOK_ENV,
+  });
 
 async function writeMsg(repo, subject) {
   const file = join(repo, `msg-${Math.random().toString(36).slice(2)}.txt`);
