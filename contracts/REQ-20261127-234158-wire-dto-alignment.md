@@ -61,16 +61,16 @@ apis:                      # 端点路径不变，仅下列端点的 wire 载荷
 
 ## 验收标准
 
-- AC-1 given: mobile 发起 C 端验证码登录（POST /app/v1/auth/tokens 真实 wire 含 `accessExpiresAt`） when: `LoginScreen` 构造会话 then: `accessExpiresAtMs = Date.parse(issued.accessExpiresAt)` 为有限正数（非 NaN），代码与 mock 均不再引用 `expiresAt`（C 端）
-- AC-2 given: C 端会话存在且 refresh 令牌未本地过期 when: `client.ts` 静默刷新（POST /app/v1/auth/tokens/refresh） then: 刷新 envelope 按 `accessExpiresAt` 解析、`authStore.renewed()` 落库为有限值，轮换链路可完成
-- AC-3 given: `AppTokenIssued` Java DTO 经 `JsonModules.standard()` mapper 序列化 when: 断言产物 then: `userId` 为 JSON 字符串（如 `"1234567890123456789"` 带引号）、字段名为 `accessExpiresAt`/`refreshExpiresAt`，与 mobile `AppTokenIssued`（`userId: string`）声明经 TS 对照测试锁定一致
-- AC-4 given: web 新建/编辑 CRON 与 FIXED_RATE 任务 when: `JobsPage` 提交 `JobSavePayload`/`JobUpdatePayload` then: 载荷字段为 `cronExpr`/`fixedRateMs`（不再出现 `cron`/`fixedRate`），MSW handler/data 同步长名，创建/编辑后 mock 任务回读字段非空
-- AC-5 given: 后端 `JobView` 真实序列化 when: FE `JobAdminView` 声明对照 then: `cronExpr`/`fixedRateMs` 键名一致、`id`/`version`/`fixedRateMs`/`timeoutMs` 视图声明为 `string`（wire Long→字符串）、`shardTotal` 保持 number；`JobsPage` 渲染与编辑回填同步改名（回填做 `Number(record.fixedRateMs)` 换算）
-- AC-6 given: platform-scheduler-service 测试目录新增 wire 测试（真实 mapper，非 MSW） when: mvn 测试运行 then: 含 `cronExpr`/`fixedRateMs` 的 JSON 反序列化进 `JobSaveRequest` 成功、短名 JSON 不映射（`cronExpr` 为 null），`JobView` 序列化 golden 锁定字段名与 `id`/`version` 字符串化
-- AC-7 given: /admin/v1/system/menus 真实 wire（`id`/`parentId`/`version` 字符串、根 `parentId="0"`） when: web 菜单树渲染与增删改 then: `AdminMenuView.id/parentId` 声明 `string`、根判定 `parentId === '0'`、`menuCreate.parentId?: string | null`、`menuUpdate/menuDelete` 的 `menuId: string`，页面/导航/套餐过滤功能不回归
-- AC-8 given: platform-system-api 测试新增 `AdminMenuView` 序列化测试（`SystemApiContractTest` 先例口径） when: 序列化含根+子节点的树 then: `id`/`parentId`/`version` 均为 JSON 字符串、根 `parentId="0"`、`children` 嵌套保留
-- AC-9 given: 三组 Java golden（AppTokenIssued / JobView+JobSaveRequest / AdminMenuView）与对应 FE 非 MSW fixture when: 逐键对照断言 then: 键名与类型全一致、测试全绿；golden 重复件头注释交叉引用 Java 测试类
-- AC-10 given: 全部改名完成后 when: `CI=true pnpm typecheck && CI=true pnpm test && CI=true pnpm build`（web/mobile，desktop `pnpm --filter @acme/desktop check`）+ 受影响后端模块 `mvn test` then: 全绿；B 端 `AdminTokenIssued.expiresAt` 相关既有用例保持通过不受波及
+- AC-1 given: mobile 发起 C 端验证码登录（POST /app/v1/auth/tokens 真实 wire 含 `accessExpiresAt`） when: `LoginScreen` 构造会话 then: `accessExpiresAtMs = Date.parse(issued.accessExpiresAt)` 为有限正数（非 NaN），代码与 mock 均不再引用 `expiresAt`（C 端） → mobile/tests/REQ20261127234158-sessionExpiryFlow.test.ts::should_parse_access_expires_at_wire_key_to_finite_positive_session_ms_when_c_side_login_succeeds（+负例 should_yield_non_finite_session_expiry_when_wire_fixture_uses_legacy_expires_at_key）
+- AC-2 given: C 端会话存在且 refresh 令牌未本地过期 when: `client.ts` 静默刷新（POST /app/v1/auth/tokens/refresh） then: 刷新 envelope 按 `accessExpiresAt` 解析、`authStore.renewed()` 落库为有限值，轮换链路可完成 → mobile/tests/REQ20261127234158-sessionExpiryFlow.test.ts::should_renew_session_with_wire_expiry_ms_when_access_token_rotated_after_401
+- AC-3 given: `AppTokenIssued` Java DTO 经 `JsonModules.standard()` mapper 序列化 when: 断言产物 then: `userId` 为 JSON 字符串（如 `"1234567890123456789"` 带引号）、字段名为 `accessExpiresAt`/`refreshExpiresAt`，与 mobile `AppTokenIssued`（`userId: string`）声明经 TS 对照测试锁定一致 → platform-auth-api REQ20261127234158AppTokenIssuedWireTest::appTokenIssuedSerializesAccessRefreshExpiresAtNamesAndStringUserId + mobile/tests/REQ20261127234158-authWireContract.test.ts::should_carry_stringified_snowflake_user_id_not_json_number
+- AC-4 given: web 新建/编辑 CRON 与 FIXED_RATE 任务 when: `JobsPage` 提交 `JobSavePayload`/`JobUpdatePayload` then: 载荷字段为 `cronExpr`/`fixedRateMs`（不再出现 `cron`/`fixedRate`），MSW handler/data 同步长名，创建/编辑后 mock 任务回读字段非空 → web/tests/REQ20261127234158-jobsCronEdit.test.tsx::should_post_long_name_cron_expr_payload_without_short_names_when_cron_job_created 与 ::should_post_fixed_rate_ms_number_payload_without_short_names_when_fixed_rate_job_created（适配件 web/tests/REQ20261122023213-schedulerMswContract.test.ts 辅助）
+- AC-5 given: 后端 `JobView` 真实序列化 when: FE `JobAdminView` 声明对照 then: `cronExpr`/`fixedRateMs` 键名一致、`id`/`version`/`fixedRateMs`/`timeoutMs` 视图声明为 `string`（wire Long→字符串）、`shardTotal` 保持 number；`JobsPage` 渲染与编辑回填同步改名（回填做 `Number(record.fixedRateMs)` 换算） → platform-scheduler-service REQ20261127234158SchedulerJobWireTest::jobViewSerializesLongFieldsAsJsonStringsAndKeepsShardTotalNumeric + web/tests/REQ20261127234158-jobsCronEdit.test.tsx::should_backfill_numeric_fixed_rate_from_wire_string_and_submit_number_when_fixed_rate_row_edited + web/tests/REQ20261127234158-schedulerMenuWireContract.test.ts::should_stringify_long_fields_and_keep_shard_total_numeric_in_view_wire
+- AC-6 given: platform-scheduler-service 测试目录新增 wire 测试（真实 mapper，非 MSW） when: mvn 测试运行 then: 含 `cronExpr`/`fixedRateMs` 的 JSON 反序列化进 `JobSaveRequest` 成功、短名 JSON 不映射（`cronExpr` 为 null），`JobView` 序列化 golden 锁定字段名与 `id`/`version` 字符串化 → REQ20261127234158SchedulerJobWireTest 三例：jobViewSerializesLongFieldsAsJsonStringsAndKeepsShardTotalNumeric / jobSaveRequestDeserializesLongNameFieldsAcceptingNumberAndString / jobSaveRequestShortNameJsonIsIgnoredLeavingLongNameFieldsNull（实测=忽略非 fail-fast，已注明）
+- AC-7 given: /admin/v1/system/menus 真实 wire（`id`/`parentId`/`version` 字符串、根 `parentId="0"`） when: web 菜单树渲染与增删改 then: `AdminMenuView.id/parentId` 声明 `string`、根判定 `parentId === '0'`、`menuCreate.parentId?: string | null`、`menuUpdate/menuDelete` 的 `menuId: string`，页面/导航/套餐过滤功能不回归 → web/tests/REQ20261127234158-menusTreeStringIds.test.tsx 四例（should_render_wire_menu_tree_with_string_ids_when_root_parent_id_is_zero_string / should_send_null_parent_id_when_root_menu_created / should_preserve_string_parent_id_when_child_menu_created / should_carry_string_menu_id_in_path_when_menu_updated_and_deleted）+ web/tests/REQ20261127234158-schedulerMenuWireContract.test.ts::should_stringify_id_parent_id_version_and_root_parent_id_as_zero_string
+- AC-8 given: platform-system-api 测试新增 `AdminMenuView` 序列化测试（`SystemApiContractTest` 先例口径） when: 序列化含根+子节点的树 then: `id`/`parentId`/`version` 均为 JSON 字符串、根 `parentId="0"`、`children` 嵌套保留 → platform-system-api REQ20261127234158AdminMenuViewWireTest::adminMenuViewTreeSerializesLongIdsAsStringsAndKeepsChildrenNesting
+- AC-9 given: 三组 Java golden（AppTokenIssued / JobView+JobSaveRequest / AdminMenuView）与对应 FE 非 MSW fixture when: 逐键对照断言 then: 键名与类型全一致、测试全绿；golden 重复件头注释交叉引用 Java 测试类 → Java 侧三件 REQ20261127234158*WireTest（AppTokenIssued/AdminMenuView/SchedulerJob）+ FE 侧 mobile/tests/REQ20261127234158-authWireContract.test.ts 与 web/tests/REQ20261127234158-schedulerMenuWireContract.test.ts（golden 片段同源、登记漂移键 param/retryPolicy 显式豁免类型对照）
+- AC-10 given: 全部改名完成后 when: `CI=true pnpm typecheck && CI=true pnpm test && CI=true pnpm build`（web/mobile，desktop `pnpm --filter @acme/desktop check`）+ 受影响后端模块 `mvn test` then: 全绿；B 端 `AdminTokenIssued.expiresAt` 相关既有用例保持通过不受波及 → frontend-dev 四道自查全绿（B 端 qrLogin 等既有用例全分片 test 通过）+ backend-dev 三模块 mvn 判定行全绿；主线程合并前复核重跑兜底
 
 ## 变更清单（差异契约）
 
@@ -98,10 +98,18 @@ apis:                      # 端点路径不变，仅下列端点的 wire 载荷
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-DONE           # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: III-REVIEW       # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
 - round: 0
-- worktree: `.worktrees/feat-req-20261127-234158-wire-dto-alignment`（分支 feat/req-20261127-234158-wire-dto-alignment，基点=确认入库 667c511）
-- 门禁台账：未开跑（阶段三才跑）
+- worktree: `.worktrees/feat-req-20261127-234158-wire-dto-alignment`（分支 feat/req-20261127-234158-wire-dto-alignment，基点=确认入库 667c511；**交付 29 文件未提交**，由主线程统一 commit/合并）
+- 门禁台账（2026-11-28 首轮，leader 逐文件核验 + 工人自验出处）：
+  - 1 三向一致: PASS（端点路径零变更；键链路四点核对——FE JobSavePayload↔JobSaveRequest↔双侧 wire 测试、mobile 刷新 envelope↔AppTokenIssued↔golden、AdminMenuView↔golden、B 端 AdminTokenIssued.expiresAt 未动）
+  - 2 AC 覆盖率: PASS（AC-1~10 各 ≥1 用例，映射已回填验收标准节；tester-be 映射与 delivered 文件逐一核对一致）
+  - 3 契约机器层: PASS（[GATE] name=contract-valid result=PASS）
+  - 4 本地测试: PASS（出处=工人自验记录，主线程合并前复核重跑兜底）——backend-dev 三模块 mvn 绿（platform-auth-api/platform-system-api/platform-scheduler-service，判定行 Tests run: N, Failures: 0, Errors: 0, Skipped: 0；短名负例实测=忽略非 fail-fast）；frontend-dev 四道 CI=true 全绿（typecheck/全分片 test/build/desktop check）；tester-fe 白名单两轮绿（fetch-stub 直注非 MSW + RN 宿主替身装配）
+  - 5 跨需求冲突: PASS（B1 apis=[]；B2a internal 域异路径；B2b leave 域无交叠；B3b `/admin/v1/scheduler/jobs**` 路径族与本法相交但改动轴不同【错误码值域 vs 载荷字段名】——**合并顺序约束：B3a 先合，B3b rebase 吸收**，无文件级并发冲突；migrations 双方不冲突）
 - 委派历史：
-  - 计划（2026-11-28，三路同轮待主线程 spawn）：frontend-dev（P1-06 mobile 四处 + P1-10/P2-02 core/web 类型与 MSW + FE 非 MSW wire 对照测试）；backend-dev（仅测试侧三件 wire 测试，案A 落点）；tester 拆两单（backend：AC-3/6/8+AC-9 golden 侧；frontend：AC-1/2/4/5/7/10+AC-9 fixture 侧）
+  - frontend-dev: 交付（mobile 四处改名/B 端未动、core/web 类型与 MSW 同步、7+1 适配件、2 个非 MSW wire 对照测试；四道自查全绿）
+  - backend-dev: 交付（三件 wire 测试 + auth-api pom 案A 一行依赖；零 main 改动；enforcer 通过；短名负例实测结论已注明）
+  - tester-be: 交付（AC-3/6/8/9 映射表 + 断言点核对清单，含「golden 禁整串 equals 防已登记漂移字段爆红」口径——delivered 文件核实均 per-field contains + 豁免键显式化）
+  - tester-fe: 交付（3 用例文件 10 例；AMB 假设经自验落定；白名单内两轮全绿）
 - 升级记录：暂无
