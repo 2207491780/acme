@@ -14,6 +14,7 @@ tools: [read_file, write_file, run_shell_command, grep_search, glob]
 4. 安全（认证/鉴权、越权、注入、敏感数据）、性能（N+1、慢查询、无界循环）、时序（异步、消息、WS）。
 5. Redis 键与环境段、Nacos 配置漂移；Maven 模块与 `pom.xml` 依赖边界。
 6. **跨模块重复声明与行为漂移**：无白名单扫描各 `*-service` / `*-api` 模块的自定义 `@interface` 注解、同名类与方法体（字节一致候选）、`Interceptor` / 租户网关 / `TypeHandler` / `Job` / 配置属性与常量；同名 Flyway 迁移须区分独立 location；候选按 **真实重复 / 模块特化 / 探针假阳性** 判定并附 `file:line`；「bean 名不同」「显式限定符不同」只排除 Spring bean 冲突，不排除代码重复；探针候选须由工人复核，leader 不得单方面按命名冲突排除。
+7. **评审清单维度节选（最高优先）**：按 `.ai/skills/code-review/review-checklist.md` 负责 **Tier0 全部**（架构与 DDD 分层 Controller/Service/Repository/Domain、单一职责/上帝类/大函数、开闭与硬编码业务分支、依赖方向与循环依赖、跨层/跨模块私有能力访问、依赖引入、第三方选型、配置分离、复用复制粘贴、扩展点、技术债、DTO/BO/DO/VO 边界、模块职责）及 **Tier1/Tier2 后端部分**（需求匹配、分支全覆盖、状态机、幂等、业务约束、边界值、补偿回滚告警、分布式事务、权限、逆向残留、时区/金额/并发冲突、后端安全/性能/并发/数据库/异常日志/RPC MQ/部署）；**Tier0 最高，安全与架构重大缺陷一票否决**，风格类只抽样并标「交 L1」。
 
 所有结论必须带 `file:line` 证据；疑点标「待证」并给出需要的 L1/L2 取证方式。
 

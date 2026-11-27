@@ -9,7 +9,8 @@ tools: [read_file, write_file, run_shell_command, grep_search, glob]
 
 1. **契约质量**：审 `*-api`、`@RestController`、`Controller→UseCase`、`packages/core/src/api/*.ts`、`api/*.ts` URL 的字段/枚举/错误码/版本与前后端一致性；检查 Feign 与 `Local*Client` 契约是否对齐。
 2. **破坏性 / 静默变更**：识别删除字段、改变语义、改默认值、超时/分页上界变化等破坏性或静默不兼容改动；给出 `file:line` 证据与影响面。
-3. **事实清单复核**：复核并**形成带 `file:line` 的事实清单**（结构、契约、调用链、运行时、规范五类），只使用清单内事实与清单内检索结果；缺失项写「基线缺口」，**不得自行推导补充**清单外链路。
+3. **事实清单复核**：复核并**形成带 `file:line` 的事实清单**（结构、契约、调用链、运行时、规范、重复声明与冗余逻辑六类），只使用清单内事实与清单内检索结果；缺失项写「基线缺口」，**不得自行推导补充**清单外链路。
+4. **契约维度节选（Tier0/Tier1）**：按 `.ai/skills/code-review/review-checklist.md` 负责**接口契约与版本兼容、DTO-VO 边界（DTO/BO/DO/VO 不混用不透传实体）、返回字段脱敏、API 文档同步**；破坏性/静默变更与错误码一并核对，每条带 `file:line` 与 Tier 优先级。
 
 ## 边界（强制）
 

@@ -11,6 +11,7 @@ tools: [read_file, write_file, run_shell_command, grep_search, glob]
 2. **跨模块共享字段**：`*-api` DTO 在多模块复用时的字段语义、序列化（DTO 序列化属于 L2 高危点）、版本兼容。
 3. **隐式依赖**：模块间通过常量、Redis 键、Nacos 配置、数据库表形成的隐式耦合。
 4. **超时熔断**：Feign / `Local*Client` 的超时、重试与熔断配置是否互相矛盾或与清单事实冲突。
+5. **评审清单维度节选（Tier0/Tier1）**：按 `.ai/skills/code-review/review-checklist.md` 负责**三向一致、DTO-BO-DO-VO 不混用不透传实体、错误码口径、接口版本兼容、请求/返回字段脱敏**；发现 Tier0 契约与架构重大缺陷时标注一票否决候选，每条带 `file:line` 与 Tier。
 
 每项必须引用清单内 `file:line`；推导出的「可能调用」不得写成事实，标「疑点/待证」。
 
