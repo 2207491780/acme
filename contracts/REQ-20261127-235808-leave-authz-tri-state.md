@@ -60,20 +60,20 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ### P1-05 详情越权收口
 
-- AC-1 given: 租户 T 用户 U1 已提交请假单 L（owner=U1） when: U1 携本人令牌 GET /admin/v1/leave/requests/{L} then: 200 返回 L 视图（owner 直读，不经权限服务） → 待回填
-- AC-2 given: 同租户用户 U2（非 owner、不持授权权限码） when: U2 凭 id GET 他人单据 L then: 与「单据不存在」同口径（HTTP 400 + 请假单不存在），不泄露存在性 → 待回填
-- AC-3 given: 同租户用户 U2 非 owner 但持有 `workflow:task:list` 或 `workflow:instance:manage` 任一权限码（案B，确认记录⑦） when: U2 GET 单据 L then: 200 返回 L 视图（授权角色放行） → 待回填
-- AC-4 given: U2 非 owner 且授权判定 UNKNOWN（权限服务异常/不可达，故障注入） when: U2 GET 他人单据 then: 查无（UNKNOWN 不放行）；同场景 U1 读本人单据仍 200（owner 路径不依赖权限服务） → 待回填
-- AC-5 given: 租户 T1 用户凭 id 读取租户 T2 单据 when: GET 详情 then: 查无（租户过滤维持，框架层回归锁定） → 待回填
-- AC-6 given: 事件（TASK_COMPLETED/TASK_REJECTED/INSTANCE_COMPLETED/ServiceTask 下发）携带 instanceId 可解析 when: 事件回写 then: 以 instanceId 为唯一锚点解析单据；数字形态 businessKey 不再触发 `findById(Long.parseLong)` 兜底；instanceId 查无 → 幂等跳过（warn 留痕），禁写单 → 待回填
+- AC-1 given: 租户 T 用户 U1 已提交请假单 L（owner=U1） when: U1 携本人令牌 GET /admin/v1/leave/requests/{L} then: 200 返回 L 视图（owner 直读，不经权限服务） → REQ20261127235808LeaveDetailAuthzTest.ownerReadsOwnRequestDirectlyWithoutPermissionConsultation
+- AC-2 given: 同租户用户 U2（非 owner、不持授权权限码） when: U2 凭 id GET 他人单据 L then: 与「单据不存在」同口径（HTTP 400 + 请假单不存在），不泄露存在性 → REQ20261127235808LeaveDetailAuthzTest.unauthorizedNonOwnerDeniedSameAsMissingRecord + missingUserContextTreatedAsNonOwnerAndDeniedAsMissing
+- AC-3 given: 同租户用户 U2 非 owner 但持有 `workflow:task:list` 或 `workflow:instance:manage` 任一权限码（案B，确认记录⑦） when: U2 GET 单据 L then: 200 返回 L 视图（授权角色放行） → REQ20261127235808LeaveDetailAuthzTest.authorizedRoleReadsForeignRequestWhenTaskListPermissionHeld + authorizedRoleReadsForeignRequestWhenInstanceManagePermissionHeld
+- AC-4 given: U2 非 owner 且授权判定 UNKNOWN（权限服务异常/不可达，故障注入） when: U2 GET 他人单据 then: 查无（UNKNOWN 不放行）；同场景 U1 读本人单据仍 200（owner 路径不依赖权限服务） → REQ20261127235808LeaveDetailAuthzTest.authorizationUnknownFailsClosedToNotFoundSemantics + leaveAuthorizationGatewayFailsClosedWhenPermissionServiceFails + ownerReadStillSucceedsWhenAuthorizationDownstreamFails（注入点=经真实网关在 AuthorizationClient 级注入，裁决①）
+- AC-5 given: 租户 T1 用户凭 id 读取租户 T2 单据 when: GET 详情 then: 查无（租户过滤维持，框架层回归锁定） → REQ20261127235808LeaveDetailTenantIsolationIntegrationTest.should_returnLeaveView_when_ownerReadsOwnRequest + should_returnNotFoundSemantics_when_otherTenantUserReadsForeignRequest + should_beIndistinguishableBetweenCrossTenantReadAndMissingRecord
+- AC-6 given: 事件（TASK_COMPLETED/TASK_REJECTED/INSTANCE_COMPLETED/ServiceTask 下发）携带 instanceId 可解析 when: 事件回写 then: 以 instanceId 为唯一锚点解析单据；数字形态 businessKey 不再触发 `findById(Long.parseLong)` 兜底；instanceId 查无 → 幂等跳过（warn 留痕），禁写单 → REQ20261127235808LeaveEventAnchorTriStateTest.taskCompletedResolvesByInstanceIdAnchorWithNumericBusinessKey + instanceCompletedResolvesByInstanceIdAnchorWithNumericBusinessKey + taskCompletedSkipsUnknownInstanceWithoutNumericBusinessKeyFallback + taskRejectedSkipsUnknownInstanceWithoutNumericBusinessKeyFallback + instanceCompletedSkipsUnknownInstanceWithoutNumericBusinessKeyFallback + fileByServiceTaskRejectsUnknownInstanceWithoutNumericBusinessKeyFallback
 
 ### P1-08 权限 fail-closed 与完成链三态
 
-- AC-7 given: auth 域权限判定下游（platform-system authorization）异常/不可达（故障注入） when: 用户调用受 requirePermission 保护的 auth 端点（如登录日志查询） then: HTTP 403 + PERMISSION_DENIED 契约响应（非 500） → 待回填
-- AC-8 given: 权限判定异常 when: infra/scheduler/workflow 域 requirePermission 判定（回归锁定） then: fail-closed 403（既有行为不回归） → 待回填
-- AC-9 given: INSTANCE_COMPLETED 消费时实例变量查询抛异常（故障注入） when: onInstanceCompleted 处置 then: **不写 REJECTED 终态**（单据保持原状态），warn 留痕，按幂等跳过口径返回；后续重投/正常查询可继续推进 → 待回填
-- AC-10 given: 实例变量查询正常返回 filed=true / filed=false when: onInstanceCompleted 处置（回归锁定） then: 分别落定 DONE / REJECTED（既有正确行为不回归） → 待回填
-- AC-11 given: 四域 AuthorizationGateway（auth/infra/scheduler/workflow） when: 同权限码判定行为比对 then: fail-closed 语义一致（异常→不放行→403）；实现仍为四域各自副本（结构收敛=B7，见确认记录④） → 待回填
+- AC-7 given: auth 域权限判定下游（platform-system authorization）异常/不可达（故障注入） when: 用户调用受 requirePermission 保护的 auth 端点（如登录日志查询） then: HTTP 403 + PERMISSION_DENIED 契约响应（非 500） → REQ20261127235808AuthorizationGatewayFailClosedTest（auth 域）.requirePermissionThrowsPermissionDenied403WhenAuthorizationClientFails + hasPermissionFailsClosedWhenAuthorizationClientFails（正常 true/false 路径另 3 例回归锁定）
+- AC-8 given: 权限判定异常 when: infra/scheduler/workflow 域 requirePermission 判定（回归锁定） then: fail-closed 403（既有行为不回归） → REQ20261127235808AuthorizationGatewayFailClosedTest（infra/scheduler/workflow 域各一份）.hasPermissionFailsClosedWhenAuthorizationClientFails + requirePermissionThrowsPermissionDenied403WhenAuthorizationClientFails
+- AC-9 given: INSTANCE_COMPLETED 消费时实例变量查询抛异常（故障注入） when: onInstanceCompleted 处置 then: **不写 REJECTED 终态**（单据保持原状态），warn 留痕，按幂等跳过口径返回；后续重投/正常查询可继续推进 → REQ20261127235808LeaveEventAnchorTriStateTest.instanceCompletedKeepsNonTerminalStateWhenInstanceDetailQueryFails + instanceCompletedConvergesWhenDetailQueryRecoversOnRedelivery（裁决②：「单据保持原状态」适用非 FILED 探询路径；FILED+查询故障→确定性 DONE=既有短路语义，由 AC-10 正常信封路径回归锁定）
+- AC-10 given: 实例变量查询正常返回 filed=true / filed=false when: onInstanceCompleted 处置（回归锁定） then: 分别落定 DONE / REJECTED（既有正确行为不回归） → REQ20261127235808LeaveEventAnchorTriStateTest.instanceCompletedWritesDoneWhenFiledVariableTrue / instanceCompletedWritesRejectedWhenFiledVariableFalse / instanceCompletedWritesRejectedWhenVariablesEmpty + 既有回归锚 LeaveRequestUseCaseTest.instanceCompletedWritesDoneWhenFiledVariablePresent / instanceCompletedWritesRejectedWhenFilingChainNotReached
+- AC-11 given: 四域 AuthorizationGateway（auth/infra/scheduler/workflow） when: 同权限码判定行为比对 then: fail-closed 语义一致（异常→不放行→403）；实现仍为四域各自副本（结构收敛=B7，见确认记录④） → REQ20261127235808AuthorizationGatewayFailClosedTest 四域同场景集逐字一致（auth/infra/scheduler/workflow 各 6 例，AC-11 同场景比对证据）
 
 ## 变更清单（差异契约：只写变更，不重述未变现状）
 
@@ -101,13 +101,23 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-DONE           # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: III-REVIEW       # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
 - round: 0
 - 取号锁：worktree 已创建（2026-11-28）——分支 `feat/req-20261127-235808-leave-authz-tri-state`，基点 f3bf0c1（含本契约 confirmed 版），路径 `C:/MyWorkSpace/ai-coding-worker/.worktrees/feat-req-20261127-235808-leave-authz-tri-state`；本批无 Flyway 迁移（migrations: {} 维持）。
-- 门禁台账：
-  - （阶段一未触发门禁；基线口径：后端模块级 `mvn -pl <模块> -am -B test`（Maven 完整路径 flex-test-assembly.md；acme-cloud/ 下无 run.mjs，B1 leader 实测）；全量 mvn 交 CI；无统一 lint 脚本）
+- 门禁台账（2026-11-28，阶段三全过）：
+  - 三向一致: PASS（FE `packages/core/src/api/leave.ts:48` `GET /admin/v1/leave/requests/{id}` = Controller `@GetMapping("/requests/{id}")` 逐字一致，POST 同（leave.ts:44）；网关无 leave 路由=既有基线缺口（P1-09，B6 批/决策②单体试点），非本批引入、本批零路径变更；案B 放行链路核对成立——leave 适配器→`AuthorizationClient`→`LocalAuthorizationClient`(单体 @Primary)→`PermissionDecisionService`，roles 仅查询键、无编码短路）
+  - AC 覆盖率: PASS（AC-1~11 每条 ≥1 用例，映射已回填 §验收标准；46 例 = business-leave 19 / auth 6 / infra 6 / scheduler 6 / workflow 6 / bootstrap 3）
+  - 契约机器层: PASS（`node .ai/skills/team-leader/scripts/check-contract.mjs` → `[GATE] contract-valid PASS`）
+  - 本地测试: PASS（采信 worker 自验合并证据：backend-dev 模块级门禁绿——business-leave + platform-auth-service，reactor 汇总 14/202；tester 六模块定向自验绿 46 例 0 失败 0 跳过；全量 mvn 交 CI；主线程合并前复核重跑兜底）
+  - 跨需求冲突: PASS（复扫 contracts/：B1=REQ-20261127-234335［platform-system V37］、B2a=REQ-20261127-235505［internal scheduler 域］、B3a=REQ-20261127-234158［auth tokens/scheduler jobs/system menus］与本批 `GET|POST /admin/v1/leave/requests` + `migrations: {}` 零交叠）
 - 委派历史：
-  - （阶段二待发：backend-dev / tester 委派单已备妥（2026-11-28，leader 报告回传主线程），主线程同轮 spawn 后置 phase=II-DEV）
+  - backend-dev: 交付（2026-11-28；main 侧 LeaveAuthorizationGateway 新增 / UseCase 5 参与行为序 / Repository+Impl findByIdAndUserId / pom 显式依赖 / Controller javadoc / auth 版 try/catch / 既有用例适配（LeaveRequestUseCaseTest 构造器同步等）；自验两模块门禁绿 14/202）
+  - tester: 交付（2026-11-28；7 测试文件 46 例，六模块定向自验绿 0 失败 0 跳过；四域网关用例同场景集逐字一致=AC-11 比对证据；上报 3 项裁定 + 1 项知情备案，均裁决见下）
+- 裁决记录（2026-11-28，主线程转 owner 口径）：
+  - ① AC-4 故障注入点 = 经真实 `LeaveAuthorizationGateway` 在 `AuthorizationClient` 级注入（fail-closed catch 落网关内部，与四域先例一致；UseCase 层不加防御 catch——同语义重复且违背单件职责）；委派单钉死事实 2 勘误为「经真实网关、client 级注入」。
+  - ② AC-9「单据保持原状态」适用**非 FILED 探询路径**；FILED+查询故障 → 确定性 DONE（`status==FILED` 短路既有语义，委派单钉死事实 4 原口径），事实 5「保持原值」仅限非 FILED 路径；评审 P1-08 要修的错杀场景（非 FILED 查询异常→误写 REJECTED）已绿（APPROVING 保持 + WARN 留痕）。
+  - ③ wire 消息口径无改动：单测层钉 `InvalidRequestException` 原文、wire 层既有 WebError 统一映射（400+请求参数不合法）属本契约「无 wire 变更」范畴（背景事实 7）；双失败路径信封归一后全等 = 存在性零泄露，AC-2/AC-5 判据成立。
+  - ④ tester 只读 Flyway 种子/DDL（数据 schema 事实、非实现逻辑）知情备案，不作违规。
 - 升级记录：
-  - （无）
+  - （无打回轮；round 维持 0）
 - 并行避让注记：B1=REQ-20261127-234335（platform-system RLS + V37）；B2a=REQ-20261127-235505（scheduler DELETE 端点 + framework-idempotent）；B3a=REQ-20261127-234158（前端 DTO 面 + auth/scheduler/system DTO）。本批 apis 与三份并行契约零交叠（冲突预检 2026-11-27 通过）。
