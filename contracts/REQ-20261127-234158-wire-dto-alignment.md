@@ -48,6 +48,7 @@ apis:                      # 端点路径不变，仅下列端点的 wire 载荷
 
 ### POST/PUT /admin/v1/scheduler/jobs（P1-10）
 - wire（权威）：请求 `JobSaveRequest.cronExpr`(CRON 必填)/`fixedRateMs`(FIXED_RATE 必填，Long 毫秒)；视图 `JobView.cronExpr`/`fixedRateMs`（`id`/`version` wire 字符串）。
+- wire 类型事实（LongToStringModule 全局生效，SystemApiContractTest 先例）：视图侧一切 Long 字段 wire 均为 JSON 字符串——`fixedRateMs`/`timeoutMs`/`version` 字符串、`shardTotal`（Integer）数值；保存载荷侧后端反序列化接受 number 与 string 双口径（LongToStringSerializationTest ③），FE 载荷保持发 number、视图字段声明 `string | null`。
 - FE 修复：`packages/core/src/api/scheduler.ts`（JobAdminView/JobSavePayload/JobUpdatePayload）、web `pages/JobsPage.tsx`、MSW `mocks/handlers/scheduler.ts` + `mocks/data.ts` 同步改长名（MSW 只许跟随后端 golden，不许反向定义契约）。
 
 ### GET/POST/PUT /admin/v1/system/menus（P2-02）
@@ -64,7 +65,7 @@ apis:                      # 端点路径不变，仅下列端点的 wire 载荷
 - AC-2 given: C 端会话存在且 refresh 令牌未本地过期 when: `client.ts` 静默刷新（POST /app/v1/auth/tokens/refresh） then: 刷新 envelope 按 `accessExpiresAt` 解析、`authStore.renewed()` 落库为有限值，轮换链路可完成
 - AC-3 given: `AppTokenIssued` Java DTO 经 `JsonModules.standard()` mapper 序列化 when: 断言产物 then: `userId` 为 JSON 字符串（如 `"1234567890123456789"` 带引号）、字段名为 `accessExpiresAt`/`refreshExpiresAt`，与 mobile `AppTokenIssued`（`userId: string`）声明经 TS 对照测试锁定一致
 - AC-4 given: web 新建/编辑 CRON 与 FIXED_RATE 任务 when: `JobsPage` 提交 `JobSavePayload`/`JobUpdatePayload` then: 载荷字段为 `cronExpr`/`fixedRateMs`（不再出现 `cron`/`fixedRate`），MSW handler/data 同步长名，创建/编辑后 mock 任务回读字段非空
-- AC-5 given: 后端 `JobView` 真实序列化 when: FE `JobAdminView` 声明对照 then: `cronExpr`/`fixedRateMs` 键名一致、`id`/`version` 为字符串；`JobsPage` 渲染与编辑回填同步改名
+- AC-5 given: 后端 `JobView` 真实序列化 when: FE `JobAdminView` 声明对照 then: `cronExpr`/`fixedRateMs` 键名一致、`id`/`version`/`fixedRateMs`/`timeoutMs` 视图声明为 `string`（wire Long→字符串）、`shardTotal` 保持 number；`JobsPage` 渲染与编辑回填同步改名（回填做 `Number(record.fixedRateMs)` 换算）
 - AC-6 given: platform-scheduler-service 测试目录新增 wire 测试（真实 mapper，非 MSW） when: mvn 测试运行 then: 含 `cronExpr`/`fixedRateMs` 的 JSON 反序列化进 `JobSaveRequest` 成功、短名 JSON 不映射（`cronExpr` 为 null），`JobView` 序列化 golden 锁定字段名与 `id`/`version` 字符串化
 - AC-7 given: /admin/v1/system/menus 真实 wire（`id`/`parentId`/`version` 字符串、根 `parentId="0"`） when: web 菜单树渲染与增删改 then: `AdminMenuView.id/parentId` 声明 `string`、根判定 `parentId === '0'`、`menuCreate.parentId?: string | null`、`menuUpdate/menuDelete` 的 `menuId: string`，页面/导航/套餐过滤功能不回归
 - AC-8 given: platform-system-api 测试新增 `AdminMenuView` 序列化测试（`SystemApiContractTest` 先例口径） when: 序列化含根+子节点的树 then: `id`/`parentId`/`version` 均为 JSON 字符串、根 `parentId="0"`、`children` 嵌套保留
@@ -92,7 +93,7 @@ apis:                      # 端点路径不变，仅下列端点的 wire 载荷
 ## 待确认项（均已于 2026-11-28 裁决，见确认记录⑥）
 
 1. **P1-06 后端 golden 测试落点** → 已裁决：**案A**——`platform-auth-api/pom.xml` 增一行 test-scope 依赖 `common-serialization` + 新增独立 wire 测试文件（REQ 前缀命名防撞 B2b）。
-2. **`JobAdminView` 额外漂移** → 已裁决：`createdAt`（后端无此字段）/`shardable`/`remark`（后端有 FE 未声明）**仅登记整改方案，本批不改**；AC-5 断言范围不变（仅 cronExpr/fixedRateMs 键名与 id/version 字符串化）。
+2. **`JobAdminView` 额外漂移** → 已裁决：`createdAt`（后端无此字段）/`shardable`/`remark`（后端有 FE 未声明）**仅登记整改方案，本批不改**；AC-5 断言范围不变（仅 cronExpr/fixedRateMs 键名与 id/version 字符串化）。[2026-11-28 补登记同类] `param`/`retryPolicy`：后端为 jsonb 文本 String（原样透传），FE 声明 object（Record/JobRetryPolicy）——同属未列漂移，按②口径仅登记不改。
 3. 错误码边界已按确认记录④冻结，无需再议。
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
