@@ -37,6 +37,10 @@ logging:
     com.acme.platform.workflow: DEBUG
 
 acme:
+  # 非 Kafka 用例默认关闭 stream（LoggingWorkflowEventPublisher 兜底，消除 127.0.0.1:9092 空转）；
+  # 事件流集成测试（WorkflowEventPublishIntegrationTest）按类显式开启 acme.stream.enabled=true。
+  stream:
+    enabled: false
   workflow:
     # BPM 引擎内核参数（BPM-1 契约终稿缺省值，测试与生产同语义）
     timer:

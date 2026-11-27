@@ -12,20 +12,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -71,14 +64,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *       以本地 JDK HttpServer 桩计数断言站内信发送后零外呼；开启态用例见独立触发 IT。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req082531-profile-secret-0123456789abcd"
-})
-class REQ20261119082531ProfilePreferenceIntegrationTest {
+class REQ20261119082531ProfilePreferenceIntegrationTest extends AbstractSystemIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -88,27 +74,6 @@ class REQ20261119082531ProfilePreferenceIntegrationTest {
     /** 偏好/令牌主体（无需 sys_user 行——按 user_id 定位存储）。 */
     private static final long PREF_USER_A = 902011L;
     private static final long PREF_USER_B = 902012L;
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    /** Redis 容器：站内信发送链路 NotifyPushBus 广播（关闭态下仅总线语义，需可用）。 */
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-    }
 
     @Autowired
     private WebApplicationContext webContext;

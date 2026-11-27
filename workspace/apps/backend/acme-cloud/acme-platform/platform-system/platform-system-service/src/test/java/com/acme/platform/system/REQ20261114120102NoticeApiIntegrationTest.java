@@ -12,21 +12,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -72,14 +65,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *   <li>收件人/扇出对象均为预置真实 sys_user（契约未指明 recipient 存在性校验，预置规避两种实现口径分歧）——AMB-8。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req-notice-it-secret-0123456789abcdef"
-})
-class REQ20261114120102NoticeApiIntegrationTest {
+class REQ20261114120102NoticeApiIntegrationTest extends AbstractSystemIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -89,27 +75,6 @@ class REQ20261114120102NoticeApiIntegrationTest {
 
     private static final Duration FANOUT_SETTLE = Duration.ofSeconds(5);
     private static final Duration IDEMPOTENT_OBSERVE = Duration.ofSeconds(2);
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    /** Redis 容器：发布扇出会经 Redis pub/sub 推送在线用户事件（本类无在线会话，仅需总线可用）。 */
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-    }
 
     @Autowired
     private WebApplicationContext webContext;

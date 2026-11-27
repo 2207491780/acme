@@ -13,21 +13,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -98,14 +92,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *       端别校验；信封 ContractResult 与 Result 同形宽容）。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req-tenant-lifecycle-it-secret-01234"
-})
-class REQ20261122150802TenantLifecycleQuotaIntegrationTest {
+class REQ20261122150802TenantLifecycleQuotaIntegrationTest extends AbstractSystemIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -120,20 +107,6 @@ class REQ20261122150802TenantLifecycleQuotaIntegrationTest {
 
     /** 夹具租户码前缀（teardown 按前缀物理清理；唯一性靠每用例独立前缀）。 */
     private static final String FIXTURE_PREFIX = "req150802";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
 
     @Autowired
     private WebApplicationContext webContext;

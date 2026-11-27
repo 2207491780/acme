@@ -3,6 +3,8 @@ package com.acme.platform.system;
 import com.acme.common.context.Channel;
 import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
+import com.acme.common.test.EmbeddedPostgresSupport;
+import com.acme.common.test.EmbeddedRedisSupport;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
 import com.acme.framework.security.interceptor.InternalTokenAuthFilter;
@@ -28,10 +30,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -98,7 +96,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *       spring-boot-starter-data-redis（Lettuce，pub/sub 订阅模拟）。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = PlatformSystemApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
@@ -124,25 +121,18 @@ class REQ20261114120102NotifyWsIntegrationTest {
     private static final String USER_TOKEN_SECRET = "req-ws-it-user-secret-0123456789abcdef";
     private static final String USER_TOKEN_ISSUER = "acme-auth";
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    /** Redis 容器：多实例扇出总线 + AC-8 独立订阅者。 */
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
-
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
+        EmbeddedRedisSupport redis = EmbeddedRedisSupport.shared();
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl("acme_notify_ws", "public"));
+        registry.add("spring.datasource.username", pg::username);
+        registry.add("spring.datasource.password", pg::password);
         registry.add("spring.flyway.default-schema", () -> "public");
         registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("spring.data.redis.host", redis::host);
+        registry.add("spring.data.redis.port", redis::port);
+        registry.add("spring.data.redis.password", () -> "");
     }
 
     @LocalServerPort
@@ -260,8 +250,9 @@ class REQ20261114120102NotifyWsIntegrationTest {
         assertThat(listener.opened.await(2, TimeUnit.SECONDS)).isTrue();
 
         // 独立订阅者模拟第二实例/pod（PSUBSCRIBE '*' 不依赖频道命名，channel 实现自定）
+        EmbeddedRedisSupport redis = EmbeddedRedisSupport.shared();
         RedisClient redisClient = RedisClient.create(
-                "redis://" + REDIS.getHost() + ":" + REDIS.getMappedPort(6379));
+                "redis://" + redis.host() + ":" + redis.port());
         StatefulRedisPubSubConnection<String, String> pubSub = redisClient.connectPubSub();
         ConcurrentLinkedQueue<String[]> events = new ConcurrentLinkedQueue<>();
         CountDownLatch subscribed = new CountDownLatch(1);

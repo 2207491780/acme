@@ -13,12 +13,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,14 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 集成点（后端工人并行交付）；{@code SysMenu.setStatus}/{@code SysMenuRepository.save} 为既有实体族
  * 惯例面（置停用样例无用例层入口）。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req213603-filter-secret-0123456789"
-})
-class REQ20261120213603MenuFilterIntegrationTest {
+class REQ20261120213603MenuFilterIntegrationTest extends AbstractSystemIntegrationTest {
 
     private static final String TENANT = "req213603-t1";
 
@@ -58,20 +45,6 @@ class REQ20261120213603MenuFilterIntegrationTest {
     private static final long SEED_USERS_PAGE = 2L;
     private static final long SEED_CREATE_USER_BTN = 13L;
     private static final String SEED_CREATE_USER_CODE = "system:user:create";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
 
     @Autowired
     private MenuUseCase menuUseCase;

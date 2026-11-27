@@ -12,19 +12,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -56,30 +50,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *   <li>认证/权限面不变：GET 认证即可读、PUT 经 super_admin（V15 已绑定 system:config:update）。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req011514-config-it-secret-0123456"
-})
-class REQ20261117011514SystemConfigCaptchaApiIntegrationTest {
+class REQ20261117011514SystemConfigCaptchaApiIntegrationTest extends AbstractSystemIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
 
     @Autowired
     private WebApplicationContext webContext;

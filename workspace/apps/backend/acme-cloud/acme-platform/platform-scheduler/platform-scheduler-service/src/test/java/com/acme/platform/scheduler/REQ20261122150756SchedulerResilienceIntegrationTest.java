@@ -1,5 +1,6 @@
 package com.acme.platform.scheduler;
 
+import com.acme.common.test.EmbeddedPostgresSupport;
 import com.acme.common.context.Channel;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
@@ -27,9 +28,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -90,7 +88,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * A-5 退避间隔测量口径=RETRY 行自身 fire_time-created_at（DB 内求差，spawnRetry 的
  *     fire_time=失败时刻+间隔），±10% jitter 叠加 ±250ms 时钟斜差容忍带。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = PlatformSchedulerApplication.class, properties = {
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
@@ -135,16 +132,12 @@ class REQ20261122150756SchedulerResilienceIntegrationTest {
     /** 内嵌通知桩（A-3：模拟 platform-system 承接 POST /internal/v1/notify/messages）。 */
     private static final NotifyStub NOTIFY = NotifyStub.start();
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl("acme_sched_resilience", "public"));
+        registry.add("spring.datasource.username", pg::username);
+        registry.add("spring.datasource.password", pg::password);
         registry.add("spring.flyway.default-schema", () -> "public");
         registry.add("spring.flyway.schemas", () -> "public");
         // 执行器桩与通知桩均以 Spring Cloud SimpleDiscoveryClient 静态实例表承载（范本 A-2 同款）

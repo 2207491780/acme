@@ -9,6 +9,14 @@ spring:
         enabled: false
       discovery:
         enabled: false
+    function:
+      definition: ""
+    stream:
+      # 测试域无 Kafka broker：禁止 SCSt 自动探测 auditEventIn 消费函数并绑定 Kafka，
+      # 消除每次上下文启动 60s AdminClient localhost:9092 空转超时
+      function:
+        autodetect: false
+      enabled: false
   flyway:
     enabled: true
     # locations 继承 yml（REQ-20261118-002130 确认①）：迁移目录 per-service 子目录，测试不另覆盖
@@ -36,3 +44,6 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    binders:
+      enabled: false

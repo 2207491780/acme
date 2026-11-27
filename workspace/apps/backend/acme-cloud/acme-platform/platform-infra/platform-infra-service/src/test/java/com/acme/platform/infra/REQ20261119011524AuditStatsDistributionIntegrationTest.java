@@ -10,17 +10,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -56,16 +50,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *       用例以 days=1 窗口过滤断言为准，不做非法入参断言（保持最小契约面）。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformInfraApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.stream.enabled=false",
-        "acme.audit.enabled=false",
-        "acme.security.token.hmac-secret=req011524-auditstats-it-secret-01234567"
-})
-class REQ20261119011524AuditStatsDistributionIntegrationTest {
+class REQ20261119011524AuditStatsDistributionIntegrationTest extends AbstractInfraIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -73,32 +58,6 @@ class REQ20261119011524AuditStatsDistributionIntegrationTest {
     private static final String TENANT_B = "req011524-tenant-b";
 
     private static final long EVENT_ID_BASE = 911524_000L;
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    /** 本地盘存储根（REQ-20261114-071607 起服务装配含 framework-storage；type=local 缺省，root-dir 必配）。 */
-    private static final Path STORAGE_ROOT = createStorageRoot();
-
-    private static Path createStorageRoot() {
-        try {
-            return Files.createTempDirectory("req011524-auditstats-it-storage");
-        } catch (IOException ex) {
-            throw new IllegalStateException("创建本地盘存储根失败", ex);
-        }
-    }
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
-    }
 
     @Autowired
     private WebApplicationContext webContext;

@@ -12,11 +12,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -24,9 +21,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -55,14 +49,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * 不作为 RLS 隔离铁证；RLS 铁证见 {@code REQ202611251737RlsNonSuperuserIntegrationTest}
  * （真正以迁移创建的非超管应用角色 login）。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req-1737-prop-it-secret-0123456789abcdef"
-})
-class REQ202611251737PropagationIntegrationTest {
+class REQ202611251737PropagationIntegrationTest extends AbstractSystemIntegrationTest {
 
     /** 契约背景钉死的 ORM 哨兵（确认记录②：fail-closed 与之同口径）。 */
     private static final String SENTINEL = "__acme_tenant_unbound__";
@@ -77,20 +64,6 @@ class REQ202611251737PropagationIntegrationTest {
         CATALOG_PATHS.put("/admin/v1/system/menus", "sys_menu");
         CATALOG_PATHS.put("/admin/v1/system/tenant-packages", "sys_tenant_package");
         CATALOG_PATHS.put("/admin/v1/system/tenant-templates", "sys_tenant_init_template");
-    }
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
     }
 
     @Autowired

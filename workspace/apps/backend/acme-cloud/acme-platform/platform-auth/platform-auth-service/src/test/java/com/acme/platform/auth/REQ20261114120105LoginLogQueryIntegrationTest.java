@@ -16,10 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -27,10 +24,6 @@ import org.springframework.test.web.servlet.request.AbstractMockHttpServletReque
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -64,15 +57,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *       由 TL 对齐种子 SQL。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformAuthApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req120105-logquery-secret-012345678",
-        "acme.auth.token.hmac-secret=req120105-logquery-secret-012345678"
-})
-class REQ20261114120105LoginLogQueryIntegrationTest {
+class REQ20261114120105LoginLogQueryIntegrationTest extends AbstractAuthIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -81,26 +66,6 @@ class REQ20261114120105LoginLogQueryIntegrationTest {
     private static final Instant T_ALICE_C = Instant.now().minusSeconds(3600);
     private static final Instant T_BOB = Instant.now().minusSeconds(2 * 3600);
     private static final Instant T_CAROL = Instant.now().minusSeconds(40L * 24 * 3600);
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-    }
 
     @Autowired
     private WebApplicationContext webContext;

@@ -1,17 +1,17 @@
 package com.acme.bootstrap;
 
+import com.acme.common.test.EmbeddedPostgresSupport;
+import com.acme.common.test.EmbeddedRedisSupport;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.test.EmbeddedKafkaKraftBroker;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -65,7 +65,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * A-7 单体 stream 使能：本类 @SpringBootTest properties 覆盖测试域 yml 的 stream 关闭态
  *     （事件自消费腿必需）；Kafka binder brokers 指向容器。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = MonolithApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 // A-7：事件自消费腿——单体 stream 显式开启（缺省关闭，测试域覆盖）
@@ -84,33 +83,20 @@ class REQ20261122233425LeaveE2eIntegrationTest {
     private static final String TASK_COMPLETE_URL = "/admin/v1/workflow/tasks/%d/complete";
     private static final String TASK_REJECT_URL = "/admin/v1/workflow/tasks/%d/reject";
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
+    /** 零 Docker 进程内 KRaft Kafka broker（随机空闲端口，不抢占宿主 9092）。 */
+    private static final EmbeddedKafkaKraftBroker KAFKA = startEmbeddedKafka();
 
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
+    private static EmbeddedKafkaKraftBroker startEmbeddedKafka() {
+        EmbeddedKafkaKraftBroker broker = new EmbeddedKafkaKraftBroker(
+                1, 1, "acme.workflow.events", "acme.workflow.events-dlq");
+        broker.afterPropertiesSet();
+        return broker;
+    }
 
-    /**
-     * A-7 修订：TC 2.0.5 org.testcontainers.kafka.KafkaContainer 的 STARTER_SCRIPT 补丁只注入
-     * PLAINTEXT/BROKER 两条 advertised.listeners，CONTROLLER 落回 listeners 缺省 0.0.0.0:9094
-     * → 镜像 configure 期 StorageTool 校验拒绝（事件 IT 同款实证）——改用 GenericContainer 走
-     * 镜像自身缺省 KRaft 单机配置 + 宿主固定端口 9092（与事件 IT 同口径；端口被占=环境冲突）。
-     */
-    @Container
-    private static final GenericContainer<?> KAFKA =
-            new GenericContainer<>("apache/kafka:3.9.0")
-                    .withExposedPorts(9092)
-                    .withCreateContainerCmdModifier(cmd -> cmd.withHostConfig(
-                            com.github.dockerjava.api.model.HostConfig.newHostConfig()
-                                    .withPortBindings(new com.github.dockerjava.api.model.Ports(
-                                            new com.github.dockerjava.api.model.PortBinding(
-                                                    com.github.dockerjava.api.model.Ports.Binding.bindPort(9092),
-                                                    new com.github.dockerjava.api.model.ExposedPort(9092))))))
-                    .waitingFor(org.testcontainers.containers.wait.strategy.Wait
-                            .forLogMessage(".*Kafka Server started.*", 1));
+    @AfterAll
+    static void stopEmbeddedKafka() {
+        KAFKA.destroy();
+    }
 
     private static final java.nio.file.Path STORAGE_ROOT = tempStorageRoot();
 
@@ -124,18 +110,16 @@ class REQ20261122233425LeaveE2eIntegrationTest {
 
     @DynamicPropertySource
     static void containers(DynamicPropertyRegistry registry) {
-        // 多 schema search_path（MonolithContextSmokeTest 先例；business-leave schema 随实现聚合，
-        // 本类 DB 断言经 information_schema 定位，不依赖具体 schema 名——A-2）
-        registry.add("spring.datasource.url", () -> {
-            String separator = POSTGRES.getJdbcUrl().contains("?") ? "&" : "?";
-            return POSTGRES.getJdbcUrl() + separator
-                    + "currentSchema=platform_auth,platform_system,platform_infra,platform_scheduler,"
-                    + "platform_workflow,business_leave";
-        });
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
+        EmbeddedRedisSupport redis = EmbeddedRedisSupport.shared();
+        redis.flushAll();
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl(
+                "acme_monolith_leave_e2e",
+                "platform_auth,platform_system,platform_infra,platform_scheduler,platform_workflow,business_leave"));
+        registry.add("spring.datasource.username", pg::username);
+        registry.add("spring.datasource.password", pg::password);
+        registry.add("spring.data.redis.host", redis::host);
+        registry.add("spring.data.redis.port", redis::port);
         registry.add("spring.data.redis.password", () -> "");
         registry.add("ACME_SEED_SUPERADMIN_PASSWORD", () -> SEED_SUPERADMIN_PASSWORD);
         registry.add("ACME_SEED_DEMO_ADMIN_PASSWORD", () -> "MonolithDemo@123");
@@ -143,8 +127,7 @@ class REQ20261122233425LeaveE2eIntegrationTest {
         registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
         registry.add("ACME_USER_TOKEN_HMAC_SECRET", () -> "leave-e2e-user-token-secret-0123456789abcdef");
         registry.add("ACME_SECURITY_TOKEN_HMAC_SECRET", () -> "leave-e2e-security-token-secret-0123456789");
-        // A-7：Kafka binder brokers 指向容器（destination=acme.workflow.events 契约④钉死）
-        registry.add("spring.cloud.stream.kafka.binder.brokers", () -> "localhost:9092");
+        registry.add("spring.cloud.stream.kafka.binder.brokers", KAFKA::getBrokersAsString);
     }
 
     @LocalServerPort

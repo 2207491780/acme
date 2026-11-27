@@ -1,5 +1,6 @@
 package com.acme.platform.workflow;
 
+import com.acme.common.test.EmbeddedPostgresSupport;
 import com.acme.common.context.Channel;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
@@ -27,9 +28,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -156,7 +154,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *     标准网关属性 default="flowId" 标注——实证实现校验器当前忽略该属性（把无条件流按
  *     GATEWAY_CONDITIONS 违规上报，AC-3 default 用例红），属实现偏差候选，TL 裁决后回改规格或实现。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = PlatformWorkflowApplication.class, properties = {
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
@@ -186,16 +183,12 @@ class REQ20261121142316WorkflowEngineIntegrationTest {
     /** 内嵌调度中心桩（记录一次性任务注册 POST 与注销 DELETE，按契约 §6 协议应答）。 */
     private static final SchedulerStub SCHEDULER_STUB = SchedulerStub.start();
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
     @DynamicPropertySource
     static void infrastructure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl("acme_wf_engine", "public"));
+        registry.add("spring.datasource.username", pg::username);
+        registry.add("spring.datasource.password", pg::password);
         registry.add("spring.flyway.default-schema", () -> "public");
         registry.add("spring.flyway.schemas", () -> "public");
         // A-2：Nacos 关闭态以 SimpleDiscoveryClient 静态实例表承载 lb://{appName}

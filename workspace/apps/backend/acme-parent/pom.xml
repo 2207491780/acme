@@ -53,6 +53,10 @@
         <shedlock.version>5.16.0</shedlock.version>
         <!-- MyBatis-Flex（framework-flex 数据访问底座，随 POC 验证冻结 1.11.8：Boot 4 专用 starter） -->
         <mybatis-flex.version>1.11.8</mybatis-flex.version>
+        <!-- 零 Docker 测试底座：原生嵌入式 PG 17（与生产 postgres:17-alpine 同大版本）+ 嵌入式 Redis -->
+        <embedded-postgres.version>2.2.3</embedded-postgres.version>
+        <embedded-postgres-binaries.version>17.12.0</embedded-postgres-binaries.version>
+        <embedded-redis.version>1.4.4</embedded-redis.version>
 
         <!-- Maven插件版本 -->
         <maven-compiler-plugin.version>3.14.1</maven-compiler-plugin.version>
@@ -226,6 +230,25 @@
                 <version>${shedlock.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- 零 Docker 测试底座（仅 common-test 消费，test scope，不进入生产打包） -->
+            <dependency>
+                <groupId>io.zonky.test.postgres</groupId>
+                <artifactId>embedded-postgres-binaries-bom</artifactId>
+                <version>${embedded-postgres-binaries.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.zonky.test</groupId>
+                <artifactId>embedded-postgres</artifactId>
+                <version>${embedded-postgres.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.codemonstur</groupId>
+                <artifactId>embedded-redis</artifactId>
+                <version>${embedded-redis.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -2,13 +2,7 @@ package com.acme.platform.system;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -43,14 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>签名假设见契约回填 AMB 清单（AMB-1/6/7/8/9）：V20 文件名 {@code V20__button_menu_nodes.sql}、
  * 幂等口径同 V19、BUTTON 行 path/component/icon 为空且无子节点、超管 role_id=1/tenant 'default'。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req051119-migration-secret-0123456789ab"
-})
-class REQ20261119051119ButtonMenuMigrationTest {
+class REQ20261119051119ButtonMenuMigrationTest extends AbstractSystemIntegrationTest {
 
     /** 非 BUTTON 菜单基数＝V19 用至 12＋REQ-20261119-151640 V22 六 MENU 叶子（id 40~45）
      *  ＋REQ-20261121-022910 V24 套餐管理 MENU 叶（id 46）
@@ -60,20 +47,6 @@ class REQ20261119051119ButtonMenuMigrationTest {
     /** 超管角色（V2 种子：role_id=1 / tenant 'default'，V19 绑定行续编先例）。 */
     private static final long SUPER_ADMIN_ROLE_ID = 1L;
     private static final String DEFAULT_TENANT = "default";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

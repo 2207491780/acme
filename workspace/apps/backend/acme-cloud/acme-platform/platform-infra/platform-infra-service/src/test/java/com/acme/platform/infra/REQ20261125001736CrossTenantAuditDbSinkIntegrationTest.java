@@ -12,13 +12,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
 import java.util.List;
@@ -45,24 +39,10 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  *       finally 复原；ERROR 告警 logger 名未钉死 → 挂根 logger 按 Level.ERROR 过滤。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformInfraApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.stream.enabled=false",
-        "acme.audit.enabled=false",
-        "acme.security.token.hmac-secret=it-req001736-test-hmac-secret-0123456789abcdef"
-})
-class REQ20261125001736CrossTenantAuditDbSinkIntegrationTest {
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
+class REQ20261125001736CrossTenantAuditDbSinkIntegrationTest extends AbstractInfraIntegrationTest {
 
     /** 本地盘存储根（服务装配含 framework-storage；type=local 缺省，root-dir 必配，InfraIntegrationTest 同口径）。 */
-    private static final java.nio.file.Path STORAGE_ROOT = createStorageRoot();
+    private static final java.nio.file.Path SHARED_STORAGE_ROOT = createStorageRoot();
 
     private static java.nio.file.Path createStorageRoot() {
         try {
@@ -70,16 +50,6 @@ class REQ20261125001736CrossTenantAuditDbSinkIntegrationTest {
         } catch (java.io.IOException ex) {
             throw new IllegalStateException("创建本地盘存储根失败", ex);
         }
-    }
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
     }
 
     @Autowired

@@ -1,5 +1,6 @@
 package com.acme.platform.workflow;
 
+import com.acme.common.test.EmbeddedPostgresSupport;
 import com.acme.common.context.Channel;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
@@ -25,9 +26,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -58,12 +56,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * MockMvc HTTP 面 + JdbcTemplate 夹具；无 ServiceTask 委托/调度联动——本专项不涉及，省内嵌桩）；
  * 无 Docker 自动跳过——判定口径：日志须见 Tests run: N, Skipped: 0 才算验证（pitfall 16）。
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = PlatformWorkflowApplication.class, properties = {
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req-bpm2-tester-it-secret-0123456789"
+        "acme.security.token.hmac-secret=req-233425-internal-it-secret-0123456789"
 })
 class REQ20261122023441WorkflowLayoutJsonIntegrationTest {
 
@@ -79,16 +76,12 @@ class REQ20261122023441WorkflowLayoutJsonIntegrationTest {
                     + "{\"id\":\"task-1\",\"x\":250,\"y\":80},"
                     + "{\"id\":\"end\",\"x\":440,\"y\":80}]}";
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
     @DynamicPropertySource
     static void infrastructure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl("acme_wf_shared", "public"));
+        registry.add("spring.datasource.username", pg::username);
+        registry.add("spring.datasource.password", pg::password);
         registry.add("spring.flyway.default-schema", () -> "public");
         registry.add("spring.flyway.schemas", () -> "public");
     }

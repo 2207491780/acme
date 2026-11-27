@@ -99,6 +99,19 @@
                                         <include>net.bytebuddy:*</include>
                                         <include>org.jetbrains:annotations</include>
                                         <include>net.java.dev.jna:*</include>
+                                        <!-- 零 Docker 测试底座（仅 common-test 消费，测试域口径 Q-012、BR-023） -->
+                                        <include>io.zonky.test:*</include>
+                                        <include>io.zonky.test.postgres:*</include>
+                                        <include>org.postgresql:postgresql</include>
+                                        <include>org.tukaani:xz</include>
+                                        <include>com.github.codemonstur:embedded-redis</include>
+                                        <include>redis.clients:jedis</include>
+                                        <include>org.apache.commons:commons-pool2</include>
+                                        <include>org.json:json</include>
+                                        <include>com.google.code.gson:gson</include>
+                                        <include>com.google.errorprone:*</include>
+                                        <include>org.checkerframework:*</include>
+                                        <include>org.slf4j:*</include>
                                     </includes>
                                     <message>common-* 仅限白名单基础依赖（Backend.md 7.1.2）</message>
                                 </bannedDependencies>

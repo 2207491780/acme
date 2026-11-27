@@ -1,5 +1,6 @@
 package com.acme.platform.scheduler;
 
+import com.acme.common.test.EmbeddedPostgresSupport;
 import com.acme.common.context.Channel;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
@@ -23,9 +24,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -72,7 +70,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *     「主循环单发锁」）——若实现只锁 DB 兜底、时间轮裸奔，本类 AC-4 失败即 spec 偏差上报；
  * A-3 管理/内部端点请求体形状按 V1 列名驼峰推导（同核心集成类 A-3）。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = PlatformSchedulerApplication.class, properties = {
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
@@ -88,16 +85,12 @@ class REQ20261121071002SchedulerKernelTest {
     /** 不在发现层的 ghost 应用（触发→生成 execution→NO_EXECUTOR 快速终态，不阻塞 tick）。 */
     private static final String GHOST_APP = "acme-ghost-app-kernel";
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl("acme_sched_kernel", "public"));
+        registry.add("spring.datasource.username", pg::username);
+        registry.add("spring.datasource.password", pg::password);
         registry.add("spring.flyway.default-schema", () -> "public");
         registry.add("spring.flyway.schemas", () -> "public");
     }

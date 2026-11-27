@@ -3,14 +3,8 @@ package com.acme.platform.auth;
 import com.acme.platform.auth.infrastructure.repository.AuthCredentialRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Instant;
 
@@ -21,29 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * AC-013 实体-脚本一致性（ddl-auto=validate 启动即校验）+ Q-D05 种子凭据 pgcrypto BCrypt
  * 与 Java BCryptPasswordEncoder 兼容性核验（$2a 前缀 + matches）。
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformAuthApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=auth-integration-test-secret-0123456789",
-        "acme.auth.token.hmac-secret=auth-integration-test-secret-0123456789"
-})
-class AuthSeedIntegrationTest {
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
+class AuthSeedIntegrationTest extends AbstractAuthIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

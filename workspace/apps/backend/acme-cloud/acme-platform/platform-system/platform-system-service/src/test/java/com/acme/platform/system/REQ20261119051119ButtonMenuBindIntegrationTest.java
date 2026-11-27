@@ -12,12 +12,6 @@ import com.acme.platform.system.interfaces.EntityViews;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.Set;
@@ -36,14 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * BUTTON 15=删除用户（码 system:user:delete → 权限点 6）、页面菜单 2=用户管理（父 1=系统管理目录）、
  * 权限点 67=system:config:update（无 BUTTON 投影，作非按钮来源直绑锚点）。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req051119-bind-secret-0123456789"
-})
-class REQ20261119051119ButtonMenuBindIntegrationTest {
+class REQ20261119051119ButtonMenuBindIntegrationTest extends AbstractSystemIntegrationTest {
 
     private static final String TENANT = "req051119-t1";
     private static final String ROLE_CODE = "btn_ops";
@@ -58,20 +45,6 @@ class REQ20261119051119ButtonMenuBindIntegrationTest {
     private static final String CODE_CREATE_USER = "system:user:create";
     private static final String CODE_DELETE_USER = "system:user:delete";
     private static final String CODE_CONFIG_UPDATE = "system:config:update";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
 
     @Autowired
     private RoleUseCase roleUseCase;

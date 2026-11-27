@@ -7,13 +7,7 @@ import com.acme.platform.system.application.TenantInitUseCase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 
@@ -42,14 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>签名假设见契约回填 AMB 清单（AMB-1/2/3/11）。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req051119-init-secret-0123456789abcd"
-})
-class REQ20261119051119TenantInitButtonGrantIntegrationTest {
+class REQ20261119051119TenantInitButtonGrantIntegrationTest extends AbstractSystemIntegrationTest {
 
     /** 开通目标租户（fixture 口径：initialize 内部切换目标租户上下文并在结束后恢复 default）。 */
     private static final String NEW_TENANT = "req051119-acme";
@@ -63,20 +50,6 @@ class REQ20261119051119TenantInitButtonGrantIntegrationTest {
     private static final String RESERVED_DOMAIN_CLAUSE =
             "(m.permission_code like 'system:tenant:%' or m.permission_code like 'infra:audit:%' "
                     + "or m.permission_code like 'system:tenant-package:%')";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
 
     @Autowired
     private TenantInitUseCase tenantInitUseCase;

@@ -251,14 +251,40 @@
                 </configuration>
             </plugin>
             <!-- Flex 全局默认方言是 JVM 级静态（FlexGlobalConfig.defaultConfig），H2 与 MySQL 共用反引号方言。
-                 本模块 H2 切片（FlexRepositorySliceTest）与 PG 集成（SystemIntegrationTest）若共用 surefire JVM，
-                 全局方言会被先建的 H2 上下文污染，致 PG 生成反引号 SQL 报 syntax error。每个测试类独立 JVM 隔离。 -->
+                 以双 surefire execution 将 H2 切片（*SliceTest）与单测/PG 集成隔离至两个独立复用的 JVM
+                 （JVM 数从 81 降至 2），既 100% 保留 ADR 2026-11-12-03 的 JVM 级方言隔离，又允许全部 PG 集成
+                 共享同一嵌入式 PG 17 进程与 Spring ApplicationContext 缓存。 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <reuseForks>false</reuseForks>
-                </configuration>
+                <executions>
+                    <execution>
+                        <id>default-test</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <reuseForks>true</reuseForks>
+                            <excludes>
+                                <exclude>**/*SliceTest.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>slice-tests</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <reuseForks>true</reuseForks>
+                            <includes>
+                                <include>**/*SliceTest.java</include>
+                            </includes>
+                            <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -1,5 +1,7 @@
 package com.acme.platform.infra;
 
+import org.springframework.test.context.TestPropertySource;
+
 import com.acme.common.context.Channel;
 import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
@@ -13,20 +15,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -59,52 +54,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * <p>口径说明：行数断言=数据行+表头行 1 行（StreamExcelWriter「表头先行」先例，AMB-5 同口径）；
  * 若上限实现为端点侧新属性/常量，本类注入键同步调整。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformInfraApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.stream.enabled=false",
-        "acme.audit.enabled=false",
-        "acme.security.token.hmac-secret=req061017-trunc-secret-012345678",
+@TestPropertySource(properties = {
         "acme.excel.max-rows=2"
 })
-class REQ20261117061017ExportTruncationIntegrationTest {
+class REQ20261117061017ExportTruncationIntegrationTest extends AbstractInfraIntegrationTest {
 
     private static final String XLSX_MIME =
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
-
-    /** 本地存储落盘根（framework-storage 本地模式 bean 装配必填，缺失显式失败 SYS-15-0006）。 */
-    private static final Path STORAGE_ROOT = createStorageRoot();
-
-    private static Path createStorageRoot() {
-        try {
-            return Files.createTempDirectory("req061017-trunc-it-storage");
-        } catch (IOException ex) {
-            throw new IllegalStateException("创建本地盘存储根失败", ex);
-        }
-    }
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
-    }
 
     @Autowired
     private WebApplicationContext webContext;

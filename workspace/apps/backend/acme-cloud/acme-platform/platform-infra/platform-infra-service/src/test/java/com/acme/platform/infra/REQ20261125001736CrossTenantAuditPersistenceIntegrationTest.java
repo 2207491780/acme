@@ -9,13 +9,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,42 +26,7 @@ import static org.assertj.core.api.Assertions.fail;
  * sys_cross_tenant_audit 真实 PG 落库（Flyway V19 建表；operator/tenant_id/access_point/
  * trace_id/bypass/created_at 列集与 operator+created_at 索引）。
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformInfraApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.stream.enabled=false",
-        "acme.audit.enabled=false",
-        "acme.security.token.hmac-secret=infra-integration-test-secret-0123456789"
-})
-class REQ20261125001736CrossTenantAuditPersistenceIntegrationTest {
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    /** 本地盘存储根（服务装配含 framework-storage；type=local 缺省，root-dir 必配，InfraIntegrationTest 同型）。 */
-    private static final Path STORAGE_ROOT = createStorageRoot();
-
-    private static Path createStorageRoot() {
-        try {
-            return Files.createTempDirectory("audit-it-storage");
-        } catch (IOException ex) {
-            throw new IllegalStateException("创建本地盘存储根失败", ex);
-        }
-    }
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
-    }
+class REQ20261125001736CrossTenantAuditPersistenceIntegrationTest extends AbstractInfraIntegrationTest {
 
     @Autowired
     private CrossTenantAuditLogger auditLogger;

@@ -1,5 +1,7 @@
 package com.acme.platform.system;
 
+import org.springframework.test.context.TestPropertySource;
+
 import com.acme.common.context.Channel;
 import com.acme.common.context.TenantContext;
 import com.acme.framework.core.support.AuthenticatedSubject;
@@ -12,10 +14,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -25,9 +24,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -46,35 +42,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * <p>覆盖：开关关闭时传播层不再写任何 {@code app.tenant_*} 会话变量；ORM 既有租户过滤面与现状一致
  * （绑定 t-1 只查到 t-1 行），避免「关掉传播层连原隔离也关掉」的回归。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.tenant.rls.propagation=false",
-        "acme.security.token.hmac-secret=req-1737-off-it-secret-0123456789abcdef"
+@TestPropertySource(properties = {
+        "acme.tenant.rls.propagation=false"
 })
-class REQ202611251737PropagationDisabledIntegrationTest {
+class REQ202611251737PropagationDisabledIntegrationTest extends AbstractSystemIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final String TENANT_A = "req1737-off-a";
     private static final String TENANT_B = "req1737-off-b";
     private static final String USER_A = "req1737-dis-own";
     private static final String USER_B = "req1737-dis-other";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

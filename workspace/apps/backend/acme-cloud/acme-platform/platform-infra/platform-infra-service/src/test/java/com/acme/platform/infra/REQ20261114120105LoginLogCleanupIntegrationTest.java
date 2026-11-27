@@ -11,15 +11,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -45,51 +38,10 @@ import static org.mockito.Mockito.when;
  *       按既有 job 域先例（AMB-1）。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformInfraApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.stream.enabled=false",
-        "acme.audit.enabled=false",
-        "acme.security.token.hmac-secret=req120105-cleanup-secret-012345678"
-})
-class REQ20261114120105LoginLogCleanupIntegrationTest {
+class REQ20261114120105LoginLogCleanupIntegrationTest extends AbstractInfraIntegrationTest {
 
     private static final String JOB_KEY = "login-log-retention-cleanup";
     private static final Duration TRIGGER_SETTLE = Duration.ofSeconds(10);
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
-
-    /** 本地存储落盘根（framework-storage 本地模式 bean 装配必填，缺失显式失败 SYS-15-0006）。 */
-    private static final Path STORAGE_ROOT = createStorageRoot();
-
-    private static Path createStorageRoot() {
-        try {
-            return Files.createTempDirectory("req120105-infra-it-storage");
-        } catch (IOException ex) {
-            throw new IllegalStateException("创建本地盘存储根失败", ex);
-        }
-    }
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
-    }
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

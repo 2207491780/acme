@@ -214,11 +214,10 @@
             <artifactId>testcontainers-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- 事件流集成测试（REQ-20261122-233425 确认⑦：Kafka 容器断言 envelope 与 topic——版本随
-            parent spring-boot-dependencies 口径） -->
+        <!-- 事件流集成测试（零 Docker 嵌入式 Kafka KRaft broker，替代原 Testcontainers Kafka） -->
         <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers-kafka</artifactId>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -238,16 +237,6 @@
                         形态供 acme-bootstrap 单体聚合编译/打包（Boot 重打包的 BOOT-INF 布局不可作为
                         依赖 jar 复用）；镜像构建（Dockerfile）按 -exec 优先取可执行 jar，行为不变 -->
                     <classifier>exec</classifier>
-                </configuration>
-            </plugin>
-            <!-- Flex 全局默认方言是 JVM 级静态（FlexGlobalConfig.defaultConfig），H2 与 MySQL 共用反引号方言。
-                 本模块 H2 切片与 PG 集成若共用 surefire JVM，全局方言会被先建的 H2 上下文污染，致 PG 生成
-                 反引号 SQL 报 syntax error。每个测试类独立 JVM 隔离（platform-system-service 同款）。 -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <reuseForks>false</reuseForks>
                 </configuration>
             </plugin>
         </plugins>

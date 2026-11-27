@@ -1,5 +1,6 @@
 package com.acme.platform.auth.infrastructure.redis;
 
+import com.acme.common.test.EmbeddedRedisSupport;
 import com.acme.platform.auth.config.LoginGuardProperties;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -7,32 +8,26 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Redis 支撑组件集成测试（Testcontainers Redis，16.2.1 本地可执行；无 Docker 自动跳过）：
+ * Redis 支撑组件集成测试（零 Docker 嵌入式 Redis）：
  * 防爆破计数 / 锁定窗口、撤销集 TTL 写入与命中、写入失败语义。
  */
-@Testcontainers(disabledWithoutDocker = true)
 class AuthRedisSupportIntegrationTest {
 
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
+    private static final EmbeddedRedisSupport REDIS = EmbeddedRedisSupport.shared();
 
     private static LettuceConnectionFactory connectionFactory;
     private static StringRedisTemplate redisTemplate;
 
     @BeforeAll
     static void setUp() {
+        REDIS.flushAll();
         RedisStandaloneConfiguration configuration =
-                new RedisStandaloneConfiguration(REDIS.getHost(), REDIS.getMappedPort(6379));
+                new RedisStandaloneConfiguration(REDIS.host(), REDIS.port());
         connectionFactory = new LettuceConnectionFactory(configuration);
         connectionFactory.afterPropertiesSet();
         connectionFactory.start();
@@ -95,7 +90,7 @@ class AuthRedisSupportIntegrationTest {
     void revokeWriteFailureSemantics() {
         // 连接工厂关闭后写入 → 显式失败（登出 / 重置路径据此失败响应）
         LettuceConnectionFactory broken = new LettuceConnectionFactory(
-                new RedisStandaloneConfiguration(REDIS.getHost(), REDIS.getMappedPort(6379)));
+                new RedisStandaloneConfiguration(REDIS.host(), REDIS.port()));
         broken.afterPropertiesSet();
         broken.start();
         StringRedisTemplate template = new StringRedisTemplate(broken);

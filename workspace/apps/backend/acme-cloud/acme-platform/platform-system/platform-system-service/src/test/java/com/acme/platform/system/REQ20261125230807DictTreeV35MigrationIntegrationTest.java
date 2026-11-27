@@ -2,13 +2,7 @@ package com.acme.platform.system;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -38,31 +32,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>预期红（实现未落地，钉死事实⑨）：V35 文件缺失/列缺失 → 断言失败=实现缺口锚点；
  * 装配失败才属用例缺陷需自修。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=Req230807Delta3SystemTestHmacSecret48Bfix000pad0"
-})
-class REQ20261125230807DictTreeV35MigrationIntegrationTest {
+class REQ20261125230807DictTreeV35MigrationIntegrationTest extends AbstractSystemIntegrationTest {
 
     private static final long DICT_ID_BASE = 92308060000L;
     private static final long DICT_ID_TOP = 92308069999L;
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

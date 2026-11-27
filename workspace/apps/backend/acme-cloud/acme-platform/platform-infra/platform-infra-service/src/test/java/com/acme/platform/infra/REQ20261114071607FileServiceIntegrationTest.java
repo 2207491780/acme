@@ -1,5 +1,7 @@
 package com.acme.platform.infra;
 
+import org.springframework.test.context.TestPropertySource;
+
 import com.acme.common.context.Channel;
 import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
@@ -15,11 +17,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -27,10 +26,6 @@ import org.springframework.test.web.servlet.request.AbstractMockHttpServletReque
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -73,55 +68,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *   <li>FileView JSON 字段命名策略（驼峰/下划线）契约未指明：断言经 {@link #textOf} 双兼容取值。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformInfraApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.stream.enabled=false",
-        "acme.audit.enabled=false",
-        "acme.security.token.hmac-secret=req-file-it-secret-0123456789abcdef",
-        "acme.storage.type=local",
-        "acme.storage.local.url-base=http://files.integration.test/acme",
+@TestPropertySource(properties = {
         "acme.storage.upload.max-size=1KB"
 })
-class REQ20261114071607FileServiceIntegrationTest {
+class REQ20261114071607FileServiceIntegrationTest extends AbstractInfraIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final String XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    /** Redis 容器（委派单 PG+Redis 口径；stream 关闭时当前装配不消费，属性预留注入）。 */
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
-
-    /** 本地盘存储根（静态初始化保证早于 Spring 上下文装配，@DynamicPropertySource 引用）。 */
-    private static final Path STORAGE_ROOT = createStorageRoot();
-
-    private static Path createStorageRoot() {
-        try {
-            return Files.createTempDirectory("req20261114071607-file-it");
-        } catch (IOException ex) {
-            throw new IllegalStateException("创建本地盘存储根失败", ex);
-        }
-    }
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
-    }
 
     @Autowired
     private WebApplicationContext webContext;
@@ -198,7 +151,7 @@ class REQ20261114071607FileServiceIntegrationTest {
         // AC-6（服务侧）：对象按 ObjectKey 落盘（root-dir + object_key 路径确定）
         String objectKey = jdbcTemplate.queryForObject("select object_key from sys_file", String.class);
         assertThat(objectKey).isNotBlank();
-        Path objectPath = STORAGE_ROOT.resolve(objectKey);
+        Path objectPath = SHARED_STORAGE_ROOT.resolve(objectKey);
         assertThat(objectPath).exists();
         assertThat(Files.readAllBytes(objectPath)).isEqualTo(content);
     }
@@ -299,7 +252,7 @@ class REQ20261114071607FileServiceIntegrationTest {
                 Boolean.class, Long.parseLong(id))).isTrue();
         String objectKey = jdbcTemplate.queryForObject("select object_key from sys_file where id=?",
                 String.class, Long.parseLong(id));
-        assertThat(STORAGE_ROOT.resolve(objectKey)).doesNotExist();
+        assertThat(SHARED_STORAGE_ROOT.resolve(objectKey)).doesNotExist();
 
         // 幂等：再次删除仍成功（记录已删 + 对象不存在）
         JsonNode second = bodyOf(call(delete("/admin/v1/infra/files/{id}", id)));
@@ -399,21 +352,21 @@ class REQ20261114071607FileServiceIntegrationTest {
     }
 
     private boolean anyObjectFileExists() throws IOException {
-        if (!Files.exists(STORAGE_ROOT)) {
+        if (!Files.exists(SHARED_STORAGE_ROOT)) {
             return false;
         }
-        try (var paths = Files.walk(STORAGE_ROOT)) {
+        try (var paths = Files.walk(SHARED_STORAGE_ROOT)) {
             return paths.anyMatch(Files::isRegularFile);
         }
     }
 
     private void clearStorageRoot() throws IOException {
-        if (!Files.exists(STORAGE_ROOT)) {
+        if (!Files.exists(SHARED_STORAGE_ROOT)) {
             return;
         }
-        try (var paths = Files.walk(STORAGE_ROOT)) {
+        try (var paths = Files.walk(SHARED_STORAGE_ROOT)) {
             paths.sorted(Comparator.reverseOrder())
-                    .filter(path -> !path.equals(STORAGE_ROOT))
+                    .filter(path -> !path.equals(SHARED_STORAGE_ROOT))
                     .forEach(path -> path.toFile().delete());
         }
     }

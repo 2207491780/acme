@@ -1,5 +1,6 @@
 package com.acme.platform.workflow;
 
+import com.acme.common.test.EmbeddedPostgresSupport;
 import com.acme.common.context.Channel;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
@@ -13,6 +14,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.test.EmbeddedKafkaKraftBroker;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -28,10 +31,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -85,11 +84,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *     该命令不得出 INSTANCE_COMPLETED、实例保持 RUNNING；观察窗 8s 自旋为有限反例窗
  *     （pitfalls 15 口径：自旋+余量，不 sleep 死等）。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = PlatformWorkflowApplication.class, properties = {
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
+        "acme.stream.enabled=true",
+        "spring.cloud.stream.kafka.binder.producer-properties.max.block.ms=15000",
         "acme.security.token.hmac-secret=req-233425-event-it-secret-01234567890"
 })
 class REQ20261122233425WorkflowEventPublishIntegrationTest {
@@ -120,42 +120,29 @@ class REQ20261122233425WorkflowEventPublishIntegrationTest {
             <endEvent id="end"/>
             """;
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
+    /** 零 Docker 进程内 KRaft Kafka broker（随机空闲端口，不抢占宿主 9092）。 */
+    private static final EmbeddedKafkaKraftBroker KAFKA = startEmbeddedKafka();
 
-    /**
-     * A-2 修订：TC 2.0.5 org.testcontainers.kafka.KafkaContainer 的 STARTER_SCRIPT 补丁只注入
-     * PLAINTEXT/BROKER 两条 advertised.listeners，CONTROLLER 落回 listeners 缺省
-     * 0.0.0.0:9094 → 镜像 configure 期 StorageTool 校验拒绝（容器 exit 1，手工复现实证，
-     * 显式 env 亦被补丁覆盖）——改用 GenericContainer 走镜像自身缺省 KRaft 单机配置
-     * （advertised=localhost:9092/9093，控制器内网 localhost 自洽）+ 宿主固定端口 9092 映射
-     * （本机测试域独占；端口被占=环境冲突如实上报）。
-     */
-    @Container
-    private static final GenericContainer<?> KAFKA =
-            new GenericContainer<>("apache/kafka:3.9.0")
-                    .withExposedPorts(9092)
-                    .withCreateContainerCmdModifier(cmd -> cmd.withHostConfig(
-                            com.github.dockerjava.api.model.HostConfig.newHostConfig()
-                                    .withPortBindings(new com.github.dockerjava.api.model.Ports(
-                                            new com.github.dockerjava.api.model.PortBinding(
-                                                    com.github.dockerjava.api.model.Ports.Binding.bindPort(9092),
-                                                    new com.github.dockerjava.api.model.ExposedPort(9092))))))
-                    .waitingFor(org.testcontainers.containers.wait.strategy.Wait
-                            .forLogMessage(".*Kafka Server started.*", 1));
+    private static EmbeddedKafkaKraftBroker startEmbeddedKafka() {
+        EmbeddedKafkaKraftBroker broker = new EmbeddedKafkaKraftBroker(1, 1, EVENTS_TOPIC);
+        broker.afterPropertiesSet();
+        return broker;
+    }
+
+    @AfterAll
+    static void stopEmbeddedKafka() {
+        KAFKA.destroy();
+    }
 
     @DynamicPropertySource
     static void infrastructure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl("acme_wf_events", "public"));
+        registry.add("spring.datasource.username", pg::username);
+        registry.add("spring.datasource.password", pg::password);
         registry.add("spring.flyway.default-schema", () -> "public");
         registry.add("spring.flyway.schemas", () -> "public");
-        // A-1/A-2：binder brokers 指向容器固定映射端口（绑定名/destination 归实现配置，
-        // destination=钉死 topic；镜像 advertised=localhost:9092 与映射端口一致自洽）
-        registry.add("spring.cloud.stream.kafka.binder.brokers", () -> "localhost:9092");
+        registry.add("spring.cloud.stream.kafka.binder.brokers", KAFKA::getBrokersAsString);
     }
 
     @Autowired
@@ -329,7 +316,7 @@ class REQ20261122233425WorkflowEventPublishIntegrationTest {
 
     private KafkaConsumer<String, String> eventObserver() {
         Properties props = new Properties();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBrokersAsString());
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "evt-it-" + UUID.randomUUID());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");

@@ -1,5 +1,7 @@
 package com.acme.platform.infra;
 
+import org.springframework.test.context.TestPropertySource;
+
 import com.acme.common.context.Channel;
 import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
@@ -20,11 +22,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -32,10 +31,6 @@ import org.springframework.test.web.servlet.request.AbstractMockHttpServletReque
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -103,19 +98,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *       照抄 {@code REQ20261114071607FileServiceIntegrationTest} AC-5。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformInfraApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.stream.enabled=false",
-        "acme.audit.enabled=false",
-        "acme.security.token.hmac-secret=req061017-opex-secret-0123456789",
-        // 类内任务触发用例共享同一任务锁：归零锁最短持有（同既有 job 域集成测试口径），
-        // 否则上一用例完成后 60s 内的下一次手动触发会落 JOB_ALREADY_RUNNING
+@TestPropertySource(properties = {
         "acme.job.lock-at-least-for=PT0S"
 })
-class REQ20261117061017OpExceptionIntegrationTest {
+class REQ20261117061017OpExceptionIntegrationTest extends AbstractInfraIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -130,39 +116,6 @@ class REQ20261117061017OpExceptionIntegrationTest {
 
     private static final String XLSX_MIME =
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    /** Redis 容器：异常日志 60s 去重键（SETNX TTL）真实语义需要。 */
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
-
-    /** 本地存储落盘根（framework-storage 本地模式 bean 装配必填，缺失显式失败 SYS-15-0006）。 */
-    private static final Path STORAGE_ROOT = createStorageRoot();
-
-    private static Path createStorageRoot() {
-        try {
-            return Files.createTempDirectory("req061017-opex-it-storage");
-        } catch (IOException ex) {
-            throw new IllegalStateException("创建本地盘存储根失败", ex);
-        }
-    }
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
-        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
-    }
 
     @Autowired
     private WebApplicationContext webContext;

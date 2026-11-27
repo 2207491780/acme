@@ -1,5 +1,7 @@
 package com.acme.bootstrap;
 
+import com.acme.common.test.EmbeddedPostgresSupport;
+import com.acme.common.test.EmbeddedRedisSupport;
 import com.acme.bootstrap.audit.LocalAuditEventSink;
 import com.acme.bootstrap.local.LocalAuditStatsClient;
 import com.acme.bootstrap.local.LocalAuthProfileClient;
@@ -36,10 +38,6 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -67,21 +65,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>AC-5：本地审计 sink @Primary 直落 acme_op_audit（无 Kafka 出站）。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = MonolithApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class MonolithContextSmokeTest {
 
     /** B 端登录种子密码（V2 超管凭据 placeholder 测试取值，非生产；requiredSeed 经环境键读取）。 */
     private static final String SEED_SUPERADMIN_PASSWORD = "Monolith@123456";
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @Container
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:7.4-alpine").withExposedPorts(6379);
 
     private static final java.nio.file.Path STORAGE_ROOT = tempStorageRoot();
 
@@ -95,19 +83,16 @@ class MonolithContextSmokeTest {
 
     @DynamicPropertySource
     static void containers(DynamicPropertyRegistry registry) {
-        // 四 schema 合并 search_path（MonolithDataSourceConfig 语义同款；platform_scheduler 为
-        // REQ-20261121-071002 确认⑥聚合增补——scheduler tick/锁表在单体随 Spring 启动）；
-        // env 键与分布式一致。追加符：Testcontainers 2.x 的 jdbcUrl 已带 query（loggerLevel=OFF），须用 & 续参
-        registry.add("spring.datasource.url", () -> {
-            String separator = POSTGRES.getJdbcUrl().contains("?") ? "&" : "?";
-            return POSTGRES.getJdbcUrl() + separator
-                    + "currentSchema=platform_auth,platform_system,platform_infra,platform_scheduler,"
-                    + "platform_workflow,business_leave";
-        });
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
+        EmbeddedRedisSupport redis = EmbeddedRedisSupport.shared();
+        redis.flushAll();
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl(
+                "acme_monolith_smoke",
+                "platform_auth,platform_system,platform_infra,platform_scheduler,platform_workflow,business_leave"));
+        registry.add("spring.datasource.username", pg::username);
+        registry.add("spring.datasource.password", pg::password);
+        registry.add("spring.data.redis.host", redis::host);
+        registry.add("spring.data.redis.port", redis::port);
         registry.add("spring.data.redis.password", () -> "");
         // 种子密码三键（MonolithFlywayConfig requiredSeed 环境键，DynamicPropertySource 内联属性可达）
         registry.add("ACME_SEED_SUPERADMIN_PASSWORD", () -> SEED_SUPERADMIN_PASSWORD);

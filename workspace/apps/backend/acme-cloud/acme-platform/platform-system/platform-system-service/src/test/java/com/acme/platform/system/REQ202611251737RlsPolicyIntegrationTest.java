@@ -2,15 +2,9 @@ package com.acme.platform.system;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -33,14 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>隔离铁证（AC-3~AC-6）在 {@code REQ202611251737RlsNonSuperuserIntegrationTest} 中以真正非超管
  * 应用角色登录完成；本类使用容器超管仅检查目录元数据，不作为隔离铁证。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformSystemApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.security.token.hmac-secret=req-1737-rls-it-secret-0123456789abcdef"
-})
-class REQ202611251737RlsPolicyIntegrationTest {
+class REQ202611251737RlsPolicyIntegrationTest extends AbstractSystemIntegrationTest {
 
     /** backend 工人确认的迁移应用角色（TL 转达；密码不入契约）。 */
     private static final String APP_ROLE = "acme_rls_app";
@@ -51,20 +38,6 @@ class REQ202611251737RlsPolicyIntegrationTest {
 
     private static final List<String> CATALOG_TABLES = List.of(
             "sys_tenant", "sys_permission", "sys_menu", "sys_tenant_package", "sys_tenant_init_template");
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-    }
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

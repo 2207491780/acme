@@ -15,19 +15,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -76,16 +70,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *       跨租户全量语义（旧权限点名「全租户审计视图」）不在本用例断言，AMB-7。</li>
  * </ul>
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(classes = PlatformInfraApplication.class, properties = {
-        "spring.config.import=",
-        "spring.cloud.nacos.config.enabled=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "acme.stream.enabled=false",
-        "acme.audit.enabled=false",
-        "acme.security.token.hmac-secret=req-auditscope-it-secret-0123456789a"
-})
-class REQ20261114120104AuditScopeApiIntegrationTest {
+class REQ20261114120104AuditScopeApiIntegrationTest extends AbstractInfraIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -122,13 +107,8 @@ class REQ20261114120104AuditScopeApiIntegrationTest {
     private static final long ROLE_ID_SELF = 7204L;
     private static final long ROLE_ID_CUSTOM = 7205L;
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
     /** 本地盘存储根（REQ-20261114-071607 起服务装配含 framework-storage；type=local 缺省，root-dir 必配）。 */
-    private static final java.nio.file.Path STORAGE_ROOT = createStorageRoot();
+    private static final java.nio.file.Path SHARED_STORAGE_ROOT = createStorageRoot();
 
     private static java.nio.file.Path createStorageRoot() {
         try {
@@ -136,16 +116,6 @@ class REQ20261114120104AuditScopeApiIntegrationTest {
         } catch (IOException ex) {
             throw new IllegalStateException("创建本地盘存储根失败", ex);
         }
-    }
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.default-schema", () -> "public");
-        registry.add("spring.flyway.schemas", () -> "public");
-        registry.add("acme.storage.local.root-dir", () -> STORAGE_ROOT.toString());
     }
 
     @Autowired

@@ -1,6 +1,7 @@
 package com.acme.platform.system;
 
 import com.acme.common.context.TenantContext;
+import com.acme.common.test.EmbeddedPostgresSupport;
 import com.acme.framework.tenant.support.TenantBypassScope;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,9 +16,6 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 
@@ -34,7 +32,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>无 Docker 自动跳过不等于验证；判定口径为日志 {@code Tests run: N, Skipped: 0}。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = PlatformSystemApplication.class, properties = {
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
@@ -45,26 +42,23 @@ class REQ202611251737RlsNonSuperuserIntegrationTest {
 
     private static final String APP_ROLE = "acme_rls_app";
     private static final String APP_PASSWORD = "acme_rls_app_pwd";
+    private static final String RLS_DB = "acme_rls_nonsuper";
     private static final String TENANT_A = "req1737-rls-t1";
     private static final String TENANT_B = "req1737-rls-t2";
     private static final String USER_A = "req1737-ns-own";
     private static final String USER_B = "req1737-ns-other";
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
         // 应用连接：迁移创建的非超管角色（铁证连接的 login 身份）
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl(RLS_DB, "public"));
         registry.add("spring.datasource.username", () -> APP_ROLE);
         registry.add("spring.datasource.password", () -> APP_PASSWORD);
         registry.add("spring.datasource.hikari.initialization-fail-timeout", () -> "-1");
-        // 迁移连接：容器超管（V33 在其上创建 schema/角色）
-        registry.add("spring.flyway.user", POSTGRES::getUsername);
-        registry.add("spring.flyway.password", POSTGRES::getPassword);
+        // 迁移连接：嵌入式 PG 超管（V33 在其上创建 schema/角色）
+        registry.add("spring.flyway.user", pg::username);
+        registry.add("spring.flyway.password", pg::password);
         registry.add("spring.flyway.default-schema", () -> "public");
         registry.add("spring.flyway.schemas", () -> "public");
     }
@@ -82,10 +76,11 @@ class REQ202611251737RlsNonSuperuserIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
         // 传播层按钉死事实只在 autoCommit=false 的 JDBC 事务内写 SET LOCAL。
         transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         adminJdbc = new JdbcTemplate(new DriverManagerDataSource(
-                POSTGRES.getJdbcUrl() + "?currentSchema=public", POSTGRES.getUsername(), POSTGRES.getPassword()));
+                pg.jdbcUrl(RLS_DB, "public"), pg.username(), pg.password()));
     }
 
     @AfterEach

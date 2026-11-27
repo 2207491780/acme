@@ -1,5 +1,6 @@
 package com.acme.platform.scheduler;
 
+import com.acme.common.test.EmbeddedPostgresSupport;
 import com.acme.common.context.Channel;
 import com.acme.framework.core.support.AuthenticatedSubject;
 import com.acme.framework.core.support.ClientContextDraft;
@@ -26,9 +27,6 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -118,7 +116,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  *     直接 RUNNING」实现形态经宽容分支兼容（DISPATCHED 才补发 RUNNING 回调），两种形态
  *     均验全链路，差异如实上报。</p>
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = PlatformSchedulerApplication.class, properties = {
         "spring.config.import=",
         "spring.cloud.nacos.config.enabled=false",
@@ -151,16 +148,12 @@ class REQ20261121071002SchedulerCoreIntegrationTest {
     /** 内嵌执行器桩（真 HTTP 面：记录 /run 请求、可挂起接单/拒绝接单）。 */
     private static final ExecutorStub STUB = ExecutorStub.start();
 
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("acme").withUsername("test").withPassword("test");
-
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> POSTGRES.getJdbcUrl() + "?currentSchema=public");
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        EmbeddedPostgresSupport pg = EmbeddedPostgresSupport.shared();
+        registry.add("spring.datasource.url", () -> pg.jdbcUrl("acme_sched_core", "public"));
+        registry.add("spring.datasource.username", pg::username);
+        registry.add("spring.datasource.password", pg::password);
         registry.add("spring.flyway.default-schema", () -> "public");
         registry.add("spring.flyway.schemas", () -> "public");
         // A-2：Nacos 关闭态以 Spring Cloud SimpleDiscoveryClient 静态实例表承载 lb://{app_name}

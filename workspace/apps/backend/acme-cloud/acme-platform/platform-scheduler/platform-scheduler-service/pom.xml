@@ -238,16 +238,6 @@
                     <classifier>exec</classifier>
                 </configuration>
             </plugin>
-            <!-- Flex 全局默认方言是 JVM 级静态（FlexGlobalConfig.defaultConfig），H2 与 MySQL 共用反引号方言。
-                 本模块 H2 切片与 PG 集成若共用 surefire JVM，全局方言会被先建的 H2 上下文污染，致 PG 生成
-                 反引号 SQL 报 syntax error。每个测试类独立 JVM 隔离（platform-system-service 同款）。 -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <reuseForks>false</reuseForks>
-                </configuration>
-            </plugin>
         </plugins>
     </build>
 

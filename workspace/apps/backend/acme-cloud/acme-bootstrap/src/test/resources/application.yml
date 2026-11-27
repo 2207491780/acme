@@ -97,3 +97,8 @@ management:
     binders:
       # 同主配置（stream 关闭形态下关闭 binder 健康指标，防 kafka 占位 broker 空转）
       enabled: false
+    redis:
+      # Windows 下嵌入式 Redis 5.0.14 的 INFO 响应包含小写反斜杠路径（如 c:\users\...），
+      # Spring Data Redis Converters.toProperties() 调用 Properties.load 触发 Malformed \uxxxx encoding；
+      # 真实 Redis 读写链路已在 MonolithContextSmokeTest 登录/会话撤销中端到端实证
+      enabled: false
