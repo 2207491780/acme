@@ -103,14 +103,38 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: II-DEV           # 2026-11-28 confirmed→worktree 已建→两单已 spawn；tester 已交付，backend-dev 打回 round 1
-- round: 1                # backend-dev 连续修复轮次（AC-1 真实违约 delta 打回）
-- 门禁台账：未开跑（阶段二进行中；tester 自验 11 项场景 GREEN/AC-1 RED 见委派历史）
+- phase: III-REVIEW       # 2026-11-28 五项门禁全 PASS；人工复核清单已交主线程，待用户确认+合并指令
+- round: 1                # round1 delta 复验 PASS（收口）
+- 门禁台账：
+  - 1 三向一致: PASS（Feign SchedulerJobClient.deleteByJobKey = Controller @DeleteMapping
+    `/internal/v1/scheduler/jobs/{jobKey}` 逐字一致；网关 application.yml:55 明文
+    「/internal/v1/scheduler/** 不进网关路由白名单，服务间直连」且路由面仅 /admin/v1/scheduler/**
+    ——internal 域不经网关，契约口径成立）
+  - 2 AC 覆盖率: PASS（AC-1~AC-11 映射齐见验收标准节；AC-1 复验判据=
+    REQ20261127235505SchedulerJobDeregisterIntegrationTest#should_soft_delete_registered_job_and_allow_reregister_when_deregister_called
+    绿灯；AC-9/10 既有回归引用 HttpIdempotentGateTest#failureReleasesClaimAndAllowsRetry /
+    #storeFailureIsFailClosed——该文件零改动已核验）
+  - 3 契约机器层: PASS（node check-contract.mjs → [GATE] contract-valid PASS，status=confirmed）
+  - 4 本地测试: PASS（采信+出处：backend-dev round1 自验 2026-11-28，TL 命令口径 mvn -pl <模块> -B test——
+    platform-scheduler-service 40/40〔含 REQ20261127235505 全链 3/3 + 既有 4 类全绿〕、framework-feign 45、
+    framework-idempotent 26〔含既有 9/9〕、platform-workflow-service 80，全部 0 失败 0 跳过 BUILD SUCCESS；
+    约定=主线程合并前复核性重跑兜底，SKIP=0）
+  - 5 跨需求冲突: PASS（本批 apis=POST/DELETE /internal/v1/scheduler/jobs + migrations:{}——
+    B1=REQ-20261127-234335〔V37 platform-system-service/apis[]〕、B2b=REQ-20261127-235808
+    〔admin leave 域/migrations{}〕、B3a=REQ-20261127-234158〔admin scheduler 域〕均不重叠；
+    internal scheduler jobs 域全仓 contracts 仅本契约声明）
 - 委派历史：
   - tester: 已交付——4 新增测试类（REQ20261127235505 前缀：SchedulerJobDeregisterIntegrationTest /
     SchedulerRegistrationClientTest / HttpIdempotentGateCompleteFailureTest / FeignErrorDecoderHttpStatusTest），
     AC-2~AC-10 映射齐（11 项场景 GREEN，含裁决③撞键结构化判定三腿反例）；AC-1 RED 判定为真实契约违约。
   - backend-dev: 打回(round 1)——delta 单「AC-1 再注册撞全列唯一键 500」。
+  - backend-dev: 交付(round 1)——新增所有权 2 文件（SchedulerKernel 复活分支 + SchJobDefinitionMapper
+    原生 @Select/@Update）；TL 复核逐条对齐打回单：原生 SQL 绕 Flex 逻辑删注入、WHERE AND deleted=true
+    并发护栏、0 行命中→SCHEDULER_JOB_KEY_DUPLICATE 收敛（禁 INSERT 重试）、审计三件套 SQL 内显式
+    （updated_at/updated_by/version=version+1；created_at/created_by 保留原始创建面）、
+    buildOneShotDefinition INSERT/复活两路径语义同源+前置校验先行（非法请求零写面）、jsonb cast 装载、
+    复活后回读+registerWheelQuietly+「复活」日志；round0 8 文件零改动、JobUseCase.create 管理面未动
+    （git diff 单 hunk 核验）。复验=PASS。
 - 升级记录：
   - [2026-11-28] AC-1 RED 裁决（leader，tester 证据两轮确定性复现 + TL 只读核验）：根因=注销为 Flex 逻辑删
     （AuditBase isLogicDelete，行物理保留）而 `V1__init_schema.sql:35` uk_sch_job_definition_key 为全列唯一
