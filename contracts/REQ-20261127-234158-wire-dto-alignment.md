@@ -1,7 +1,7 @@
 ---
 requirementId: "REQ-20261127-234158"
 title: "wire 契约·DTO 字段对齐（P1-06/P1-10/P2-02）：后端序列化为权威修前端声明并补真实序列化契约测试"
-status: draft              # 用户逐项确认后置 confirmed；未 confirmed 禁止进入 II-DEV
+status: confirmed          # 2026-11-28 用户逐项确认（见确认记录⑥）；此前 draft 已入库 ecdb2ff
 branchContext:
   baseBranch: acme-foundation
   mergeTarget: acme-foundation
@@ -38,6 +38,7 @@ apis:                      # 端点路径不变，仅下列端点的 wire 载荷
 - [2026-11-27] ③ B 端 `AdminTokenIssued.expiresAt` 为正确契约，不进本批改动面（含其 mock/测试）。
 - [2026-11-27] ④ 本批无 Flyway 迁移；错误码全码统一属 B3b 独立后批，本批禁顺手改任何错误码映射/断言（契约测试不含错误码断言）。
 - [2026-11-27] ⑤ 待证事项（见「待确认项」）未获用户确认前，对应 AC 冻结不下发阶段二。
+- [2026-11-28] ⑥ 用户对话指示「继续」（与方案决策④一致）：待确认项①=**案A**（platform-auth-api `pom.xml` 加 test-scope 依赖 common-serialization + 新增独立 wire 测试文件，冲突面最小）；②=`JobAdminView` 额外漂移（createdAt/shardable/remark）**仅登记整改方案，本批不顺手修**，AC-5 冻结解除。
 
 ## API（端点路径零变更；仅字段级对齐，后端 Java DTO 一律不动）
 
@@ -88,10 +89,10 @@ apis:                      # 端点路径不变，仅下列端点的 wire 载荷
 - 本批**禁改**任何错误码映射（B3b 独立后批）、**禁改**任何后端 main 源码、**禁做** git merge/push/删分支。
 - 发现所需触碰文件与并行批次冲突：就地停止上报，禁止猜测。
 
-## 待确认项（未裁决不下发）
+## 待确认项（均已于 2026-11-28 裁决，见确认记录⑥）
 
-1. **P1-06 后端 golden 测试落点**：platform-auth-api 属 B2b 占用模块且其 pom 无 `common-serialization`（真实序列化必需）。方案 A（推荐）：`platform-auth-api/pom.xml` 增一行 test-scope 依赖 + 新增独立 wire 测试文件（新文件+一行依赖，与 B2b 冲突面最小）；方案 B：落 acme-bootstrap 测试目录（不触碰占用模块，但 `-am` 构建面大）。请用户二选一。
-2. **`JobAdminView` 额外漂移（评审未列，同类缺陷是否顺手修）**：FE 视图声明 `createdAt: string` 但后端 `JobView` 无此字段；后端 `shardable`/`remark` 字段 FE 视图与保存载荷均未声明。默认按「不顺手修无关项」不改、仅登记整改方案；若确认纳入，随 AC-5 扩展。请用户定夺。
+1. **P1-06 后端 golden 测试落点** → 已裁决：**案A**——`platform-auth-api/pom.xml` 增一行 test-scope 依赖 `common-serialization` + 新增独立 wire 测试文件（REQ 前缀命名防撞 B2b）。
+2. **`JobAdminView` 额外漂移** → 已裁决：`createdAt`（后端无此字段）/`shardable`/`remark`（后端有 FE 未声明）**仅登记整改方案，本批不改**；AC-5 断言范围不变（仅 cronExpr/fixedRateMs 键名与 id/version 字符串化）。
 3. 错误码边界已按确认记录④冻结，无需再议。
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
