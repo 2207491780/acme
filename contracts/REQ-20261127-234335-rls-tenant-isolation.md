@@ -1,7 +1,7 @@
 ---
 requirementId: "REQ-20261127-234335"
 title: "B1 P0 安全：RLS 租户隔离收口（V-01）——铁证角色 NOLOGIN + 旁路判据绑定可信角色（V37）"
-status: draft              # 用户逐项确认后置 confirmed；未 confirmed 禁止进入 II-DEV
+status: confirmed         # 用户 2026-11-28 对话确认（推荐口径①②③逐项通过）；confirmed 后禁止范围外改动
 branchContext:
   baseBranch: acme-foundation
   mergeTarget: acme-foundation
@@ -32,6 +32,7 @@ apis: []                           # 无 HTTP API 变更（纯 DB 迁移 + 测�
 - [2026-11-27] ④ 框架侧零 Java 改动（TenantBypassScope / TenantBypassSignal / RlsPropagationSupport / CrossTenantAuditLogger / TenantKeyGenerator 原样）；`BACKEND.md` 部署红线段补 RLS 角色与口令注入口径。
 - [2026-11-27] ⑤ 测试同步：`RlsNonSuperuserIntegrationTest` 口令改配置注入 + 新增「自设 GUC 旁路失效」铁证用例；`RlsPolicyIntegrationTest` 策略口径断言升级新联合判定式 + 幂等重放改为 V33→V37 顺序重放（防旧口径回潮假绿）。
 - [2026-11-27] ⑥ 密钥扫描不进本批，移交 CI/L1（本契约不含密钥扫描任务）。
+- [2026-11-28] ⑦ 用户对话指示继续，待确认项①②③按 leader 推荐口径逐项确认：①迁移全环境无条件 NOLOGIN + IT 夹具配置注入重开；②新角色命名 acme_rls_bypass；③两项登记（prod 超管角色收敛 / tenant_id 绑定可信主体评估）留后续专项，不进本批。
 
 ## API
 
