@@ -87,8 +87,10 @@ apis: []                           # 无 HTTP API 变更（纯 DB 迁移 + 测�
 
 ## 流程状态（TL 每次行动后更新；唯一现场）
 
-- phase: I-REQ            # 契约 draft 已提交，待用户逐项确认；确认后 worktree add（取号前 git fetch 重测 V37）
+- phase: I-DONE           # 2026-11-28：status=confirmed；V37 防撞重测通过（git fetch 后 origin/acme-foundation 无占用）；worktree add 成功（基点 90a093f）；两单委派单已交主线程 spawn
 - round: 0
 - 门禁台账：（阶段三填写）
-- 委派历史：—
+- 委派历史：
+  - backend-dev: 已派（委派单见阶段二，主线程 spawn）
+  - tester: 已派（同轮并行）
 - 升级记录：—
