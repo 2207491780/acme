@@ -25,7 +25,7 @@
 ├── tools/         # 各工具专属配置源（用法见 TOOL-SOURCES.md）
 ├── env/           # 运行环境与 MCP 连接定义 local/cloud-dev/cloud-prod（AI 按需读取，见 ENV-GUIDE.md）
 ├── ci/            # CI 门禁工作流源（仅 ci.yml）→ .github/workflows/（发布已本地化，见 CI-GUIDE.md）
-├── tests/         # 回归测试（引擎 / 钩子 / 镜像预检 / 工作树）：node --test ".ai/tests/*.test.mjs"（CI ai-config 作业运行）
+├── tests/         # 回归测试（引擎 / 钩子 / 镜像预检 / 工作树）：node --test ".ai/tests/*.test.mjs"（CI ai-config 作业运行；本机可直跑，Windows 钩子用例自动补齐 Git sh 环境与 /usr/bin PATH——2026-11-27 体检 #4）
 └── hooks/         # git 钩子：pre-commit（AI 配置完整性）/ commit-msg（提交规范）/ pre-push（main 保护、任务分支不推远端、镜像预检、强推拦截）+ mirror-check.mjs；node .ai/hooks/enable.mjs 启用
 ```
 
