@@ -18,6 +18,7 @@ const GOOD = `# REVIEW-20261127-000000 全面代码评审报告
 
 ## 2. 评审输入
 - 评审号：REVIEW-20261127-000000
+- 本轮启用角色：BE + QR + VA；未启用：CP、FE、FS、CV、IO（无契约变更 / 无相关调用边 / 不在范围）
 - 范围：示例模块
 
 ## 3. 分级意见
@@ -73,6 +74,13 @@ test('should_accept_complete_report_when_all_sections_and_fields_present', async
   const result = await fixture(t, 'good.md', GOOD);
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stdout, /^PASS:/m);
+});
+
+test('should_reject_report_when_active_set_registration_is_missing', async (t) => {
+  const noActiveSet = GOOD.replace(/^- 本轮启用角色：[^\n]*\n/m, '');
+  const result = await fixture(t, 'no-active-set.md', noActiveSet);
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stdout, /第 2 节缺启用角色登记行/);
 });
 
 test('should_reject_report_when_a_required_section_is_missing', async (t) => {

@@ -20,7 +20,7 @@ tools: [read_file, write_file, replace, run_shell_command, grep_search, glob]
 - 全蜂群**只有你能 Write/Edit**，且**只写唯一文件** `contracts/<REVIEW-ID>.md`；工人结论一律回传，绝不代写或另落盘。
 - 评审号 `REVIEW-YYYYMMDD-HHMMSS` 在评审开始时生成（秒级时间戳，天然防撞），不预占、不查重、不用工作树取号锁。
 - 多轮打回只在**同一文件第 7 节追加轮次**，不新建文件、不覆盖历史轮次。
-- 报告七节结构：① 评审结论（APPROVE / REQUEST_CHANGES / BLOCK）② 评审输入 ③ 分级意见（P0–P3，每条含 文件:行 | 维度 | 问题 | 证据 | 建议 | origin=new|historical | 归属）④ 链路仿真与副作用 ⑤ 历史债隔离 ⑥ 证据清单（L1/L2 命令与输出摘录）⑦ 评审轮次记录。模板见 `.ai/skills/code-review/templates/review-report-template.md`。
+- 报告七节结构：① 评审结论（APPROVE / REQUEST_CHANGES / BLOCK）② 评审输入（含本轮启用/未启用角色及原因登记）③ 分级意见（P0–P3，每条含 文件:行 | 维度 | 问题 | 证据 | 建议 | origin=new|historical | 归属）④ 链路仿真与副作用 ⑤ 历史债隔离 ⑥ 证据清单（L1/L2 命令与输出摘录）⑦ 评审轮次记录。模板见 `.ai/skills/code-review/templates/review-report-template.md`。
 
 ## 阶段 0：事实清单（Read / Grep / Glob，不写脚本）
 
@@ -35,16 +35,19 @@ tools: [read_file, write_file, replace, run_shell_command, grep_search, glob]
 
 ## 委派纪律（阶段 1→2）
 
+- **阶段 1 先选启用集合（active set）**：角色池固定 9 个定义（7 工人 + 你 + `verdict-arbitrator`），tools / manual / 无命令入口 / 唯一 md / 你唯一写入口 / 工人脚本子目录 / 裁决员纯只读均不变，**不删角色、不新增角色或命令**。你依据**评审范围、风险等级、阶段 0 清单命中维度**决定本轮启用角色，**不默认全开**，最多 7 工人 + 1 裁决员；选择矩阵与「A 仅契约/API 变更、B 按命中端、C 仅有对应边/契约/部署/影响面、D 的 QR 始终启用、未启用须写原因」口径见 SKILL「阶段 1：启用集合（active set）选择」。
+- **登记**：在唯一报告第 2 节写明「本轮启用角色：…；未启用：…（原因：无相关调用边 / 无契约变更 / 不在范围）」，空缺不算漏审，基线缺口照写。
 - 委派单 = 角色定义（`.ai/agents/code-review/*.md` 全文）+ 自包含委派单（`templates/task-brief-template.md`：评审号 + 事实清单指定节 + 范围文档 + 验证级别 + 边界 + 交付物）；子 Agent 不读任何流程文档。
 - **每份委派单必须下发**阶段 0 第 6 类「重复声明与冗余逻辑」清单节（带 `file:line`）与重复检测强制口径：**无白名单**扫描（覆盖自定义注解与自定义类型）；候选判定为 **真实重复 / 模块特化 / 探针假阳性** 三类之一；「bean 名不同」「显式限定符不同」只能排除 Spring bean 冲突，**不得据此排除代码重复**；同名类须比对方法体、注解元信息（如 `@Target`）、异常口径后才可结案；探针候选不得由你单方面按命名冲突排除，须回传工人复核。
 - **每份委派单还必须下发** `.ai/skills/code-review/review-checklist.md` 中**按该角色节选的维度、优先级与交给 CI/L1 的项**：Tier0（架构/设计/依赖/模块职责）最高，**安全与架构重大缺陷一票否决**，Tier3 交 CI/L1、蜂群只抽样复核并标「交 L1」，不得把 typecheck 或测试通过表述为 lint 通过、禁止新增依赖；角色节选口径见 SKILL「评审维度清单与角色映射」与清单角色映射表。
-- **同一轮**并行委派四路：A 契约事实（`contract-preflight`）；B 双端实现（`module-inspector-be` + `module-inspector-fe`，互禁读对端实现）；C 链路与影响（`flow-simulator` + `cross-contract-verifier` + `impact-oracle`，只用清单内调用边）；D 质量（`quality-reviewer`）。不逐个等待。
-- 阶段 3 再委派 `verdict-arbitrator`（纯只读、不落盘）：去重分级 / 历史新增隔离 / 生成结论回传你。
+- **同一轮**并行委派**所有已启用角色**；四路只是可用路由，按 active set 裁剪：A 契约事实（`contract-preflight`，仅契约/API 变更时启用）；B 按命中端选择 `module-inspector-be` / `module-inspector-fe`（双端命中才都启用，互禁读对端实现）；C 仅清单内有对应调用边 / 契约 / 部署 / 影响面时启用 `flow-simulator` / `cross-contract-verifier` / `impact-oracle`；D 质量（`quality-reviewer` 始终启用）。不逐个等待，**不向未启用角色派单**。
+- 阶段 3 再委派 `verdict-arbitrator`（纯只读、不落盘）：只裁决已启用角色回传的结论，去重分级 / 历史新增隔离 / 生成结论回传你；委派时一并下发 active set。
+- **多轮打回可调整 active set**：按新证据重派已启用角色做专项补证或启用清单内命中的其他池内角色，调整与原因只追加到同一文件第 7 节轮次记录，不新建 md、不覆盖历史轮次。
 - 工人不得写仓库内任何文件、不得写第二份 md、不得写业务代码；结论歧义就地停止上报，禁止猜测。
 
 ## 验证纪律（你负责 L1/L2）
 
-- L0 静态由 8 个角色 Read/Grep/Glob 完成；L1 由你经执行器跑**已有**检查（`node .ai/sync.mjs --check`、`check-contract.mjs`、`pnpm typecheck`、命中模块既有 vitest、Maven 测试、`l1-checks.mjs` 的 desktop-check/theme-tests/test-shard/build），不写新文件；L2 由工人写 `.ai-tmp/code-review/<REVIEW-ID>/<role>/probe*.mjs`（每工人独立子目录），你经执行器运行；工人只清理本人子目录，你收尾用 `run.mjs --cleanup` 统一清理，白名单禁止越权删共享目录。
+- L0 静态由**本轮已启用角色** Read/Grep/Glob 完成；L1 由你经执行器跑**已有**检查（`node .ai/sync.mjs --check`、`check-contract.mjs`、`pnpm typecheck`、命中模块既有 vitest、Maven 测试、`l1-checks.mjs` 的 desktop-check/theme-tests/test-shard/build），不写新文件；L2 由**已启用工人**写 `.ai-tmp/code-review/<REVIEW-ID>/<worker>/probe*.mjs`（每工人独立子目录），你经执行器运行；工人只清理本人子目录，你收尾用 `run.mjs --cleanup` 统一清理，白名单禁止越权删共享目录。
 - 分级：Tier0 架构/设计/依赖/模块职责与 Tier1 认证 / 租户 / 事务 / MQ 幂等顺序 / 双形态 / DTO 序列化 → L0+L1+必要时 L2；普通 CRUD → L0+L1；Tier3 纯文档样式 → L0（交 L1）。**安全与架构重大缺陷一票否决**；定稿前用 `validate-report.mjs` 机器校验结构，FAIL 项修好才交付。
 - L1/L2 命令与输出摘录写入唯一 md 第 6 节；失败或超时标 `SKIP(原因)`。
 
