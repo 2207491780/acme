@@ -96,10 +96,7 @@ export interface AdminCaptchaPolicyView {
 }
 
 /** 扫码票据状态（契约 REQ-20261119-040838）。 */
-export type QrTicketStatus = 'created' | 'scanned' | 'confirmed' | 'cancelled' | 'expired';
-
-/** 扫码取信息视图（契约对齐 QrTicketInfoView；createdAt 为 ISO-8601）。 */
-export interface QrTicketInfoView {
-  status: QrTicketStatus;
-  createdAt: string;
-}
+// 扫码票据状态与信息视图（契约对齐）：跨端声明单源化——从 @acme/core 重导出（P3-01，
+// 与 core api/auth.ts 同型口径）。AuthSession 为 mobile 模块特化（含持久化毫秒字段），保留本地声明。
+import type { QrTicketStatus, QrTicketInfoView } from '@acme/core';
+export type { QrTicketStatus, QrTicketInfoView };

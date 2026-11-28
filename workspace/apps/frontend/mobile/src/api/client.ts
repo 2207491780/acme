@@ -2,13 +2,10 @@ import { DEFAULT_API_TIMEOUT_MS } from '@acme/core';
 import { API_BASE } from './config';
 import { useAuthStore } from '../store/authStore';
 
-/** 后端统一出参信封（FR-013；与 Web 端 client.ts 同型口径）。 */
-export interface ApiEnvelope<T> {
-  success: boolean;
-  code: string;
-  message: string | null;
-  data: T;
-}
+// 后端统一出参信封（FR-013）：跨端声明单源化——从 @acme/core 重导出（P3-01，与 core
+// client.ts 同型口径；结构等价哈希核验后收敛，消费面引用不变）。
+import type { ApiEnvelope } from '@acme/core';
+export type { ApiEnvelope };
 
 /** 接口业务错误（携带后端错误码与 HTTP 状态）。 */
 export class ApiError extends Error {
