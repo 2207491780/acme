@@ -203,12 +203,12 @@ apis:                      # 端点路径零变更；下列端点族仅 Result.c
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-REQ            # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: I-DONE           # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
 - round: 0
-- worktree: 未创建（等待：用户确认本契约 + 主线程「B3a 已合流」通知，二者齐备后才执行 worktree.mjs add）
+- worktree: 已创建 `C:/MyWorkSpace/ai-coding-worker/.worktrees/feat-req-20261128-051442-error-code-unification`（分支 feat/req-20261128-051442-error-code-unification，基点 acme-foundation fa1a5d0=确认态契约入库点；三路工人共用此工作树，文件面互斥见委派单）
 - 门禁台账：
   - （未进入阶段三）
 - 委派历史：
-  - （未委派）
+  - 2026-11-28 三路委派单（frontend-dev / backend-dev / tester）随 phase=I-DONE 交主线程 spawn；受影响既有 web tests 清单按主线现状（B3a 64ef965 / B2b 56032b5 合流后）重盘：schedulerMswContract:138/148、tenantInitTemplateMsw:243/292/295/303、profile:251、adminFrontendPages:290、directUpload:272、workflowMock(102730):390、mobile settingsProfile:379；core adminLeaveApi/ACCOUNT_DISABLED/CONCURRENT_MODIFICATION/LEAVE_PERIOD_INVALID/AUTH_DOWNSTREAM 经核实为非比较面（stub 自洽或泛化路径），不在升级面。
 - 升级记录：
   - （无）
