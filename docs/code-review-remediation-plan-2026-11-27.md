@@ -114,6 +114,7 @@
 
 - **P2-13 WS 通知断线对账**：客户端重连/visibility 恢复时 REST 拉取 unread 对账（扩展既有 refreshUnread 收敛先例至重连时机）；服务端 pub/sub 不持久化的丢帧风险据此收敛。
 - **P2-14 WS 握手**：token 从 `?token=` query 挪 header（代理/访问日志可记）；`connect` 无 token 静默返回改排重连；isAuthed 翻转后补就绪重连（建连时会话未就绪→永久不连）。
+  - **子项不采纳（2026-11-28，REQ 执行面）**：「token 挪 header」与契约裁决⑦冲突（浏览器 WebSocket API 无法自定义请求头，query 为可行性唯一解；Sec-WebSocket-Protocol 变通需服务端协商回显+网关面验证，协议耦合风险大于收益）——留专项评估。另两子项（无 token 排重连、isAuthed 翻转建连）已实施（REQ-20261127-161433 B5）。
 - **P2-15 refresh 超时护栏**：`renewOnce` 内部 refresh fetch 加超时/AbortController（对齐 guardedFetch 15s），防 401 重试路径无限悬挂。
 - **P2-01 用户列表 N+1**：roleIdsOf 批量化（`findByUserIdIn` 分组），单页最多 201 次查询→常数次；补查询次数断言用例。交 L1 慢查询基线。
 - **P2-21 审计脱敏**：`AuditContentTruncator` 对 before 旧值 JSON 递归脱敏（当前仅键名匹配，JSON 内 password/token 不脱敏）；补断言测试。
@@ -229,8 +230,8 @@
 | P1-11 | B4 | DLQ 消费/告警/重放 + 双形态 binding 下发面 | 部分修复(B4-消息：开关语义修正+binding 文档 ✅；DLQ 消费/告警/重放拆分至 P1-09 上栈专项——运行面不存在，见 §4 拆分登记) |
 | P2-12 | B4 | partition key + 串行派发 + 消费侧终态保护 | 已修复(B4-消息：分区键+直派+乱序回归锁) |
 | P2-01 | B5 | 角色批量查询消 N+1 + 查询次数断言 | 已修复(B5：roleIdsGroupedByUserIds 批量装配+查询次数回归锁) |
-| P2-13 | B5 | WS 断线重连 REST 对账 | 未开始 |
-| P2-14 | B5 | token 挪 header + 排重连 + 就绪重连 | 未开始 |
+| P2-13 | B5 | WS 断线重连 REST 对账 | 已修复(B5：重连/visibility REST 对账) |
+| P2-14 | B5 | token 挪 header + 排重连 + 就绪重连 | 已修复(B5：无 token 排重连+isAuthed 翻转建连；token 挪 header 子项按裁决⑦登记不采纳留专项) |
 | P2-15 | B5 | refresh 超时护栏 | 已修复(B5 部分批：renewOnce 15s 超时护栏) |
 | P2-21 | B5 | 审计 before JSON 递归脱敏 + 断言 | 已修复(B5：maskJson 递归脱敏+切面接入) |
 | P2-22 | B5 | 消费跳过标记去 ThreadLocal + 并发探针 | 已修复(B5 部分批：状态头面传递+跨线程探针) |
