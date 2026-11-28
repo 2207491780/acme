@@ -119,11 +119,11 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-REQ            # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: I-DONE           # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
 - round: 0                # 连续修复轮次，满 3 触发升级
 - 门禁台账：
   - （未进入 III-GATE）
 - 委派历史：
-  - （未进入 II-DEV）
+  - II-DEV 待发：backend-dev / tester 两单同轮并行（委派单全文已交主线程，2026-11-28）
 - 升级记录：
   - （无）
