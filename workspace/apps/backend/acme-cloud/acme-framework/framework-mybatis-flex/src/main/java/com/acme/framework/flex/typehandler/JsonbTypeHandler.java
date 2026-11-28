@@ -1,4 +1,4 @@
-package com.acme.platform.scheduler.infrastructure.mapper;
+package com.acme.framework.flex.typehandler;
 
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
@@ -10,13 +10,14 @@ import java.sql.SQLException;
 import java.sql.Types;
 
 /**
- * jsonb ↔ String 类型处理器（REQ-20261119-082531 确认记录⑤ sys_user_preference.prefs）：
+ * jsonb ↔ String 类型处理器（REQ-20261119-082531 确认记录⑤；REQ-20261127-161433 P2-18
+ * 三域逐字一致上提 framework 公共层——scheduler/system/workflow 同一方法体哈希）：
  * PostgreSQL 写入走 {@code setObject(i, value, Types.OTHER)}——驱动按 unknown 类型 OID 提交、
  * 服务端按列类型（jsonb）推断装载；直 setString 会因「expression is of type character varying」
  * 被服务端拒绝，而反射/驱动类（org.postgresql.util.PGobject）会引入编译期驱动耦合
  * （驱动为 runtime scope，10.3.3 依赖方向约束）。其余方言（H2 切片等）退化 setString。
  * 读取统一 getString（jsonb 的文本形态即载荷字符串，往返无损）。
- * 实体侧注册：{@code @Column(value = "prefs", typeHandler = JsonbTypeHandler.class)}。
+ * 实体侧注册：{@code @Column(value = "…", typeHandler = JsonbTypeHandler.class)}。
  */
 public class JsonbTypeHandler extends BaseTypeHandler<String> {
 

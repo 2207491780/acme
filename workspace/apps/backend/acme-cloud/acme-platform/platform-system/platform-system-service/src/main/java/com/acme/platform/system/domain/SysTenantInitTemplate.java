@@ -1,7 +1,7 @@
 package com.acme.platform.system.domain;
 
 import com.acme.framework.flex.support.AuditBase;
-import com.acme.platform.system.infrastructure.mapper.JsonbTypeHandler;
+import com.acme.framework.flex.typehandler.JsonbTypeHandler;
 import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Table;
 

@@ -33,7 +33,7 @@ public class WfProcessDefinition extends AuditBase {
     @Column("status")
     private WorkflowDefinitionStatus status;
 
-    @Column(value = "layout_json", typeHandler = com.acme.platform.workflow.infrastructure.mapper.JsonbTypeHandler.class)
+    @Column(value = "layout_json", typeHandler = com.acme.framework.flex.typehandler.JsonbTypeHandler.class)
     private String layoutJson;
 
     @Column("deployed_at")

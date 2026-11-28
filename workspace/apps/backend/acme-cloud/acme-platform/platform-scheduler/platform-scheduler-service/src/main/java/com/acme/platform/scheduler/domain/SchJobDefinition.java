@@ -47,11 +47,11 @@ public class SchJobDefinition extends AuditBase {
     private Instant onceFireAt;
 
     /** 任务参数（jsonb 文本原样透传下发 body，可空）。 */
-    @Column(value = "param", typeHandler = com.acme.platform.scheduler.infrastructure.mapper.JsonbTypeHandler.class)
+    @Column(value = "param", typeHandler = com.acme.framework.flex.typehandler.JsonbTypeHandler.class)
     private String param;
 
     /** 重试策略（jsonb 文本 {"maxAttempts":n,"initialIntervalMs":ms}，可空=不重试）。 */
-    @Column(value = "retry_policy", typeHandler = com.acme.platform.scheduler.infrastructure.mapper.JsonbTypeHandler.class)
+    @Column(value = "retry_policy", typeHandler = com.acme.framework.flex.typehandler.JsonbTypeHandler.class)
     private String retryPolicy;
 
     /** 分片总数（默认 1；真分片扇出归 JOB-4）。 */

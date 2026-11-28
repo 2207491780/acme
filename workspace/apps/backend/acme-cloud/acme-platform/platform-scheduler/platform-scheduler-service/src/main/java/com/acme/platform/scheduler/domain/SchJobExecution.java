@@ -45,7 +45,7 @@ public class SchJobExecution extends AuditBase {
     private Integer shardIndex;
 
     /** 结果摘要（jsonb 文本，可空；终态上报承载）。 */
-    @Column(value = "result", typeHandler = com.acme.platform.scheduler.infrastructure.mapper.JsonbTypeHandler.class)
+    @Column(value = "result", typeHandler = com.acme.framework.flex.typehandler.JsonbTypeHandler.class)
     private String result;
 
     /** 失败信息（下发失败口径 NO_EXECUTOR / DISPATCH_TIMEOUT / DISPATCH_REJECTED / DISPATCH_FAILED 或执行错误，可空）。 */

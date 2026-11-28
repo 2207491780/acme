@@ -31,7 +31,7 @@ public class SchExecutorRegistry extends AuditBase {
     private Integer port;
 
     /** handler 清单（jsonb 数组文本）。 */
-    @Column(value = "handlers", typeHandler = com.acme.platform.scheduler.infrastructure.mapper.JsonbTypeHandler.class)
+    @Column(value = "handlers", typeHandler = com.acme.framework.flex.typehandler.JsonbTypeHandler.class)
     private String handlers;
 
     /** 最近心跳时刻。 */

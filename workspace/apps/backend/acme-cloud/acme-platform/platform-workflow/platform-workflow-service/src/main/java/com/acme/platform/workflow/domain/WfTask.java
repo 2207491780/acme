@@ -2,7 +2,7 @@ package com.acme.platform.workflow.domain;
 
 import com.acme.framework.flex.support.AuditBase;
 import com.acme.platform.workflow.api.WorkflowTaskStatus;
-import com.acme.platform.workflow.infrastructure.mapper.JsonbTypeHandler;
+import com.acme.framework.flex.typehandler.JsonbTypeHandler;
 import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Table;
 
