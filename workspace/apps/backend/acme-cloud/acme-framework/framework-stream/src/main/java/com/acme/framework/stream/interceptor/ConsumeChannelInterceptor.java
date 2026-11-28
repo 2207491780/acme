@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageBuilder;
 
 /**
  * 消费通道拦截器（FR-014/024/032、AC-014/015/036，架构设计 8.4；Q-D003）：
@@ -31,6 +32,10 @@ public class ConsumeChannelInterceptor implements ChannelInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(ConsumeChannelInterceptor.class);
 
+    /** 管线状态消息头（REQ-20261127-161433 P2-22）：状态随消息头传递（主面，线程模型无关），
+     *  ThreadLocal 仅保留为非 Message 函数形态的回退面。 */
+    public static final String STATE_HEADER = "acme_stream_consume_state";
+
     private static final ThreadLocal<PipelineState> STATE = new ThreadLocal<>();
 
     private final IdempotentGuard guard;
@@ -41,15 +46,23 @@ public class ConsumeChannelInterceptor implements ChannelInterceptor {
         this.properties = properties;
     }
 
-    /** 当前管线状态（供函数入口包装器读取跳过标记；无状态返回 null）。 */
+    /** 当前管线状态（非 Message 函数形态的 ThreadLocal 回退面；无状态返回 null）。 */
     public static PipelineState currentState() {
         return STATE.get();
     }
 
-    /** 是否待跳过（函数入口包装器调用；无状态/首投=false）。 */
+    /** 是否待跳过（非 Message 函数形态回退面；无状态/首投=false）。 */
     public static boolean isSkipPending() {
         PipelineState state = STATE.get();
         return state != null && state.skip();
+    }
+
+    /** 从消息头读管线状态（P2-22 主面：preSend 注入、包装器/收尾消费，跨线程携带）。 */
+    public static PipelineState stateOf(Message<?> message) {
+        if (message != null && message.getHeaders().get(STATE_HEADER) instanceof PipelineState state) {
+            return state;
+        }
+        return null;
     }
 
     /** 消费入口：去重门（反序列化前取键，8.3）+ trace/上下文绑定。 */
@@ -81,8 +94,12 @@ public class ConsumeChannelInterceptor implements ChannelInterceptor {
         try {
             TraceScope traceScope = TraceMessages.extract(message.getHeaders());
             ContextScope contextScope = ConsumeContexts.restore(message.getHeaders());
-            STATE.set(new PipelineState(idempotentKey, skip, traceScope, contextScope));
-            return message;
+            PipelineState state = new PipelineState(idempotentKey, skip, traceScope, contextScope);
+            STATE.set(state);
+            // P2-22：状态随消息头携带（主面）——函数包装器/收尾消费头面优先，跨线程派发不依赖同线程假设
+            return MessageBuilder.fromMessage(message)
+                    .setHeader(STATE_HEADER, state)
+                    .build();
         } catch (RuntimeException | Error ex) {
             // 认领后到状态绑定前失败：释放占位防孤儿（M-12），再原样抛出
             if (claimed && idempotentKey != null) {
@@ -97,10 +114,15 @@ public class ConsumeChannelInterceptor implements ChannelInterceptor {
         }
     }
 
-    /** 收尾（业务执行完成/失败后）：清理上下文 + 去重键标记/释放（异常路径同样清理，FR-032）。 */
+    /** 收尾（业务执行完成/失败后）：清理上下文 + 去重键标记/释放（异常路径同样清理，FR-032）。
+     *  状态读面=消息头优先（P2-22 主面，跨线程派发形态），ThreadLocal 回退（同线程收尾/既有
+     *  fresh-message 测试与调用面）——双面取到即清理。 */
     @Override
     public void afterSendCompletion(Message<?> message, MessageChannel channel, boolean sent, Exception ex) {
-        PipelineState current = STATE.get();
+        PipelineState current = stateOf(message);
+        if (current == null) {
+            current = STATE.get();
+        }
         STATE.remove();
         if (current == null) {
             return;

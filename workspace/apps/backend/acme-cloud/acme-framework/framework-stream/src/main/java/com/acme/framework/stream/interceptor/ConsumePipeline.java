@@ -9,6 +9,8 @@ import org.springframework.core.env.PropertySource;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import org.springframework.messaging.Message;
+
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -95,6 +97,16 @@ public class ConsumePipeline implements BeanPostProcessor {
                 : null;
     }
 
+    /** 跳过判定（REQ-20261127-161433 P2-22）：Message 形态输入走消息头状态（跨线程派发
+     *  不依赖同线程假设）；非 Message 形态回退 ThreadLocal（载荷函数无头面的既有语义）。 */
+    private static boolean skipPending(Object input) {
+        if (input instanceof org.springframework.messaging.Message<?> message
+                && ConsumeChannelInterceptor.stateOf(message) instanceof ConsumeChannelInterceptor.PipelineState state) {
+            return state.skip();
+        }
+        return ConsumeChannelInterceptor.isSkipPending();
+    }
+
     @SuppressWarnings("unchecked")
     private static Consumer<Object> wrapConsumer(Consumer<?> delegate) {
         return new SkippingConsumer<>((Consumer<Object>) delegate);
@@ -116,7 +128,7 @@ public class ConsumePipeline implements BeanPostProcessor {
 
         @Override
         public void accept(T input) {
-            if (ConsumeChannelInterceptor.isSkipPending()) {
+            if (skipPending(input)) {
                 return;
             }
             delegate.accept(input);
@@ -134,7 +146,7 @@ public class ConsumePipeline implements BeanPostProcessor {
 
         @Override
         public R apply(T input) {
-            if (ConsumeChannelInterceptor.isSkipPending()) {
+            if (skipPending(input)) {
                 return null;
             }
             return delegate.apply(input);

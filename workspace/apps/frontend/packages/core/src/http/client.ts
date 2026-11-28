@@ -76,6 +76,10 @@ let renewing: Promise<boolean> | null = null;
 
 function renewOnce(): Promise<boolean> {
   renewing ??= (async () => {
+    // 超时护栏（REQ-20261127-161433 P2-15）：对齐 guardedFetch 15s 缺省——refresh 悬挂曾使
+    // 401 重试路径无限等待（用户卡死在无响应态）；超时→false→既有清会话面收敛回登录页
+    const refreshAbort = new AbortController();
+    const timer = setTimeout(() => refreshAbort.abort(), DEFAULT_API_TIMEOUT_MS);
     try {
       const session = useAuthStore.getState().session;
       if (!session) {
@@ -84,6 +88,7 @@ function renewOnce(): Promise<boolean> {
       const res = await fetch('/admin/v1/auth/tokens/refresh', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.accessToken}` },
+        signal: refreshAbort.signal,
       });
       if (!res.ok) {
         return false;
@@ -95,8 +100,10 @@ function renewOnce(): Promise<boolean> {
       useAuthStore.getState().renewed(envelope.data.accessToken, envelope.data.expiresAt);
       return true;
     } catch {
+      // 网络失败/超时（AbortError）统一按续约失败收敛（fail-closed：清会话回登录）
       return false;
     } finally {
+      clearTimeout(timer);
       renewing = null;
     }
   })();
