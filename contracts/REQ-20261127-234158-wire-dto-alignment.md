@@ -98,7 +98,7 @@ apis:                      # 端点路径不变，仅下列端点的 wire 载荷
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: III-REVIEW       # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: DONE             # 2026-11-28 主线程代记（原 leader 会话随会话分叉不可达）：合并顺序约束已满足（B3a 先于 B3b）、复核性重跑绿后用户指令合并，快进合入 acme-foundation @ 64ef965
 - round: 0
 - worktree: `.worktrees/feat-req-20261127-234158-wire-dto-alignment`（分支 feat/req-20261127-234158-wire-dto-alignment，基点=确认入库 667c511；**交付 29 文件未提交**，由主线程统一 commit/合并）
 - 门禁台账（2026-11-28 首轮，leader 逐文件核验 + 工人自验出处）：

@@ -87,7 +87,7 @@ apis: []                           # 无 HTTP API 变更（纯 DB 迁移 + 测�
 
 ## 流程状态（TL 每次行动后更新；唯一现场）
 
-- phase: III-REVIEW       # 2026-11-28：两路交付收讫并经主线程裁决，五项门禁全过；人工复核清单已交主线程
+- phase: DONE             # 2026-11-28 主线程代记（原 leader 会话随会话分叉不可达）：四批复核性重跑全绿后用户指令合并，rebase 快进合入 acme-foundation @ 69866cd；sync --check 过
 - round: 0
 - 门禁台账：
   - 1 三向一致: PASS（apis=[]路径零变更口径；worktree git status 变更面=契约 4 文件，无 Controller/网关路由/DTO 触碰）

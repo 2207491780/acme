@@ -103,7 +103,7 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: III-REVIEW       # 2026-11-28 五项门禁全 PASS；人工复核清单已交主线程，待用户确认+合并指令
+- phase: DONE             # 2026-11-28 主线程代记（原 leader 会话随会话分叉不可达）：round=1 已闭环、复核性重跑四模块全绿后用户指令合并，快进合入 acme-foundation @ d16175e；同型隐患登记方案 §11 N-01
 - round: 1                # round1 delta 复验 PASS（收口）
 - 门禁台账：
   - 1 三向一致: PASS（Feign SchedulerJobClient.deleteByJobKey = Controller @DeleteMapping

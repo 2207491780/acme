@@ -101,7 +101,7 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: III-REVIEW       # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: DONE             # 2026-11-28 主线程代记（原 leader 会话随会话分叉不可达）：三项 tester 裁决已录、复核性重跑绿后用户指令合并，快进合入 acme-foundation @ 56032b5
 - round: 0
 - 取号锁：worktree 已创建（2026-11-28）——分支 `feat/req-20261127-235808-leave-authz-tri-state`，基点 f3bf0c1（含本契约 confirmed 版），路径 `C:/MyWorkSpace/ai-coding-worker/.worktrees/feat-req-20261127-235808-leave-authz-tri-state`；本批无 Flyway 迁移（migrations: {} 维持）。
 - 门禁台账（2026-11-28，阶段三全过）：
