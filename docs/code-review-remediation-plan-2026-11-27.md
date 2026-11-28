@@ -231,9 +231,9 @@
 | P2-01 | B5 | 角色批量查询消 N+1 + 查询次数断言 | 未开始 |
 | P2-13 | B5 | WS 断线重连 REST 对账 | 未开始 |
 | P2-14 | B5 | token 挪 header + 排重连 + 就绪重连 | 未开始 |
-| P2-15 | B5 | refresh 超时护栏 | 未开始 |
+| P2-15 | B5 | refresh 超时护栏 | 已修复(B5 部分批：renewOnce 15s 超时护栏) |
 | P2-21 | B5 | 审计 before JSON 递归脱敏 + 断言 | 未开始 |
-| P2-22 | B5 | 消费跳过标记去 ThreadLocal + 并发探针 | 未开始 |
+| P2-22 | B5 | 消费跳过标记去 ThreadLocal + 并发探针 | 已修复(B5 部分批：状态头面传递+跨线程探针) |
 | P1-09 | B6 | 标注仅单体试点显式化：前端 base URL 约束 + 文档 + 契约注记（决策②已定；实测 base 无 business-leave） | 已修复(B6 ab0d58e：前端约束+文档；Controller 契约注记待 B4-事务 合流后补) |
 | P2-04 | B6 | revision CI 注入（前置待证② L1 复现） | 未开始 |
 | P2-05 | B6 | deploy.sh 先 seed 后 apply + 回滚守卫 | 已修复(B6 ab0d58e：两阶段部署+回滚守卫) |
