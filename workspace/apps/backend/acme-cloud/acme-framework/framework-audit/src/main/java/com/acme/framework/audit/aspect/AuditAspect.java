@@ -157,8 +157,13 @@ public class AuditAspect {
             if (value == null) {
                 return null;
             }
-            return AuditContentTruncator.apply(serialize(value), BEFORE_SUMMARY_MAX_LENGTH,
-                    properties.isMaskSensitive() && auditLog.mask());
+            // P2-21：before 为 JSON 形态——先递归脱敏（任意嵌套层敏感键），再截断
+            boolean maskEnabled = properties.isMaskSensitive() && auditLog.mask();
+            String serialized = serialize(value);
+            if (maskEnabled && jsonMapper != null) {
+                serialized = AuditContentTruncator.maskJson(serialized, jsonMapper);
+            }
+            return AuditContentTruncator.apply(serialized, BEFORE_SUMMARY_MAX_LENGTH, maskEnabled);
         } catch (RuntimeException ex) {
             return null;
         }
