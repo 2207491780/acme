@@ -94,7 +94,8 @@ function ProfileCard() {
         void useMeStore.getState().load();
       })
       .catch((ex: unknown) => {
-        message.error(ex instanceof ApiError && ex.code === 'PROFILE_INVALID'
+        // PROFILE_INVALID=platform-system-13-0001（REQ-20261128-051442 附录 A.3 全码）
+        message.error(ex instanceof ApiError && ex.code === 'platform-system-13-0001'
           ? t('profile.errors.profileInvalid')
           : ex instanceof Error ? ex.message : t('common.errors.operationFailed'));
       })
@@ -181,11 +182,12 @@ function SecurityCard() {
         loadSessions(); // 其他会话已被服务端 KICKED，刷新列表
       })
       .catch((ex: unknown) => {
-        if (ex instanceof ApiError && ex.code === 'OLD_PASSWORD_INVALID') {
+        // 改密域全码（REQ-20261128-051442 附录 A.4）：OLD_PASSWORD_INVALID=07-0001 / SAME_PASSWORD=07-0002
+        if (ex instanceof ApiError && ex.code === 'platform-auth-07-0001') {
           message.error(t('profile.errors.oldPasswordInvalid'));
           return;
         }
-        if (ex instanceof ApiError && ex.code === 'SAME_PASSWORD') {
+        if (ex instanceof ApiError && ex.code === 'platform-auth-07-0002') {
           message.error(t('profile.errors.samePassword'));
           return;
         }

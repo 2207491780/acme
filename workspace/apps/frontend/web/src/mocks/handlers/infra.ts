@@ -76,8 +76,9 @@ export const infraHandlers = [
       return fail('STORAGE_QUOTA_EXCEEDED', '租户存储配额已超限', 413);
     }
     // 错误分支（供测试/演示）：image/* 且文件名含 broken-image 触发图片语义 400 信封
+    // （REQ-20261128-051442：STORAGE_IMAGE_INVALID 杜撰前缀码纠正为附录 A.7 裸字面量 IMAGE_INVALID）
     if (contentType.startsWith('image/') && fileName.includes('broken-image')) {
-      return fail('STORAGE_IMAGE_INVALID', '图片无效或尺寸超出限制', 400);
+      return fail('IMAGE_INVALID', '图片无效或尺寸超出限制', 400);
     }
     const ticket = `ticket-${ticketSeq++}`;
     const pending: PendingDirectUpload = {

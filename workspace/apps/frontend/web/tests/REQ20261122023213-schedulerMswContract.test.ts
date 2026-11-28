@@ -135,7 +135,7 @@ describe('REQ20261122023213 msw 调度中心八端点契约同形（AC-10）', (
       cronExpr: '0 0 3 * * *',
     });
     expect(body.success, '业务冲突信封 success=false').toBe(false);
-    expect(body.code, '契约确认⑦错误码字面量').toBe('KEY_DUPLICATE');
+    expect(body.code, 'REQ-20261128-051442 附录 A.6 全码字面量').toBe('platform-scheduler-01-0001');
   });
 
   it('should_return_key_immutable_envelope_when_update_changes_job_key', async () => {
@@ -145,7 +145,7 @@ describe('REQ20261122023213 msw 调度中心八端点契约同形（AC-10）', (
       jobKey: 'changed-job-key',
     });
     expect(body.success, 'job_key 不可改（AC-5 后端面同形）').toBe(false);
-    expect(body.code, '契约确认⑦错误码字面量').toBe('KEY_IMMUTABLE');
+    expect(body.code, 'REQ-20261128-051442 附录 A.6 全码字面量').toBe('platform-scheduler-01-0003');
   });
 
   it('should_transition_status_and_reflect_in_list_when_status_endpoint_put', async () => {

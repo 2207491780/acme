@@ -5,8 +5,11 @@ import type { PageResult } from './system';
  * 工作流域消费面（platform-workflow；REQ-20261122-023441 契约 API 面）：
  * 流程定义 6 端点的类型与调用封装。wire 口径：id/version 为字符串；列表 bpmnXml 置空。
  *
- * 错误码（FR 对齐后端）：01-0001 KEY_DUPLICATE(409) / 01-0002 XML_INVALID(400) /
- * 01-0003 VALIDATION_FAILED(409，明细随 data) / 01-0004 NOT_FOUND(404/语义) / 01-0005 DISABLED(409)。
+ * 错误码（REQ-20261128-051442 wire 契约·附录 A.5 全码真值；`platform-workflow-` 前缀三段全码）：
+ * 01 定义域 KEY_DUPLICATE / XML_INVALID / VALIDATION_FAILED（明细随 data） / NOT_FOUND / DISABLED；
+ * 02 实例域 INSTANCE_NOT_FOUND / INSTANCE_STATE_CONFLICT / DEFINITION_NOT_DEPLOYED /
+ * BUSINESS_KEY_REQUIRED；03 任务域 TASK_NOT_FOUND / TASK_STATE_CONFLICT / ASSIGNEE_MISMATCH /
+ * DELEGATE_STATE_INVALID / NO_ASSIGNEE_RESOLVED（附录 A.5 不钉 HTTP 族，以信封 code 为准）。
  * saveXml/deploy 校验失败 = Result.fail + data 明细（区别于裸 View 成功信封）——
  * ApiError.data 已携带明细，经 workflowValidationErrorsOf 提取。
  */
@@ -50,13 +53,26 @@ export interface WorkflowValidationErrorDto {
   message: string;
 }
 
-/** 工作流域错误码（01-xxxx 族；字面量以契约为准）。 */
+/** 工作流域错误码（REQ-20261128-051442 附录 A.5 全 14 码；wire 值=后端 Result.code 全码真值，
+ *  既有 5 键名保留消费面兼容，01 定义域/02 实例域/03 任务域三段语义键全覆盖）。 */
 export const WORKFLOW_ERROR_CODES = {
-  KEY_DUPLICATE: '01-0001',
-  XML_INVALID: '01-0002',
-  VALIDATION_FAILED: '01-0003',
-  NOT_FOUND: '01-0004',
-  DISABLED: '01-0005',
+  // —— 01 流程定义域（既有 5 键，键名兼容保留） ——
+  KEY_DUPLICATE: 'platform-workflow-01-0001',
+  XML_INVALID: 'platform-workflow-01-0002',
+  VALIDATION_FAILED: 'platform-workflow-01-0003',
+  NOT_FOUND: 'platform-workflow-01-0004',
+  DISABLED: 'platform-workflow-01-0005',
+  // —— 02 流程实例域 ——
+  INSTANCE_NOT_FOUND: 'platform-workflow-02-0001',
+  INSTANCE_STATE_CONFLICT: 'platform-workflow-02-0002',
+  DEFINITION_NOT_DEPLOYED: 'platform-workflow-02-0003',
+  BUSINESS_KEY_REQUIRED: 'platform-workflow-02-0004',
+  // —— 03 任务域 ——
+  TASK_NOT_FOUND: 'platform-workflow-03-0001',
+  TASK_STATE_CONFLICT: 'platform-workflow-03-0002',
+  ASSIGNEE_MISMATCH: 'platform-workflow-03-0003',
+  DELEGATE_STATE_INVALID: 'platform-workflow-03-0004',
+  NO_ASSIGNEE_RESOLVED: 'platform-workflow-03-0005',
 } as const;
 
 /**
@@ -285,7 +301,7 @@ export const instanceApi = {
   start: (payload: ProcessInstanceStartPayload): Promise<ProcessInstanceView> =>
     apiJson<ProcessInstanceView>(WORKFLOW_INSTANCE_ENDPOINTS.base, 'POST', payload),
 
-  /** 终止（RUNNING→TERMINATED；void 端点 emptyAsSuccess 双口径）。 */
+  /** 终止（RUNNING/SUSPENDED→TERMINATED，SUSPENDED 可终止=后端状态机真值；void 端点 emptyAsSuccess 双口径）。 */
   terminate: (instanceId: string): Promise<void> =>
     apiFetch<void>(WORKFLOW_INSTANCE_ENDPOINTS.terminate(instanceId), { method: 'POST' }, { emptyAsSuccess: true }),
 

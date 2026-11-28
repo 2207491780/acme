@@ -394,10 +394,11 @@ function TenantListTab() {
       setCreating(false);
       crud.reload(1);
     } catch (ex: unknown) {
-      // 层级域错误码映射（REQ-20261122-102954 契约③）：TENANT_DEPTH_EXCEEDED/TENANT_CYCLE
-      if (ex instanceof ApiError && ex.code === 'TENANT_DEPTH_EXCEEDED') {
+      // 层级域错误码映射（REQ-20261122-102954 契约③；REQ-20261128-051442 附录 A.3 全码）：
+      // TENANT_DEPTH_EXCEEDED=platform-system-06-0004 / TENANT_CYCLE=platform-system-06-0005
+      if (ex instanceof ApiError && ex.code === 'platform-system-06-0004') {
         message.error(t('tenants.errors.depthExceeded'));
-      } else if (ex instanceof ApiError && ex.code === 'TENANT_CYCLE') {
+      } else if (ex instanceof ApiError && ex.code === 'platform-system-06-0005') {
         message.error(t('tenants.errors.cycle'));
       } else {
         message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));

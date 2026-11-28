@@ -240,7 +240,7 @@ describe('REQ20261122233426 msm 租户开通模板端点契约同形（AC-7）',
     // ③ 重码 → TENANT_TEMPLATE_DUPLICATE（委派点 3 钉死码）
     const duplicate = (await postJson(TEMPLATES, validPayload('startup-basic', '重码模板'))).body;
     expect(duplicate.success, '同码创建应业务拒绝').toBe(false);
-    expect(duplicate.code).toBe('TENANT_TEMPLATE_DUPLICATE');
+    expect(duplicate.code).toBe('platform-system-15-0002');
 
     // ④ PARAM_INVALID 拒绝矩阵（确认③保存时即拒：保留前缀/空角色集/编码/名称）
     const invalidMatrix: Array<[string, Record<string, unknown>]> = [
@@ -263,7 +263,7 @@ describe('REQ20261122233426 msm 租户开通模板端点契约同形（AC-7）',
     for (const [what, payload] of invalidMatrix) {
       const rejected = (await postJson(TEMPLATES, payload)).body;
       expect(rejected.success, `${what} 应业务拒绝：${JSON.stringify(rejected)}`).toBe(false);
-      expect(rejected.code, `${what} 拒绝码=PARAM_INVALID（委派点 3 钉死）`).toBe('PARAM_INVALID');
+      expect(rejected.code, `${what} 拒绝码=SYS-01-0001（REQ-20261128-051442 附录 B PARAM_INVALID 泛化映射）`).toBe('SYS-01-0001');
     }
 
     // ⑤ defaultPackageId 不存在 → 业务拒绝（存在性校验；码=TENANT_PACKAGE_NOT_FOUND 口径不断言字面量）
@@ -289,10 +289,10 @@ describe('REQ20261122233426 msm 租户开通模板端点契约同形（AC-7）',
       ...validPayload('minimal', '撞码模板'),
     })).body;
     expect(conflict.success).toBe(false);
-    expect(conflict.code).toBe('TENANT_TEMPLATE_DUPLICATE');
+    expect(conflict.code).toBe('platform-system-15-0002');
     const missing = (await putJson(`${TEMPLATES}/999999`, validPayload('it233426-x', '缺失模板'))).body;
     expect(missing.success).toBe(false);
-    expect(missing.code).toBe('TENANT_TEMPLATE_NOT_FOUND');
+    expect(missing.code).toBe('platform-system-15-0001');
 
     // ⑧ delete：空体 2xx + list 不再命中；重复删除 → TENANT_TEMPLATE_NOT_FOUND（终态=种子还原）
     const removed = await deleteJson(`${TEMPLATES}/${String(createdView.id)}`);
@@ -300,7 +300,7 @@ describe('REQ20261122233426 msm 租户开通模板端点契约同形（AC-7）',
     expect(await templateByCode('it233426-crud'), '删除后 list 不再命中').toBeUndefined();
     const removedAgain = (await deleteJson(`${TEMPLATES}/999999`)).body;
     expect(removedAgain.success).toBe(false);
-    expect(removedAgain.code).toBe('TENANT_TEMPLATE_NOT_FOUND');
+    expect(removedAgain.code).toBe('platform-system-15-0001');
   });
 });
 

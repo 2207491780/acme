@@ -8,7 +8,11 @@ import type { LeaveRequestView, LeaveStatus } from '@acme/core';
  * POST /admin/v1/leave/requests（发起）+ GET /admin/v1/leave/requests/{id}（详情）。
  * 无权限点（B 端用户令牌面）；失败沿用统一信封（Result.fail，code/message/data=null）。
  * wire 口径：id/instanceId 字符串；instanceId 可空（mock 口径：发起落库为 null）。
- * 演示触发（供测试/联调）：leaveType 含 __INVALID__ → LEAVE_TYPE_INVALID（后端校验非 0 code 转译演示）。
+ * REQ-20261128-051442 确认⑦（仅升码值字面，语义级对齐随 B2b 合流后跟随批）：
+ * PARAM_INVALID ×3 → SYS-01-0001（@Valid/Bind 框架校验族，附录 A.2）；LEAVE_TYPE_INVALID /
+ * LEAVE_REQUEST_NOT_FOUND → SYS-01-0002（leave 域 InvalidRequestException → WebError.BAD_REQUEST
+ * 实证；LEAVE_REQUEST_NOT_FOUND 场景 HTTP 404 → 400 族随码值升级）。
+ * 演示触发（供测试/联调）：leaveType 含 __INVALID__ → SYS-01-0002（后端校验非 0 code 转译演示）。
  */
 
 const store = { requests: [...db.leaveRequests] };
@@ -30,18 +34,18 @@ export const leaveHandlers = [
     const startTime = typeof body.startTime === 'string' ? body.startTime : '';
     const endTime = typeof body.endTime === 'string' ? body.endTime : '';
     if (!businessKey || !leaveType || !startTime || !endTime) {
-      return fail('PARAM_INVALID', 'businessKey/leaveType/startTime/endTime 必填', 400);
+      return fail('SYS-01-0001', 'businessKey/leaveType/startTime/endTime 必填', 400);
     }
     if (leaveType.includes('__INVALID__')) {
-      return fail('LEAVE_TYPE_INVALID', '请假类型无效', 400);
+      return fail('SYS-01-0002', '请假类型无效', 400);
     }
     const startMs = Number.isNaN(Date.parse(startTime)) ? NaN : Date.parse(startTime);
     const endMs = Number.isNaN(Date.parse(endTime)) ? NaN : Date.parse(endTime);
     if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
-      return fail('PARAM_INVALID', 'startTime/endTime 必须为 ISO-8601 时间', 400);
+      return fail('SYS-01-0001', 'startTime/endTime 必须为 ISO-8601 时间', 400);
     }
     if (endMs < startMs) {
-      return fail('PARAM_INVALID', 'endTime 不得早于 startTime', 400);
+      return fail('SYS-01-0001', 'endTime 不得早于 startTime', 400);
     }
     const created: LeaveRequestView = {
       id: genId(),
@@ -58,11 +62,12 @@ export const leaveHandlers = [
     return ok(created);
   }),
 
-  // 2) GET 详情：按请假单 id（wire string）；不存在 → LEAVE_REQUEST_NOT_FOUND
+  // 2) GET 详情：按请假单 id（wire string）；不存在 → SYS-01-0002（确认⑦，400 族）
   http.get('/admin/v1/leave/requests/:requestId', ({ params }) => {
     const target = store.requests.find((row) => row.id === String(params.requestId));
     if (!target || !isLeaveStatus(target.status)) {
-      return fail('LEAVE_REQUEST_NOT_FOUND', '请假单不存在', 404);
+      // REQ-20261128-051442 确认⑦：leave 域查无=InvalidRequestException → SYS-01-0002（400 族，原 404 随码值升级）
+      return fail('SYS-01-0002', '请假单不存在', 400);
     }
     return ok(target);
   }),

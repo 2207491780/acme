@@ -102,7 +102,7 @@ const schedulerRoutes = () => {
       if (r.method === 'PUT') {
         const body = parseBody(r.body);
         if (body.jobKey != null && body.jobKey !== row.jobKey) {
-          return errorEnvelope('KEY_IMMUTABLE', 'job_key 创建后不可修改');
+          return errorEnvelope('platform-scheduler-01-0003', 'job_key 创建后不可修改');
         }
         Object.assign(row, body);
         return envelope(row);
@@ -120,7 +120,7 @@ const schedulerRoutes = () => {
       if (r.method === 'POST') {
         const body = parseBody(r.body);
         if (state.jobs.some((item) => item.jobKey === body.jobKey)) {
-          return errorEnvelope('KEY_DUPLICATE', '任务 Key 已存在');
+          return errorEnvelope('platform-scheduler-01-0001', '任务 Key 已存在');
         }
         const created = {
           id: String(state.nextId++), version: '0', status: 'DISABLED',

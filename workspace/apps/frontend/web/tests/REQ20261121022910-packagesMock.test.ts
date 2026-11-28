@@ -130,22 +130,22 @@ describe('REQ20261121022910 msw 套餐 handler（AC-14）', () => {
     const miss = await tenantPackageApi.page({ keyword: 'zzz-无命中-022910' });
     expect(miss.total).toBe(0);
 
-    // —— ③ 错误码透出（业务失败信封 code 精确断言，对齐后端同语义） ——
+    // —— ③ 错误码透出（业务失败信封 code 精确断言；REQ-20261128-051442 附录 A.3 全码真值） ——
     await expectApiError(
       () => tenantPackageApi.create({ packageName: '基础版', remark: null, menuIds: [] }),
-      'TENANT_PACKAGE_DUPLICATE',
+      'platform-system-14-0001',
     );
     await expectApiError(
       () => tenantPackageApi.create({ packageName: '非法套餐it', remark: null, menuIds: [999999999] }),
-      'TENANT_PACKAGE_MENU_INVALID',
+      'platform-system-14-0004',
     );
     await expectApiError(
       () => tenantPackageApi.detail('999999999'),
-      'TENANT_PACKAGE_NOT_FOUND',
+      'platform-system-14-0002',
     );
     await expectApiError(
       () => tenantPackageApi.remove(base?.id ?? '1'),
-      'TENANT_PACKAGE_IN_USE',
+      'platform-system-14-0003',
     );
 
     // —— ④ 占用删除保留、空闲删除清除（删除后分页/绑定状态同语义联动） ——
@@ -153,7 +153,7 @@ describe('REQ20261121022910 msw 套餐 handler（AC-14）', () => {
     await tenantPackageApi.remove(freeId);
     const afterDelete = await tenantPackageApi.page();
     expect(afterDelete.records.some((pkg) => pkg.id === freeId), '空闲套餐删除后消失').toBe(false);
-    await expectApiError(() => tenantPackageApi.detail(freeId), 'TENANT_PACKAGE_NOT_FOUND');
+    await expectApiError(() => tenantPackageApi.detail(freeId), 'platform-system-14-0002');
     expect((await tenantPackageApi.page()).records.find((pkg) => pkg.id === base?.id)?.tenantCount,
       '占用套餐不受他人删除影响').toBe(1);
 
@@ -174,13 +174,13 @@ describe('REQ20261121022910 msw 套餐 handler（AC-14）', () => {
       expiresAt: before.expiresAt, version: before.version,
     });
     expect(untouched.packageId ?? null, '不传 packageId 不改动既有绑定').toBe(before.packageId ?? null);
-    // 非法 packageId → TENANT_PACKAGE_NOT_FOUND
+    // 非法 packageId → platform-system-14-0002（TENANT_PACKAGE_NOT_FOUND）
     const afterTouch = await fetchTenant();
     await expectApiError(
       () => systemApi.tenantUpdate(boundId, {
         tenantName: afterTouch.tenantName, version: afterTouch.version, packageId: 999999999,
       }),
-      'TENANT_PACKAGE_NOT_FOUND',
+      'platform-system-14-0002',
     );
     // null=解除绑定
     const toUnbind = await fetchTenant();

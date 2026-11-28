@@ -8,7 +8,10 @@ import {
 /** 认证域 handler（login-tenant-select / login-guard-captcha / 登录 / 登出 / 滑动续约 / 登录日志 / 在线用户）。
  *  REQ-20261117-011514 增验证码策略公开端点；REQ-20261117-025200 增公开站点配置与超管租户切换；
  *  REQ-20261117-061017 增登录日志导出与在线用户按用户名批量下线；
- *  REQ-20261119-040838 增扫码登录票据三段 mock（创建/轮询状态推进/取消）。 */
+ *  REQ-20261119-040838 增扫码登录票据三段 mock（创建/轮询状态推进/取消）。
+ *  REQ-20261128-051442：错误码升附录 A.2/A.4 全码真值——PARAM_INVALID=SYS-01-0001（框架校验族）、
+ *  PASSWORD_POLICY_VIOLATED=platform-auth-02-0002、SESSION_NOT_FOUND=platform-auth-04-0001、
+ *  OLD_PASSWORD_INVALID=platform-auth-07-0001、SAME_PASSWORD=platform-auth-07-0002。 */
 
 /** 会话/登录日志内存态（fixtures 拷贝；批量下线直接改写集合，登出刷新页面恢复）。 */
 const store = { loginLogs: [...db.loginLogs], onlineUsers: [...db.onlineUsers] };
@@ -40,7 +43,7 @@ export const authHandlers = [
   http.get('/admin/v1/auth/captcha-policy', ({ request }) => {
     const tenantCode = urlOf(request).searchParams.get('tenantCode') ?? '';
     if (!tenantCode.trim()) {
-      return fail('PARAM_INVALID', 'tenantCode 不能为空', 400);
+      return fail('SYS-01-0001', 'tenantCode 不能为空', 400);
     }
     return ok({ captchaEnabled: false });
   }),
@@ -49,7 +52,7 @@ export const authHandlers = [
   http.get('/admin/v1/auth/public-config', ({ request }) => {
     const tenantCode = urlOf(request).searchParams.get('tenantCode') ?? '';
     if (!tenantCode.trim()) {
-      return fail('PARAM_INVALID', 'tenantCode 不能为空', 400);
+      return fail('SYS-01-0001', 'tenantCode 不能为空', 400);
     }
     return ok({ footerCopyright: null, footerVisible: false });
   }),
@@ -59,7 +62,7 @@ export const authHandlers = [
     const body = await bodyOf(request);
     const targetTenantCode = typeof body.targetTenantCode === 'string' ? body.targetTenantCode : '';
     if (!targetTenantCode.trim()) {
-      return fail('PARAM_INVALID', 'targetTenantCode 不能为空', 400);
+      return fail('SYS-01-0001', 'targetTenantCode 不能为空', 400);
     }
     return ok({
       accessToken: 'mock-access-token-switched',
@@ -141,27 +144,27 @@ export const authHandlers = [
   http.delete('/admin/v1/auth/tokens/current', () => empty()),
   // ————— 管理端重置用户密码（REQ-20261124-213008 契约①；权限点 auth:credential:manage） —————
   // upsert 凭据并撤销该用户全部活跃会话（mock 不持凭据仓，仅信封同形）；
-  // 策略违反（空/超 64/演示触发 __POLICY__）→ PASSWORD_POLICY_VIOLATED
+  // 策略违反（空/超 64/演示触发 __POLICY__）→ platform-auth-02-0002
   http.put('/admin/v1/auth/credentials/users/:userId/password', async ({ request }) => {
     const body = await bodyOf(request);
     const password = typeof body.password === 'string' ? body.password : '';
     if (!password || password.length > 64 || password.includes('__POLICY__')) {
-      return fail('PASSWORD_POLICY_VIOLATED', '密码不符合策略（1~64 位非空）', 400);
+      return fail('platform-auth-02-0002', '密码不符合策略（1~64 位非空）', 400);
     }
     return ok(null);
   }),
   // ————— 自助账户安全（REQ-20261119-082531：改密 / 本人会话列表 / 逐条与批量下线） —————
-  // 自助改密（契约③）：旧密码错误 → OLD_PASSWORD_INVALID；新旧相同 → SAME_PASSWORD；
+  // 自助改密（契约③）：旧密码错误 → platform-auth-07-0001；新旧相同 → platform-auth-07-0002；
   // 成功 → 其他会话 KICKED+撤销（当前会话保持）→ Result<Void>
   http.put('/admin/v1/auth/me/password', async ({ request }) => {
     const body = await bodyOf(request);
     const oldPassword = typeof body.oldPassword === 'string' ? body.oldPassword : '';
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
     if (oldPassword !== selfSessionStore.password) {
-      return fail('OLD_PASSWORD_INVALID', '当前密码不正确', 200);
+      return fail('platform-auth-07-0001', '当前密码不正确', 200);
     }
     if (newPassword === oldPassword) {
-      return fail('SAME_PASSWORD', '新密码不能与当前密码相同', 200);
+      return fail('platform-auth-07-0002', '新密码不能与当前密码相同', 200);
     }
     selfSessionStore.password = newPassword;
     selfSessionStore.sessions = selfSessionStore.sessions.filter((row) => row.current);
@@ -174,12 +177,12 @@ export const authHandlers = [
     selfSessionStore.sessions = selfSessionStore.sessions.filter((row) => row.current);
     return empty();
   }),
-  // 下线本人指定会话（契约④）：非本人/不存在=NOT_FOUND 语义防探测；当前会话不可自踢（保留）
+  // 下线本人指定会话（契约④）：非本人/不存在=查无语义防探测（platform-auth-04-0001）；当前会话不可自踢（保留）
   http.delete('/admin/v1/auth/me/sessions/:sessionId', ({ params }) => {
     const tokenId = String(params.sessionId);
     const target = selfSessionStore.sessions.find((row) => row.tokenId === tokenId);
     if (!target) {
-      return fail('SESSION_NOT_FOUND', '会话不存在或已失效', 404);
+      return fail('platform-auth-04-0001', '会话不存在或已失效', 404);
     }
     selfSessionStore.sessions = selfSessionStore.sessions.filter((row) => row.tokenId !== tokenId);
     return empty();
@@ -204,7 +207,7 @@ export const authHandlers = [
   http.delete('/admin/v1/auth/online-users', ({ request }) => {
     const username = urlOf(request).searchParams.get('username') ?? '';
     if (!username.trim()) {
-      return fail('PARAM_INVALID', 'username 不能为空', 400);
+      return fail('SYS-01-0001', 'username 不能为空', 400);
     }
     const matching = store.onlineUsers.filter((row) => row.username === username);
     const kicked = matching.filter((row) => row.username !== SUPERADMIN_USERNAME).length;
@@ -214,12 +217,12 @@ export const authHandlers = [
     );
     return ok({ kickedCount: kicked, skippedCount: skipped });
   }),
-  // 单会话踢下线（路径参数 sessionId；目标不存在=SESSION_NOT_FOUND）
+  // 单会话踢下线（路径参数 sessionId；目标不存在=platform-auth-04-0001）
   http.delete('/admin/v1/auth/online-users/:sessionId', ({ params }) => {
     const sessionId = String(params.sessionId);
     const exists = store.onlineUsers.some((row) => row.sessionId === sessionId);
     if (!exists) {
-      return fail('SESSION_NOT_FOUND', '目标会话不存在', 400);
+      return fail('platform-auth-04-0001', '目标会话不存在', 400);
     }
     store.onlineUsers = store.onlineUsers.filter((row) => row.sessionId !== sessionId);
     return empty();

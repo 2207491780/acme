@@ -5,6 +5,9 @@ import type { ExecutionView, ExecutorView, JobAdminView, JobStatus } from '@acme
 
 /**
  * 调度中心域 handler（REQ-20261122-023213 JOB-3，八端点与后端同形）：
+ * 错误码=REQ-20261128-051442 附录 A.6 全码真值（KEY_DUPLICATE=platform-scheduler-01-0001、
+ * JOB_NOT_FOUND=platform-scheduler-01-0002、KEY_IMMUTABLE=platform-scheduler-01-0003、
+ * PARAM_INVALID=SYS-01-0001 框架校验族）。
  * 任务定义分页/创建（KEY_DUPLICATE/默认 DISABLED）/编辑（KEY_IMMUTABLE+version）/启停/触发（MANUAL）/
  * 软删 + 执行历史分页（jobKey/state/fireTime 窗口，fire_time 倒序）+ 执行器清单（ONLINE/OFFLINE）。
  * resolver 内联（msw 2.x Params 泛型按路径逐 handler 推断，不抽公共别名）。
@@ -42,10 +45,10 @@ export const schedulerHandlers = [
     const jobKey = typeof body.jobKey === 'string' ? body.jobKey : '';
     const appName = typeof body.appName === 'string' ? body.appName : '';
     if (!jobKey || !appName) {
-      return fail('PARAM_INVALID', 'jobKey/appName 必填', 400);
+      return fail('SYS-01-0001', 'jobKey/appName 必填', 400);
     }
     if (store.jobs.some((job) => job.jobKey === jobKey)) {
-      return fail('KEY_DUPLICATE', '任务标识已存在', 400);
+      return fail('platform-scheduler-01-0001', '任务标识已存在', 400);
     }
     const created: JobAdminView = {
       id: genId(),
@@ -79,11 +82,11 @@ export const schedulerHandlers = [
   http.put('/admin/v1/scheduler/jobs/:jobId/status', async ({ request, params }) => {
     const target = store.jobs.find((job) => job.id === String(params.jobId));
     if (!target) {
-      return fail('JOB_NOT_FOUND', '任务不存在', 404);
+      return fail('platform-scheduler-01-0002', '任务不存在', 404);
     }
     const body = await bodyOf(request);
     if (!isJobStatus(body.status)) {
-      return fail('PARAM_INVALID', 'status 必须为 ENABLED/DISABLED', 400);
+      return fail('SYS-01-0001', 'status 必须为 ENABLED/DISABLED', 400);
     }
     const status = body.status;
     store.jobs = store.jobs.map((job) =>
@@ -103,12 +106,12 @@ export const schedulerHandlers = [
   http.put('/admin/v1/scheduler/jobs/:jobId', async ({ request, params }) => {
     const target = store.jobs.find((job) => job.id === String(params.jobId));
     if (!target) {
-      return fail('JOB_NOT_FOUND', '任务不存在', 404);
+      return fail('platform-scheduler-01-0002', '任务不存在', 404);
     }
     const body = await bodyOf(request);
     // job_key 创建后不可改（KEY_IMMUTABLE：随体携带且与现值不符即拒绝）
     if (typeof body.jobKey === 'string' && body.jobKey !== target.jobKey) {
-      return fail('KEY_IMMUTABLE', '任务标识不可修改', 400);
+      return fail('platform-scheduler-01-0003', '任务标识不可修改', 400);
     }
     store.jobs = store.jobs.map((job) =>
       job.id === target.id
@@ -139,7 +142,7 @@ export const schedulerHandlers = [
   http.post('/admin/v1/scheduler/jobs/:jobId/trigger', ({ params }) => {
     const target = store.jobs.find((job) => job.id === String(params.jobId));
     if (!target) {
-      return fail('JOB_NOT_FOUND', '任务不存在', 404);
+      return fail('platform-scheduler-01-0002', '任务不存在', 404);
     }
     const executionId = genId();
     const execution: ExecutionView = {
@@ -163,7 +166,7 @@ export const schedulerHandlers = [
   http.delete('/admin/v1/scheduler/jobs/:jobId', ({ params }) => {
     const id = String(params.jobId);
     if (!store.jobs.some((job) => job.id === id)) {
-      return fail('JOB_NOT_FOUND', '任务不存在', 404);
+      return fail('platform-scheduler-01-0002', '任务不存在', 404);
     }
     // 软删 mock 语义：移出清单（后端为 deleted 标记，行为面等价——列表不再返回）
     store.jobs = store.jobs.filter((job) => job.id !== id);

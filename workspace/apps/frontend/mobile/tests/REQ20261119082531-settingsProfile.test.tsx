@@ -376,7 +376,7 @@ describe('REQ20261119082531 改密卡提交', () => {
   it('should_showOldPasswordInvalidToast_when_serverRejectsOldPassword', async () => {
     const fetchMock = await renderSettings({
       routes: {
-        '/auth/me/password': () => failEnvelope('OLD_PASSWORD_INVALID', '当前密码不正确', 200),
+        '/auth/me/password': () => failEnvelope('platform-auth-07-0001', '当前密码不正确', 200),
       },
     });
     await fillPasswordForm();

@@ -7,14 +7,15 @@ import { i18n } from './i18n';
  * message（同样附码）或兜底文案（兜底由调用方以 t() 传入，本模块不内联文案）。
  */
 
-/** 已知系统域错误码 → i18n key（显示文案经 t()，与语言联动）。 */
+/** 已知系统域错误码 → i18n key（REQ-20261128-051442 附录 A.3/A.4 全码真值作键；
+ *  SESSION/REVOKE 两键跨域归位 platform-auth-04 段；i18n key 值与文案不变）。 */
 export const SYSTEM_ERROR_I18N_KEYS: Record<string, string> = {
-  DEPT_HAS_CHILDREN: 'depts.errors.deptHasChildren',
-  DEPT_HAS_USERS: 'depts.errors.deptHasUsers',
-  POSITION_IN_USE: 'positions.errors.positionInUse',
-  DATA_SCOPE_INVALID: 'roles.scope.invalid',
-  SESSION_NOT_FOUND: 'onlineUsers.errors.sessionNotFound',
-  REVOKE_SUPERADMIN_FORBIDDEN: 'onlineUsers.errors.revokeSuperadminForbidden',
+  'platform-system-10-0002': 'depts.errors.deptHasChildren',
+  'platform-system-10-0003': 'depts.errors.deptHasUsers',
+  'platform-system-11-0002': 'positions.errors.positionInUse',
+  'platform-system-02-0008': 'roles.scope.invalid',
+  'platform-auth-04-0001': 'onlineUsers.errors.sessionNotFound',
+  'platform-auth-04-0002': 'onlineUsers.errors.revokeSuperadminForbidden',
 };
 
 /** 系统域失败的用户可读文案：命中已知错误码 → 转译；尾部附错误码（转译提示口径对齐 notify-errors）。 */

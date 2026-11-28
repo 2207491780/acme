@@ -289,13 +289,13 @@ describe('REQ20261122102730 写面同形（AC-9 写面）', () => {
     expect(doneRow, '已办结任务应入 done').toBeTruthy();
     expect(doneRow?.status).toBe('COMPLETED');
     expect(doneRow?.completeTime).toBeTruthy();
-    // 状态机负例：已办结任务不可再驳回（业务错误信封）
+    // 状态机负例：已办结任务不可再驳回（AC-9 任务域状态冲突=platform-workflow-03-0002）
     try {
       await taskApi.reject(taskId, { comment: '重复驳回' });
-      throw new Error('应抛出业务失败（DISABLED），实际成功返回');
+      throw new Error('应抛出业务失败（TASK_STATE_CONFLICT），实际成功返回');
     } catch (ex: unknown) {
       expect(ex).toBeInstanceOf(ApiError);
-      expect((ex as ApiError).code).toBe(WORKFLOW_ERROR_CODES.DISABLED);
+      expect((ex as ApiError).code).toBe(WORKFLOW_ERROR_CODES.TASK_STATE_CONFLICT);
     }
   });
 
@@ -329,13 +329,13 @@ describe('REQ20261122102730 写面同形（AC-9 写面）', () => {
     const page = await instanceApi.page(1, 20, { businessKey: started.businessKey });
     expect(page.records[0]?.status).toBe('TERMINATED');
     expect(page.records[0]?.endTime).toBeTruthy();
-    // 状态机负例：TERMINATED 不可再终止
+    // 状态机负例：TERMINATED 不可再终止（AC-9 实例域状态冲突=platform-workflow-02-0002）
     try {
       await instanceApi.terminate(started.id);
-      throw new Error('应抛出业务失败（DISABLED），实际成功返回');
+      throw new Error('应抛出业务失败（INSTANCE_STATE_CONFLICT），实际成功返回');
     } catch (ex: unknown) {
       expect(ex).toBeInstanceOf(ApiError);
-      expect((ex as ApiError).code).toBe(WORKFLOW_ERROR_CODES.DISABLED);
+      expect((ex as ApiError).code).toBe(WORKFLOW_ERROR_CODES.INSTANCE_STATE_CONFLICT);
     }
   });
 
@@ -387,14 +387,14 @@ describe('REQ20261122102730 写面同形（AC-9 写面）', () => {
   it('should_surface_business_error_envelope_when_instance_operation_rejected', async () => {
     // 业务失败信封（success=false, code≠0）→ ApiError 拆包（统一响应体口径，勿断言 4xx 信封之外形态）
     server.use(http.post(WORKFLOW_INSTANCE_ENDPOINTS.suspend('9302'), () => HttpResponse.json({
-      success: false, code: '01-0004', message: '流程实例不存在', data: null,
+      success: false, code: WORKFLOW_ERROR_CODES.INSTANCE_NOT_FOUND, message: '流程实例不存在', data: null,
     }, { status: 404 })));
     try {
       await instanceApi.suspend('9302', '运维窗口挂起');
-      throw new Error('应抛出业务失败（01-0004），实际成功返回');
+      throw new Error('应抛出业务失败（INSTANCE_NOT_FOUND），实际成功返回');
     } catch (ex: unknown) {
       expect(ex).toBeInstanceOf(ApiError);
-      expect((ex as ApiError).code).toBe(WORKFLOW_ERROR_CODES.NOT_FOUND);
+      expect((ex as ApiError).code).toBe(WORKFLOW_ERROR_CODES.INSTANCE_NOT_FOUND);
     }
   });
 });

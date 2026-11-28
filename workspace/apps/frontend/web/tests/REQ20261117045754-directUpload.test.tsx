@@ -269,13 +269,13 @@ describe('REQ20261117045754 UploadButton 直传链（AC-8）', () => {
   });
 
   it('should_show_image_invalid_message_when_prepare_rejects_with_image_invalid', async () => {
-    const { fetchMock } = setupDirectApi({ prepareFailCode: 'STORAGE_IMAGE_INVALID', prepareFailStatus: 400 });
+    const { fetchMock } = setupDirectApi({ prepareFailCode: 'IMAGE_INVALID', prepareFailStatus: 400 });
     await renderButton();
     chooseFile('坏图.png', 'image/png');
 
     // 图片语义 400 信封 → i18n 图片文案 + 尾部附码
     expect(await screen.findByText(MSG_IMAGE_INVALID)).toBeTruthy();
-    expect(screen.getByText(/STORAGE_IMAGE_INVALID/)).toBeTruthy();
+    expect(screen.getByText(/IMAGE_INVALID/)).toBeTruthy();
     expect(callsOf(fetchMock, 'PUT', TICKET_PATH_PART)).toHaveLength(0);
   });
 

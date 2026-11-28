@@ -11,13 +11,21 @@ import {
 
 /**
  * 工作流域 handler（REQ-20261122-023441）：流程定义 6 端点，与后端契约同形——
- * wire id/version 字符串、PageResult 分页、错误码 01-0001~0005 两形态信封
- * （裸 message 信封 vs VALIDATION_FAILED 明细随 data）。列表 bpmnXml 置空。
+ * wire id/version 字符串、PageResult 分页、错误码经 WORKFLOW_ERROR_CODES 全码常量发射
+ * （REQ-20261128-051442 附录 A.5；两形态信封：裸 message 信封 vs VALIDATION_FAILED 明细随 data）。
+ * 列表 bpmnXml 置空。
  *
  * REQ-20261122-102730（BPM-3）：扩实例/任务域端点（契约 apis 面）——
  * 实例分页/我发起/详情/历史/发起/终止/挂起/恢复 + 任务 todo/done/complete/reject/
  * claim/unclaim/transfer/delegate。wire id 一律字符串；todo/done/initiated 行带
  * definitionKey/definitionName/businessKey/initiator 投影（契约⑤，前端禁 N+1）。
+ *
+ * REQ-20261128-051442（P2-16/AC-9 状态机语义对齐后端）：
+ * 实例域查无=INSTANCE_NOT_FOUND(02-0001)、状态冲突=INSTANCE_STATE_CONFLICT(02-0002)、
+ * terminate 允许 RUNNING/SUSPENDED（仅拒 COMPLETED/TERMINATED，对齐 TerminateInstanceCommand.validate）；
+ * 任务域查无=TASK_NOT_FOUND(03-0001)、状态冲突=TASK_STATE_CONFLICT(03-0002)、
+ * 归属不匹配（任务 assignee 非空且非当前登录人）=ASSIGNEE_MISMATCH(03-0003)；
+ * DISABLED(01-0005) 语义仅保留于流程定义域（01 段）。
  *
  * 演示触发（供测试/联调）：bpmnXml 含 __INVALID__ → 400 XML_INVALID；
  * 含 __VALIDATION_FAILED__ → 409 VALIDATION_FAILED + data 明细（nodeId+message）。
@@ -82,9 +90,14 @@ function validationDetail(): Array<{ nodeId: string | null; field: string | null
   ];
 }
 
-/** 任务存在性判定（82 动作共用；不存在=404 NOT_FOUND）。 */
+/** 任务存在性判定（82 动作共用；不存在=404 TASK_NOT_FOUND）。 */
 function findTask(taskId: string): TaskView | undefined {
   return store.tasks.find((row) => row.id === taskId);
+}
+
+/** 任务归属判定（REQ-20261128-051442 AC-9）：任务已指派（assignee 非空）且非当前登录人 → 归属不匹配。 */
+function isAssigneeMismatch(task: TaskView): boolean {
+  return task.assignee !== null && task.assignee !== ME_USERNAME;
 }
 
 /** 委托落库记录判定（REQ-20261122-150750 契约⑤，与前端 ApprovalDetailDrawer 口径一致）：
@@ -231,7 +244,7 @@ export const workflowHandlers = [
   http.get('/admin/v1/workflow/process-instances/:instanceId', ({ params }) => {
     const target = store.instances.find((row) => row.id === String(params.instanceId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '流程实例不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.INSTANCE_NOT_FOUND, '流程实例不存在', 404, null);
     }
     return ok(target);
   }),
@@ -239,7 +252,7 @@ export const workflowHandlers = [
   // 10) GET 历史活动：非分页 List（缺省=空数组，前端 fail-soft 空态）
   http.get('/admin/v1/workflow/process-instances/:instanceId/history', ({ params }) => {
     if (!store.instances.some((row) => row.id === String(params.instanceId))) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '流程实例不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.INSTANCE_NOT_FOUND, '流程实例不存在', 404, null);
     }
     return ok(store.histories[String(params.instanceId)] ?? []);
   }),
@@ -309,28 +322,29 @@ export const workflowHandlers = [
     return ok(instance);
   }),
 
-  // 12) POST 终止：仅 RUNNING；TERMINATED + endTime 落定
+  // 12) POST 终止：RUNNING/SUSPENDED 可终止（AC-9 对齐后端仅拒 COMPLETED/TERMINATED）；
+  //     TERMINATED + endTime 落定
   http.post('/admin/v1/workflow/process-instances/:instanceId/terminate', ({ params }) => {
     const target = store.instances.find((row) => row.id === String(params.instanceId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '流程实例不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.INSTANCE_NOT_FOUND, '流程实例不存在', 404, null);
     }
-    if (target.status !== 'RUNNING') {
-      return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅运行中实例可终止', 409, null);
+    if (target.status === 'COMPLETED' || target.status === 'TERMINATED') {
+      return failWithData(WORKFLOW_ERROR_CODES.INSTANCE_STATE_CONFLICT, '实例已结束，不可终止', 409, null);
     }
     const terminated: ProcessInstanceView = { ...target, status: 'TERMINATED', endTime: nowIso(), activeNodes: [], tasks: [] };
     store.instances = store.instances.map((row) => (row.id === target.id ? terminated : row));
     return empty();
   }),
 
-  // 13) POST 挂起：仅 RUNNING；suspendReason=body.reason
+  // 13) POST 挂起：仅 RUNNING（非 RUNNING=INSTANCE_STATE_CONFLICT）；suspendReason=body.reason
   http.post('/admin/v1/workflow/process-instances/:instanceId/suspend', async ({ request, params }) => {
     const target = store.instances.find((row) => row.id === String(params.instanceId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '流程实例不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.INSTANCE_NOT_FOUND, '流程实例不存在', 404, null);
     }
     if (target.status !== 'RUNNING') {
-      return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅运行中实例可挂起', 409, null);
+      return failWithData(WORKFLOW_ERROR_CODES.INSTANCE_STATE_CONFLICT, '仅运行中实例可挂起', 409, null);
     }
     const body = await bodyOf(request);
     const reason = typeof body.reason === 'string' && body.reason !== '' ? body.reason : null;
@@ -340,14 +354,14 @@ export const workflowHandlers = [
     return empty();
   }),
 
-  // 14) POST 恢复：仅 SUSPENDED；suspendReason 清空
+  // 14) POST 恢复：仅 SUSPENDED（非 SUSPENDED=INSTANCE_STATE_CONFLICT）；suspendReason 清空
   http.post('/admin/v1/workflow/process-instances/:instanceId/resume', ({ params }) => {
     const target = store.instances.find((row) => row.id === String(params.instanceId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '流程实例不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.INSTANCE_NOT_FOUND, '流程实例不存在', 404, null);
     }
     if (target.status !== 'SUSPENDED') {
-      return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅已挂起实例可恢复', 409, null);
+      return failWithData(WORKFLOW_ERROR_CODES.INSTANCE_STATE_CONFLICT, '仅已挂起实例可恢复', 409, null);
     }
     store.instances = store.instances.map((row) =>
       row.id === target.id ? { ...row, status: 'RUNNING', suspendReason: null } : row,
@@ -388,16 +402,20 @@ export const workflowHandlers = [
     return page(slicePage(rows, pagingOf(request)), rows.length);
   }),
 
-  // 17) POST 办结：CREATED/CLAIMED → COMPLETED + completeTime；
+  // 17) POST 办结：CREATED/CLAIMED → COMPLETED + completeTime（归属不匹配=TASK_ASSIGNEE_MISMATCH，
+  //     非待办态=TASK_STATE_CONFLICT，AC-9）；
   //     REQ-20261122-150750 契约⑦形状验证：TaskCompleteRequest{form?,comment?}——
   //     form 非 object（含数组/null）拒 400 VALIDATION_FAILED，comment 非字符串拒（AC-7）
   http.post('/admin/v1/workflow/tasks/:taskId/complete', async ({ request, params }) => {
     const target = findTask(String(params.taskId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '任务不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_NOT_FOUND, '任务不存在', 404, null);
+    }
+    if (isAssigneeMismatch(target)) {
+      return failWithData(WORKFLOW_ERROR_CODES.ASSIGNEE_MISMATCH, '任务归属不匹配，仅被指派人可办结', 400, null);
     }
     if (target.status !== 'CREATED' && target.status !== 'CLAIMED') {
-      return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅待办任务可办结', 409, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_STATE_CONFLICT, '仅待办任务可办结', 409, null);
     }
     const body = await bodyOf(request);
     if (body.form !== undefined && body.form !== null
@@ -419,10 +437,13 @@ export const workflowHandlers = [
   http.post('/admin/v1/workflow/tasks/:taskId/reject', async ({ request, params }) => {
     const target = findTask(String(params.taskId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '任务不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_NOT_FOUND, '任务不存在', 404, null);
+    }
+    if (isAssigneeMismatch(target)) {
+      return failWithData(WORKFLOW_ERROR_CODES.ASSIGNEE_MISMATCH, '任务归属不匹配，仅被指派人可驳回', 400, null);
     }
     if (target.status !== 'CREATED' && target.status !== 'CLAIMED') {
-      return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅待办任务可驳回', 409, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_STATE_CONFLICT, '仅待办任务可驳回', 409, null);
     }
     const body = await bodyOf(request);
     const targetNodeId = typeof body.targetNodeId === 'string' ? body.targetNodeId : null;
@@ -439,14 +460,17 @@ export const workflowHandlers = [
     return empty();
   }),
 
-  // 19) POST 认领：CREATED → CLAIMED（assignee=登录人）
+  // 19) POST 认领：CREATED → CLAIMED（assignee=登录人；归属不匹配/状态冲突=AC-9 任务域全码）
   http.post('/admin/v1/workflow/tasks/:taskId/claim', ({ params }) => {
     const target = findTask(String(params.taskId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '任务不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_NOT_FOUND, '任务不存在', 404, null);
+    }
+    if (isAssigneeMismatch(target)) {
+      return failWithData(WORKFLOW_ERROR_CODES.ASSIGNEE_MISMATCH, '任务归属不匹配，仅候选/被指派人可认领', 400, null);
     }
     if (target.status !== 'CREATED') {
-      return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅待认领任务可认领', 409, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_STATE_CONFLICT, '仅待认领任务可认领', 409, null);
     }
     store.tasks = store.tasks.map((row) =>
       row.id === target.id
@@ -456,14 +480,17 @@ export const workflowHandlers = [
     return empty();
   }),
 
-  // 20) POST 取消认领：CLAIMED → CREATED（assignee/claimTime 清空）
+  // 20) POST 取消认领：CLAIMED → CREATED（assignee/claimTime 清空；AC-9 任务域全码）
   http.post('/admin/v1/workflow/tasks/:taskId/unclaim', ({ params }) => {
     const target = findTask(String(params.taskId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '任务不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_NOT_FOUND, '任务不存在', 404, null);
+    }
+    if (isAssigneeMismatch(target)) {
+      return failWithData(WORKFLOW_ERROR_CODES.ASSIGNEE_MISMATCH, '任务归属不匹配，仅被指派人可取消认领', 400, null);
     }
     if (target.status !== 'CLAIMED') {
-      return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅已认领任务可取消认领', 409, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_STATE_CONFLICT, '仅已认领任务可取消认领', 409, null);
     }
     store.tasks = store.tasks.map((row) =>
       row.id === target.id ? { ...row, status: 'CREATED', assignee: null, claimTime: null } : row,
@@ -471,14 +498,17 @@ export const workflowHandlers = [
     return empty();
   }),
 
-  // 21) POST 转办：assignee 变更（CREATED/CLAIMED 均可）
+  // 21) POST 转办：assignee 变更（CREATED/CLAIMED 均可；AC-9 任务域全码）
   http.post('/admin/v1/workflow/tasks/:taskId/transfer', async ({ request, params }) => {
     const target = findTask(String(params.taskId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '任务不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_NOT_FOUND, '任务不存在', 404, null);
+    }
+    if (isAssigneeMismatch(target)) {
+      return failWithData(WORKFLOW_ERROR_CODES.ASSIGNEE_MISMATCH, '任务归属不匹配，仅被指派人可转办', 400, null);
     }
     if (target.status !== 'CREATED' && target.status !== 'CLAIMED') {
-      return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅待办任务可转办', 409, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_STATE_CONFLICT, '仅待办任务可转办', 409, null);
     }
     const body = await bodyOf(request);
     const assignee = typeof body.assignee === 'string' ? body.assignee.trim() : '';
@@ -491,14 +521,17 @@ export const workflowHandlers = [
     return empty();
   }),
 
-  // 22) POST 委托：委托链单层（assignee 变更；语义与 transfer 区分由后端审计面承担）
+  // 22) POST 委托：委托链单层（assignee 变更；语义与 transfer 区分由后端审计面承担；AC-9 任务域全码）
   http.post('/admin/v1/workflow/tasks/:taskId/delegate', async ({ request, params }) => {
     const target = findTask(String(params.taskId));
     if (!target) {
-      return failWithData(WORKFLOW_ERROR_CODES.NOT_FOUND, '任务不存在', 404, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_NOT_FOUND, '任务不存在', 404, null);
+    }
+    if (isAssigneeMismatch(target)) {
+      return failWithData(WORKFLOW_ERROR_CODES.ASSIGNEE_MISMATCH, '任务归属不匹配，仅被指派人可委托', 400, null);
     }
     if (target.status !== 'CREATED' && target.status !== 'CLAIMED') {
-      return failWithData(WORKFLOW_ERROR_CODES.DISABLED, '仅待办任务可委托', 409, null);
+      return failWithData(WORKFLOW_ERROR_CODES.TASK_STATE_CONFLICT, '仅待办任务可委托', 409, null);
     }
     const body = await bodyOf(request);
     const assignee = typeof body.assignee === 'string' ? body.assignee.trim() : '';

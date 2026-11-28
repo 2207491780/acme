@@ -273,11 +273,12 @@ function EmployeePasswordCard({ styles }: { styles: SetStyles }) {
         toast(t('profile.mobile.passwordChanged'), 'success');
       })
       .catch((ex: unknown) => {
-        if (ex instanceof ApiError && ex.code === 'OLD_PASSWORD_INVALID') {
+        // 改密域全码（REQ-20261128-051442 附录 A.4）：OLD_PASSWORD_INVALID=07-0001 / SAME_PASSWORD=07-0002
+        if (ex instanceof ApiError && ex.code === 'platform-auth-07-0001') {
           toast(t('profile.errors.oldPasswordInvalid'), 'danger');
           return;
         }
-        if (ex instanceof ApiError && ex.code === 'SAME_PASSWORD') {
+        if (ex instanceof ApiError && ex.code === 'platform-auth-07-0002') {
           toast(t('profile.errors.samePassword'), 'danger');
           return;
         }

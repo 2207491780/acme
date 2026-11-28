@@ -24,8 +24,12 @@ import { bodyOf, empty, fail, ok, page, pagingOf, slicePage, urlOf } from '../ut
  *  REQ-20261121-022910 扩展：套餐五端点 CRUD / 租户 packageId 扩展（POST/PUT，向后兼容）/
  *  me 菜单树按套餐过滤（确认②：∩ 套餐菜单集 + 祖先链自动补全 + BUTTON 级联）。
  *  REQ-20261121-054613 扩展：GET /capabilities 能力目录（仅启用、id asc）/ 套餐 create/update/detail
- *  capabilities 全量替换校验（未知码 → TENANT_CAPABILITY_INVALID）/ me.capabilities 生效集装配
- *  （绑定套餐=套餐能力集、未绑定=全部启用码；internal 面不属 admin mock 范围，不设 handler）。 */
+ *  capabilities 全量替换校验（未知码 → platform-system-14-0006）/ me.capabilities 生效集装配
+ *  （绑定套餐=套餐能力集、未绑定=全部启用码；internal 面不属 admin mock 范围，不设 handler）。
+ *  REQ-20261128-051442（P1-07/AC-5）：fail 发射码全部升附录 A 全码真值——框架族 PARAM_INVALID/
+ *  PREFERENCE_INVALID/DEPT_NAME_INVALID=SYS-01-0001、BAD_REQUEST=SYS-01-0002、
+ *  VERSION_CONFLICT=SYS-01-0003（409）；域码按段直映（如 TENANT_TEMPLATE_DUPLICATE=
+ *  platform-system-15-0002）；FILE_TYPE_REJECTED/FILE_SIZE_EXCEEDED 为附录 A.7 裸字面量真值不动。 */
 
 /** 通用 keyword 过滤（命中任一字段子串，大小写不敏感）。 */
 function matchKeyword<T>(rows: T[], keyword: string | null, fields: (row: T) => (string | null | undefined)[]): T[] {
@@ -114,7 +118,7 @@ function collectDeptIds(root: AdminDeptView, into: Set<string>): void {
 
 const DATA_SCOPE_ENUM: RoleDataScope[] = ['ALL', 'DEPT', 'DEPT_AND_CHILD', 'SELF', 'CUSTOM'];
 
-/** 全菜单树节点 id 全集（REQ-20261121-022910：套餐 menuIds 合法性校验 TENANT_PACKAGE_MENU_INVALID 口径；
+/** 全菜单树节点 id 全集（REQ-20261121-022910：套餐 menuIds 合法性校验（wire 码 platform-system-14-0004）口径；
  *  REQ-20261127-234158 wire 对齐：菜单 id 字符串口径，绑定表行经 String 归一比对）。 */
 function collectAllMenuIds(nodes: AdminMenuView[]): Set<string> {
   const ids = new Set<string>();
@@ -297,7 +301,7 @@ function parseTenantParentId(
   }
   const parentId = String(body.parentId);
   if (!store.tenants.some((tenant) => tenant.id === parentId)) {
-    return { ok: false, response: fail('TENANT_NOT_FOUND', '父租户不存在或已被删除', 404) };
+    return { ok: false, response: fail('platform-system-06-0001', '父租户不存在或已被删除', 404) };
   }
   return { ok: true, parentId };
 }
@@ -347,27 +351,27 @@ function buildTenantTree(): AdminTenantTreeNode[] {
 
 /** 套餐 body 载荷归一：packageName 必填 ≤128（trim）、remark ≤255（空串归一 null）、
  *  menuIds[] 合法性校验、capabilities[] 合法性校验（REQ-20261121-054613：null/缺省=空集全量替换，
- *  未知/未启用能力码 → TENANT_CAPABILITY_INVALID 14-0006，与后端错误码同语义）。
+ *  未知/未启用能力码 → platform-system-14-0006（TENANT_CAPABILITY_INVALID），与后端错误码同语义）。
  *  失败返回 fail 响应；成功返回归一后的载荷。 */
 function parsePackageBody(
   body: Record<string, unknown>,
 ): { ok: true; packageName: string; remark: string | null; menuIds: number[]; capabilities: string[] } | { ok: false; response: ReturnType<typeof fail> } {
   const packageName = typeof body.packageName === 'string' ? body.packageName.trim() : '';
   if (!packageName || packageName.length > 128) {
-    return { ok: false, response: fail('PARAM_INVALID', '套餐名称必填且不超过 128 字符', 400) };
+    return { ok: false, response: fail('SYS-01-0001', '套餐名称必填且不超过 128 字符', 400) };
   }
   if (body.remark !== undefined && body.remark !== null && typeof body.remark !== 'string') {
-    return { ok: false, response: fail('PARAM_INVALID', '备注类型非法', 400) };
+    return { ok: false, response: fail('SYS-01-0001', '备注类型非法', 400) };
   }
   const remark = typeof body.remark === 'string' && body.remark.trim() ? body.remark.trim() : null;
   if (remark && remark.length > 255) {
-    return { ok: false, response: fail('PARAM_INVALID', '备注长度不超过 255 字符', 400) };
+    return { ok: false, response: fail('SYS-01-0001', '备注长度不超过 255 字符', 400) };
   }
   const menuIds = Array.isArray(body.menuIds) ? (body.menuIds as unknown[]).map(Number) : [];
   const knownMenus = collectAllMenuIds(store.menus);
   // REQ-20261127-234158 wire 对齐：菜单 id 字符串口径——载荷 string/number 双收，String 归一比对
   if (menuIds.some((menuId) => !Number.isFinite(menuId) || !knownMenus.has(String(menuId)))) {
-    return { ok: false, response: fail('TENANT_PACKAGE_MENU_INVALID', 'menuIds 含不存在或已删除的菜单', 400) };
+    return { ok: false, response: fail('platform-system-14-0004', 'menuIds 含不存在或已删除的菜单', 400) };
   }
   // 能力码（REQ-20261121-054613）：可分配集合=目录中 status=ENABLED 的能力码（目录端点同口径）；
   // 码集为字符串原样提交（不做归一），缺省/null=空集（全量替换语义同 menuIds）
@@ -376,13 +380,13 @@ function parsePackageBody(
     store.capabilities.filter((item) => item.status === 'ENABLED').map((item) => item.capabilityCode),
   );
   if (capabilities.some((code) => !assignableCodes.has(code))) {
-    return { ok: false, response: fail('TENANT_CAPABILITY_INVALID', 'capabilities 含未知或未启用的能力码', 400) };
+    return { ok: false, response: fail('platform-system-14-0006', 'capabilities 含未知或未启用的能力码', 400) };
   }
   return { ok: true, packageName, remark, menuIds, capabilities };
 }
 
 /** 租户 body.packageId 归一（REQ-20261121-022910：undefined=不改动既有绑定；null=解除绑定；
- *  非法（不存在）→ TENANT_PACKAGE_NOT_FOUND；数字/字符串 wire 双口径兼容）。 */
+ *  非法（不存在）→ platform-system-14-0002（TENANT_PACKAGE_NOT_FOUND）；数字/字符串 wire 双口径兼容）。 */
 function parseTenantPackageId(body: Record<string, unknown>, fallback: string | null):
   { ok: true; packageId: string | null } | { ok: false; response: ReturnType<typeof fail> } {
   if (body.packageId === undefined) {
@@ -393,7 +397,7 @@ function parseTenantPackageId(body: Record<string, unknown>, fallback: string | 
   }
   const packageId = String(body.packageId);
   if (!store.tenantPackages.some((pkg) => pkg.id === packageId)) {
-    return { ok: false, response: fail('TENANT_PACKAGE_NOT_FOUND', '套餐不存在或已被删除', 404) };
+    return { ok: false, response: fail('platform-system-14-0002', '套餐不存在或已被删除', 404) };
   }
   return { ok: true, packageId };
 }
@@ -415,76 +419,76 @@ function parseTemplateBody(
 ): { ok: true; code: string; name: string; remark: string | null; content: AdminTenantInitTemplateView['content']; defaultPackageId: string | null } | { ok: false; response: ReturnType<typeof fail> } {
   const code = typeof body.code === 'string' ? body.code.trim() : '';
   if (!code || code.length > 64 || !TEMPLATE_CODE_PATTERN.test(code)) {
-    return { ok: false, response: fail('PARAM_INVALID', '模板编码必填（小写字母开头，仅小写字母/数字/中划线，≤64 字符）', 400) };
+    return { ok: false, response: fail('SYS-01-0001', '模板编码必填（小写字母开头，仅小写字母/数字/中划线，≤64 字符）', 400) };
   }
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!name || name.length > 128) {
-    return { ok: false, response: fail('PARAM_INVALID', '模板名称必填且不超过 128 字符', 400) };
+    return { ok: false, response: fail('SYS-01-0001', '模板名称必填且不超过 128 字符', 400) };
   }
   if (body.remark !== undefined && body.remark !== null && typeof body.remark !== 'string') {
-    return { ok: false, response: fail('PARAM_INVALID', '备注类型非法', 400) };
+    return { ok: false, response: fail('SYS-01-0001', '备注类型非法', 400) };
   }
   const remark = typeof body.remark === 'string' && body.remark.trim() ? body.remark.trim() : null;
   if (remark && remark.length > 255) {
-    return { ok: false, response: fail('PARAM_INVALID', '备注长度不超过 255 字符', 400) };
+    return { ok: false, response: fail('SYS-01-0001', '备注长度不超过 255 字符', 400) };
   }
   // defaultPackageId（可空；非法 → TENANT_PACKAGE_NOT_FOUND，复用套餐域存在性口径）
   let defaultPackageId: string | null = null;
   if (body.defaultPackageId !== undefined && body.defaultPackageId !== null && body.defaultPackageId !== '') {
     const pkgId = String(body.defaultPackageId);
     if (!store.tenantPackages.some((pkg) => pkg.id === pkgId)) {
-      return { ok: false, response: fail('TENANT_PACKAGE_NOT_FOUND', '默认套餐不存在或已被删除', 404) };
+      return { ok: false, response: fail('platform-system-14-0002', '默认套餐不存在或已被删除', 404) };
     }
     defaultPackageId = pkgId;
   }
   // content 结构校验（确认②原文形状 + 确认③保存时即拒口径）
   const content = body.content;
   if (!isRecordValue(content)) {
-    return { ok: false, response: fail('PARAM_INVALID', 'content 必须为对象', 400) };
+    return { ok: false, response: fail('SYS-01-0001', 'content 必须为对象', 400) };
   }
   if (content.adminUsernamePrefix !== undefined && content.adminUsernamePrefix !== null
     && typeof content.adminUsernamePrefix !== 'string') {
-    return { ok: false, response: fail('PARAM_INVALID', 'content.adminUsernamePrefix 必须为字符串', 400) };
+    return { ok: false, response: fail('SYS-01-0001', 'content.adminUsernamePrefix 必须为字符串', 400) };
   }
   if (content.adminNickname !== undefined && content.adminNickname !== null
     && typeof content.adminNickname !== 'string') {
-    return { ok: false, response: fail('PARAM_INVALID', 'content.adminNickname 必须为字符串', 400) };
+    return { ok: false, response: fail('SYS-01-0001', 'content.adminNickname 必须为字符串', 400) };
   }
   if (!Array.isArray(content.rolePresets) || content.rolePresets.length === 0) {
-    return { ok: false, response: fail('PARAM_INVALID', 'content.rolePresets 不能为空（空角色集被拒绝）', 400) };
+    return { ok: false, response: fail('SYS-01-0001', 'content.rolePresets 不能为空（空角色集被拒绝）', 400) };
   }
   for (const preset of content.rolePresets as unknown[]) {
     if (!isRecordValue(preset)) {
-      return { ok: false, response: fail('PARAM_INVALID', 'content.rolePresets 项必须为对象', 400) };
+      return { ok: false, response: fail('SYS-01-0001', 'content.rolePresets 项必须为对象', 400) };
     }
     const roleKey = typeof preset.roleKey === 'string' ? preset.roleKey.trim() : '';
     const roleName = typeof preset.roleName === 'string' ? preset.roleName.trim() : '';
     if (!roleKey || !roleName) {
-      return { ok: false, response: fail('PARAM_INVALID', 'content.rolePresets 项 roleKey/roleName 必填', 400) };
+      return { ok: false, response: fail('SYS-01-0001', 'content.rolePresets 项 roleKey/roleName 必填', 400) };
     }
     const codes = Array.isArray(preset.permissionCodes) ? preset.permissionCodes : [];
     if (codes.some((item) => typeof item !== 'string' || !item.trim())) {
-      return { ok: false, response: fail('PARAM_INVALID', 'content.rolePresets[].permissionCodes 必须为非空字符串数组', 400) };
+      return { ok: false, response: fail('SYS-01-0001', 'content.rolePresets[].permissionCodes 必须为非空字符串数组', 400) };
     }
     const reserved = codes.find((item) => RESERVED_PERMISSION_PREFIXES.some((prefix) => (item as string).startsWith(prefix)));
     if (reserved !== undefined) {
-      return { ok: false, response: fail('PARAM_INVALID', `权限点 ${reserved as string} 命中保留前缀，已被拒绝`, 400) };
+      return { ok: false, response: fail('SYS-01-0001', `权限点 ${reserved as string} 命中保留前缀，已被拒绝`, 400) };
     }
   }
   if (content.configEntries !== undefined && content.configEntries !== null && !Array.isArray(content.configEntries)) {
-    return { ok: false, response: fail('PARAM_INVALID', 'content.configEntries 必须为数组', 400) };
+    return { ok: false, response: fail('SYS-01-0001', 'content.configEntries 必须为数组', 400) };
   }
   const configEntries = Array.isArray(content.configEntries) ? content.configEntries : [];
   for (const entry of configEntries as unknown[]) {
     if (!isRecordValue(entry)) {
-      return { ok: false, response: fail('PARAM_INVALID', 'content.configEntries 项必须为对象', 400) };
+      return { ok: false, response: fail('SYS-01-0001', 'content.configEntries 项必须为对象', 400) };
     }
     const configKey = typeof entry.configKey === 'string' ? entry.configKey.trim() : '';
     if (!configKey) {
-      return { ok: false, response: fail('PARAM_INVALID', 'content.configEntries 项 configKey 必填', 400) };
+      return { ok: false, response: fail('SYS-01-0001', 'content.configEntries 项 configKey 必填', 400) };
     }
     if (entry.value !== undefined && entry.value !== null && typeof entry.value !== 'string') {
-      return { ok: false, response: fail('PARAM_INVALID', 'content.configEntries 项 value 必须为字符串', 400) };
+      return { ok: false, response: fail('SYS-01-0001', 'content.configEntries 项 value 必须为字符串', 400) };
     }
   }
   return {
@@ -643,15 +647,15 @@ export const systemHandlers = [
     const body = await bodyOf(request);
     const nickname = typeof body.nickname === 'string' ? body.nickname.trim() : '';
     if (!nickname || nickname.length > 32) {
-      return fail('PROFILE_INVALID', '昵称必填且不超过 32 字符', 200);
+      return fail('platform-system-13-0001', '昵称必填且不超过 32 字符', 200);
     }
     const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : null;
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return fail('PROFILE_INVALID', '邮箱格式不正确', 200);
+      return fail('platform-system-13-0001', '邮箱格式不正确', 200);
     }
     const phone = typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null;
     if (phone && !/^1\d{10}$/.test(phone)) {
-      return fail('PROFILE_INVALID', '手机号格式不正确（1 开头 11 位）', 200);
+      return fail('platform-system-13-0001', '手机号格式不正确（1 开头 11 位）', 200);
     }
     const avatarUrl = typeof body.avatarUrl === 'string' && body.avatarUrl.trim() ? body.avatarUrl.trim() : null;
     store.meUser = {
@@ -729,7 +733,7 @@ export const systemHandlers = [
     const token = typeof body.token === 'string' ? body.token.trim() : '';
     const platform = typeof body.platform === 'string' ? body.platform : 'web';
     if (!token) {
-      return fail('PREFERENCE_INVALID', '推送 token 缺失', 200);
+      return fail('SYS-01-0001', '推送 token 缺失', 200);
     }
     store.pushTokens = [
       ...store.pushTokens.filter((row) => row.token !== token),
@@ -750,16 +754,16 @@ export const systemHandlers = [
     const idle = body.lockIdleTimeoutMs;
     if (typeof body.watermarkEnabled !== 'boolean' || typeof body.captchaEnabled !== 'boolean'
       || typeof idle !== 'number' || ![0, 60_000, 300_000, 900_000].includes(idle)) {
-      return fail('PARAM_INVALID', '配置参数非法：闲置时长仅支持 0/1/5/15 分钟', 200);
+      return fail('SYS-01-0001', '配置参数非法：闲置时长仅支持 0/1/5/15 分钟', 200);
     }
     // 水印模板（REQ-20261117-180000）：可空（空串归一 null），≤255；未知完整占位符拒绝（镜像后端口径）
     const template = typeof body.watermarkTemplate === 'string' && body.watermarkTemplate.length > 0
       && body.watermarkTemplate.length <= 255 ? body.watermarkTemplate : null;
     if (template && findUnknownWatermarkPlaceholders(template).length > 0) {
-      return fail('WATERMARK_TEMPLATE_INVALID', '水印模板包含不支持的占位符', 200);
+      return fail('platform-system-12-0002', '水印模板包含不支持的占位符', 200);
     }
     if (body.version !== store.systemConfig.version) {
-      return fail('VERSION_CONFLICT', '配置已被其他用户修改，请刷新后重试', 200);
+      return fail('SYS-01-0003', '配置已被其他用户修改，请刷新后重试', 409);
     }
     store.systemConfig = {
       watermarkEnabled: body.watermarkEnabled,
@@ -852,7 +856,7 @@ export const systemHandlers = [
   http.post('/admin/v1/system/tenants', async ({ request }) => {
     const body = await bodyOf(request);
     if (typeof body.tenantCode !== 'string' || typeof body.tenantName !== 'string') {
-      return fail('TENANT_CODE_INVALID', '租户代码/名称缺失', 400);
+      return fail('SYS-01-0001', '租户代码/名称缺失', 400);
     }
     // REQ-20261121-022910：可选 packageId（可空=不受限；非法 → TENANT_PACKAGE_NOT_FOUND）
     const packaged = parseTenantPackageId(body, null);
@@ -869,7 +873,7 @@ export const systemHandlers = [
       : undefined;
     const parentLevel = parentRow?.level ?? 1;
     if (parentRow && parentLevel >= TENANT_MAX_LEVEL) {
-      return fail('TENANT_DEPTH_EXCEEDED', '租户层级超过上限（最多 3 层）', 400);
+      return fail('platform-system-06-0004', '租户层级超过上限（最多 3 层）', 400);
     }
     const created = {
       id: genId(), tenantCode: body.tenantCode, tenantName: body.tenantName,
@@ -896,7 +900,7 @@ export const systemHandlers = [
   http.post('/admin/v1/system/tenants/init', async ({ request }) => {
     const body = await bodyOf(request);
     if (typeof body.tenantCode !== 'string' || typeof body.tenantName !== 'string') {
-      return fail('TENANT_CODE_INVALID', '租户代码/名称缺失', 400);
+      return fail('SYS-01-0001', '租户代码/名称缺失', 400);
     }
     // 确认③：templateCode 未命中按现行为处理（不报错，mock 容忍）
     const template = typeof body.templateCode === 'string' && body.templateCode.trim()
@@ -915,7 +919,7 @@ export const systemHandlers = [
       : undefined;
     const parentLevel = parentRow?.level ?? 1;
     if (parentRow && parentLevel >= TENANT_MAX_LEVEL) {
-      return fail('TENANT_DEPTH_EXCEEDED', '租户层级超过上限（最多 3 层）', 400);
+      return fail('platform-system-06-0004', '租户层级超过上限（最多 3 层）', 400);
     }
     // 命中模板且未显式指定套餐 → 模板默认套餐兜底（确认③「+默认套餐」）
     const effectivePackageId = template?.defaultPackageId && body.packageId == null
@@ -975,7 +979,7 @@ export const systemHandlers = [
     const id = String(params.tenantId);
     const target = store.tenants.find((tenant) => tenant.id === id);
     if (!target) {
-      return fail('TENANT_NOT_FOUND', '租户不存在或已被删除', 404);
+      return fail('platform-system-06-0001', '租户不存在或已被删除', 404);
     }
     // REQ-20261121-022910：可选 packageId（undefined=不改动既有绑定向后兼容；null=解除绑定；
     // 非法 → TENANT_PACKAGE_NOT_FOUND）
@@ -991,7 +995,7 @@ export const systemHandlers = [
     }
     const nextParentId = parent.parentId ?? target.parentId ?? null;
     if (nextParentId && (nextParentId === id || isTenantAncestorOf(nextParentId, id))) {
-      return fail('TENANT_CYCLE', '父租户不能为自身或其后代（会形成层级环）', 400);
+      return fail('platform-system-06-0005', '父租户不能为自身或其后代（会形成层级环）', 400);
     }
     const nextParent = nextParentId
       ? store.tenants.find((tenant) => tenant.id === nextParentId)
@@ -1007,7 +1011,7 @@ export const systemHandlers = [
       }))
       : 1;
     if (nextLevel + subtreeHeight - 1 > TENANT_MAX_LEVEL) {
-      return fail('TENANT_DEPTH_EXCEEDED', '租户层级超过上限（最多 3 层）', 400);
+      return fail('platform-system-06-0004', '租户层级超过上限（最多 3 层）', 400);
     }
     const updated = {
       ...target,
@@ -1051,7 +1055,7 @@ export const systemHandlers = [
     const id = String(params.tenantId);
     const tenant = store.tenants.find((row) => row.id === id);
     if (!tenant) {
-      return fail('TENANT_NOT_FOUND', '租户不存在或已被删除', 404);
+      return fail('platform-system-06-0001', '租户不存在或已被删除', 404);
     }
     const seed = db.tenantUsageSeeds[id] ?? { storageBytes: 0, userCount: 0 };
     const dynamicUsers = store.users.filter((user) => (user as AdminUserView & { tenantCode?: string }).tenantCode === tenant.tenantCode).length;
@@ -1071,11 +1075,11 @@ export const systemHandlers = [
     const id = String(params.tenantId);
     const tenant = store.tenants.find((row) => row.id === id);
     if (!tenant) {
-      return fail('TENANT_NOT_FOUND', '租户不存在或已被删除', 404);
+      return fail('platform-system-06-0001', '租户不存在或已被删除', 404);
     }
     const bytes = body.quotaStorageBytes;
     if (bytes != null && (typeof bytes !== 'number' || !Number.isInteger(bytes) || bytes < 0)) {
-      return fail('PARAM_INVALID', '配额参数非法：须为非负整数字节数或 null（清除覆盖）', 400);
+      return fail('SYS-01-0001', '配额参数非法：须为非负整数字节数或 null（清除覆盖）', 400);
     }
     if (bytes == null) {
       delete store.tenantQuotaOverrides[id];
@@ -1114,7 +1118,7 @@ export const systemHandlers = [
       return parsed.response;
     }
     if (store.tenantPackages.some((pkg) => pkg.packageName === parsed.packageName)) {
-      return fail('TENANT_PACKAGE_DUPLICATE', '套餐名称已存在', 400);
+      return fail('platform-system-14-0001', '套餐名称已存在', 400);
     }
     const created: AdminTenantPackageView = {
       id: genId(),
@@ -1136,7 +1140,7 @@ export const systemHandlers = [
     const id = String(params.packageId);
     const target = store.tenantPackages.find((pkg) => pkg.id === id);
     if (!target) {
-      return fail('TENANT_PACKAGE_NOT_FOUND', '套餐不存在或已被删除', 404);
+      return fail('platform-system-14-0002', '套餐不存在或已被删除', 404);
     }
     return ok({ ...packageViewOf(target), menuIds: store.packageMenuIds[id] ?? [], capabilities: store.packageCapabilities[id] ?? [] });
   }),
@@ -1150,23 +1154,23 @@ export const systemHandlers = [
     const id = String(params.packageId);
     const target = store.tenantPackages.find((pkg) => pkg.id === id);
     if (!target) {
-      return fail('TENANT_PACKAGE_NOT_FOUND', '套餐不存在或已被删除', 404);
+      return fail('platform-system-14-0002', '套餐不存在或已被删除', 404);
     }
     const body = await bodyOf(request);
     const hasVersion = (typeof body.version === 'string' && body.version.trim() !== '')
       || (typeof body.version === 'number' && Number.isFinite(body.version));
     if (!hasVersion) {
-      return fail('PARAM_INVALID', 'version 乐观锁版本缺失', 400);
+      return fail('SYS-01-0001', 'version 乐观锁版本缺失', 400);
     }
     if (Number(body.version) !== Number(target.version)) {
-      return fail('VERSION_CONFLICT', '套餐已被其他用户修改，请刷新后重试', 200);
+      return fail('SYS-01-0003', '套餐已被其他用户修改，请刷新后重试', 409);
     }
     const parsed = parsePackageBody(body);
     if (!parsed.ok) {
       return parsed.response;
     }
     if (store.tenantPackages.some((pkg) => pkg.id !== id && pkg.packageName === parsed.packageName)) {
-      return fail('TENANT_PACKAGE_DUPLICATE', '套餐名称已存在', 400);
+      return fail('platform-system-14-0001', '套餐名称已存在', 400);
     }
     const updated: AdminTenantPackageView = {
       ...target,
@@ -1186,10 +1190,10 @@ export const systemHandlers = [
     const id = String(params.packageId);
     const target = store.tenantPackages.find((pkg) => pkg.id === id);
     if (!target) {
-      return fail('TENANT_PACKAGE_NOT_FOUND', '套餐不存在或已被删除', 404);
+      return fail('platform-system-14-0002', '套餐不存在或已被删除', 404);
     }
     if (store.tenants.some((tenant) => tenant.packageId === id)) {
-      return fail('TENANT_PACKAGE_IN_USE', '套餐已被租户绑定，无法删除', 400);
+      return fail('platform-system-14-0003', '套餐已被租户绑定，无法删除', 400);
     }
     store.tenantPackages = store.tenantPackages.filter((pkg) => pkg.id !== id);
     delete store.packageMenuIds[id];
@@ -1215,7 +1219,7 @@ export const systemHandlers = [
       return parsed.response;
     }
     if (store.tenantInitTemplates.some((tpl) => tpl.code === parsed.code)) {
-      return fail('TENANT_TEMPLATE_DUPLICATE', '模板编码已存在', 400);
+      return fail('platform-system-15-0002', '模板编码已存在', 400);
     }
     const created: AdminTenantInitTemplateView = {
       id: genId(),
@@ -1235,7 +1239,7 @@ export const systemHandlers = [
     const id = String(params.templateId);
     const target = store.tenantInitTemplates.find((tpl) => tpl.id === id);
     if (!target) {
-      return fail('TENANT_TEMPLATE_NOT_FOUND', '模板不存在或已被删除', 404);
+      return fail('platform-system-15-0001', '模板不存在或已被删除', 404);
     }
     const body = await bodyOf(request);
     const parsed = parseTemplateBody(body);
@@ -1243,7 +1247,7 @@ export const systemHandlers = [
       return parsed.response;
     }
     if (store.tenantInitTemplates.some((tpl) => tpl.id !== id && tpl.code === parsed.code)) {
-      return fail('TENANT_TEMPLATE_DUPLICATE', '模板编码已存在', 400);
+      return fail('platform-system-15-0002', '模板编码已存在', 400);
     }
     const updated: AdminTenantInitTemplateView = {
       ...target,
@@ -1262,7 +1266,7 @@ export const systemHandlers = [
     const id = String(params.templateId);
     const target = store.tenantInitTemplates.find((tpl) => tpl.id === id);
     if (!target) {
-      return fail('TENANT_TEMPLATE_NOT_FOUND', '模板不存在或已被删除', 404);
+      return fail('platform-system-15-0001', '模板不存在或已被删除', 404);
     }
     store.tenantInitTemplates = store.tenantInitTemplates.filter((tpl) => tpl.id !== id);
     return empty();
@@ -1318,7 +1322,7 @@ export const systemHandlers = [
     const id = String(params.userId);
     const target = store.users.find((u) => u.id === id);
     if (!target) {
-      return fail('USER_NOT_FOUND', '用户不存在或已被删除', 404);
+      return fail('platform-system-01-0001', '用户不存在或已被删除', 404);
     }
     const updated = {
       ...target,
@@ -1360,11 +1364,11 @@ export const systemHandlers = [
   http.post('/admin/v1/system/depts', async ({ request }) => {
     const body = await bodyOf(request);
     if (typeof body.deptName !== 'string' || !body.deptName.trim()) {
-      return fail('DEPT_NAME_INVALID', '部门名称缺失', 400);
+      return fail('SYS-01-0001', '部门名称缺失', 400);
     }
     const parentId = body.parentId ? String(body.parentId) : '0';
     if (parentId !== '0' && !findDept(store.depts, parentId)) {
-      return fail('DEPT_NOT_FOUND', '上级部门不存在或已被删除', 404);
+      return fail('platform-system-10-0001', '上级部门不存在或已被删除', 404);
     }
     const created: AdminDeptView = {
       id: genId(),
@@ -1387,11 +1391,11 @@ export const systemHandlers = [
     const id = String(params.deptId);
     const target = findDept(store.depts, id);
     if (!target) {
-      return fail('DEPT_NOT_FOUND', '部门不存在或已被删除', 404);
+      return fail('platform-system-10-0001', '部门不存在或已被删除', 404);
     }
     const parentId = body.parentId !== undefined ? (body.parentId ? String(body.parentId) : '0') : target.parentId;
     if (parentId === id || isDeptDescendant(store.depts, id, parentId)) {
-      return fail('DEPT_PARENT_INVALID', '上级部门不能是自身或其子部门', 400);
+      return fail('platform-system-10-0004', '上级部门不能是自身或其子部门', 400);
     }
     const updated: AdminDeptView = {
       ...target,
@@ -1407,7 +1411,7 @@ export const systemHandlers = [
     }
     // 换父：校验新父存在（防误删）→ 先摘除再挂载（根=顶层追加）
     if (parentId !== '0' && !findDept(store.depts, parentId)) {
-      return fail('DEPT_NOT_FOUND', '上级部门不存在或已被删除', 404);
+      return fail('platform-system-10-0001', '上级部门不存在或已被删除', 404);
     }
     store.depts = removeFromDeptTree(store.depts, id);
     if (parentId === '0') {
@@ -1421,14 +1425,14 @@ export const systemHandlers = [
     const id = String(params.deptId);
     const target = findDept(store.depts, id);
     if (!target) {
-      return fail('DEPT_NOT_FOUND', '部门不存在或已被删除', 404);
+      return fail('platform-system-10-0001', '部门不存在或已被删除', 404);
     }
     // 删除守卫（契约确认记录③）：有子部门/有用户拒绝
     if (target.children.length > 0) {
-      return fail('DEPT_HAS_CHILDREN', '存在子部门，无法删除', 400);
+      return fail('platform-system-10-0002', '存在子部门，无法删除', 400);
     }
     if (store.users.some((u) => u.deptId === id)) {
-      return fail('DEPT_HAS_USERS', '部门下存在用户，无法删除', 400);
+      return fail('platform-system-10-0003', '部门下存在用户，无法删除', 400);
     }
     store.depts = removeFromDeptTree(store.depts, id);
     return empty();
@@ -1457,7 +1461,7 @@ export const systemHandlers = [
     const id = String(params.positionId);
     const target = store.positions.find((p) => p.id === id);
     if (!target) {
-      return fail('POSITION_NOT_FOUND', '岗位不存在或已被删除', 404);
+      return fail('platform-system-11-0001', '岗位不存在或已被删除', 404);
     }
     const updated: AdminPositionView = {
       ...target,
@@ -1473,11 +1477,11 @@ export const systemHandlers = [
     const id = String(params.positionId);
     const target = store.positions.find((p) => p.id === id);
     if (!target) {
-      return fail('POSITION_NOT_FOUND', '岗位不存在或已被删除', 404);
+      return fail('platform-system-11-0001', '岗位不存在或已被删除', 404);
     }
     // 被用户引用的岗位删除拒绝（契约 §API 错误码 POSITION_IN_USE）
     if (store.users.some((u) => u.positionId === id)) {
-      return fail('POSITION_IN_USE', '岗位已被用户引用，无法删除', 400);
+      return fail('platform-system-11-0002', '岗位已被用户引用，无法删除', 400);
     }
     store.positions = store.positions.filter((p) => p.id !== id);
     return empty();
@@ -1488,10 +1492,10 @@ export const systemHandlers = [
     const id = String(params.positionId);
     const target = store.positions.find((p) => p.id === id);
     if (!target) {
-      return fail('POSITION_NOT_FOUND', '岗位不存在或已被删除', 404);
+      return fail('platform-system-11-0001', '岗位不存在或已被删除', 404);
     }
     if (body.status !== 'ENABLED' && body.status !== 'DISABLED') {
-      return fail('PARAM_INVALID', 'status 必须为 ENABLED/DISABLED', 400);
+      return fail('SYS-01-0001', 'status 必须为 ENABLED/DISABLED', 400);
     }
     const status = body.status;
     store.positions = store.positions.map((p) => (p.id === id ? { ...p, status } : p));
@@ -1534,20 +1538,20 @@ export const systemHandlers = [
     const id = String(params.roleId);
     const target = store.roles.find((role) => role.id === id);
     if (!target) {
-      return fail('ROLE_NOT_FOUND', '角色不存在或已被删除', 404);
+      return fail('platform-system-02-0001', '角色不存在或已被删除', 404);
     }
     const dataScope = String(body.dataScope ?? '');
     if (!DATA_SCOPE_ENUM.includes(dataScope as RoleDataScope)) {
-      return fail('DATA_SCOPE_INVALID', '数据范围枚举无效', 400);
+      return fail('platform-system-02-0008', '数据范围枚举无效', 400);
     }
     const deptIds = Array.isArray(body.deptIds) ? (body.deptIds as unknown[]).map(String) : [];
     if (dataScope === 'CUSTOM') {
       // AC-3 镜像：CUSTOM 未传/传空 deptIds → 校验拒绝；传非法部门 → 拒绝
       if (deptIds.length === 0) {
-        return fail('DATA_SCOPE_INVALID', '自定义数据范围必须携带部门集', 400);
+        return fail('platform-system-02-0008', '自定义数据范围必须携带部门集', 400);
       }
       if (deptIds.some((deptId) => !findDept(store.depts, deptId))) {
-        return fail('DATA_SCOPE_INVALID', '自定义部门不存在', 400);
+        return fail('platform-system-02-0008', '自定义部门不存在', 400);
       }
       store.roleDeptIds[id] = deptIds;
     } else {
@@ -1566,7 +1570,7 @@ export const systemHandlers = [
     const id = String(params.roleId);
     const target = store.roles.find((role) => role.id === id);
     if (!target) {
-      return fail('ROLE_NOT_FOUND', '角色不存在或已被删除', 404);
+      return fail('platform-system-02-0001', '角色不存在或已被删除', 404);
     }
     // parentId 三态（REQ-20261125-230807 AC-10，AdminRoleUpdate javadoc 口径，mock 与真后端一致）：
     // undefined/null=不调整（保持现状）；0=移为根（哨兵置 null）；>0=改父（字符串原样，父须存在）
@@ -1578,7 +1582,7 @@ export const systemHandlers = [
       } else {
         const next = String(rawParent);
         if (!store.roles.some((role) => role.id === next)) {
-          return fail('PARAM_INVALID', '上级角色不存在或已被删除', 400);
+          return fail('SYS-01-0001', '上级角色不存在或已被删除', 400);
         }
         parentId = next;
       }
@@ -1644,7 +1648,7 @@ export const systemHandlers = [
       (status !== null && !MENU_STATUS_ENUM.includes(status)) ||
       (visibleParam !== null && visibleParam !== 'true' && visibleParam !== 'false')
     ) {
-      return fail('BAD_REQUEST', '非法筛选参数', 400);
+      return fail('SYS-01-0002', '非法筛选参数', 400);
     }
     const tree = filterMenuTree(store.menus, (node) => {
       if (keyword) {
@@ -1680,7 +1684,7 @@ export const systemHandlers = [
     const body = await bodyOf(request);
     // REQ-20261125-230807（V35）：dictKind 可选（缺省 FLAT）；非法枚举 → PARAM_INVALID
     if (body.dictKind !== undefined && body.dictKind !== null && body.dictKind !== 'FLAT' && body.dictKind !== 'TREE') {
-      return fail('PARAM_INVALID', 'dictKind 仅支持 FLAT/TREE', 400);
+      return fail('SYS-01-0001', 'dictKind 仅支持 FLAT/TREE', 400);
     }
     const created: AdminDictTypeView = {
       id: genId(),
@@ -1699,7 +1703,7 @@ export const systemHandlers = [
     const id = String(params.typeId);
     const target = store.dictTypes.find((t) => t.id === id);
     if (!target) {
-      return fail('DICT_TYPE_NOT_FOUND', '字典类型不存在或已被删除', 404);
+      return fail('platform-system-05-0001', '字典类型不存在或已被删除', 404);
     }
     const updated = {
       ...target,
@@ -1713,7 +1717,7 @@ export const systemHandlers = [
   http.delete('/admin/v1/system/dict-types/:typeId', ({ params }) => {
     const id = String(params.typeId);
     if (store.dictItems.some((item) => item.dictTypeId === id)) {
-      return fail('DICT_TYPE_HAS_ITEMS', '字典类型下存在条目，无法删除', 400);
+      return fail('platform-system-05-0004', '字典类型下存在条目，无法删除', 400);
     }
     store.dictTypes = store.dictTypes.filter((t) => t.id !== id);
     // REQ-20261125-230807：void 端点信封化（Result<Void>），与真实后端同形（原 empty() 改信封）
@@ -1748,12 +1752,12 @@ export const systemHandlers = [
     let parentId: string | null = null;
     if (body.parentId !== undefined && body.parentId !== null && body.parentId !== '') {
       if ((store.dictTypes.find((t) => t.id === typeId)?.dictKind ?? 'FLAT') !== 'TREE') {
-        return fail('PARAM_INVALID', 'FLAT 字典不支持父条目（parentId 仅 TREE 类型可用）', 400);
+        return fail('SYS-01-0001', 'FLAT 字典不支持父条目（parentId 仅 TREE 类型可用）', 400);
       }
       parentId = String(body.parentId);
       const parent = store.dictItems.find((item) => item.id === parentId);
       if (!parent || parent.dictTypeId !== typeId) {
-        return fail('PARAM_INVALID', '父条目不存在或不属于当前字典类型', 400);
+        return fail('SYS-01-0001', '父条目不存在或不属于当前字典类型', 400);
       }
     }
     const created: AdminDictItemView = {
@@ -1774,7 +1778,7 @@ export const systemHandlers = [
     const id = String(params.itemId);
     const target = store.dictItems.find((item) => item.id === id);
     if (!target) {
-      return fail('DICT_ITEM_NOT_FOUND', '字典条目不存在或已被删除', 404);
+      return fail('SYS-01-0001', '字典条目不存在或已被删除', 400);
     }
     const updated = {
       ...target,

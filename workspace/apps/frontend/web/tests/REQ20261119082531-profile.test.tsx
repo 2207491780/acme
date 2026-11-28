@@ -248,7 +248,7 @@ describe('REQ20261119082531 自助改密', () => {
   it('should_showOldPasswordInvalidMessage_when_passwordChangeRejected', async () => {
     const { fetchMock } = await renderProfilePage({
       routes: {
-        '/auth/me/password': () => failEnvelope('OLD_PASSWORD_INVALID', '当前密码不正确', 200),
+        '/auth/me/password': () => failEnvelope('platform-auth-07-0001', '当前密码不正确', 200),
       },
     });
     await fillPasswordForm();

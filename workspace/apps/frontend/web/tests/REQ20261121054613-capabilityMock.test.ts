@@ -110,7 +110,7 @@ describe('REQ20261121054613 msw 能力 handler（AC-10）', () => {
         packageName: '非法能力it-054613', remark: null, menuIds: [],
         capabilities: ['platform:ghost-it-054613'],
       }),
-      'TENANT_CAPABILITY_INVALID',
+      'platform-system-14-0006',
     );
 
     // —— ⑤ me.capabilities 样例存在：本人租户 acme 未绑定 → 全部启用码（TL 钉死） ——

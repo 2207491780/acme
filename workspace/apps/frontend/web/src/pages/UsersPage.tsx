@@ -152,8 +152,8 @@ export function UsersPage() {
     pwdForm.resetFields();
   };
 
-  /** 提交重置密码：成功提示并关闭弹窗；策略违反（PASSWORD_POLICY_VIOLATED）转译可读提示，
-   *  弹窗保持打开、输入保留（不 resetFields）；其余错误沿用统一转译。 */
+  /** 提交重置密码：成功提示并关闭弹窗；策略违反（platform-auth-02-0002，REQ-20261128-051442 附录 A.4）
+   *  转译可读提示，弹窗保持打开、输入保留（不 resetFields）；其余错误沿用统一转译。 */
   const submitResetPassword = async () => {
     if (!resettingPwd) return;
     const values = await pwdForm.validateFields();
@@ -164,7 +164,7 @@ export function UsersPage() {
       setResettingPwd(null);
       pwdForm.resetFields();
     } catch (ex: unknown) {
-      if (ex instanceof ApiError && ex.code === 'PASSWORD_POLICY_VIOLATED') {
+      if (ex instanceof ApiError && ex.code === 'platform-auth-02-0002') {
         message.error(t('users.resetPassword.policyViolated'));
       } else {
         message.error(ex instanceof ApiError ? ex.message : t('common.errors.operationFailed'));

@@ -22,13 +22,13 @@ export const TRANSFER_ERROR_MESSAGES: Record<string, string> = {
 };
 
 /** 直传域错误码 → i18n key（files.errors.*；沿用 system-errors.ts 的 i18n 映射模式，随语言切换）。
- *  码名同时收录 STORAGE_ 前缀与裸族码两种口径（后端 StorageError 族码命名以契约为准）。 */
+ *  REQ-20261128-051442 确认⑧收敛裸码单口径：键=附录 A.7 裸字面量 wire 真值
+ *  （STORAGE_QUOTA_EXCEEDED/STORAGE_OBJECT_MISSING 本身即裸字面量，保留原键名）；
+ *  与 wire 真值不符的 QUOTA_EXCEEDED/STORAGE_IMAGE_INVALID/STORAGE_TICKET_INVALID 三键删除；
+ *  PRESIGN_UNSUPPORTED 为 FE 内部态键（非后端发射），单独登记豁免。 */
 export const DIRECT_UPLOAD_ERROR_I18N_KEYS: Record<string, string> = {
   STORAGE_QUOTA_EXCEEDED: 'files.errors.quotaExceeded',
-  QUOTA_EXCEEDED: 'files.errors.quotaExceeded',
-  STORAGE_IMAGE_INVALID: 'files.errors.imageInvalid',
   IMAGE_INVALID: 'files.errors.imageInvalid',
-  STORAGE_TICKET_INVALID: 'files.errors.ticketInvalid',
   TICKET_INVALID: 'files.errors.ticketInvalid',
   SIZE_MISMATCH: 'files.errors.sizeMismatch',
   STORAGE_OBJECT_MISSING: 'files.errors.objectMissing',

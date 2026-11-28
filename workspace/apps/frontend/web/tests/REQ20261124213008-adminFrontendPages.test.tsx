@@ -287,7 +287,7 @@ describe('REQ20261124213008 UsersPage 重置密码（AC-1/AC-2/AC-3）', () => {
 
   it('should_keep_modal_open_with_input_when_policy_violation_returned', async () => {
     await renderPage(UsersPage, ['system:user:list', 'auth:credential:manage'],
-      usersRoutes({ putFail: { code: 'PASSWORD_POLICY_VIOLATED', message: '密码强度不符合策略' } }));
+      usersRoutes({ putFail: { code: 'platform-auth-02-0002', message: '密码强度不符合策略' } }));
     const rowEl = await findRowByText('alice');
     fireEvent.click(await within(rowEl).findByText(RESET_BUTTON));
 

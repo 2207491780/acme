@@ -45,6 +45,13 @@ const MISFIRE_POLICIES: JobMisfirePolicy[] = ['FIRE_ONCE_NOW', 'IGNORE'];
 /** JOB-3 契约⑥：V2 种子 4 行归属应用（启用动作需带接管说明+cron 运维核对提示）。 */
 const SEED_APP_NAME = 'platform-infra';
 
+/** 调度域错误码（REQ-20261128-051442 附录 A.6 wire 全码真值；core 无 scheduler 错误模块，页面内登记）：
+ *  KEY_DUPLICATE=platform-scheduler-01-0001、KEY_IMMUTABLE=platform-scheduler-01-0003。 */
+const SCHEDULER_ERROR_CODES = {
+  KEY_DUPLICATE: 'platform-scheduler-01-0001',
+  KEY_IMMUTABLE: 'platform-scheduler-01-0003',
+} as const;
+
 /** 状态 → AntD 预设名（ENABLED=success / DISABLED=default）；单元格文本取状态域字面量。 */
 const jobStatusTone = (status: JobStatus): string => (status === 'ENABLED' ? 'success' : 'default');
 
@@ -177,10 +184,10 @@ function JobDefinitionsTab() {
     } catch (ex: unknown) {
       // 错误码映射展示（契约 AC-5）：KEY_DUPLICATE/KEY_IMMUTABLE 定位到 jobKey，其余统一转译
       const code = (ex as { code?: string })?.code;
-      if (code === 'KEY_DUPLICATE') {
+      if (code === SCHEDULER_ERROR_CODES.KEY_DUPLICATE) {
         form.setFields([{ name: 'jobKey', errors: [t('jobs.errors.keyDuplicate')] }]);
         message.error(t('jobs.errors.keyDuplicate'));
-      } else if (code === 'KEY_IMMUTABLE') {
+      } else if (code === SCHEDULER_ERROR_CODES.KEY_IMMUTABLE) {
         message.error(t('jobs.errors.keyImmutable'));
       } else {
         message.error(systemErrorMessage(ex, t('jobs.errors.saveFailed')));
