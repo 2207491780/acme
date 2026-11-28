@@ -8,7 +8,7 @@ import com.acme.platform.workflow.api.dto.ProcessInstanceStartRequest;
 import com.acme.platform.workflow.api.dto.ProcessInstanceSuspendRequest;
 import com.acme.platform.workflow.api.dto.ProcessInstanceView;
 import com.acme.platform.workflow.application.InstanceUseCase;
-import com.acme.platform.workflow.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import com.acme.platform.system.api.SystemPermissions;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;

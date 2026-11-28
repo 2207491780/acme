@@ -8,7 +8,7 @@ import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysPosition;
 import com.acme.platform.system.domain.SysRole;
 import com.acme.platform.system.api.EnableStatus;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

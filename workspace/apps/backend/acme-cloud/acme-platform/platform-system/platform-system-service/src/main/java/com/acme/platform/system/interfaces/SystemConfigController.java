@@ -11,7 +11,7 @@ import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminSystemConfigUpdate;
 import com.acme.platform.system.api.dto.AdminSystemConfigView;
 import com.acme.platform.system.application.SystemConfigUseCase;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

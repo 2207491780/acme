@@ -212,10 +212,10 @@ class SystemApiSurfaceTest {
 
         // 权限强制点：PUT 标注 system:config:update；GET 认证即可读（无标注）
         var putMethod = SystemConfigController.class.getMethod("update", AdminSystemConfigUpdate.class);
-        assertThat(putMethod.getAnnotation(com.acme.platform.system.security.RequirePermission.class).value())
+        assertThat(putMethod.getAnnotation(com.acme.framework.web.security.RequirePermission.class).value())
                 .isEqualTo(com.acme.platform.system.api.SystemPermissions.CONFIG_UPDATE);
         assertThat(SystemConfigController.class.getMethod("get")
-                .getAnnotation(com.acme.platform.system.security.RequirePermission.class)).isNull();
+                .getAnnotation(com.acme.framework.web.security.RequirePermission.class)).isNull();
     }
 
     @Test

@@ -7,7 +7,7 @@ import com.acme.framework.audit.support.AuditLog;
 import com.acme.platform.infra.api.dto.FileView;
 import com.acme.platform.infra.application.FileUseCase;
 import com.acme.platform.infra.domain.SysFile;
-import com.acme.platform.infra.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import com.acme.platform.system.api.SystemPermissions;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

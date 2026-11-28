@@ -7,7 +7,7 @@ import com.acme.platform.infra.api.dto.DirectUploadPreparationView;
 import com.acme.platform.infra.api.dto.FileView;
 import com.acme.platform.infra.application.FileUseCase;
 import com.acme.platform.infra.infrastructure.redis.UploadTicketStore;
-import com.acme.platform.infra.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import com.acme.platform.system.api.SystemPermissions;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;

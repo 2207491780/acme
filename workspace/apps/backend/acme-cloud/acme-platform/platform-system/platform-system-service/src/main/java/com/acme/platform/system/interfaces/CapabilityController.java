@@ -3,7 +3,7 @@ package com.acme.platform.system.interfaces;
 import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminCapabilityView;
 import com.acme.platform.system.application.SystemCapabilityUseCase;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;

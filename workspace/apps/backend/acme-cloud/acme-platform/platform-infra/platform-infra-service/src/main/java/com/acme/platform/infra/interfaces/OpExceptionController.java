@@ -9,7 +9,7 @@ import com.acme.platform.infra.api.dto.AdminOpExceptionView;
 import com.acme.platform.infra.application.OpExceptionExportRow;
 import com.acme.platform.infra.application.OpExceptionUseCase;
 import com.acme.platform.infra.domain.OpException;
-import com.acme.platform.infra.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import com.acme.platform.system.api.SystemPermissions;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.Max;

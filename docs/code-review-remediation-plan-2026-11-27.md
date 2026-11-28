@@ -141,7 +141,7 @@
 纯结构收敛（无行为变化），放 B2/B4/B5 之后，避免与行为修复冲突；每项保持公共层语义与被替换处逐字节等价（QR 哈希口径）。
 
 - **P2-18**：`JsonbTypeHandler`×3（方法体哈希全一致）上提 framework 公共 TypeHandler，三域改引用。
-- **P2-19 + P2-20 + P3-08**：`RequirePermissionInterceptor`×4 抽公共 Abstract 拦截器 + `PermissionDecider` 策略（三域逐字节一致上提，system 本地判定保留为特化策略）；`RequirePermission` 注解×4 三份上提公共契约、`@Target` 统一 `{METHOD, TYPE}`（P3-08 类级死分支随之消解——补类级生效测试或删兜底，REQ 阶段二选一）。
+- **P2-19 + P2-20 + P3-08**：`RequirePermissionInterceptor`×4 抽公共 Abstract 拦截器 + `PermissionDecider` 策略（三域逐字节一致上提，system 本地判定保留为特化策略）；`RequirePermission` 注解×4 三份上提公共契约、`@Target` 统一 `{METHOD, TYPE}`（P3-08 类级死分支随之消解——二选一定案（2026-11-29，B7 实施面）：取「补类级生效测试」，类型级兜底分支保留并由 REQ20261127161433RequirePermissionSupportTest 锁死）。
 - **P3-01**：mobile `ApiEnvelope`/`QrTicketStatus`/`QrTicketInfoView` 改从 `@acme/core` 导入重导出（`AuthSession` 为模块特化不动）。
 - **P3-09**：`ActionCount`×2 补镜像锁定单测（对齐 `ServiceTaskDispatchPayload` 的 `REQ20261122233425ServiceTaskPayloadMirrorTest` 先例）；上提 common-contract 作备选。
 - 验证：模块级 mvn test + 前端 typecheck/test；行为零变化（无新用例要求，既有全量回归即门禁）。
@@ -246,9 +246,9 @@
 | P2-11 | B6 | Redis ACL 基线文档 | 已修复(B6 ab0d58e：ACL 基线文档；待证⑥留核验) |
 | P3-12 | B6 | 单体 SLA 口径文档 | 已修复(B6 ab0d58e：单体 SLA 口径文档) |
 | P2-18 | B7 | JsonbTypeHandler 上提 framework | 未开始 |
-| P2-19 | B7 | RequirePermissionInterceptor 抽 Abstract + 策略 | 未开始 |
-| P2-20 | B7 | RequirePermission 注解三份上提 | 未开始 |
-| P3-08 | B7 | @Target 统一 METHOD+TYPE（随 P2-20） | 未开始 |
+| P2-19 | B7 | RequirePermissionInterceptor 抽 Abstract + 策略 | 已修复(B7：RequirePermissionInterceptorSupport 上提+四域子类) |
+| P2-20 | B7 | RequirePermission 注解三份上提 | 已修复(B7：四注解统一上提 framework-web) |
+| P3-08 | B7 | @Target 统一 METHOD+TYPE（随 P2-20） | 已修复(B7：@Target 统一 {METHOD, TYPE}+类级生效测试锁死) |
 | P3-01 | B7 | mobile 跨端声明改从 @acme/core 重导出 | 未开始 |
 | P3-09 | B7 | ActionCount 镜像锁定单测 | 未开始 |
 | P3-02 | B8 | mobile apiFetch 超时护栏 | 已修复(B8 5d087f6) |

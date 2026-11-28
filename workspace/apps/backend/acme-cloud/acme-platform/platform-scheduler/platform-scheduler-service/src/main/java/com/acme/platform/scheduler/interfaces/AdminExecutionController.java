@@ -7,7 +7,7 @@ import com.acme.platform.scheduler.application.ExecutionView;
 import com.acme.platform.scheduler.application.ExecutorView;
 import com.acme.platform.scheduler.application.ExecutorUseCase;
 import com.acme.platform.scheduler.application.ExecutionQueryUseCase;
-import com.acme.platform.scheduler.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import com.acme.platform.system.api.SystemPermissions;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -13,7 +13,7 @@ import com.acme.platform.infra.application.AuditQueryUseCase;
 import com.acme.platform.infra.application.ExportResult;
 import com.acme.platform.infra.domain.OpAuditEvent;
 import com.acme.platform.infra.security.AuditDataPermissionEvaluator;
-import com.acme.platform.infra.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import com.acme.platform.system.api.SystemPermissions;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.Max;

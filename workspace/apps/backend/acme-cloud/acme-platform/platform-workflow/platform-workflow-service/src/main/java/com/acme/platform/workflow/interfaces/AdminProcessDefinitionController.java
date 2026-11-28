@@ -10,7 +10,7 @@ import com.acme.platform.workflow.api.dto.ProcessDefinitionXmlSaveRequest;
 import com.acme.platform.workflow.application.DefinitionUseCase;
 import com.acme.platform.workflow.compile.ProcessValidationException;
 import com.acme.platform.workflow.compile.ValidationError;
-import com.acme.platform.workflow.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import com.acme.platform.system.api.SystemPermissions;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;

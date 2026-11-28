@@ -70,7 +70,7 @@ class LogCenterApiSurfaceTest {
     }
 
     private static String permissionOf(Method method) {
-        var annotation = method.getAnnotation(com.acme.platform.infra.security.RequirePermission.class);
+        var annotation = method.getAnnotation(com.acme.framework.web.security.RequirePermission.class);
         return annotation == null ? null : annotation.value();
     }
 }

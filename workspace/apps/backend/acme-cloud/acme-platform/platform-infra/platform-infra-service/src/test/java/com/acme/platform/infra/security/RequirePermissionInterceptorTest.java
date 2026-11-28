@@ -1,5 +1,6 @@
 package com.acme.platform.infra.security;
 
+import com.acme.framework.web.security.RequirePermission;
 import com.acme.platform.infra.infrastructure.client.AuthorizationGateway;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

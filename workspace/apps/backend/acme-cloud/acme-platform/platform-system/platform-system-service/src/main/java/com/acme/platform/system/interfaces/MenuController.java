@@ -8,7 +8,7 @@ import com.acme.platform.system.api.dto.AdminMenuCreate;
 import com.acme.platform.system.api.dto.AdminMenuUpdate;
 import com.acme.platform.system.api.dto.AdminMenuView;
 import com.acme.platform.system.application.MenuUseCase;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

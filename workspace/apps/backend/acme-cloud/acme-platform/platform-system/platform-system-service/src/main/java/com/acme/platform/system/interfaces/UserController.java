@@ -13,7 +13,7 @@ import com.acme.platform.system.api.dto.AdminUserUpdate;
 import com.acme.platform.system.api.dto.AdminUserView;
 import com.acme.platform.system.application.UserUseCase;
 import com.acme.platform.system.domain.SysUser;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

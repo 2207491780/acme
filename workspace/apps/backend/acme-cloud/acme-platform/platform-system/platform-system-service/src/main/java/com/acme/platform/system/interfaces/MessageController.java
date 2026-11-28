@@ -10,7 +10,7 @@ import com.acme.platform.system.api.dto.AdminMessageSend;
 import com.acme.platform.system.api.dto.AdminMessageView;
 import com.acme.platform.system.application.MessageUseCase;
 import com.acme.platform.system.domain.SysMessage;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

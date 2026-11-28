@@ -6,7 +6,7 @@ import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.system.api.dto.AdminTenantQuotaUpdate;
 import com.acme.platform.system.api.dto.AdminTenantUsageView;
 import com.acme.platform.system.application.TenantQuotaUseCase;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

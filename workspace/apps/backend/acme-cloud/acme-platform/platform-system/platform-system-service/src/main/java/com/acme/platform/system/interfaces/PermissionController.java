@@ -10,7 +10,7 @@ import com.acme.platform.system.api.dto.AdminPermissionUpdate;
 import com.acme.platform.system.api.dto.AdminPermissionView;
 import com.acme.platform.system.application.PermissionUseCase;
 import com.acme.platform.system.domain.SysPermission;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.web.bind.annotation.DeleteMapping;

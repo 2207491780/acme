@@ -8,7 +8,7 @@ import com.acme.platform.system.api.dto.AdminTenantInitTemplateCreate;
 import com.acme.platform.system.api.dto.AdminTenantInitTemplateUpdate;
 import com.acme.platform.system.api.dto.AdminTenantInitTemplateView;
 import com.acme.platform.system.application.TenantInitTemplateUseCase;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

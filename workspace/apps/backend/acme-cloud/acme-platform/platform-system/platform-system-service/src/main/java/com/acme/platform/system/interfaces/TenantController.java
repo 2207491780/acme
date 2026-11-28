@@ -16,7 +16,7 @@ import com.acme.platform.system.application.TenantInitUseCase;
 import com.acme.platform.system.application.TenantQuotaUseCase;
 import com.acme.platform.system.application.TenantUseCase;
 import com.acme.platform.system.domain.SysTenant;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;

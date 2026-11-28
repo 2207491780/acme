@@ -653,7 +653,7 @@ class REQ20261122233426TenantInitTemplateIntegrationTest extends AbstractSystemI
         // ⑥ 权限点面：端点挂新种子点（确认⑤⑥；RequirePermission 标注口径，SystemApiSurfaceTest 先例）
         try {
             var method = UsageOverviewController.class.getMethod("usageOverview");
-            var annotation = method.getAnnotation(com.acme.platform.system.security.RequirePermission.class);
+            var annotation = method.getAnnotation(com.acme.framework.web.security.RequirePermission.class);
             assertThat(annotation).as("usage-overview 端点须挂权限标注").isNotNull();
             assertThat(annotation.value()).isEqualTo(SystemPermissions.TENANT_USAGE_OVERVIEW);
         } catch (NoSuchMethodException ex) {
@@ -678,12 +678,12 @@ class REQ20261122233426TenantInitTemplateIntegrationTest extends AbstractSystemI
                 .isEqualTo(SystemPermissions.TENANT_TEMPLATE_DELETE);
     }
 
-    private com.acme.platform.system.security.RequirePermission annotationOf(
+    private com.acme.framework.web.security.RequirePermission annotationOf(
             Class<?> controller, String method, Class<?>... parameterTypes)
             throws NoSuchMethodException {
-        com.acme.platform.system.security.RequirePermission annotation =
+        com.acme.framework.web.security.RequirePermission annotation =
                 controller.getMethod(method, parameterTypes).getAnnotation(
-                        com.acme.platform.system.security.RequirePermission.class);
+                        com.acme.framework.web.security.RequirePermission.class);
         assertThat(annotation).as("%s#%s 须挂权限标注", controller.getSimpleName(), method).isNotNull();
         return annotation;
     }

@@ -8,7 +8,7 @@ import com.acme.platform.scheduler.application.JobSaveRequest;
 import com.acme.platform.scheduler.application.JobStatusUpdateRequest;
 import com.acme.platform.scheduler.application.JobUseCase;
 import com.acme.platform.scheduler.application.JobView;
-import com.acme.platform.scheduler.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import com.acme.platform.system.api.SystemPermissions;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;

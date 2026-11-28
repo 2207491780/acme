@@ -11,7 +11,7 @@ import com.acme.platform.system.api.dto.AdminPositionUpdate;
 import com.acme.platform.system.api.dto.AdminPositionView;
 import com.acme.platform.system.application.PositionUseCase;
 import com.acme.platform.system.domain.SysPosition;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

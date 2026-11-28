@@ -17,7 +17,7 @@ import com.acme.platform.system.application.MenuUseCase;
 import com.acme.platform.system.application.PermissionUseCase;
 import com.acme.platform.system.application.RoleUseCase;
 import com.acme.platform.system.domain.SysRole;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;

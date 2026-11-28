@@ -14,7 +14,7 @@ import com.acme.platform.system.api.dto.AdminDictTypeView;
 import com.acme.platform.system.application.DictUseCase;
 import com.acme.platform.system.domain.SysDictItem;
 import com.acme.platform.system.domain.SysDictType;
-import com.acme.platform.system.security.RequirePermission;
+import com.acme.framework.web.security.RequirePermission;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
