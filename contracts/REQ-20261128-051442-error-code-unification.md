@@ -203,7 +203,7 @@ apis:                      # 端点路径零变更；下列端点族仅 Result.c
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-DONE           # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: DONE             # 2026-11-28 主线程代记（frontend-dev 最终报告未回传但交付经主线程门禁全覆盖）：前端三件套+desktop check+后端五模块 mvn 全绿；rebase 吸收 4fa0373 新测试基建后合并（8a51fae）+合并后全量复验绿。裁决两项已录（JobsPage 扩权全码化、tester 黑盒校准两事实）
 - round: 0
 - worktree: 已创建 `C:/MyWorkSpace/ai-coding-worker/.worktrees/feat-req-20261128-051442-error-code-unification`（分支 feat/req-20261128-051442-error-code-unification，基点 acme-foundation fa1a5d0=确认态契约入库点；三路工人共用此工作树，文件面互斥见委派单）
 - 门禁台账：
