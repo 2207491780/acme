@@ -1,7 +1,7 @@
 ---
 requirementId: "REQ-20261128-092210"
 title: "B4-事务 业务事务与消息可靠性·leave 域（P1-03/P1-04）：apply 事务化+afterCommit 启流程补偿重试 + ServiceTask 备案去 sleep 轮询"
-status: draft              # draft | confirmed（用户逐项确认后置 confirmed；未 confirmed 禁止进入 II-DEV）
+status: confirmed          # 2026-11-28 用户对话确认推荐口径（待确认①~⑤全按推荐定案）；confirmed 后禁止改范围，歧义走裁决记录
 branchContext:
   baseBranch: acme-foundation
   mergeTarget: acme-foundation
@@ -32,7 +32,11 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 确认记录（契约的权威解释；只存结论条目，禁存对话原文）
 
-- （draft：待用户逐项确认后回填结论条目；确认前禁止进入 II-DEV）
+- [2026-11-28] ① P1-04 定案=**下发权威推进**：APPLYING 收 ServiceTask 下发即两步前向 APPROVING→FILED（AC-12 口径随之）；引擎重试/挂起仅承接瞬时故障（AC-15）。整改方案 §4 P1-04 行已由主线程同步演进标注（理由与「去轮询占线程」「超时不写终态」两本意满足）。
+- [2026-11-28] ② P1-03 补偿形态=**leave_start_task 补偿表 + leave_request(instance_id) 部分唯一索引**（V2 迁移；business-leave 厂商独立编号系列实测下一空号，frontmatter 已预分配）。
+- [2026-11-28] ③ 重试参数缺省定案：扫描 10s / 指数退避 1s→2s→4s→8s→16s / 上限 5 次尝试 / RUNNING 租约 2min / 零尝试 grace 10s；键面 `acme.leave.start-retry-*` 可配。
+- [2026-11-28] ④ EXHAUSTED 仅结构化 warn 留痕；告警通道与 DLQ 面归 P1-11（B4-消息 批）；管理端人工重驱不进本批。
+- [2026-11-28] ⑤ L1 压测移交（备案下发 P95 无 5s Servlet 线程占用、无轮询 DB 放大），本批不执行，契约注明即闭环。
 
 ## API
 
