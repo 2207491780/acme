@@ -107,6 +107,7 @@
 - **P1-04 ServiceTask 轮询**：去 `Thread.sleep(200ms)`×25 轮询占 Servlet 线程——改事件驱动（流程事件回调推进 APPROVING）或异步化；超时不写 FILED 终态，走重试/失败态（当前超时照写 FILED 覆盖状态机守卫）。交 L1 压测。
   - **口径演进（2026-11-28，REQ-20261128-092210 阶段一定案，经用户「继续」确认推荐口径）**：主线实测单体生产态 `acme.stream.enabled=false` → TASK_COMPLETED 事件永不消费，APPROVING 事件腿不存在——按字面「超时走重试」将使每单备案必重试耗尽挂起、试点流程全断。定案改为**下发权威推进**：删 `awaitApproving` sleep 轮询与超时写 FILED，APPLYING 收 ServiceTask 下发即视为审批办结权威证据，两步前向 APPROVING→FILED（与 `onTaskCompleted` 同义同守卫）；引擎侧重试/挂起仅承接真实瞬时故障。方案两条本意（去轮询占线程、超时不覆盖状态机守卫）均满足。
 - **P1-11 DLQ 补全**：分布式形态补 leaveEventIn binding + DLQ topic；全仓补 DLQ 消费落库 + 告警通道 + 重放任务（当前仅出站声明、发送失败仅 log.warn）；单体惰性开关语义修正（bootstrap `:33/:38/:94` 关闭 function/stream 不生效）；双形态 binding 下发面文档化。
+  - **范围拆分（2026-11-28，REQ-20261128-183425 定案）**：DLQ 消费落库/告警通道/重放任务与分布式 leaveEventIn+DLQ binding **拆分至 P1-09 上分布式栈专项**——决定性事实=leave 单体试点（决策②）+ prod stream 关闭下 DLQ 设施无任何运行表面，实现即死代码；本批交付可达面=①单体惰性开关语义修正（`spring.cloud.stream.enabled` 非有效开关的语义澄清 + 真实关闭机制=条件化函数 bean 缺席实证）②双形态 binding 下发面文档化（ENV-STACK 双形态节对照表）。DLQ 消费/告警/重放随上栈专项与 business-leave application.yml/网关路由/注册一并交付（P1-09 行已有登记）。
 - **P2-12 消息顺序**：`WorkflowEventEnvelope` 加 partition key（businessKey/instanceId）；afterCommit 派发弃公共 ForkJoinPool 共享单线程 executor（按 key 串行）；消费侧终态保护（INSTANCE_COMPLETED 不压中间态——版本/状态机守卫）。交 L1 压测。
 
 ### B5 可靠性加固（P2-01、P2-13、P2-14、P2-15、P2-21、P2-22）

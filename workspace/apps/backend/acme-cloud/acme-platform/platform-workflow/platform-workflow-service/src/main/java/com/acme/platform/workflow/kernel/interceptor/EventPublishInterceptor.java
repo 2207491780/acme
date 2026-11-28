@@ -10,13 +10,17 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.util.concurrent.CompletableFuture;
-
 /**
  * EventPublish 拦截器（设计规格 §3.1 链尾，确认③ AFTER_COMMIT 异步终稿）：
- * 事务提交后异步发布 CommandContext 收集的领域事件（SPI {@link WorkflowEventPublisher}，
+ * 事务提交后发布 CommandContext 收集的领域事件（SPI {@link WorkflowEventPublisher}，
  * 一期 logging no-op、Kafka 归 BPM-5）；事务回滚不发布（AC-12 一致性面——事件注册随每轮
  * 尝试事务，STALE 回滚轮次的事件随之丢弃，重跑轮次重录重注册）。
+ *
+ * <p>REQ-20261128-183425 P2-12：删除 {@code CompletableFuture.runAsync} 公共池包装，改为
+ * afterCommit 线程**直派** {@code publish(event)}——publish 为廉价提交（Kafka 实现内部专属
+ * 单线程 executor 异步发送、Logging 实现同步 no-op），提交序=发送入队序（公共池并发提交的
+ * 入队次序不定曾破坏跨命令事件全局顺序）；异步性/失败消化语义由发布器实现承载（SPI 口径：
+ * 发布失败不反噬命令结果）。</p>
  */
 @Component
 @Order(70)
@@ -39,17 +43,15 @@ public class EventPublishInterceptor implements CommandInterceptor {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    // AFTER_COMMIT 异步（确认③终稿）：事件发布失败不反噬命令结果
-                    CompletableFuture.runAsync(() -> {
-                        for (var event : events) {
-                            try {
-                                eventPublisher.publish(event);
-                            } catch (RuntimeException ex) {
-                                log.warn("领域事件发布失败（不反噬命令）：type={} instance={}",
-                                        event.eventType(), event.instanceId(), ex);
-                            }
+                    // AFTER_COMMIT 终稿：直派发布器（异步性在实现内部）；发布失败不反噬命令结果
+                    for (var event : events) {
+                        try {
+                            eventPublisher.publish(event);
+                        } catch (RuntimeException ex) {
+                            log.warn("领域事件发布失败（不反噬命令）：type={} instance={}",
+                                    event.eventType(), event.instanceId(), ex);
                         }
-                    });
+                    }
                 }
             });
         }

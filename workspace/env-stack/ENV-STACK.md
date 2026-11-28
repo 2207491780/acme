@@ -185,3 +185,12 @@ preparation 返回的 headers 原样携带 Content-Type 头）。
 - 能力差异提示：web 的 nginx 反代仍指向网关（nginx.conf 打进镜像）——单体形态下
   `/admin/`、`/app/` 流量经 web 反代需改其 upstream 指向 `acme-monolith:9680` 后重建 web
   镜像，或直接经 ingress/直连单体端口访问；能力差异全表见 `apps/backend/BACKEND.md`「双形态」。
+
+### 事件流 binding 下发面（双形态对照，REQ-20261127-161433 P1-11 文档面，2026-11-28）
+
+| 维度 | 分布式形态 | 单体形态 |
+|---|---|---|
+| 出站 | platform-workflow-service `application.yml`（jar 内）声明 `workflowEventOut-out-0 → acme.workflow.events`，kafka binder broker 经 `KAFKA_ADDR` 注入；分区键 `messageKeyExpression: headers['partitionKey']`（REQ-20261128-183425 P2-12） | bootstrap `application.yml` 重申同键面（jar 内配置被遮蔽须重申）；`acme.stream.enabled=false` 时键面惰性无害 |
+| 入站 | **缺席**——leave 为单体试点（P1-09 决策②），无 business-leave 服务 Deployment 与 `application.yml`；上分布式栈专项一并交付 `leaveEventIn-in-0` binding + 死信配置 | bootstrap 预置 `leaveEventIn-in-0 → acme.workflow.events`（group=acme-monolith）+ 死信键面；`acme.stream.enabled=false`（bootstrap `acme.stream` 段）时消费函数 bean 条件化缺席、绑定不生效（关闭机制实证=零 Docker 全量测试无 Kafka 启动） |
+| 死信（DLQ） | 随上栈专项（含 DLQ 消费落库/告警/重放设施——P1-11 拆分登记见方案 §4） | 键面预置、运行面关闭；测试域显式开启 stream + 嵌入式 Kafka 即生效（LeaveE2eIntegrationTest 形态） |
+| 通知中心消费 | 归 BPM-6（复用 `acme.workflow.events` topic，未交付） | 同左（无独立运行面） |

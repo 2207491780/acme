@@ -5,6 +5,7 @@ import com.acme.platform.workflow.api.dto.WorkflowEventEnvelope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -48,16 +49,28 @@ public class KafkaWorkflowEventPublisher implements WorkflowEventPublisher {
         sendExecutor.execute(() -> doSend(event));
     }
 
+    /** 分区键头名（REQ-20261128-183425 P2-12；workflow yml 绑定 producer
+     *  messageKeyExpression=headers['partitionKey'] 消费——头名单源在此，binder-agnostic）。 */
+    public static final String PARTITION_KEY_HEADER = "partitionKey";
+
     private void doSend(WorkflowEvent event) {
         try {
             WorkflowEventEnvelope envelope = new WorkflowEventEnvelope(event.eventType(),
                     event.instanceId(), event.definitionId(), event.definitionKey(), event.nodeId(),
                     event.businessKey(), event.tenantId(), event.traceId(), event.occurredAt());
-            messageSender.send(BINDING, envelope, ENVELOPE_VERSION);
+            messageSender.send(BINDING, envelope, ENVELOPE_VERSION, partitionHeaders(event));
         } catch (RuntimeException ex) {
             // SPI 口径（实现须自行消化异常）：Kafka 不可达不反噬命令——告警留痕（审计面不受影响）
             log.warn("workflow 事件 Kafka 发布失败（不反噬命令）：type={} instance={} businessKey={}",
                     event.eventType(), event.instanceId(), event.businessKey(), ex);
         }
+    }
+
+    /** 分区键头（同实例事件同键同分区保序；instanceId 空不注入=无键路由，实例级锚点缺失属异常形态）。 */
+    private Map<String, Object> partitionHeaders(WorkflowEvent event) {
+        if (event.instanceId() == null) {
+            return null;
+        }
+        return Map.of(PARTITION_KEY_HEADER, "instance-" + event.instanceId());
     }
 }

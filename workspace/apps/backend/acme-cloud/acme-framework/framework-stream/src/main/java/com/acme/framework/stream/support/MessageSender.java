@@ -16,7 +16,9 @@ import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.support.MessageBuilder;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 发送门面（FR-013/AC-013）：产出 EventEnvelope JSON + 协议头（DP-009：Message-Id/Idempotent-Key 预解析头）+
@@ -38,14 +40,31 @@ public class MessageSender {
 
     /** 发送（FR-013）：输入=信封 + 目标绑定。 */
     public <P> void send(String binding, EventEnvelope<P> envelope) {
+        send(binding, envelope, (Map<String, Object>) null);
+    }
+
+    /** 发送（扩展头重载，REQ-20261128-183425 P2-12）：extraHeaders 为传输面附加头（如分区键，
+     *  消费方 binder 配置经 messageKeyExpression/等价机制消费）——协议头/上下文头/CONTENT_TYPE
+     *  由本门面单点维护不被覆盖（BR-014 单点口径保持），null/空 extraHeaders 等价双参重载。 */
+    public <P> void send(String binding, EventEnvelope<P> envelope, Map<String, Object> extraHeaders) {
         if (envelope == null) {
             throw new BizException(StreamError.ENVELOPE_INVALID, "事件信封不能为空");
         }
         binderRouting.validate(binding);
-        Message<?> message = MessageBuilder.withPayload(json.toJson(envelope))
+        MessageBuilder<?> builder = MessageBuilder.withPayload(json.toJson(envelope))
                 .copyHeaders(outboundHeaders(envelope))
-                .setHeader(MessageHeaders.CONTENT_TYPE, "application/json")
-                .build();
+                .setHeader(MessageHeaders.CONTENT_TYPE, "application/json");
+        if (extraHeaders != null) {
+            // 保留头集合（门面单点维护，BR-014）：协议头/上下文头/CONTENT_TYPE 不被扩展头覆盖
+            Set<String> reserved = new HashSet<>(outboundHeaders(envelope).keySet());
+            reserved.add(MessageHeaders.CONTENT_TYPE);
+            extraHeaders.forEach((key, value) -> {
+                if (key != null && value != null && !reserved.contains(key)) {
+                    builder.setHeader(key, value);
+                }
+            });
+        }
+        Message<?> message = builder.build();
         boolean accepted;
         try {
             accepted = dispatcher.send(binding, message);
@@ -63,6 +82,11 @@ public class MessageSender {
     /** 发送（缺省信封：messageId/幂等键/traceId 口径见 8.3）。 */
     public <P> void send(String binding, P payload, String version) {
         send(binding, EventEnvelopes.newEnvelope(payload, version));
+    }
+
+    /** 发送（缺省信封 + 扩展头：分区键等传输面附加头，REQ-20261128-183425 P2-12）。 */
+    public <P> void send(String binding, P payload, String version, Map<String, Object> extraHeaders) {
+        send(binding, EventEnvelopes.newEnvelope(payload, version), extraHeaders);
     }
 
     /** 出站头（协议头 + 上下文头；traceId 以信封为单一来源，8.3 归属划分）。 */

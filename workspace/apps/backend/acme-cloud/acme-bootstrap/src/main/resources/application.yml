@@ -32,9 +32,14 @@ spring:
       # 审计消费函数清空（确认③：同 JVM 无 MQ 回环，本地 sink 直调落库）
       definition: ""
     stream:
-      # SCSt 全局关闭（防御性声明；实际生效面 = 无函数定义 + 无 binding 键 + acme.stream.enabled=false）。
-      # 键面预置（REQ-20261122-233425）：事件流出/入站 destination 与死信——stream 关闭态键面惰性无害，
-      # 测试域/后续形态开启 stream 即生效（各服务 jar 内 application.yml 被本文件遮蔽，须在此重申）
+      # ⚠️ 语义澄清（REQ-20261128-183425 P1-11a）：spring.cloud.stream.enabled **不是 SCSt 有效
+      # 开关**（SCSt 绑定初始化由函数定义与函数 bean 存在性决定）——本键为文档性占位，单体惰性
+      # 关闭的真实机制 = ① 消费函数 bean 条件化缺席（LeaveWorkflowEventConsumer 挂
+      # @ConditionalOnProperty acme.stream.enabled，见 ：94）+ ② function.definition="" 清空 +
+      # ③ binding 键面虽预置但无函数 bean 即不绑定。零 Docker 全量测试（无 Kafka 环境启动全部
+      # 模块）即关闭态不连 Kafka 的实证。键面预置（REQ-20261122-233425）：事件流出/入站
+      # destination 与死信——stream 关闭态键面惰性无害，测试域/后续形态开启 stream 即生效
+      # （各服务 jar 内 application.yml 被本文件遮蔽，须在此重申）
       enabled: false
       bindings:
         workflowEventOut-out-0:
@@ -90,7 +95,10 @@ server:
 
 acme:
   stream:
-    # framework-stream 关闭（确认③；规避无 Kafka 时 binder 阻断，开关先例同 platform-infra 测试域）
+    # framework-stream 关闭（确认③；规避无 Kafka 时 binder 阻断，开关先例同 platform-infra 测试域）。
+    # 本键为框架模块级真实开关（@ConditionalOnAcmeModule("stream")——StreamAutoConfiguration 整体
+    # 装配 + LeaveWorkflowEventConsumer 消费函数 bean 条件化挂载，见 spring.cloud.stream 段 P1-11a
+    # 语义澄清；与 spring.cloud.stream.enabled 的文档性占位区分）
     enabled: false
   workflow:
     service-task:
