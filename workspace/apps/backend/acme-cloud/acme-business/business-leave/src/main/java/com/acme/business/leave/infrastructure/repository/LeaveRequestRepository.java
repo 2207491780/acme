@@ -15,6 +15,9 @@ public interface LeaveRequestRepository {
     /** 主键装载。 */
     Optional<LeaveRequest> findById(Long id);
 
+    /** 主键 + 用户装载（详情 owner 直读判定；租户维由框架监听器自动过滤，REQ-20261127-235808）。 */
+    Optional<LeaveRequest> findByIdAndUserId(Long id, String userId);
+
     /** 按流程实例装载（INSTANCE_COMPLETED 事件回写兜底锚点）。 */
     Optional<LeaveRequest> findByInstanceId(Long instanceId);
 }

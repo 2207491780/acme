@@ -33,11 +33,15 @@ public class AuthorizationGateway {
         }
     }
 
-    /** 权限点布尔判定（调用方组合判定场景用；判定不可达按未授权口径 fail-closed）。 */
+    /** 判定当前主体是否具备权限点（不抛；判定服务异常按无权限处理，fail-closed——REQ-20261127-235808 P1-08：异常不再外溢 500，requirePermission 侧落既有 PERMISSION_DENIED 403）。 */
     public boolean hasPermission(String permissionCode) {
-        ContractResult<Boolean> result = authorizationClient.hasPermission(permissionCode);
-        Boolean granted = result == null ? null : result.data();
-        return Boolean.TRUE.equals(granted);
+        try {
+            ContractResult<Boolean> result = authorizationClient.hasPermission(permissionCode);
+            Boolean granted = result == null ? null : result.data();
+            return Boolean.TRUE.equals(granted);
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     /**

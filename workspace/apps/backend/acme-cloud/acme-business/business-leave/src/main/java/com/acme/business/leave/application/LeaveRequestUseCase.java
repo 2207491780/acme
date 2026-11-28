@@ -2,6 +2,7 @@ package com.acme.business.leave.application;
 
 import com.acme.business.leave.domain.LeaveRequest;
 import com.acme.business.leave.domain.LeaveStatus;
+import com.acme.business.leave.infrastructure.client.LeaveAuthorizationGateway;
 import com.acme.business.leave.infrastructure.repository.LeaveRequestRepository;
 import com.acme.business.leave.process.LeaveProcessLauncher;
 import com.acme.common.contract.InvalidRequestException;
@@ -9,6 +10,7 @@ import com.acme.common.context.TenantContext;
 import com.acme.common.context.UserContext;
 import com.acme.common.util.IdGenerator;
 import com.acme.platform.system.api.ContractResult;
+import com.acme.platform.system.api.SystemPermissions;
 import com.acme.platform.workflow.api.WorkflowRuntimeClient;
 import com.acme.platform.workflow.api.dto.InternalProcessInstanceStartRequest;
 import org.slf4j.Logger;
@@ -17,6 +19,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 请假单用例（REQ-20261122-233425 确认⑤端到端试点）。状态机=事件驱动（contract ⑤ 状态链序）：
@@ -47,15 +50,18 @@ public class LeaveRequestUseCase {
     private final WorkflowRuntimeClient workflowRuntimeClient;
     private final ObjectProvider<LeaveProcessLauncher> processLauncher;
     private final IdGenerator idGenerator;
+    private final LeaveAuthorizationGateway leaveAuthorizationGateway;
 
     public LeaveRequestUseCase(LeaveRequestRepository leaveRepository,
                                WorkflowRuntimeClient workflowRuntimeClient,
                                ObjectProvider<LeaveProcessLauncher> processLauncher,
-                               IdGenerator idGenerator) {
+                               IdGenerator idGenerator,
+                               LeaveAuthorizationGateway leaveAuthorizationGateway) {
         this.leaveRepository = leaveRepository;
         this.workflowRuntimeClient = workflowRuntimeClient;
         this.processLauncher = processLauncher;
         this.idGenerator = idGenerator;
+        this.leaveAuthorizationGateway = leaveAuthorizationGateway;
     }
 
     /** 申请（落库 APPLYING + 启动流程绑 businessKey；APPROVING 随审批办结事件，确认⑤状态链序）。 */
@@ -167,7 +173,7 @@ public class LeaveRequestUseCase {
     /**
      * INSTANCE_COMPLETED 事件回写终态（确认⑤⑤；备案链走通判定=实例变量 filed=true（handler
      * 结果变量经回调并入实例变量）或 leave 已 FILED；否则 REJECTED——实例终结未走备案链）。
-     * 终态/未知 businessKey 幂等跳过（消息重复投递/他域键）。
+     * 终态/未知锚点幂等跳过（消息重复投递/他域键）。
      */
     public void onInstanceCompleted(Long instanceId, String businessKey) {
         LeaveRequest leave = resolveByRuntimeQuietly(instanceId, businessKey);
@@ -180,37 +186,73 @@ public class LeaveRequestUseCase {
             log.info("终态幂等跳过（重复消费）：leaveId={} status={}", leave.getId(), leave.getStatus());
             return;
         }
-        boolean filed = leave.getStatus() == LeaveStatus.FILED || instanceVariablesFiled(instanceId);
-        leave.setStatus(filed ? LeaveStatus.DONE : LeaveStatus.REJECTED);
+        FiledProbe probe = leave.getStatus() == LeaveStatus.FILED
+                ? FiledProbe.TRUE : instanceVariablesFiled(instanceId);
+        if (probe == FiledProbe.UNKNOWN) {
+            log.warn("INSTANCE_COMPLETED 终态回写跳过（实例变量查询 UNKNOWN，不写 REJECTED 终态，"
+                    + "留待消息重投/对账）：instanceId={} businessKey={}", instanceId, businessKey);
+            return;
+        }
+        leave.setStatus(probe == FiledProbe.TRUE ? LeaveStatus.DONE : LeaveStatus.REJECTED);
         leaveRepository.save(leave);
         log.info("请假单终态回写完成：leaveId={} status={} instanceId={}",
                 leave.getId(), leave.getStatus(), instanceId);
     }
 
-    /** 详情（按 id）。 */
+    /**
+     * 详情（按 id；越权收口 REQ-20261127-235808 决策③/确认⑦案B）：owner 直读（不经权限服务）
+     * → 非 owner 按授权权限码（workflow:task:list / workflow:instance:manage 任一持有）经
+     * platform-system 实查放行 → 全不命中与「单据不存在」同口径（400，不泄露单据存在性）。
+     * 用户上下文缺失按非 owner 处置（未认证主体经权限链 fail-closed=false）；授权判定
+     * UNKNOWN（权限服务异常，网关 fail-closed=false）不放行；租户维由框架监听器自动过滤。
+     */
     public LeaveRequestView get(Long id) {
-        return leaveRepository.findById(id).map(LeaveRequestUseCase::toView)
+        UserContext user = UserContext.get();
+        if (user != null && user.userId() != null && !user.userId().isBlank()) {
+            Optional<LeaveRequest> owned = leaveRepository.findByIdAndUserId(id, user.userId());
+            if (owned.isPresent()) {
+                return toView(owned.get());
+            }
+        }
+        LeaveRequest leave = leaveRepository.findById(id)
                 .orElseThrow(() -> new InvalidRequestException("请假单不存在：" + id));
+        if (leaveAuthorizationGateway.hasPermission(SystemPermissions.WORKFLOW_TASK_LIST)
+                || leaveAuthorizationGateway.hasPermission(SystemPermissions.WORKFLOW_INSTANCE_MANAGE)) {
+            return toView(leave);
+        }
+        // 越权与查无同口径响应（不泄露单据存在性）
+        throw new InvalidRequestException("请假单不存在：" + id);
     }
 
-    private boolean instanceVariablesFiled(Long instanceId) {
+    /**
+     * 实例变量备案标记三态探询（REQ-20261127-235808 确认⑦②）：正常返回且 filed=true → TRUE；
+     * 正常返回但未备案（payload/variables 缺失、键缺失、值非 true）→ FALSE；查询抛异常
+     * （含 BizException——framework-feign 错误解码面）→ UNKNOWN（调用方不写终态）。
+     */
+    private FiledProbe instanceVariablesFiled(Long instanceId) {
         try {
             ContractResult<com.acme.platform.workflow.api.dto.WorkflowInstanceDetailView> detail =
                     workflowRuntimeClient.processInstanceDetail(instanceId);
             Object filed = detail.payload() == null || detail.payload().variables() == null
                     ? null : detail.payload().variables().get("filed");
-            return Boolean.TRUE.equals(filed) || "true".equals(String.valueOf(filed));
+            return Boolean.TRUE.equals(filed) || "true".equals(String.valueOf(filed))
+                    ? FiledProbe.TRUE : FiledProbe.FALSE;
         } catch (RuntimeException ex) {
-            log.warn("实例变量备案标记读取失败（按未备案处置）：instanceId={}", instanceId, ex);
-            return false;
+            log.warn("实例变量备案标记读取失败（UNKNOWN，终态回写跳过）：instanceId={}", instanceId, ex);
+            return FiledProbe.UNKNOWN;
         }
+    }
+
+    /** 实例备案标记探询三态：TRUE=已备案 / FALSE=明确未备案 / UNKNOWN=查询异常（不落终态）。 */
+    private enum FiledProbe {
+        TRUE, FALSE, UNKNOWN
     }
 
     private static boolean isTerminal(LeaveStatus status) {
         return status == LeaveStatus.DONE || status == LeaveStatus.REJECTED;
     }
 
-    /** 运行时锚点解析（instanceId 优先，businessKey 数字形态兜底）。 */
+    /** 运行时锚点解析（instanceId 唯一锚点——businessKey 仅承载日志/异常消息，确认记录②）。 */
     private LeaveRequest resolveByRuntime(Long instanceId, String businessKey) {
         LeaveRequest leave = resolveByRuntimeQuietly(instanceId, businessKey);
         if (leave == null) {
@@ -220,16 +262,13 @@ public class LeaveRequestUseCase {
         return leave;
     }
 
+    /** 运行时锚点解析（instanceId 唯一锚点，REQ-20261127-235808 确认②——数字形态 businessKey 兜底已删，防写错单据）。 */
     private LeaveRequest resolveByRuntimeQuietly(Long instanceId, String businessKey) {
         if (instanceId != null) {
             var found = leaveRepository.findByInstanceId(instanceId);
             if (found.isPresent()) {
                 return found.get();
             }
-        }
-        if (businessKey != null && !businessKey.isEmpty()
-                && businessKey.chars().allMatch(Character::isDigit)) {
-            return leaveRepository.findById(Long.parseLong(businessKey)).orElse(null);
         }
         return null;
     }

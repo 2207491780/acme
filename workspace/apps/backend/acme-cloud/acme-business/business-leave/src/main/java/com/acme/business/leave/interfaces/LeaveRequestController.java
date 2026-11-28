@@ -33,7 +33,12 @@ public class LeaveRequestController {
         return Result.ok(leaveRequestUseCase.apply(command));
     }
 
-    /** 详情（按请假单 id；状态核对面）。 */
+    /**
+     * 详情（按请假单 id；状态核对面）。细粒度口径（REQ-20261127-235808 决策③/确认⑦案B）：
+     * owner 直读；非 owner 持 {@code workflow:task:list} 或 {@code workflow:instance:manage}
+     * 任一权限码放行（经 platform-system 实查）；全不命中与「单据不存在」同口径（HTTP 400，
+     * 不泄露单据存在性）。不加 all-or-nothing 权限注解门（与 owner-or-permission 语义不符）。
+     */
     @GetMapping("/requests/{id}")
     public Result<LeaveRequestView> get(@PathVariable Long id) {
         return Result.ok(leaveRequestUseCase.get(id));

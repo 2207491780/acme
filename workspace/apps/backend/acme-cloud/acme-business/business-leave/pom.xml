@@ -27,6 +27,12 @@
             <groupId>com.acme</groupId>
             <artifactId>platform-workflow-api</artifactId>
         </dependency>
+        <!-- system 契约（仅经 *-api）：AuthorizationClient 跨域权限判定（详情授权放行实查，
+            REQ-20261127-235808——原经 platform-workflow-api 传递可得，改显式声明） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>platform-system-api</artifactId>
+        </dependency>
         <!-- framework 按需（Modules.md 3.1）：BPM 集成 SDK（ServiceTask handler SPI+接收端点自动装配）、
             消息消费（EventEnvelopes 解析）、数据访问与租户 -->
         <dependency>

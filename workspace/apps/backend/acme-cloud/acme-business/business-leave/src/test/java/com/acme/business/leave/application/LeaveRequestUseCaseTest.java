@@ -2,6 +2,7 @@ package com.acme.business.leave.application;
 
 import com.acme.business.leave.domain.LeaveRequest;
 import com.acme.business.leave.domain.LeaveStatus;
+import com.acme.business.leave.infrastructure.client.LeaveAuthorizationGateway;
 import com.acme.business.leave.infrastructure.repository.LeaveRequestRepository;
 import com.acme.business.leave.process.LeaveProcessLauncher;
 import com.acme.common.contract.InvalidRequestException;
@@ -25,7 +26,6 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -41,6 +41,7 @@ class LeaveRequestUseCaseTest {
 
     private LeaveRequestRepository repository;
     private WorkflowRuntimeClient workflowRuntimeClient;
+    private LeaveAuthorizationGateway leaveAuthorizationGateway;
     private LeaveRequestUseCase useCase;
 
     @BeforeEach
@@ -48,11 +49,12 @@ class LeaveRequestUseCaseTest {
     void setUp() {
         repository = mock(LeaveRequestRepository.class);
         workflowRuntimeClient = mock(WorkflowRuntimeClient.class);
+        leaveAuthorizationGateway = mock(LeaveAuthorizationGateway.class);
         ObjectProvider<LeaveProcessLauncher> launcher = mock(ObjectProvider.class);
         when(launcher.getObject()).thenReturn(() -> 7L);
         // 容器级生成器接口——单测取递增桩（生产由 WorkflowConfiguration 雪花 bean 承担）
         useCase = new LeaveRequestUseCase(repository, workflowRuntimeClient, launcher,
-                new IdGeneratorStub());
+                new IdGeneratorStub(), leaveAuthorizationGateway);
         UserContext.bind(new UserContext("201", Set.of()));
         TenantContext.bind(new TenantContext("default"));
     }
@@ -250,7 +252,6 @@ class LeaveRequestUseCaseTest {
     @Test
     void instanceCompletedSkipsForeignInstances() {
         when(repository.findByInstanceId(9001L)).thenReturn(Optional.empty());
-        when(repository.findById(anyLong())).thenReturn(Optional.empty());
 
         useCase.onInstanceCompleted(9001L, "external-key");
 

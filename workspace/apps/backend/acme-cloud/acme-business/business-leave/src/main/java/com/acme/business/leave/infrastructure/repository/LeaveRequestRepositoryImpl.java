@@ -23,6 +23,15 @@ public class LeaveRequestRepositoryImpl extends FlexRepositorySupport<LeaveReque
     }
 
     @Override
+    public Optional<LeaveRequest> findByIdAndUserId(Long id, String userId) {
+        // owner 维判定（不手写 tenant_id 条件——租户过滤/乐观锁/软删由框架监听器承载）
+        return Optional.ofNullable(mapper().selectOneByQuery(QueryWrapper.create()
+                .where(LeaveRequest::getId).eq(id)
+                .and(LeaveRequest::getUserId).eq(userId)
+                .limit(1)));
+    }
+
+    @Override
     public Optional<LeaveRequest> findByInstanceId(Long instanceId) {
         return Optional.ofNullable(mapper().selectOneByQuery(QueryWrapper.create()
                 .where(LeaveRequest::getInstanceId).eq(instanceId)
