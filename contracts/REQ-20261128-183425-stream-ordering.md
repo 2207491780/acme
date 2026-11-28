@@ -66,5 +66,5 @@ apis: []                   # wire 载荷零变更（WorkflowEventEnvelope 字段
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-DONE       # 2026-11-28 主线程代拟代确认（用户指令：并发受限全主线程完成，确认记录=frontmatter status 注释）；worktree add 待实施轮执行
+- phase: DONE             # 2026-11-28 主线程实施+收口：三模块门禁全绿（framework-stream 57/workflow-service 89/business-leave 54，含 8 新用例），rebase 合并（主线）+E2E 2/2 合并后复验绿（分区键端到端）。过程中修复：重载歧义 null 转型、保留头集合实现（测试按契约抓到覆盖缺陷）、Mockito timeout 异步等待、两处 import。P1-11 拆分已录方案 §4
 - 确认记录：[2026-11-28] 本契约为 B4-消息 收敛实现面（P2-12 全项 + P1-11 可达面）；P1-11 DLQ 运行面拆分至 P1-09 上栈专项（决定性事实=leave 单体试点 + prod stream 关闭下无运行表面，拆分登记方案 §4）。
