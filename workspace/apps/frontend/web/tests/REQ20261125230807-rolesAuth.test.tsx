@@ -1,4 +1,3 @@
-/** @vitest-environment jsdom */
 /**
  * REQ-20261125-230807 AC-6/AC-7/AC-10/AC-11 —— RolesPage 授权抽屉/父级三态/写后失效契约用例。
  *

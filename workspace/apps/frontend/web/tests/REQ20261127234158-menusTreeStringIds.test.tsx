@@ -1,4 +1,3 @@
-/** @vitest-environment jsdom */
 /**
  * REQ-20261127-234158（wire 契约·DTO 字段对齐 P2-02）菜单树字符串 id 行为级用例（AC-7）。
  *

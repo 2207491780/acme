@@ -1,4 +1,3 @@
-/** @vitest-environment jsdom */
 /**
  * REQ-20261125-230807 AC-1/AC-2/AC-3/AC-27（用户侧）—— UsersPage 目录数据源契约用例。
  *

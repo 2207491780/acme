@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { ensureTestPrebundles } from './prebundle-test-deps.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(__dirname, '..');
@@ -29,6 +30,9 @@ function runVitest(args, label) {
   });
 }
 
+// 首次或依赖版本变更时一次性预打包 antd / @ant-design/icons / lucide-react / @antv/x6（~1.5s，后续命中缓存 0ms）
+await ensureTestPrebundles();
+
 // 定向传参（如单文件复跑或 --no-file-parallelism）直接透传给 vitest，零额外开销
 if (extraArgs.length > 0) {
   const child = spawn(process.execPath, [vitestBin, 'run', ...extraArgs], {
@@ -38,14 +42,16 @@ if (extraArgs.length > 0) {
   });
   child.on('close', (code) => process.exit(code ?? 1));
 } else {
-  // 全量运行：web-node 与 4 个 DOM 分片进程并发执行，避免 node/jsdom 混入同一 singleFork；
-  // 每 DOM 进程仅加载 1 次 jsdom + antd，绕开 Vitest 2.x 全局 singleFork 串行限制。
+  // 全量运行：node、隔离池与 N 个 LPT 均衡 DOM 分片并发执行，匹配物理 CPU 核数避免过载抖动；
+  // 每共享 DOM 分片仅加载 1 次 jsdom + 预打包 antd（~300ms），绕开 Vitest 2.x 全局 singleFork 串行限制。
+  const shardCount = Math.max(1, Number.parseInt(process.env.ACME_WEB_SHARDS ?? '5', 10) || 5);
   const groups = [
-    { label: 'node + isolated', args: ['--project=web-node', '--project=web-dom-isolated'] },
-    { label: 'dom-1', args: ['--project=web-dom-1'] },
-    { label: 'dom-2', args: ['--project=web-dom-2'] },
-    { label: 'dom-3', args: ['--project=web-dom-3'] },
-    { label: 'dom-4', args: ['--project=web-dom-4'] },
+    { label: 'node', args: ['--project=web-node-shared', '--project=web-node-isolated'] },
+    { label: 'isolated', args: ['--project=web-dom-isolated'] },
+    ...Array.from({ length: shardCount }, (_, i) => ({
+      label: `dom-${i + 1}`,
+      args: [`--project=web-dom-${i + 1}`],
+    })),
   ];
 
   const t0 = Date.now();
@@ -61,7 +67,11 @@ if (extraArgs.length > 0) {
       failed = true;
       const errLines = r.out
         .split(/\r?\n/)
-        .filter((l) => /FAIL |× |AssertionError|TestingLibraryElementError|Found |Unable to find|Error:|❯ tests\/|Test Files|Tests\s+\d/.test(l));
+        .filter((l) =>
+          /FAIL |× |AssertionError|TestingLibraryElementError|Found |Unable to find|Error:|❯ tests\/|Test Files|Tests\s+\d/.test(
+            l,
+          ),
+        );
       console.log(errLines.slice(-60).join('\n') || r.out.slice(-4000));
       if (r.err) console.error(r.err.slice(-2000));
     } else {
@@ -71,6 +81,6 @@ if (extraArgs.length > 0) {
     }
   }
   const elapsedSec = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\n@acme/web 4-shard parallel total wall time: ${elapsedSec}s`);
+  console.log(`\n@acme/web ${shardCount}-shard parallel total wall time: ${elapsedSec}s`);
   process.exit(failed ? 1 : 0);
 }

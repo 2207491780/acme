@@ -2,15 +2,15 @@ import { createRequire } from 'node:module';
 import { afterAll, vi } from 'vitest';
 
 /**
- * vitest 全局环境桩（node 环境 → 浏览器最小面；jsdom 环境 → 消除 AntD cssinjs/样式计算瓶颈）：
+ * vitest 全局环境桩（node 环境 → 浏览器最小面；DOM 环境 → 消除 AntD cssinjs / 831 图标加载 / Canvas 报错刷屏）：
  * 1. node 环境：web 应用与认证链路触碰 window.localStorage / sessionStorage / location.hash，
- *    以内存实现兜底（零依赖；Map 每测试文件独立，跨文件不共享）。
- * 2. jsdom 环境：
- *    - 禁用 @ant-design/cssinjs 运行时样式编译与 <style> 注入（jsdom cssstyle 解析与 getComputedStyle
- *      在海量 AntD 样式表下退化为 O(N×M)，把单条 findByRole 拖至 4~15s）；保留全部 className、
- *      inline style 与 theme.getDesignToken 计算语义不变；
- *    - 兼容 window.getComputedStyle(elt, pseudoElt)：jsdom 25 对第二参数直接报错并刷屏 stderr，
- *      降级委派到单参数 getComputedStyle(elt) 消除异常开销。
+ *    以内存实现兜底（零依赖）。
+ * 2. DOM 环境（jsdom）：
+ *    - 拦截 CJS 侧 @ant-design/icons（含 AntD 内部 154 个直引路径），返回零开销轻量图标组件
+ *      （保留精确 .anticon.anticon-<name> 与 <svg data-icon="<name>"> 结构），省 ~2.2s/worker；
+ *    - 禁用 @ant-design/cssinjs 运行时样式编译与 <style> 注入，注入 4 条最小 *-hidden 可见性规则；
+ *    - 兼容 window.getComputedStyle(elt, pseudoElt)、URL.revokeObjectURL 与 HTMLCanvasElement.getContext；
+ *    - afterAll 统一重置假时钟、全局桩、@acme/core 全部全局 store 与 web 单例 store（useTabsStore / useStore）。
  */
 function storageFactory(): Storage {
   const m = new Map<string, string>();
@@ -33,8 +33,6 @@ function storageFactory(): Storage {
 const localStorageStub = storageFactory();
 const sessionStorageStub = storageFactory();
 
-// jsdom 环境（*.test.tsx 组件测试）自带真实 window/document/getComputedStyle，不打桩；
-// node 环境维持最小桩（store/工具测试）。
 if (typeof document === 'undefined') {
   vi.stubGlobal('localStorage', localStorageStub);
   vi.stubGlobal('sessionStorage', sessionStorageStub);
@@ -44,8 +42,88 @@ if (typeof document === 'undefined') {
     location: { hash: '' },
   });
 } else {
-  // 1) 兼容 jsdom 未实现的 window.getComputedStyle(elt, pseudoElt) 与 URL.revokeObjectURL
-  //    （防止 file-transfer.ts 的异步 setTimeout 清理回调在跨文件 unstubAllGlobals 后抛未捕获异常）
+  // 0) 在 antd 被测试文件导入前拦截 CJS 侧 @ant-design/icons（含 AntD 内部 @ant-design/icons/<Name>）
+  try {
+    const req = createRequire(import.meta.url);
+    const Module = req('node:module') as {
+      _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+      __acmeAntdIconsHooked?: boolean;
+    };
+    if (!Module.__acmeAntdIconsHooked) {
+      const React = req('react') as typeof import('react');
+      const iconCache = new Map<string, unknown>();
+      const makeIcon = (rawName: string) => {
+        const kebab = rawName
+          .replace(/(Outlined|Filled|TwoTone)$/, '')
+          .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+          .toLowerCase();
+        const Comp = React.forwardRef<HTMLSpanElement, Record<string, unknown>>(function AntdIconStub(props, ref) {
+          const {
+            className,
+            style,
+            onClick,
+            spin: _spin,
+            rotate: _rotate,
+            twoToneColor: _twoToneColor,
+            component: _component,
+            ...rest
+          } = props ?? {};
+          return React.createElement(
+            'span',
+            {
+              ...rest,
+              ref,
+              role: 'img',
+              'aria-label': kebab,
+              className: `anticon anticon-${kebab}${className ? ` ${String(className)}` : ''}`,
+              style: style as React.CSSProperties | undefined,
+              onClick: onClick as React.MouseEventHandler<HTMLSpanElement> | undefined,
+            },
+            React.createElement('svg', { 'data-icon': kebab, 'aria-hidden': 'true' }),
+          );
+        });
+        Comp.displayName = rawName;
+        return Comp;
+      };
+      const getIcon = (name: string) => {
+        let comp = iconCache.get(name);
+        if (!comp) {
+          comp = makeIcon(name);
+          iconCache.set(name, comp);
+        }
+        return comp;
+      };
+      const defaultIcon = makeIcon('icon');
+      const iconProxy = new Proxy(
+        {
+          __esModule: true,
+          default: defaultIcon,
+          createFromIconfontCN: () => makeIcon('iconfont'),
+          getTwoToneColor: () => '#1677ff',
+          setTwoToneColor: () => {},
+        } as Record<string, unknown>,
+        {
+          get(target, prop) {
+            if (prop in target) return target[prop as string];
+            if (typeof prop === 'string' && /^[A-Z]/.test(prop)) return getIcon(prop);
+            return undefined;
+          },
+        },
+      );
+      const origLoad = Module._load;
+      Module._load = function patchedLoad(request: string, parent: unknown, isMain: boolean) {
+        if (request === '@ant-design/icons') return iconProxy;
+        const m = /^@ant-design\/icons\/(?:(?:lib|es)\/icons\/)?([A-Z][A-Za-z0-9]+)$/.exec(request);
+        if (m) return { __esModule: true, default: getIcon(m[1]!) };
+        return origLoad.call(this, request, parent, isMain);
+      };
+      Module.__acmeAntdIconsHooked = true;
+    }
+  } catch {
+    // 非 Node/非 antd 场景忽略
+  }
+
+  // 1) 兼容 jsdom 缺失 API：getComputedStyle(elt, pseudoElt)、URL.revokeObjectURL 与 Canvas.getContext
   if (typeof window !== 'undefined' && typeof window.getComputedStyle === 'function') {
     const nativeGetComputedStyle = window.getComputedStyle.bind(window);
     window.getComputedStyle = ((elt: Element, _pseudoElt?: string | null) =>
@@ -53,6 +131,15 @@ if (typeof document === 'undefined') {
   }
   if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL !== 'function') {
     URL.revokeObjectURL = () => {};
+  }
+  if (typeof HTMLCanvasElement !== 'undefined') {
+    // 消除 AntD Watermark 在 jsdom 每次挂载触发的 Not implemented: getContext 栈追踪刷屏；
+    // 保留可 spyOn 的函数签名，不影响 watermark 测试自行 stub Canvas 2D context。
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+      configurable: true,
+      writable: true,
+      value: () => null,
+    });
   }
 
   afterAll(async () => {
@@ -62,14 +149,31 @@ if (typeof document === 'undefined') {
     if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL !== 'function') {
       URL.revokeObjectURL = () => {};
     }
-    // 跨文件共享 worker 时重置 web 级单例 store（含 useStore 闭包 persisted 与 useTabsStore），
-    // 防止前一文件的 layoutMode/tabs/preferences 污染后续 AppShell/Nav 测试。
+    // 跨文件共享 worker 时彻底重置 @acme/core 与 web 全部全局单例 store
     try {
-      const [{ seedState }, { useStore }, { useTabsStore }] = await Promise.all([
+      const [core, { useStore }, { useTabsStore }] = await Promise.all([
         import('@acme/core'),
         import('../src/store/useStore'),
         import('../src/store/tabsStore'),
       ]);
+      core.useAuthStore.getState().clear();
+      core.useMeStore.getState().clear();
+      core.useNotifyStore.setState({ unreadCount: 0 });
+      core.useLockStore.getState().stopIdleWatch();
+      core.useLockStore.setState({ locked: false, passcode: '' });
+      core.useSystemConfigStore.setState({
+        watermarkEnabled: true,
+        captchaEnabled: false,
+        lockIdleTimeoutMs: 0,
+        footerCopyright: null,
+        footerVisible: false,
+        watermarkTemplate: null,
+        version: '0',
+        loaded: false,
+      });
+      await core.i18n.changeLanguage('zh-CN');
+      core.useDateFormatStore.getState().setTemplate('auto');
+      core.useTimezoneStore.getState().setTimezone('system');
       useTabsStore.getState().clear();
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.clear();
@@ -80,7 +184,7 @@ if (typeof document === 'undefined') {
         window.localStorage.clear();
       }
       useStore.setState({
-        state: seedState(),
+        state: core.seedState(),
         storageError: false,
         storageConflict: false,
         modal: null,
@@ -90,9 +194,7 @@ if (typeof document === 'undefined') {
     }
   });
 
-  // 2) 跳过 @ant-design/cssinjs 运行时样式生成与海量 <style> 注入（仅保留返回 node 透传），
-  //    并注入最小可见性规则（仅 4 个 *-hidden 类），保障 Popconfirm/Dropdown/Tooltip 关闭态在
-  //    Testing Library getByRole/findByRole 下与真实 AntD 样式语义完全一致。
+  // 2) 跳过 @ant-design/cssinjs 运行时样式生成与海量 <style> 注入，保留 4 条最小可见性规则
   const ensureHiddenStyle = () => {
     if (typeof document !== 'undefined' && document.head && !document.getElementById('acme-test-antd-hidden')) {
       const style = document.createElement('style');

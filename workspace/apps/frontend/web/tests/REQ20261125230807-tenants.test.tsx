@@ -1,4 +1,3 @@
-/** @vitest-environment jsdom */
 /**
  * REQ-20261125-230807 AC-19/AC-21/AC-22/AC-23/AC-27（租户侧）—— TenantsPage 契约用例。
  *

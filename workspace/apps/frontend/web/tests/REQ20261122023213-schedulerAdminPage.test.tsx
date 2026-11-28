@@ -1,4 +1,3 @@
-/** @vitest-environment jsdom */
 /**
  * REQ-20261122-023213（JOB-3）调度中心管理页（/jobs 三 Tab）页面级测试，AC-1~AC-9。
  *

@@ -171,33 +171,39 @@ const ensureAdvancedOpen = async () => {
 };
 
 /** F-1：关键字输入框（基础区，不展开）：label「关键词」→ /关\s*键/ → placeholder 含「搜索」 */
-const findKeywordInput = async (): Promise<HTMLInputElement> => {
-  try {
-    return (await screen.findByLabelText('关键词', {}, { timeout: 2000 })) as HTMLInputElement;
-  } catch { /* 下一通道 */ }
-  try {
-    return (await screen.findByLabelText(/关\s*键/, {}, { timeout: 1000 })) as HTMLInputElement;
-  } catch { /* 下一通道 */ }
-  const byPlaceholder = Array.from(document.querySelectorAll<HTMLInputElement>('input[placeholder]'))
-    .find((el) => /搜\s*索/.test(el.placeholder ?? ''));
-  if (byPlaceholder) return byPlaceholder;
-  throw new Error('未发现关键字搜索框（label=关键词、/关键/、placeholder 含「搜索」均未命中）——交 TL 裁决');
-};
+const findKeywordInput = async (): Promise<HTMLInputElement> =>
+  waitFor(
+    () => {
+      const byExact = screen.queryAllByLabelText('关键词') as HTMLInputElement[];
+      if (byExact.length === 1) return byExact[0]!;
+      const byRegex = screen.queryAllByLabelText(/关\s*键/) as HTMLInputElement[];
+      if (byRegex.length === 1) return byRegex[0]!;
+      const byPlaceholder = Array.from(document.querySelectorAll<HTMLInputElement>('input[placeholder]'))
+        .find((el) => /搜\s*索/.test(el.placeholder ?? ''));
+      if (byPlaceholder) return byPlaceholder;
+      throw new Error('未发现关键字搜索框（label=关键词、/关键/、placeholder 含「搜索」均未命中）——交 TL 裁决');
+    },
+    { timeout: 3000 },
+  );
 
 /** F-2/F-3：下拉筛选控件（先展开进阶筛选，TL 裁决①）；label → input placeholder → selection-placeholder 三通道 */
 const findFilterControl = async (labelRe: RegExp, hintRe: RegExp, hintName: string): Promise<HTMLElement> => {
   await ensureAdvancedOpen();
-  try {
-    return await screen.findByLabelText(labelRe, {}, { timeout: 2000 });
-  } catch { /* 下一通道 */ }
-  const byInputPlaceholder = Array.from(document.querySelectorAll<HTMLInputElement>('input[placeholder]'))
-    .find((el) => hintRe.test(el.placeholder ?? ''));
-  if (byInputPlaceholder) return byInputPlaceholder;
-  const bySelectionPlaceholder = Array.from(
-    document.querySelectorAll<HTMLElement>('.ant-select-selection-placeholder'),
-  ).find((el) => hintRe.test(el.textContent ?? ''));
-  if (bySelectionPlaceholder) return bySelectionPlaceholder;
-  throw new Error(`未发现「${hintName}」筛选控件（label ${labelRe}、placeholder/selection-placeholder ${hintRe} 均未命中）——交 TL 裁决`);
+  return waitFor(
+    () => {
+      const byLabel = screen.queryAllByLabelText(labelRe);
+      if (byLabel.length === 1) return byLabel[0]!;
+      const byInputPlaceholder = Array.from(document.querySelectorAll<HTMLInputElement>('input[placeholder]'))
+        .find((el) => hintRe.test(el.placeholder ?? ''));
+      if (byInputPlaceholder) return byInputPlaceholder;
+      const bySelectionPlaceholder = Array.from(
+        document.querySelectorAll<HTMLElement>('.ant-select-selection-placeholder'),
+      ).find((el) => hintRe.test(el.textContent ?? ''));
+      if (bySelectionPlaceholder) return bySelectionPlaceholder;
+      throw new Error(`未发现「${hintName}」筛选控件（label ${labelRe}、placeholder/selection-placeholder ${hintRe} 均未命中）——交 TL 裁决`);
+    },
+    { timeout: 3000 },
+  );
 };
 
 /** F-4：在当前开放下拉容器内按显示名正则点选选项（禁 role=option 探针，usersPageDeptFilter 口径）；未命中抛错并附现有选项 */

@@ -1,4 +1,3 @@
-/** @vitest-environment jsdom */
 /**
  * REQ-20261125-230807 AC-13/AC-14/AC-17/AC-18 —— PermissionsPage 仅浏览+两新列、DictsPage 树形字典用例。
  *

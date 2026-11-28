@@ -1,4 +1,3 @@
-/** @vitest-environment jsdom */
 /**
  * REQ-20261127-234158（wire 契约·DTO 字段对齐 P1-10）调度任务 CRON/FIXED_RATE 编辑链路行为级用例
  * （AC-4 新建载荷长名 / AC-5 视图字符串回填换算）。

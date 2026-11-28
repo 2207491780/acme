@@ -1,4 +1,3 @@
-/** @vitest-environment jsdom */
 /**
  * REQ-20261125-230807 AC-24/AC-21（套餐弹窗半句）—— TenantPackagesPage 契约用例。
  *

@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * REQ-20261122-150802（TENANT-4）TenantsPage 租户生命周期/配额面契约用例（AC-6）。
  *

@@ -330,16 +330,17 @@ const renderPage = async (spec: PageSpec, permissions: string[]) => {
   return api;
 };
 
-const findByAnyText = async (candidates: string[]) => {
-  for (const c of candidates) {
-    try {
-      return await screen.findByText(c, {}, { timeout: 3000 });
-    } catch {
-      // 候选逐个尝试（列选择未知 → 多锚兜底）
-    }
-  }
-  throw new Error(`未找到任何行锚文本: ${candidates.join(' / ')}`);
-};
+const findByAnyText = async (candidates: string[]) =>
+  waitFor(
+    () => {
+      for (const c of candidates) {
+        const el = screen.queryByText(c);
+        if (el) return el;
+      }
+      throw new Error(`未找到任何行锚文本: ${candidates.join(' / ')}`);
+    },
+    { timeout: 3000 },
+  );
 
 const findRowByText = async (anchor: string) => {
   // 并行门禁负载下默认 1s 查找窗口偏紧（同批 menusButton 已踩坑），放宽到 5s；断言对象不变

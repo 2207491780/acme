@@ -119,15 +119,17 @@ const renderPage = async (permissions: string[], initial: AdminSystemConfigView)
 /** 时长 Select 点选（antd5 virtual 镜像坑照范本 delta-4：按显示名文本点可见选项节点）。 */
 const pickIdleOption = async (candidates: string[]) => {
   fireEvent.mouseDown(screen.getByRole('combobox'));
-  for (const c of candidates) {
-    try {
-      fireEvent.click(await screen.findByText(c, {}, { timeout: 2000 }));
-      return;
-    } catch {
-      // 候选逐个尝试（i18n 文案未钉死，AMB-UI-1）
-    }
-  }
-  throw new Error(`未找到时长选项: ${candidates.join(' / ')}`);
+  const option = await waitFor(
+    () => {
+      for (const c of candidates) {
+        const el = screen.queryByText(c);
+        if (el) return el;
+      }
+      throw new Error(`未找到时长选项: ${candidates.join(' / ')}`);
+    },
+    { timeout: 2000 },
+  );
+  fireEvent.click(option);
 };
 
 beforeEach(() => {

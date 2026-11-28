@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * REQ-20261122-233426（TENANT-5）TenantsPage 三 Tab 重构面契约用例（AC-6）。
  *
