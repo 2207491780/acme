@@ -2,6 +2,7 @@ package com.acme.platform.scheduler.kernel;
 
 import com.acme.common.core.BizException;
 import com.acme.common.core.Clock;
+import com.acme.framework.flex.internal.AuditSupport;
 import com.acme.framework.trace.support.Traces;
 import com.acme.platform.scheduler.SchedulerError;
 import com.acme.platform.scheduler.api.ExecutionState;
@@ -14,6 +15,7 @@ import com.acme.platform.scheduler.api.TriggerType;
 import com.acme.platform.scheduler.config.SchedulerProperties;
 import com.acme.platform.scheduler.domain.SchJobDefinition;
 import com.acme.platform.scheduler.domain.SchJobExecution;
+import com.acme.platform.scheduler.infrastructure.mapper.SchJobDefinitionMapper;
 import com.acme.platform.scheduler.infrastructure.repository.ExecutorRegistryRepository;
 import com.acme.platform.scheduler.infrastructure.repository.JobDefinitionRepository;
 import com.acme.platform.scheduler.infrastructure.repository.JobExecutionRepository;
@@ -53,6 +55,7 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
     private static final Logger log = LoggerFactory.getLogger(SchedulerKernel.class);
 
     private final JobDefinitionRepository definitionRepository;
+    private final SchJobDefinitionMapper definitionMapper;
     private final JobExecutionRepository executionRepository;
     private final ExecutorRegistryRepository executorRegistryRepository;
     private final JobTimeWheel timeWheel;
@@ -66,6 +69,7 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
     private final Clock clock;
 
     public SchedulerKernel(JobDefinitionRepository definitionRepository,
+                           SchJobDefinitionMapper definitionMapper,
                            JobExecutionRepository executionRepository,
                            ExecutorRegistryRepository executorRegistryRepository,
                            JobTimeWheel timeWheel,
@@ -78,6 +82,7 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
                            JsonMapper jsonMapper,
                            Clock schedulerClock) {
         this.definitionRepository = definitionRepository;
+        this.definitionMapper = definitionMapper;
         this.executionRepository = executionRepository;
         this.executorRegistryRepository = executorRegistryRepository;
         this.timeWheel = timeWheel;
@@ -238,11 +243,57 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
     /**
      * 内部一次性任务注册（BPM 联动，确认④）：创建即 ENABLED 的 ONCE 定义，next_fire=onceFireAt，
      * 注册即返回（由内核在触发点下发，AC-12 实证）。
+     * 复活分支（REQ-20261127-235505 round=1 方向 A）：注销=Flex 逻辑删（deleted 行物理保留），
+     * uk_sch_job_definition_key 全列唯一 ⇒ 软删行永久占用 job_key；而撞键检查 findByJobKey 被
+     * 逻辑删自动过滤看不到软删行，直接 INSERT 会撞唯一约束 500（SYS-00-0006）——先判软删同键行
+     * （原生 SQL 绕逻辑删），存在则复活（UPDATE 而非 INSERT，构造/校验/字段写值与 INSERT 路径
+     * 完全同款）；活动行撞键仍按 SCHEDULER_JOB_KEY_DUPLICATE 拒绝（语义与优先级不变）。
      */
     public SchJobDefinition registerOneShot(OneShotJobRegisterRequest request) {
+        Long softDeletedId = definitionMapper.findSoftDeletedIdByJobKey(request.jobKey());
+        if (softDeletedId != null) {
+            return reviveSoftDeleted(softDeletedId, request);
+        }
         if (definitionRepository.findByJobKey(request.jobKey()).isPresent()) {
             throw new BizException(SchedulerError.SCHEDULER_JOB_KEY_DUPLICATE);
         }
+        SchJobDefinition definition = buildOneShotDefinition(request);
+        definitionRepository.save(definition);
+        registerWheelQuietly(definition, definition.getNextFireTime(), clock.now());
+        log.info("一次性任务注册：jobKey={}, appName={}, onceFireAt={}",
+                definition.getJobKey(), definition.getAppName(), definition.getOnceFireAt());
+        return definition;
+    }
+
+    /**
+     * 复活软删同键行（round=1 方向 A）：先经 buildOneShotDefinition 同款构造+校验（非法请求
+     * 不产生复活写面，与 INSERT 路径一致）→ 原生 UPDATE 复活（WHERE 带 AND deleted=true 并发护栏）→
+     * 后到者匹配 0 行按 SCHEDULER_JOB_KEY_DUPLICATE 抛出（workflow 客户端撞键幂等收敛，协议安全，
+     * 禁 INSERT 重试以免撞唯一约束 500）→ 回读该行，照常 registerWheelQuietly + 原日志面
+     * （日志加「复活」字样便于追踪）。
+     */
+    private SchJobDefinition reviveSoftDeleted(Long softDeletedId, OneShotJobRegisterRequest request) {
+        SchJobDefinition definition = buildOneShotDefinition(request);
+        int revived = definitionMapper.reviveSoftDeletedByJobKey(
+                definition.getJobKey(), definition.getAppName(), definition.getHandler(),
+                definition.getTriggerType(), definition.getOnceFireAt(), definition.getParam(),
+                definition.getRetryPolicy(), definition.getTimeoutMs(), definition.getMisfirePolicy(),
+                definition.getStatus(), Instant.now(), AuditSupport.operator());
+        if (revived == 0) {
+            // 并发双复活：他方事务已复活本行（软删行消失）——按撞键收敛（409），不重试 INSERT
+            throw new BizException(SchedulerError.SCHEDULER_JOB_KEY_DUPLICATE);
+        }
+        SchJobDefinition revivedDefinition = definitionRepository.findById(softDeletedId)
+                .orElseThrow(() -> new BizException(SchedulerError.SCHEDULER_JOB_KEY_DUPLICATE));
+        registerWheelQuietly(revivedDefinition, revivedDefinition.getNextFireTime(), clock.now());
+        log.info("一次性任务注册（复活软删行）：jobKey={}, appName={}, onceFireAt={}",
+                revivedDefinition.getJobKey(), revivedDefinition.getAppName(),
+                revivedDefinition.getOnceFireAt());
+        return revivedDefinition;
+    }
+
+    /** 一次性注册定义构造 + 前置校验（INSERT 与复活两路径共用同款语义；请求字段全量覆盖）。 */
+    private SchJobDefinition buildOneShotDefinition(OneShotJobRegisterRequest request) {
         SchJobDefinition definition = new SchJobDefinition();
         definition.setJobKey(request.jobKey());
         definition.setAppName(request.appName());
@@ -261,10 +312,6 @@ public class SchedulerKernel implements ApplicationListener<ApplicationReadyEven
         definition.setNextFireTime(request.onceFireAt());
         triggerCalculator.validate(definition);
         RetryPolicy.validate(definition.getRetryPolicy(), jsonMapper);
-        definitionRepository.save(definition);
-        registerWheelQuietly(definition, definition.getNextFireTime(), clock.now());
-        log.info("一次性任务注册：jobKey={}, appName={}, onceFireAt={}",
-                definition.getJobKey(), definition.getAppName(), definition.getOnceFireAt());
         return definition;
     }
 

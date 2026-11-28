@@ -1,6 +1,9 @@
 package com.acme.platform.workflow.infrastructure.client;
 
+import com.acme.common.core.BizException;
+import com.acme.framework.feign.support.RemoteCallException;
 import com.acme.platform.scheduler.api.OneShotJobRegisterRequest;
+import com.acme.platform.scheduler.api.SchedulerErrorCodes;
 import com.acme.platform.scheduler.api.SchedulerJobClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,9 +15,8 @@ import java.time.Instant;
 /**
  * 调度中心注册客户端（确认⑥：Feign → platform-scheduler internal 注册/注销 API 的薄包装，
  * 统一日志与异常面；重试注册/本地兜底逻辑归 {@link com.acme.platform.workflow.engine.TimerScheduler}）。
- * 注册失败抛 RuntimeException 交上层入重试表；注销失败按告警处理（协议终稿见交付报告
- * 「定时联动协议终稿」——DELETE /internal/v1/scheduler/jobs/{jobKey} 由 scheduler 侧随 BPM-6
- * 补齐，当前未交付，调用 404 不阻断本地清理）。
+ * 注册失败抛 RuntimeException 交上层入重试表；注销失败按告警处理（DELETE /internal/v1/scheduler/jobs/{jobKey}
+ * 已随 REQ-20261127-235505 交付——404 收敛为幂等成功按异常携带的 HTTP 状态码判定，不阻断本地清理）。
  */
 @Component
 public class SchedulerRegistrationClient {
@@ -66,14 +68,14 @@ public class SchedulerRegistrationClient {
         }
     }
 
-    /** 撞键幂等判定（错误码锚点 platform-scheduler-01-0001；404 幂等注销判定）。 */
+    /** 撞键幂等判定（结构化错误码锚点 {@link SchedulerErrorCodes#SCHEDULER_JOB_KEY_DUPLICATE}，禁 message 字符串匹配）。 */
     private static boolean isDuplicateKey(RuntimeException failure) {
-        String message = String.valueOf(failure.getMessage());
-        return message.contains("platform-scheduler-01-0001") || message.contains("409");
+        return failure instanceof BizException biz
+                && SchedulerErrorCodes.SCHEDULER_JOB_KEY_DUPLICATE.equals(biz.errorCode().code());
     }
 
+    /** 注销 404 幂等判定（仅按异常携带的 HTTP 状态码判定，载体=RemoteCallException，禁 message 字符串匹配）。 */
     private static boolean isNotFound(RuntimeException failure) {
-        String message = String.valueOf(failure.getMessage());
-        return message.contains("404") || message.contains("Not Found");
+        return failure instanceof RemoteCallException remote && remote.httpStatus() == 404;
     }
 }

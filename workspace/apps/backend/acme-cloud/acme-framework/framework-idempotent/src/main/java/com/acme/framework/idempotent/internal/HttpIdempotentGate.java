@@ -40,10 +40,9 @@ public class HttpIdempotentGate {
         }
         switch (claim) {
             case CLAIMED -> {
+                T result;
                 try {
-                    T result = action.call();
-                    complete(key, result);
-                    return result;
+                    result = action.call();
                 } catch (RuntimeException ex) {
                     release(key);
                     throw ex instanceof BizException ? ex : new IllegalStateException("业务执行失败", ex);
@@ -51,6 +50,11 @@ public class HttpIdempotentGate {
                     release(key);
                     throw new IllegalStateException("业务执行失败", ex);
                 }
+                // action 成功后独立完成（P1-02）：complete 失败（STORE_UNAVAILABLE）不得触发 release——
+                // 业务已成功，释放认领会放行同 token 重试重执行；记录维持 P 至 claimProcessingTtl
+                // （Redis 侧既有 PEXPIRE 兜底过期），fail-closed 语义与 javadoc 一致
+                complete(key, result);
+                return result;
             }
             case DUPLICATE -> {
                 return replay(key, returnType);
@@ -79,11 +83,26 @@ public class HttpIdempotentGate {
         }
     }
 
-    /** 回放缓存结果（AC-001）。 */
+    /**
+     * 回放缓存结果（AC-001；P2-17 fail-closed）：读失败 → STORE_UNAVAILABLE 原语义；
+     * 记录已 DUPLICATE 却无结果缓存（外部清库 / TTL 错配等）→ STORE_UNAVAILABLE，绝不静默
+     * 返回 null（合法 null 结果经 encode 落库为 JSON 字面量 "null"，回放 decode 得 null，
+     * 不落入该分支）。
+     */
     private <T> T replay(String key, Class<T> returnType) {
+        String json;
         try {
-            String json = store.findResult(key);
-            return json == null ? null : codec.decode(json, returnType);
+            json = store.findResult(key);
+        } catch (RuntimeException ex) {
+            throw new BizException(IdempotentError.STORE_UNAVAILABLE, "幂等服务暂不可用", ex);
+        }
+        if (json == null) {
+            // 空结果抛错必须在捕获 RuntimeException 的 try 块之外（BizException 本身是
+            // RuntimeException，在块内会被自身 catch 重包装）
+            throw new BizException(IdempotentError.STORE_UNAVAILABLE, "幂等结果记录缺失");
+        }
+        try {
+            return codec.decode(json, returnType);
         } catch (RuntimeException ex) {
             throw new BizException(IdempotentError.STORE_UNAVAILABLE, "幂等服务暂不可用", ex);
         }

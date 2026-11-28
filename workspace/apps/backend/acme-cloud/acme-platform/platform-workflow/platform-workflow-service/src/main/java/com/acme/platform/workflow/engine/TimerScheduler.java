@@ -224,8 +224,7 @@ public class TimerScheduler {
         try {
             registrationClient.unregister(jobKey);
         } catch (RuntimeException ex) {
-            log.warn("调度中心注销失败（不阻断本地清理；BPM-6 前由 scheduler 侧补齐 DELETE 端点）：jobKey={}",
-                    jobKey, ex);
+            log.warn("调度中心注销失败（不阻断本地清理）：jobKey={}", jobKey, ex);
         }
     }
 

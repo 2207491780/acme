@@ -1,9 +1,8 @@
 package com.acme.framework.feign.interceptor;
 
-import com.acme.common.core.BizException;
-import com.acme.common.core.ErrorCode;
 import com.acme.framework.feign.internal.RemoteErrorCode;
 import com.acme.framework.feign.support.FeignError;
+import com.acme.framework.feign.support.RemoteCallException;
 import feign.Response;
 import feign.codec.ErrorDecoder;
 
@@ -12,7 +11,8 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 下游错误解码（FR-021/AC-021）：错误响应 → BizException；
+ * 下游错误解码（FR-021/AC-021）：错误响应 → RemoteCallException（BizException 子类，
+ * REQ-20261127-235505：随异常携带下游 HTTP 状态码供消费方结构化判定）；
  * 仅当错误体可解析为标准信封（有 code 字段且符合错误码格式）时取其错误码与固定文案，
  * 否则用本端固定文案（10.5.4 不泄露下游 message/堆栈/SQL/内部地址）；body 读取上限 4KB。
  */
@@ -26,10 +26,10 @@ public class FeignErrorDecoder implements ErrorDecoder {
         String body = readBody(response);
         EnvelopeFields fields = parseEnvelope(body);
         if (fields != null) {
-            return new BizException(new RemoteErrorCode(fields.code(), fields.message()));
+            return new RemoteCallException(new RemoteErrorCode(fields.code(), fields.message()), response.status());
         }
         // 非标准信封：本端固定文案，不透传下游 message
-        return new BizException(FeignError.CALL_FAILED, FeignError.CALL_FAILED.defaultMessage());
+        return new RemoteCallException(FeignError.CALL_FAILED, response.status());
     }
 
     /** 标准信封字段（code 必须符合错误码格式，否则整体不采信）。 */

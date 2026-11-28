@@ -144,6 +144,20 @@ public class JobUseCase {
     }
 
     /**
+     * 按任务键注销（内部协议面，REQ-20261127-235505 P1-01；确认②幂等语义）：
+     * jobKey 不存在为 no-op 成功（不抛 NOT_FOUND）；存在则复用 {@link #delete(Long)} 同款代码路径
+     * （kernel.removeWheel 移除时间轮条目 + repository.delete 软删，执行历史保留），不限制任务类型。
+     */
+    @Transactional
+    public void deleteByJobKey(String jobKey) {
+        definitionRepository.findByJobKey(jobKey).ifPresent(definition -> {
+            kernel.removeWheel(definition.getId());
+            definitionRepository.delete(definition);
+            log.info("任务定义注销：jobKey={}", definition.getJobKey());
+        });
+    }
+
+    /**
      * 内部一次性任务注册（BPM 联动，确认④；注册即 ENABLED 并在 onceFireAt 触发下发，AC-12）。
      * 撞既有 job_key → SCHEDULER_JOB_KEY_DUPLICATE。
      */
