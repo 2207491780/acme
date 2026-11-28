@@ -23,7 +23,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createNotifyClient } from '../src/ws/notify-client';
-import { useAuthStore } from '@acme/core';
+import { useAuthStore, useNotifyStore } from '@acme/core';
 
 vi.setConfig({ testTimeout: 15000 });
 
@@ -103,7 +103,18 @@ const seedSession = () => {
 const setupClient = () => {
   vi.stubGlobal('WebSocket', MockWebSocket);
   seedSession();
-  return { client: createNotifyClient() };
+  const client = createNotifyClient();
+  createdClients.push(client); // afterEach 统一 close（全局 store 监听防泄漏）
+  return { client };
+};
+
+// P2-14 用例登记面：客户端挂全局 store 监听（close() 才注销）——afterEach 统一收口防跨用例泄漏
+const createdClients: ReturnType<typeof createNotifyClient>[] = [];
+const makeClient = () => {
+  vi.stubGlobal('WebSocket', MockWebSocket);
+  const client = createNotifyClient();
+  createdClients.push(client);
+  return client;
 };
 
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -131,6 +142,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // P2-14：先收口全部客户端（含未 close 的泄漏监听），再还原 mock——防跨用例翻转触发建连
+  for (const client of createdClients.splice(0)) {
+    client.close();
+  }
   // round0 复核·修复 1：先还原全部 mock（含对 globalThis.setTimeout 的探针）再切回真实定时器——
   // 反序会让 useRealTimers 把被 spy 破坏的全局 setTimeout 留成 undefined，jsdom storage.clear()
   // 内部裸调 setTimeout 即抛 ReferenceError（用例体本身可通过，崩在用例间清理）
@@ -230,4 +245,59 @@ describe('REQ20261114120102 WS 客户端（AC-13）', () => {
 
     expect(MockWebSocket.instances).toHaveLength(1);
   });
+
+  // ---------- REQ-20261127-161433 P2-14：无 token 排重连 + isAuthed 翻转建连 ----------
+
+  it('should_connect_immediately_when_session_flips_authed_after_initial_connect_without_session', async () => {
+    // 会话未就绪建连：不再静默死面——排退避重连 + isAuthed 翻转即建连（P2-14）
+    const client = makeClient();
+
+    client.connect();
+    expect(MockWebSocket.instances).toHaveLength(0); // 无 token：不建连但已排重连
+
+    // 登录（无会话→有会话翻转）：翻转监听立即建连（早于退避定时器）
+    seedSession();
+    await until(() => MockWebSocket.instances.length === 1);
+
+    const sock = MockWebSocket.instances[0];
+    expect(sock.url).toContain('/ws/system/notify');
+    expect(sock.url).toContain('token-1');
+
+  });
+
+  // ---------- REQ-20261127-161433 P2-13：建连/重连与 visibility 恢复的 unread 对账 ----------
+
+  it('should_refresh_unread_on_open_and_visibility_restore', async () => {
+    const { client } = setupClient();
+    const refreshSpy = vi.spyOn(useNotifyStore.getState(), 'refreshUnread').mockResolvedValue();
+
+    client.connect();
+    await until(() => MockWebSocket.instances.length === 1);
+    MockWebSocket.instances[0].serverOpen();
+
+    // 建连/重连成功即对账（P2-13）
+    await until(() => refreshSpy.mock.calls.length >= 1);
+
+    // visibility 恢复（页签切回可见且连接存活）再对账
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await until(() => refreshSpy.mock.calls.length >= 2);
+
+    refreshSpy.mockRestore();
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  });
+
+  it('should_not_refresh_unread_on_visibility_when_socket_not_open', async () => {
+    makeClient();
+    const refreshSpy = vi.spyOn(useNotifyStore.getState(), 'refreshUnread').mockResolvedValue();
+
+    // 连接未建立（无 token 建连被排重连）时 visibility 恢复不对账（连接面不存在）
+    // 负例同步断言（无连接面即无对账；无需 flush——挂起面见 P2-21 批注）
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(refreshSpy).not.toHaveBeenCalled();
+    refreshSpy.mockRestore();
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  });
+
 });

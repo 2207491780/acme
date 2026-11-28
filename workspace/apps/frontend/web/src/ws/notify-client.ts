@@ -1,4 +1,4 @@
-import { useAuthStore } from '@acme/core';
+import { useAuthStore, useNotifyStore } from '@acme/core';
 import type { NotifyMessageNewFrame } from '@acme/core';
 
 /**
@@ -8,6 +8,8 @@ import type { NotifyMessageNewFrame } from '@acme/core';
  *   握手经 `?token=` query（浏览器 WS 无法自定义头，契约裁决⑦）；
  * - 异常断线指数退避重连（相邻间隔比值 1.5–2.6，调度经全局 setTimeout）；
  *   主动 close() 视为正常关闭、不重连；重连建连成功后事件分发链路存活。
+ * - P2-13 断线对账：建连/重连成功与 visibility 恢复时 REST 拉取 unread（WS pub/sub
+ *   不持久化，后台页签丢帧在切回/重连时收敛）。
  *
  * 心跳为服务端语义（30s，确认记录④⑧）：协议层 ping/pong 由浏览器自动应答，
  * 客户端不额外发应用层心跳帧。
@@ -80,6 +82,9 @@ export function createNotifyClient(): NotifyClient {
     }
     const url = buildUrl();
     if (!url) {
+      // P2-14：会话未就绪不再静默死面（建连时会话未就绪曾→永久不连）——
+      // 排退避重连（有界 30s 上限），登录/会话恢复由 isAuthed 翻转监听即时建连
+      scheduleReconnect();
       return;
     }
     // 运行时取全局 WebSocket（vi.stubGlobal 可注入替换；模块不缓存构造器引用）
@@ -87,6 +92,8 @@ export function createNotifyClient(): NotifyClient {
     socket = next;
     next.onopen = () => {
       openedAt = Date.now();
+      // P2-13：建连/重连成功即 REST 拉取 unread 对账（WS pub/sub 不持久化，丢帧据此收敛）
+      void useNotifyStore.getState().refreshUnread();
     };
     next.onmessage = (ev: MessageEvent) => {
       let frame: unknown;
@@ -125,6 +132,8 @@ export function createNotifyClient(): NotifyClient {
   const close = (): void => {
     deliberatelyClosed = true;
     clearReconnectTimer();
+    unsubscribeAuthFlip();
+    document.removeEventListener('visibilitychange', onVisibility);
     if (socket) {
       const closing = socket;
       socket = null;
@@ -138,6 +147,27 @@ export function createNotifyClient(): NotifyClient {
     set.add(handler);
     handlers.set(type, set);
   };
+
+  // P2-13：visibility 恢复（页签切回可见）且连接存活时 REST 对账 unread——
+  // 后台页签期间的推送丢帧在切回时收敛（close() 注销监听防泄漏）。
+  const onVisibility = (): void => {
+    if (document.visibilityState === 'visible' && socket !== null && socket.readyState === 1) {
+      void useNotifyStore.getState().refreshUnread();
+    }
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+
+  // P2-14：isAuthed 翻转监听——登录/会话恢复（无会话→有会话）即重置退避并立即建连；
+  // 主动关闭态不建连（deliberatelyClosed 语义优先）；close() 注销监听防泄漏。
+  const unsubscribeAuthFlip = useAuthStore.subscribe((state, prev) => {
+    const authed = state.session != null;
+    const wasAuthed = prev.session != null;
+    if (authed && !wasAuthed && !deliberatelyClosed && (socket === null || socket.readyState > 1)) {
+      attempts = 0;
+      clearReconnectTimer();
+      connect();
+    }
+  });
 
   return { connect, close, on };
 }
