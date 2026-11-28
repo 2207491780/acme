@@ -56,7 +56,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  *     若审批指派他人，红=指派规则披露差异 TL 裁决；
  * A-4 APPROVING 落点=审批任务完成之后、HR 备案之前（契约⑥状态全链序推）；FILED 落点=
  *     HR 备案 handler 落库（确认⑤）；DONE/REJECTED 落点=事件自消费回写（AC-7）——
- *     三者均以 DB 状态轮询承载（自旋+余量，pitfalls 15 口径）；
+ *     三者均以 DB 状态轮询承载（自旋+余量，pitfalls 15 口径）。
+ *     【REQ-20261128-092210 时序适配】新实现下审批办结存在双腿：TASK_COMPLETED 事件腿
+ *     （APPROVING）与 hr-file ServiceTask 下发腿（下发权威推进两步前向 APPROVING→FILED，
+ *     确认①），下发腿先到时 FILED 直接落库（乐观锁收敛、只推进一次），APPROVING 不再必然
+ *     作为独立可观测态出现——审批办结后的中间态等待放宽为 {APPROVING, FILED}，随后仍以
+ *     FILED 为备案落库锚、DONE 为终态锚，状态链 APPLYING→APPROVING→FILED→DONE 收敛不变；
  * A-5 拒绝腿：BPM-4 reject（targetNodeId 缺省形态）在试点 BPMN 上终结实例 → 事件回写
  *     REJECTED；若试点 BPMN reject 语义为回退非终结，红=BPMN 形态披露差异 TL 裁决；
  * A-6 DONE 的因果归因（事件自消费 vs 同步落库）黑盒不可分辨——本用例以「终态最终落库」为
@@ -144,14 +149,20 @@ class REQ20261122233425LeaveE2eIntegrationTest {
     @AfterEach
     void cleanUp() {
         // teardown 清共享脏数据（每测试类独立 PG 容器；schema 经 information_schema 定位）。
-        // 注意：只清 leave_request 行集，wf_* 表不得逐用例清空——试点流程由 LeavePilotProcessDeployer
-        // 启动期部署一次并缓存 definitionId（逐用例清 wf_process_definition 会让下一用例
-        // DEFINITION_NOT_FOUND，实证 02:47 轮），wf 行按 businessKey/实例 id 天然隔离不清；
-        // 类容器随类销毁，无跨类残留面。
+        // 注意：只清 leave_request/leave_start_task 行集（REQ-20261128-092210 P1-03 补偿任务行随
+        // 单据清理，防重试任务扫描捞取陈旧行对已删单据补投），wf_* 表不得逐用例清空——试点流程由
+        // LeavePilotProcessDeployer 启动期部署一次并缓存 definitionId（逐用例清 wf_process_definition
+        // 会让下一用例 DEFINITION_NOT_FOUND，实证 02:47 轮），wf 行按 businessKey/实例 id 天然隔离
+        // 不清；类容器随类销毁，无跨类残留面。
         try {
             jdbcTemplate.update("delete from " + qualified("leave_request"));
         } catch (org.springframework.dao.DataAccessException ignored) {
             // 表未随实现落地（等实现期）：跳过清理，测试自身会给出明确信号
+        }
+        try {
+            jdbcTemplate.update("delete from " + qualified("leave_start_task"));
+        } catch (org.springframework.dao.DataAccessException ignored) {
+            // V2 迁移未落地（等实现期）：跳过清理
         }
     }
 
@@ -180,8 +191,12 @@ class REQ20261122233425LeaveE2eIntegrationTest {
         assertThat(approvalTaskId).as("审批任务应出现在 admin todo（A-3）").isPositive();
         ok(postJson(token, TASK_COMPLETE_URL.formatted(approvalTaskId), "{}"),
                 "审批通过（complete）应成功");
-        assertThat(awaitStatus(leaveId, "APPROVING", 20_000))
-                .as("审批通过后 leave 应 APPROVING（A-4），实际=%s", leaveStatus(leaveId)).isTrue();
+        // REQ-20261128-092210 时序适配：事件腿（APPROVING）与下发腿（两步前向 APPROVING→FILED）
+        // 竞态由乐观锁收敛，下发腿先到时 APPROVING 不作为独立可观测态出现——中间态等待放宽为
+        // {APPROVING, FILED}，随后仍以 FILED 为备案落库锚（A-4 适配注记）。
+        assertThat(awaitStatusIn(leaveId, java.util.Set.of("APPROVING", "FILED"), 20_000))
+                .as("审批通过后 leave 应至少推进到 APPROVING/FILED（双腿收敛），实际=%s", leaveStatus(leaveId))
+                .isTrue();
 
         // ③ HR 备案=ServiceTask 委托：SDK 接收端点路由 handler → 落库 FILED → 自动回调推进
         //    （AC-5 SERVICE_TASK 全链通；无手工回调操作，全链由 SDK 委托自动完成）
@@ -372,6 +387,11 @@ class REQ20261122233425LeaveE2eIntegrationTest {
     /** 状态轮询（A-4：目标状态在窗口内出现）。 */
     private boolean awaitStatus(long leaveId, String expected, long timeoutMs) {
         return await(timeoutMs, () -> expected.equals(leaveStatus(leaveId)));
+    }
+
+    /** 状态轮询（REQ-20261128-092210 适配：双腿竞态收敛的中间态放宽为集合命中）。 */
+    private boolean awaitStatusIn(long leaveId, java.util.Set<String> expected, long timeoutMs) {
+        return await(timeoutMs, () -> expected.contains(leaveStatus(leaveId)));
     }
 
     private static boolean await(long timeoutMs, BooleanSupplier condition) {

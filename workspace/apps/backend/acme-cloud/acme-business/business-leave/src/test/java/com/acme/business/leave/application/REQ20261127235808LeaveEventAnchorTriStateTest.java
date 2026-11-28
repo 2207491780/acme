@@ -62,7 +62,8 @@ class REQ20261127235808LeaveEventAnchorTriStateTest {
         ObjectProvider<LeaveProcessLauncher> launcher = mock(ObjectProvider.class);
         when(launcher.getObject()).thenReturn(() -> 7L);
         useCase = new LeaveRequestUseCase(repository, workflowRuntimeClient, launcher,
-                new IdGeneratorStub(), mock(com.acme.business.leave.infrastructure.client.LeaveAuthorizationGateway.class));
+                new IdGeneratorStub(), mock(com.acme.business.leave.infrastructure.client.LeaveAuthorizationGateway.class),
+                mock(com.acme.business.leave.infrastructure.repository.LeaveStartTaskRepository.class));
         UserContext.bind(new UserContext("201", Set.of()));
         TenantContext.bind(new TenantContext("default"));
     }

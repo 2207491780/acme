@@ -27,7 +27,12 @@ public class LeaveRequestController {
         this.leaveRequestUseCase = leaveRequestUseCase;
     }
 
-    /** 提交申请（落库 APPLYING → WorkflowRuntimeClient 启动流程 → APPROVING）。 */
+    /**
+     * 提交申请（REQ-20261128-092210 P1-03：路径/@Valid 校验/鉴权不变——同事务落库
+     * leave_request(APPLYING)+补偿任务行 leave_start_task(PENDING)；流程启动后置 afterCommit，
+     * 成功 instance_id 于响应前异步回写（响应 view.instanceId 恒 null，可空字段前端已兼容），
+     * 失败转补偿重试面，响应恒 2xx）。
+     */
     @PostMapping("/requests")
     public Result<LeaveRequestView> apply(@Valid @RequestBody LeaveApplyCommand command) {
         return Result.ok(leaveRequestUseCase.apply(command));
@@ -38,6 +43,7 @@ public class LeaveRequestController {
      * owner 直读；非 owner 持 {@code workflow:task:list} 或 {@code workflow:instance:manage}
      * 任一权限码放行（经 platform-system 实查）；全不命中与「单据不存在」同口径（HTTP 400，
      * 不泄露单据存在性）。不加 all-or-nothing 权限注解门（与 owner-or-permission 语义不符）。
+     * instanceId=流程启动异步回写结果（REQ-20261128-092210 P1-03），启动成功前为 null。
      */
     @GetMapping("/requests/{id}")
     public Result<LeaveRequestView> get(@PathVariable Long id) {

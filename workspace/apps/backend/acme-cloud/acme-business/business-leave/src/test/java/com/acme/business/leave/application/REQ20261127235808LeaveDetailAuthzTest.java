@@ -42,11 +42,11 @@ import static org.mockito.Mockito.when;
  *       owner 路径不依赖权限服务仍可直读。</li>
  * </ul>
  *
- * <p>装配缝照委派单钉死事实：{@code LeaveRequestUseCase} 五参构造
- * （repository / workflowRuntimeClient / ObjectProvider&lt;LeaveProcessLauncher&gt; / IdGenerator /
- * LeaveAuthorizationGateway）；get() 行为序 = owner 先行（findByIdAndUserId）→ 未命中经 findById →
- * 授权码判定任一持有放行 → 全不命中统一查无口径。租户维由 framework-tenant 插件承载（单测层为
- * repository mock，IT 层回归锁定）。</p>
+ * <p>装配缝照委派单钉死事实：{@code LeaveRequestUseCase} 六参构造（REQ-20261128-092210 P1-03
+ * 追加尾参）（repository / workflowRuntimeClient / ObjectProvider&lt;LeaveProcessLauncher&gt; /
+ * IdGenerator / LeaveAuthorizationGateway / LeaveStartTaskRepository）；get() 行为序 = owner 先行
+ * （findByIdAndUserId）→ 未命中经 findById → 授权码判定任一持有放行 → 全不命中统一查无口径。
+ * 租户维由 framework-tenant 插件承载（单测层为 repository mock，IT 层回归锁定）。</p>
  */
 class REQ20261127235808LeaveDetailAuthzTest {
 
@@ -70,7 +70,8 @@ class REQ20261127235808LeaveDetailAuthzTest {
         launcher = mock(ObjectProvider.class);
         when(launcher.getObject()).thenReturn(() -> 7L);
         useCase = new LeaveRequestUseCase(repository, workflowRuntimeClient, launcher,
-                new IdGeneratorStub(), leaveAuthorizationGateway);
+                new IdGeneratorStub(), leaveAuthorizationGateway,
+                mock(com.acme.business.leave.infrastructure.repository.LeaveStartTaskRepository.class));
         UserContext.bind(new UserContext(CURRENT_USER, Set.of()));
         TenantContext.bind(new TenantContext("default"));
     }
@@ -228,7 +229,8 @@ class REQ20261127235808LeaveDetailAuthzTest {
         // fail-closed 收口（事实 1：异常→false）→ UseCase 统一查无口径（AC-4：UNKNOWN 不放行）
         LeaveAuthorizationGateway realGateway = new LeaveAuthorizationGateway(authorizationClient);
         useCase = new LeaveRequestUseCase(repository, workflowRuntimeClient, launcher,
-                new IdGeneratorStub(), realGateway);
+                new IdGeneratorStub(), realGateway,
+                mock(com.acme.business.leave.infrastructure.repository.LeaveStartTaskRepository.class));
         when(repository.findByIdAndUserId(42L, CURRENT_USER)).thenReturn(Optional.empty());
         when(repository.findById(42L)).thenReturn(Optional.of(foreignLeave(42L, LeaveStatus.FILED)));
         when(authorizationClient.hasPermission(anyString()))
