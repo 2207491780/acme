@@ -12,6 +12,15 @@ const preloadPath = resolve(here, '../preload/index.cjs');
 const distRoot = resolve(here, '../../../web/dist');
 const devServerUrl = process.env.WEB_DEV_SERVER_URL || '';
 
+/** URL origin 提取（P3-05）：畸形 URL 返回 null（调用方按拒绝处理）。 */
+function safeOrigin(u) {
+  try {
+    return new URL(u).origin;
+  } catch {
+    return null;
+  }
+}
+
 // REQ-20261114-120111：更新与托盘配置（dev 未打包自动禁用自动检查，AC-5）。
 const updateConfig = parseUpdateConfig({ env: process.env, isPackaged: app.isPackaged });
 const closeAction = resolveCloseAction(process.env.ACME_DESKTOP_CLOSE_TO_TRAY);
@@ -48,8 +57,10 @@ function createWindow() {
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     // 精确匹配 origin：startsWith('acme://app') 会放行 acme://apple 等同前缀的不同 origin。
+    // dev 分支同样按 origin 相等判定（P3-05）：devServerUrl 前缀匹配可被
+    // http://localhost:5173.evil.com 这类同前缀异源绕过；畸形 URL 一律拒绝。
     const allowed = devServerUrl
-      ? url.startsWith(devServerUrl)
+      ? safeOrigin(url) !== null && safeOrigin(url) === safeOrigin(devServerUrl)
       : url === APP_ORIGIN || url.startsWith(`${APP_ORIGIN}/`);
     if (!allowed) {
       event.preventDefault();

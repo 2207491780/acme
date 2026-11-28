@@ -44,8 +44,7 @@ public class TenantInitTemplateUseCase {
      * configEntries.configKey 合法词汇（sys_config 可写列的 camelCase 键，与 AdminSystemConfigUpdate
      * 字段同词汇——固定列 schema 决定未知键无处可写，保存即拒）。
      */
-    static final Set<String> KNOWN_CONFIG_KEYS = Set.of("watermarkEnabled", "captchaEnabled",
-            "lockIdleTimeoutMs", "footerCopyright", "footerVisible", "watermarkTemplate");
+    static final Set<String> KNOWN_CONFIG_KEYS = TenantConfigKeys.KNOWN;
 
     /** 模板管理员用户名前缀上限（合成余量：前缀 ≤32 + 租户编码 ≤64 需 ≤ sys_user.username 64，V1 口径）。 */
     static final int USERNAME_PREFIX_MAX_LENGTH = 32;
@@ -178,15 +177,17 @@ public class TenantInitTemplateUseCase {
         return content;
     }
 
-    /** 布尔/整型配置值可解析性校验（lockIdleTimeoutMs 复用系统配置取值集；字符串键放行任意值）。 */
+    /** 布尔/整型配置值可解析性校验（P2-03：键→校验类型随 {@link TenantConfigKeys#VALUE_TYPES}
+     *  单一登记分发；lockIdleTimeoutMs 复用系统配置取值集；FREE_TEXT 字符串键放行任意值）。 */
     private void validateConfigValue(String configKey, String value) {
-        switch (configKey) {
-            case "watermarkEnabled", "captchaEnabled", "footerVisible" -> {
+        TenantConfigKeys.ValueType type = TenantConfigKeys.VALUE_TYPES.get(configKey);
+        switch (type) {
+            case BOOLEAN -> {
                 if (!isBooleanLiteral(value)) {
                     throw new BizException(SystemError.TENANT_TEMPLATE_CONTENT_INVALID);
                 }
             }
-            case "lockIdleTimeoutMs" -> {
+            case LOCK_IDLE_TIMEOUT -> {
                 Integer parsed;
                 try {
                     parsed = value == null ? null : Integer.valueOf(value.trim());
@@ -197,7 +198,7 @@ public class TenantInitTemplateUseCase {
                     throw new BizException(SystemError.TENANT_TEMPLATE_CONTENT_INVALID);
                 }
             }
-            default -> {
+            case FREE_TEXT -> {
                 // footerCopyright / watermarkTemplate：字符串键，任意值（null=清除）放行
             }
         }

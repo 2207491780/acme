@@ -97,15 +97,27 @@ export function LoginScreen() {
     };
   }, [mode, tenantCode]);
 
-  // 策略开 → 请求图形验证码；策略关/未定 → 不请求（契约确认记录②：仅 captcha-policy 开启时渲染）
+  // 策略开 → 请求图形验证码；策略关/未定 → 不请求（契约确认记录②：仅 captcha-policy 开启时渲染）。
+  // active 守卫（P3-06，对齐上方 captcha-policy effect 先例）：租户/模式切换后旧响应不得覆盖新验证码态
   useEffect(() => {
     if (mode === 'employee' && captchaPolicyOn) {
+      let active = true;
       authApi.adminCaptcha()
-        .then((data) => setAdminCaptcha(data))
-        .catch(() => setAdminCaptcha(null));
-    } else {
-      setAdminCaptcha(null);
+        .then((data) => {
+          if (active) {
+            setAdminCaptcha(data);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setAdminCaptcha(null);
+          }
+        });
+      return () => {
+        active = false;
+      };
     }
+    setAdminCaptcha(null);
   }, [mode, captchaPolicyOn]);
 
   const sendCaptcha = () => {

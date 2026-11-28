@@ -1,3 +1,4 @@
+import { DEFAULT_API_TIMEOUT_MS } from '@acme/core';
 import { API_BASE } from './config';
 import { useAuthStore } from '../store/authStore';
 
@@ -63,12 +64,35 @@ function refreshOnce(): Promise<boolean> {
   return refreshing;
 }
 
+/** 单次请求超时护栏（P3-02，对齐 core guardedFetch 口径：缺省 15s 可覆盖、0=关闭；
+ *  超时抛 ApiError(0,'REQUEST_TIMEOUT')，其余异常原样上抛交调用面归因网络不可达）。
+ *  mobile 无外部 signal 面（组件取消场景未建模），护栏 abort 即唯一 abort 源。 */
+async function guardedFetch(url: string, init: RequestInit, timeoutMs: number | undefined): Promise<Response> {
+  const effective = timeoutMs === 0 ? null : (timeoutMs ?? DEFAULT_API_TIMEOUT_MS);
+  if (effective === null) {
+    return fetch(url, init);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), effective);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      const seconds = Math.round(effective / 1000);
+      throw new ApiError(0, 'REQUEST_TIMEOUT', `请求超时（${seconds}s），请稍后重试`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
-  options: { auth?: boolean; retried?: boolean; emptyAsSuccess?: boolean } = {},
+  options: { auth?: boolean; retried?: boolean; emptyAsSuccess?: boolean; timeout?: number } = {},
 ): Promise<T> {
-  const { auth = true, retried = false, emptyAsSuccess = false } = options;
+  const { auth = true, retried = false, emptyAsSuccess = false, timeout } = options;
   const headers = new Headers(init.headers);
   const session = useAuthStore.getState().session;
   if (auth && session) {
@@ -76,8 +100,11 @@ export async function apiFetch<T>(
   }
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...init, headers });
-  } catch {
+    res = await guardedFetch(`${API_BASE}${path}`, { ...init, headers }, timeout);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw err;
+    }
     throw new ApiError(0, 'NETWORK_UNREACHABLE', '网络不可达，请检查网络连接');
   }
   if (res.status === 401 && auth && !retried) {
@@ -103,7 +130,8 @@ export async function apiFetch<T>(
 }
 
 /** JSON 体请求快捷面（apiJson）：Content-Type + JSON.stringify 样板收敛，行为与手写 init 逐字等价；
- *  extraHeaders 供 B 端认证端点合并 bAuthHeaders（展开序在 Content-Type 之后，可覆盖语义不变）。 */
+ *  extraHeaders 供 B 端认证端点合并 bAuthHeaders（展开序在 Content-Type 之后，可覆盖语义不变）；
+ *  timeout 透传 apiFetch 超时护栏（P3-02）。 */
 export function apiJson<T>(
   path: string,
   method: 'POST' | 'PUT' | 'PATCH',
@@ -113,9 +141,10 @@ export function apiJson<T>(
     retried?: boolean;
     emptyAsSuccess?: boolean;
     extraHeaders?: Record<string, string>;
+    timeout?: number;
   } = {},
 ): Promise<T> {
-  const { auth = true, retried = false, emptyAsSuccess = false, extraHeaders } = options;
+  const { auth = true, retried = false, emptyAsSuccess = false, extraHeaders, timeout } = options;
   return apiFetch<T>(
     path,
     {
@@ -123,7 +152,7 @@ export function apiJson<T>(
       headers: { 'Content-Type': 'application/json', ...extraHeaders },
       body: JSON.stringify(payload),
     },
-    { auth, retried, emptyAsSuccess },
+    { auth, retried, emptyAsSuccess, timeout },
   );
 }
 

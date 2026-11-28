@@ -17,7 +17,7 @@
 | ✅ DO | Mobile 用 `mobile/src/theme.ts` 的 `palette / TONE_COLOR / ...`（均已派生自 core）。 |
 | ✅ DO | 改任何令牌后跑 `pnpm -r test && pnpm ui:guide`，并在校验页核对 Web/Mobile 两栏。 |
 | ❌ DON'T | 在组件、CSS、StyleSheet 里**硬编码**已存在的令牌色值/尺寸（如 `#5aa7a0`、`16`）。 |
-| ❌ DON'T | 为单端引入新的颜色体系或第二套强调色；六色强调是全局唯一可选集。 |
+| ❌ DON'T | 为单端引入新的颜色体系或第二套强调色；12 色强调（REQ-20261121-010725）是全局唯一可选集。 |
 | ❌ DON'T | 把语义 hex 直接塞进 AntD `Tag color`（会破坏暗色算法）；用 `TONE_ANTD` 等预设名。 |
 | ❌ DON'T | 在 Mobile 引入未登记依赖来实现渐变/图标；当前 Mobile 用纯 `View` 绘制，无渐变。 |
 | ❌ DON'T | 重新引入高饱和霓虹色、光晕（glow）、彩虹多色渐变或背景漂移动画；视觉须保持低饱和克制。 |
@@ -60,7 +60,7 @@ const accent = ACCENTS[settings.accent]; // 或 useAccent() hook
 
 ## 2. 令牌参考
 
-### 2.1 强调色（唯一可选集，顺序即 UI 顺序）
+### 2.1 强调色（唯一可选集，顺序即 UI 顺序；REQ-20261121-010725 起为 12 色，P2-23 对齐 theme.ts 现状）
 
 | Accent | hex | on-accent（实心填充上的前景） | 渐变 secondary | 渐变 tertiary |
 |---|---|---|---|---|
@@ -70,8 +70,18 @@ const accent = ACCENTS[settings.accent]; // 或 useAccent() hook
 | `magenta` | `#bd7ba0` | `#000000` | `#cfa14f` | `#6f92c4` |
 | `amber` | `#cfa14f` | `#000000` | `#9db56a` | `#5aa7a0` |
 | `acid` | `#9db56a` | `#000000` | `#6fa287` | `#6f92c4` |
+| `emerald` | `#58aa82` | `#000000` | `#9db56a` | `#5aa7a0` |
+| `sky` | `#6aa8cf` | `#000000` | `#6f92c4` | `#5aa7a0` |
+| `coral` | `#cd7a63` | `#000000` | `#c56d6d` | `#cfa14f` |
+| `ruby` | `#c56d6d` | `#000000` | `#cd7a63` | `#bd7ba0` |
+| `bronze` | `#b08968` | `#000000` | `#cfa14f` | `#cd7a63` |
+| `slate` | `#8a9bb0` | `#000000` | `#6f92c4` | `#6aa8cf` |
 
-> 强调色均为去饱和中间明度，`ON_ACCENT` 统一为纯黑 `#000000`：Web 暗色算法会把主色压暗，纯黑前景保证六色在暗/亮两态均 ≥ 4.5:1（最暗的 blue 暗色约 5.1:1）。
+> 十二色均为去饱和中间明度，`ON_ACCENT` 统一为纯黑 `#000000`：Web 暗色算法会把主色压暗，
+> 纯黑前景保证各色在暗/亮两态均 ≥ 4.5:1（最暗的 blue 暗色约 5.1:1）。本表为事实源
+> `packages/core/src/theme.ts`（`ACCENTS`/`ON_ACCENT`/`ACCENT_COMPANIONS`）的镜像——色值冲突时以
+> theme.ts 为准改本文件；渐变伴随色六色扩容期沿用「从现有 accent 交叉取色」惯例
+> （REQ-20261121-010725）。
 
 扩展品牌色（不可选，仅图标/点缀）：`teal #6fa287`、`red #c47b7b`、`slate #8b929e`（`BRAND_HUES`）。
 
@@ -186,7 +196,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 
 ### Button
 - **Web**：AntD `Button`，`type="primary"` 用主色，文字经 `colorTextLightSolid = ON_ACCENT[accent]` 取纯黑（勿用默认白字；暗色算法压暗主色后仍 ≥4.5:1）；危险操作用 `danger`（描边态，文字 `TONES.danger`）；尺寸随 density。
-- **Mobile**：`ui.tsx Button`，`variant: primary|ghost|danger`；primary 实心 accent + 前景 `ON_ACCENT`（纯黑 `#000000`，六色统一）；圆角 12（small 10）；padding 16×11（small 12×7）；字号 14/700（small 12）；pressed `opacity 0.65`。
+- **Mobile**：`ui.tsx Button`，`variant: primary|ghost|danger`；primary 实心 accent + 前景 `ON_ACCENT`（纯黑 `#000000`，12 色统一）；圆角 12（small 10）；padding 16×11（small 12×7）；字号 14/700（small 12）；pressed `opacity 0.65`。
 - **共享**：primary 文字用 `ON_ACCENT`（深色）保证对比 ≥4.5:1；危险色 = `TONES.danger`。
 
 ### Tag / 标签
@@ -270,7 +280,7 @@ Platform 文案：`platformShort` → Web/Electron/Mobile；`platformLabel` → 
 3. Mobile 改样式：用 `palette`/`TONES`/`SPACING`/`RADII`，纯 `View` 绘制，不引未登记依赖。
 4. 语义标签：Web 用 `*_ANTD`，Mobile 用 `*_COLORS`/`TONES`。
 5. 跑 `pnpm -r typecheck && pnpm -r test`；改令牌再跑 `pnpm ui:guide`。
-6. 打开 `ui-spec/style-guide.html`，切换 6 强调色 × 暗/亮 × 两密度，核对 Web/Mobile 两栏一致、无 console 错误。
+6. 打开 `ui-spec/style-guide.html`，切换 12 强调色 × 暗/亮 × 两密度，核对 Web/Mobile 两栏一致、无 console 错误。
 7. 浏览器/设备验证基座主流程（概览数据 → 应用结构 → 设置与主题偏好）后再交付。
 
 ## 9. 验证锚点

@@ -26,6 +26,29 @@ export class ApiError extends Error {
 /** apiFetch 缺省超时毫秒数（REQ-20261114-120103 裁决②：15s，可按调用经 options.timeoutMs 覆盖）。 */
 export const DEFAULT_API_TIMEOUT_MS = 15_000;
 
+/** 登录跳转处理器（P3-04 平台适配 seam）：core 为框架无关层，宿主可注册平台化跳转
+ *  （如 RN Navigation 重置栈）；未注册时回退 hash 路由缺省口径。null=撤销注册。 */
+type LoginRedirectHandler = () => void;
+let loginRedirectHandler: LoginRedirectHandler | null = null;
+export function setLoginRedirectHandler(handler: LoginRedirectHandler | null): void {
+  loginRedirectHandler = handler;
+}
+
+/** 续约失败跳转登录页（P3-04）：优先宿主注册的平台适配；无 window 宿主（RN/SSR）静默跳过，
+ *  不再裸引用 window.location（框架无关层的宿主假设缺陷）；有 window 回退 hash 缺省口径。 */
+function redirectToLogin(): void {
+  if (loginRedirectHandler) {
+    loginRedirectHandler();
+    return;
+  }
+  if (typeof window === 'undefined') {
+    return;
+  }
+  if (window.location.hash !== '#/login') {
+    window.location.hash = '#/login';
+  }
+}
+
 /** apiFetch 请求 init（REQ-20261114-120103 扩展：signal=标准 RequestInit 面；timeout=毫秒覆盖键）。 */
 export type ApiFetchInit = RequestInit & {
   /** 单次尝试超时毫秒数（缺省 15s；0 = 关闭超时）；亦可经 options.timeout 声明（options 优先）。 */
@@ -202,9 +225,7 @@ async function request<T>(
       return request<T>(path, init, { auth, retried: true, emptyAsSuccess, timeout });
     }
     useAuthStore.getState().clear();
-    if (window.location.hash !== '#/login') {
-      window.location.hash = '#/login';
-    }
+    redirectToLogin();
     throw new ApiError(401, 'AUTH_REQUIRED', '登录状态已失效，请重新登录');
   }
   const envelope = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
@@ -322,9 +343,7 @@ export async function apiFetchRaw(
       return apiFetchRaw(path, init, { auth, retried: true });
     }
     useAuthStore.getState().clear();
-    if (window.location.hash !== '#/login') {
-      window.location.hash = '#/login';
-    }
+    redirectToLogin();
     throw new ApiError(401, 'AUTH_REQUIRED', '登录状态已失效，请重新登录');
   }
   return res;

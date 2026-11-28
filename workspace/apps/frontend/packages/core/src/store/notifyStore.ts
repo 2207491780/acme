@@ -13,9 +13,11 @@ import type { NotifyMessageNewFrame } from '../api/notify';
  */
 interface NotifyStore {
   unreadCount: number;
+  /** 已见 messageId 集（P3-03 去重：WS 重连重放/重复帧不虚增徽标；store 生命周期内存续存）。 */
+  seenMessageIds: Set<string>;
   /** 兜底拉取未读数（GET unread-count，data=裸数字）；失败保留现值不覆盖。 */
   refreshUnread: () => Promise<void>;
-  /** WS message:new 帧到达：未读数实时 +1。 */
+  /** WS message:new 帧到达：按 messageId 去重后未读数 +1（重复帧忽略）。 */
   applyMessageNew: (frame: NotifyMessageNewFrame) => void;
   /** 单条已读：PUT read 成功后本地递减（下限 0）；失败抛给调用方处理。 */
   markRead: (messageId: string) => Promise<void>;
@@ -25,6 +27,7 @@ interface NotifyStore {
 
 export const useNotifyStore = create<NotifyStore>()((set, get) => ({
   unreadCount: 0,
+  seenMessageIds: new Set<string>(),
   refreshUnread: async () => {
     try {
       const data = await notifyApi.messageUnreadCount();
@@ -37,9 +40,15 @@ export const useNotifyStore = create<NotifyStore>()((set, get) => ({
       // 兜底拉取失败不打断页面：保留现值（WS 实时链路/下次挂载仍可收敛）
     }
   },
-  applyMessageNew: (_frame) => {
-    // 帧（messageId/title）当前仅承载未读 +1 语义；后续按 messageId 去重等在此扩展
-    set({ unreadCount: get().unreadCount + 1 });
+  applyMessageNew: (frame) => {
+    // P3-03：按 messageId 去重——WS 重连重放/服务端重复帧只计一次，防徽标虚增；
+    // 空 messageId（契约不允许，防御）不计数不登记
+    if (!frame.messageId || get().seenMessageIds.has(frame.messageId)) {
+      return;
+    }
+    const seenMessageIds = new Set(get().seenMessageIds);
+    seenMessageIds.add(frame.messageId);
+    set({ seenMessageIds, unreadCount: get().unreadCount + 1 });
   },
   markRead: async (messageId) => {
     await notifyApi.messageRead(messageId);

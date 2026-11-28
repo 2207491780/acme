@@ -36,12 +36,22 @@ export function QrConfirmScreen() {
   const [info, setInfo] = useState<QrTicketInfoView | null>(null);
   const [infoError, setInfoError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // 相机会连续回调同一帧：一票只处理一次，避免重复 info 请求
+  // 相机会连续回调同一帧：进 loadInfo 即置位（P3-07）——一票一次处理，失败也不被连发帧打穿；
+  // 失败经节流窗口（2s）解锁允许重扫，成功保持锁定（已处理票不再发起 info 请求）
   const handledRef = useRef(false);
+  const failThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const styles = useMemo(() => stylesFor(palette), [palette]);
 
   const failInfo = useCallback((ex: unknown) => {
     setInfoError(ex instanceof ApiError ? ex.message : t('login.mobile.qrInfoFailed'));
+    if (failThrottleRef.current !== null) {
+      clearTimeout(failThrottleRef.current);
+    }
+    // 失败节流：2s 内忽略后续扫码帧，窗口过后解锁允许重扫（防连续帧重复发起 qrInfo）
+    failThrottleRef.current = setTimeout(() => {
+      handledRef.current = false;
+      failThrottleRef.current = null;
+    }, 2_000);
   }, [t]);
 
   const loadInfo = useCallback((id: string) => {
@@ -50,10 +60,10 @@ export function QrConfirmScreen() {
       setInfoError(t('login.mobile.qrPayloadInvalid'));
       return;
     }
+    handledRef.current = true;
     setInfoError(null);
     authApi.qrInfo(tid)
       .then((view) => {
-        handledRef.current = true;
         setInfo(view);
       })
       .catch(failInfo);

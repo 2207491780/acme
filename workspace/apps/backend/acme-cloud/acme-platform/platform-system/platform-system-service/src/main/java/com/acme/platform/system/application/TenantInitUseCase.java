@@ -369,17 +369,18 @@ public class TenantInitUseCase {
         configRepository.save(config);
     }
 
-    /** 配置项覆盖（保存时已校验可解析性；改库致解析失效兜底跳过 + WARN，不阻断开通）。 */
+    /** 配置项覆盖（保存时已校验可解析性；改库致解析失效兜底跳过 + WARN，不阻断开通）。
+     *  键词汇引用 {@link TenantConfigKeys} 常量（P2-03 单一登记，与模板校验同源）。 */
     private void applyConfigEntry(SysConfig config, String configKey, String value) {
         try {
             switch (configKey) {
-                case "watermarkEnabled" -> config.setWatermarkEnabled(Boolean.parseBoolean(value));
-                case "captchaEnabled" -> config.setCaptchaEnabled(Boolean.parseBoolean(value));
-                case "lockIdleTimeoutMs" -> config.setLockIdleTimeoutMs(
+                case TenantConfigKeys.WATERMARK_ENABLED -> config.setWatermarkEnabled(Boolean.parseBoolean(value));
+                case TenantConfigKeys.CAPTCHA_ENABLED -> config.setCaptchaEnabled(Boolean.parseBoolean(value));
+                case TenantConfigKeys.LOCK_IDLE_TIMEOUT_MS -> config.setLockIdleTimeoutMs(
                         value == null ? 0 : Integer.valueOf(value.trim()));
-                case "footerCopyright" -> config.setFooterCopyright(value);
-                case "footerVisible" -> config.setFooterVisible(Boolean.parseBoolean(value));
-                case "watermarkTemplate" -> config.setWatermarkTemplate(value);
+                case TenantConfigKeys.FOOTER_COPYRIGHT -> config.setFooterCopyright(value);
+                case TenantConfigKeys.FOOTER_VISIBLE -> config.setFooterVisible(Boolean.parseBoolean(value));
+                case TenantConfigKeys.WATERMARK_TEMPLATE -> config.setWatermarkTemplate(value);
                 default -> log.warn("开通模板未知配置键，跳过写入：configKey={}", configKey);
             }
         } catch (RuntimeException ex) {
