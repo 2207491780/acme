@@ -111,11 +111,30 @@ mv "$TMP/overlay/kustomization.yaml.tmp" "$TMP/overlay/kustomization.yaml"
   done
 } >> "$TMP/overlay/kustomization.yaml"
 
-# 4) 应用清单（先等中间件就绪，再种子 Nacos 配置中心——首部署 nacos 需拉镜像+冷启动，
-#    种子过早会失败；服务 spring.config.import 依赖 data-id）
-kubectl apply -k "$TMP/overlay"
+# 4) 渲染产物两阶段拆分（P2-05，2026-11-28）：kubectl kustomize 渲染全集后按资源名拆
+#    中间件/服务两份——服务侧 spring.config.import: nacos:* 为 fail-fast，data-id 缺失时
+#    Deployment 起即 CrashLoopBackOff（旧顺序 apply 先于 seed，曾吃掉 1800s rollout 窗口）。
+#    新顺序：中间件 apply → 就绪等待 → seed Nacos → 服务 apply → rollout 等待。
+#    ⚠️ 回滚守卫：Nacos data-id 只增改、禁删除——回滚 = rollout undo 镜像版本；任何删除
+#    data-id / 清空 namespace 的操作都会让依赖该配置的服务无法启动（seed 脚本幂等重推）。
+kubectl kustomize "$TMP/overlay" > "$TMP/rendered.yaml"
+awk -v mwyaml="$TMP/mw.yaml" -v svcyaml="$TMP/svc.yaml" '
+  BEGIN { buf = ""; ismw = 0 }
+  $0 == "---" {
+    if (buf != "") print buf > (ismw ? mwyaml : svcyaml)
+    buf = ""; ismw = 0
+    next
+  }
+  $0 ~ /^  name: (postgres|redis|nacos|minio|kafka)(-[a-z0-9-]+)?$/ { ismw = 1 }
+  { buf = (buf == "" ? $0 : buf "\n" $0) }
+  END { if (buf != "") print buf > (ismw ? mwyaml : svcyaml) }
+' "$TMP/rendered.yaml"
 
-# 5) 等待中间件就绪（失败非零退出，阻断流水线）
+# 5) 中间件清单先行 apply（P2-05 两阶段之一：postgres/redis/nacos/minio/kafka 及其
+#    Service/ConfigMap，prod overlay 的 nodeSelector 钉面随渲染保留）
+kubectl apply -f "$TMP/mw.yaml"
+
+# 6) 等待中间件就绪（失败非零退出，阻断流水线）
 for sts in postgres redis nacos; do
   kubectl -n "$NS" rollout status "statefulset/$sts" --timeout=300s
 done
@@ -127,8 +146,13 @@ else
   echo "ℹ️ minio 未部署（REQ-20261117-045754 交付未启用），跳过 rollout 等待"
 fi
 
-# 6) 种子 Nacos（中间件就绪后执行）
+# 7) 种子 Nacos（中间件就绪后、服务清单 apply 前——P2-05 两阶段之二；脚本两态兼容鉴权开闭）
 sh "$ENVSTACK/scripts/seed-nacos.sh" "$ENV"
+
+# 8) 服务清单 apply（网关/五服务/web/ingress + acme-app-config）
+kubectl apply -f "$TMP/svc.yaml"
+
+# 9) 服务 rollout 等待
 for dep in acme-gateway platform-auth platform-infra platform-system platform-scheduler platform-workflow acme-web; do
   # 首次部署需从 TCR 公网拉取镜像（跨账号轻量机走公网路径，带宽受限）——等待上限 1800s；
   # 镜像已在节点缓存的重部署会提前秒级完成，无副作用
@@ -137,7 +161,7 @@ done
 
 echo "✅ $NS 部署完成（服务：$SERVICES）"
 
-# 6) 中间件端点文件（数据面留存 → local-deploy.sh 同步应用面机，dev-tunnel v2 以 ClusterIP 建转发；
+# 10) 中间件端点文件（数据面留存 → local-deploy.sh 同步应用面机，dev-tunnel v2 以 ClusterIP 建转发；
 #    ClusterIP 随 Service 重建才变化，deploy 每次重写保证新鲜）
 ENDPOINTS_FILE="/opt/acme/$ENV/mw-endpoints.env"
 kubectl -n "$NS" get svc postgres redis nacos \

@@ -123,11 +123,33 @@ TLS(443)：证书配置为后续可选项。
 - **看状态**：`sh scripts/status.sh prod`（数据面执行；Pod/镜像版本/资源/探活一屏总览）
 - **看日志**：`k3s kubectl -n acme-prod logs -f deploy/platform-system`（中间件在数据面、服务在应用面）
 - **回滚**：本机 `ACME_ART_DIR=.ai-tmp/build/<历史tag目录> sh scripts/local-deploy.sh`（产物 tar 复用，
-  不需重新构建），或数据面 `kubectl rollout undo`
+  不需重新构建），或数据面 `kubectl rollout undo`。
+  ⚠️ **回滚守卫（REQ-20261127-161433 P2-05）**：Nacos data-id **只增改、禁删除**——回滚仅回退
+  镜像版本；任何删除 data-id / 清空 namespace 的操作都会让依赖 `spring.config.import` 的服务无法
+  启动（服务侧 fail-fast）。data-id 内容回退 = 用 seed 脚本同型 API 推送历史内容，不要 delete。
 - **释放内存**：`kubectl -n acme-prod scale deployment --all --replicas=0`（中间件 StatefulSet 不缩）
-- **dev namespace 播种**：数据面 `sh scripts/seed-nacos.sh dev`（首搭手动一次；prod 由 deploy 自动）
+- **dev namespace 播种**：数据面 `sh scripts/seed-nacos.sh dev`（首搭手动一次；prod 由 deploy 自动；
+  脚本两态兼容——鉴权开启态自动登领取 accessToken）
 - **Redis 排障**：云端 Redis 无默认用户——`redis-cli --user acme_prod -a "$REDIS_PASSWORD"`；
   dev 凭证连 DB1（`-n 1` / 连接串 database=1）
+- **网关撤销检查 FAIL_CLOSE（REQ-20261127-161433 P2-08）**：prod 经 acme-app-config 注入
+  `ACME_GATEWAY_REVOCATION_ON_ERROR=FAIL_CLOSE`——Redis 故障期撤销检查不可达时全端 403。
+  回滚前提：**仅在 Redis 可用性已恢复**且决定放弃即时失效时切回 FAIL_OPEN（改 prod overlay
+  literal → 重渲染重发；Redis 故障期间禁止切换，FAIL_OPEN 会放大为已撤销令牌放行）。
+- **Nacos 鉴权开启（REQ-20261127-161433 P2-10，可选；默认关闭零影响）**：三步——
+  ① `/opt/acme/prod/app.env` 追加四键（`NACOS_AUTH_ENABLE=true` / `NACOS_AUTH_TOKEN`（
+  `openssl rand -base64 32`）/ `NACOS_AUTH_IDENTITY_KEY` / `NACOS_AUTH_IDENTITY_VALUE`）；
+  ② 用 console API 把管理用户（nacos）口令改为 app.env 的 `NACOS_PASSWORD`
+  （`curl -X PUT 'http://127.0.0.1:18848/nacos/v1/auth/users?username=nacos' -d "newPassword=..." -d "accessToken=<旧口令 nacos 登录所得>"`，
+  鉴权开启前旧口令即默认值可直接登录）；
+  ③ `kubectl -n acme-prod rollout restart statefulset/nacos`（Secret 更新不触发自动重启），
+  就绪后 `sh scripts/seed-nacos.sh prod` 复播（脚本自动登领取 token）。回滚 = app.env 删四键 +
+  再次 restart（回到关闭态；data-id 不动）。
+- **V34 灰度回滚数据预案（REQ-20261127-161433 P2-07；V34 = username+tenant 唯一约束）**：
+  灰度期约束——**禁止插入跨租户同名 username 的数据**（含种子/演示/压测脚本），否则唯一约束
+  回滚（降级到 V33 形态）后同名冲突行无法回退。若已产生跨租户同名存量：回滚前先执行数据清理
+  （`SELECT username, count(*) FROM sys_user WHERE deleted=false GROUP BY username HAVING count(*)>1`
+  核对 → 合并或改名冗余行 → 再执行降级），清理脚本须先在隔离库演练。V34 迁移本体只前向不改。
 
 ## 9. 本地联调云端中间件（dev-tunnel v2）
 

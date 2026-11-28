@@ -34,6 +34,11 @@ configMapGenerator:
       - REDIS_DB=0
       - NACOS_NAMESPACE=prod
       - ACME_ENV_ID=prod
+      # REQ-20261127-161433 P2-08（2026-11-28）：prod 网关撤销检查 FAIL_CLOSE——Redis 抖动期
+      # 已撤销令牌继续可用不可接受（base/本地缺省仍 FAIL_OPEN 可用性优先）。回滚前提：
+      # FAIL_CLOSE 把 Redis 故障放大为全端 403，仅在 Redis 可用性恢复且放弃即时失效（切回
+      # FAIL_OPEN）时回滚——操作与前提见 RUNBOOK §8。
+      - ACME_GATEWAY_REVOCATION_ON_ERROR=FAIL_CLOSE
 patches:
   - path: ingress-host.yaml
     target:

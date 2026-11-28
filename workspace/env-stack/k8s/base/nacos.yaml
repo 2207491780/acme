@@ -1,7 +1,8 @@
 # Nacos —— 注册中心 + 配置中心，standalone（内嵌 derby），JVM 降配适配 4G 单机
 # 注意：2.x 客户端走 gRPC 9848（= 8848 + 1000），Service 必须同时暴露。
-# 单套实例承载 prod/dev 两 namespace（2026-11-18-02，seed-nacos.sh 建 namespace 并播种）；鉴权关闭
-# ——社区版 namespace 级 RBAC 不强制，残余风险靠 seed 防呆 + 运维纪律兜底（ADR 2026-11-18-02）。
+# 单套实例承载 prod/dev 两 namespace（2026-11-18-02，seed-nacos.sh 建 namespace 并播种）；
+# 鉴权默认关闭（社区版 namespace 级 RBAC 不强制，残余风险靠 seed 防呆 + 运维纪律兜底，
+# ADR 2026-11-18-02）——P2-10 起可经 app.env 四键可选开启（见容器 env 注释与 RUNBOOK §8）。
 apiVersion: v1
 kind: Service
 metadata:
@@ -42,8 +43,36 @@ spec:
           env:
             - name: MODE
               value: standalone
+            # REQ-20261127-161433 P2-10（2026-11-28）：鉴权改经 app.env 可选开启——四键齐备
+            # （NACOS_AUTH_ENABLE=true + NACOS_AUTH_TOKEN + NACOS_AUTH_IDENTITY_KEY/VALUE）
+            # 即开启；键缺省（optional=true）= 维持关闭态，存量部署零影响。
+            # 开启前置与三步操作（改管理口令→restart→复播）见 RUNBOOK §8「Nacos 鉴权开启」；
+            # seed-nacos.sh 已两态兼容（开启态自动登领取 accessToken）。注意：改 app.env 后
+            # Secret 更新不会自动重启本 StatefulSet，须 rollout restart statefulset/nacos。
             - name: NACOS_AUTH_ENABLE
-              value: "false"
+              valueFrom:
+                secretKeyRef:
+                  name: acme-app-secrets
+                  key: NACOS_AUTH_ENABLE
+                  optional: true
+            - name: NACOS_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: acme-app-secrets
+                  key: NACOS_AUTH_TOKEN
+                  optional: true
+            - name: NACOS_AUTH_IDENTITY_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: acme-app-secrets
+                  key: NACOS_AUTH_IDENTITY_KEY
+                  optional: true
+            - name: NACOS_AUTH_IDENTITY_VALUE
+              valueFrom:
+                secretKeyRef:
+                  name: acme-app-secrets
+                  key: NACOS_AUTH_IDENTITY_VALUE
+                  optional: true
             - name: JVM_XMS
               value: 256m
             - name: JVM_XMX

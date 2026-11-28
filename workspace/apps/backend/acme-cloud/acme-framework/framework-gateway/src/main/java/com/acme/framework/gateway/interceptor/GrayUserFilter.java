@@ -23,6 +23,12 @@ import java.security.NoSuchAlgorithmException;
  * 由既有 SCG 路由谓词（Header 断言）消费（8.6）；未命中与未认证请求不注入。
  * 无论命中与否均先移除客户端伪造的同名入站头（与 8.3 剥离伪造身份头同口径），标记头仅网关可写。
  * 规则读 {@link GatewayProperties.Gray}（逐请求读取，Nacos 配置重绑定后即时生效，确认记录③）。
+ *
+ * <p>⚠️ <b>experimental（REQ-20261127-161433 P2-09、决策⑤ 2026-11-28）</b>：当前全部部署形态
+ * 均为单 Deployment + Path 谓词路由，不存在 Header 断言消费者——本过滤器注入的标记头
+ * <b>现无下游语义（能力未生效）</b>。保留实现仅供未来真灰度专项（灰度池双 Deployment +
+ * Header 谓词 + 回退路径，另立需求）启用前验证；在那之前请勿据本头做任何路由/行为假设。
+ * </p>
  */
 public final class GrayUserFilter implements GlobalFilter, Ordered {
 

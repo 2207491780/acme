@@ -33,9 +33,28 @@ while [ "$i" -le 60 ]; do
   sleep 5
 done
 
-# 防呆：确认目标 namespace 已存在（列表接口含 customNamespaceId），缺失则创建（幂等先查后建）
-if ! curl -sf "http://127.0.0.1:18848/nacos/v1/console/namespaces" | grep -q "\"customNamespaceId\":\"$ENV\""; then
-  curl -sf -X POST "http://127.0.0.1:18848/nacos/v1/console/namespaces" \
+# 防呆：确认目标 namespace 已存在（列表接口含 customNamespaceId），缺失则创建（幂等先查后建）。
+# P2-10（2026-11-28）鉴权两态兼容：先无 token 探测 namespaces 接口——可达 = 关闭态（存量集群
+# 未升级）免 token 直推；401/403 = 开启态（app.env 四键齐备），必须以 nacos/<NACOS_PASSWORD>
+# 登录换取 accessToken 后携带推送。健康探针端点为 Nacos 鉴权豁免面，就绪等待不受影响。
+NACOS_API="http://127.0.0.1:18848"
+TOKEN_Q=""
+if curl -sf -o /dev/null "$NACOS_API/nacos/v1/console/namespaces"; then
+  echo "ℹ️ Nacos 鉴权关闭态：免 token 推送"
+else
+  echo "ℹ️ Nacos 鉴权开启态：登录获取 accessToken"
+  [ -n "${NACOS_PASSWORD:-}" ] || { echo "❌ 鉴权开启但环境缺 NACOS_PASSWORD（app.env 注入；本脚本由 deploy.sh 调用时已加载）" >&2; exit 1; }
+  LOGIN=$(curl -sf -X POST "$NACOS_API/nacos/v1/auth/login" \
+      --data-urlencode "username=${NACOS_SEED_USERNAME:-nacos}" \
+      --data-urlencode "password=$NACOS_PASSWORD") \
+    || { echo "❌ Nacos 登录失败——检查管理用户口令是否已改为 app.env NACOS_PASSWORD（RUNBOOK §8 开启三步）" >&2; exit 1; }
+  ACCESS_TOKEN=$(printf '%s' "$LOGIN" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
+  [ -n "$ACCESS_TOKEN" ] || { echo "❌ 登录响应未含 accessToken（Nacos 版本响应形态异常？）" >&2; exit 1; }
+  TOKEN_Q="accessToken=$ACCESS_TOKEN"
+fi
+
+if ! curl -sf "${NACOS_API}/nacos/v1/console/namespaces${TOKEN_Q:+?$TOKEN_Q}" | grep -q "\"customNamespaceId\":\"$ENV\""; then
+  curl -sf -X POST "${NACOS_API}/nacos/v1/console/namespaces${TOKEN_Q:+?$TOKEN_Q}" \
     --data-urlencode "customNamespaceId=$ENV" \
     --data-urlencode "namespaceName=$ENV" \
     --data-urlencode "description=ACME $ENV 环境（单套中间件逻辑隔离）" >/dev/null \
@@ -64,7 +83,7 @@ acme:
 $id: {}
 "
   fi
-  curl -sf -X POST "http://127.0.0.1:18848/nacos/v1/cs/configs" \
+  curl -sf -X POST "${NACOS_API}/nacos/v1/cs/configs${TOKEN_Q:+?$TOKEN_Q}" \
     --data-urlencode "dataId=$id.yaml" \
     --data-urlencode "group=DEFAULT_GROUP" \
     --data-urlencode "tenant=$ENV" \

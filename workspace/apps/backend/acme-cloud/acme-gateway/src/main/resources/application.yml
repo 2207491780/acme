@@ -167,8 +167,12 @@ acme:
       hmac-secret: ${ACME_USER_TOKEN_HMAC_SECRET}
       issuer: acme-auth
     revocation:
-      # 撤销检查异常兜底（Q-D02 子项：默认 FAIL_OPEN 可用性优先，可切 FAIL_CLOSE）
-      on-error: FAIL_OPEN
+      # 撤销检查异常兜底（Q-D02 子项）：缺省 FAIL_OPEN 可用性优先（本地/开发形态）；
+      # prod 经 acme-app-config 注入 ACME_GATEWAY_REVOCATION_ON_ERROR=FAIL_CLOSE
+      # （REQ-20261127-161433 P2-08：Redis 抖动期已撤销令牌继续可用不可接受；
+      # 回滚前提与操作见 env-stack/RUNBOOK.md §8——Redis 可用性恢复前 FAIL_CLOSE 会把
+      # 存储故障放大为全端 403，不得在故障期回滚切换）
+      on-error: ${ACME_GATEWAY_REVOCATION_ON_ERROR:FAIL_OPEN}
     ratelimit:
       # 按端限流默认策略显式化（FR-014 / Q-006 裁定 B；framework-gateway 既有默认值，静态可核对 AC-012）
       b:

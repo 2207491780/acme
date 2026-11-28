@@ -40,6 +40,15 @@ env-stack/
 - 中间件两环境隔离：PG 双库（acme_prod/acme_dev + dev 独立用户）、Nacos 双 namespace（seed-nacos.sh
   建 namespace + 播种）、Redis 双 ACL 用户 + DB index（prod=0/dev=1）+ 默认用户关闭——键隔离靠
   DB index、pub/sub 靠 KeyComposer 环境段（`ACME_ENV_ID`），二者互补（ADR 2026-11-18-02）。
+- **Redis ACL 用户规则基线（REQ-20261127-161433 P2-11，2026-11-28）**：隔离面=每环境独立 ACL
+  用户（prod=`acme_prod`/dev=`acme_dev`）+ 独立 DB index（0/1）+ 默认用户关闭。自建 `.dev-stack`
+  形态的命令面模板（ACL SETUSER 口径，按需收敛）：`+ping +auth +select +get +set +del +exists
+  +expire +ttl +incr +decr +mget +mset +scan +hget +hset +hgetall +lpush +rpush +lrange +lpop
+  +rpop +sadd +smembers +zadd +zrange +zscore +publish +subscribe +xadd +xread +xreadgroup +xack
+  +xlen +xrange -@dangerous`（键空间不设 key 前缀限制——跨环境隔离靠 DB index + KeyComposer
+  环境段）。⚠️ Redis 社区 ACL **不具备按用户强制 DB index 的能力**，「DB index 由 ACL 强制」
+  待证⑥=运维侧核验（供应商/proxy 层是否补足）；未证实前 DB index 隔离结论依赖客户端配置纪律
+  （服务侧 `${REDIS_DB}` 注入正确性）。云端 Redis 用户面以供应商控制台为准。
 - 资源纪律：全部工作负载设内存 limit；中间件常驻数据面（不动），五件套常驻应用面。
 - 构建产物、容器卷、下载解压物放根目录 `.ai-tmp/`，不放本目录。
 - 每个脚本入口写清用法注释（`# 用法：…`），AI 与人都能直接执行。
@@ -131,6 +140,19 @@ preparation 返回的 headers 原样携带 Content-Type 头）。
 分布式为默认形态（本目录既有编排：gateway + 三服务 + web + 中间件）。单体为可选打包路径：
 单 JVM 聚合三服务（镜像 `acme/acme-monolith`，端口 9680，无 Nacos/Kafka 运行面），面向本地
 联调 / 小部署。两者共用同一批中间件与 `acme-app-config` / `acme-app-secrets`。
+
+### 形态边界标注（REQ-20261127-161433 P1-09 / P3-12，2026-11-28）
+
+- **leave 仅单体试点**：`/admin/v1/leave/**` **无网关路由**（网关路由白名单未登记，分布式
+  五件套形态下请求到网关即 404；k8s base 亦未部署 business-leave Deployment——实测缺
+  `application.yml` 交付）。前端约束：leave 域消费面（`packages/core/src/api/leave.ts`）与通用
+  `/admin` 面共享 base URL、无独立切换开关——leave 请求**仅在单体形态端点可达**（部署形态
+  选择时须知情）。后续上分布式栈另立专项：补网关路由 + 服务注册 + business-leave
+  `application.yml` 基线缺件一并交付。
+- **单体 SLA 口径**：单体形态内聚 `Local*Client` 进程内直调（无网络跳数），**无熔断/超时/
+  重试语义**——下游阻塞（DB 慢查询、流程引擎长事务）直接占请求线程，不适用分布式形态的
+  熔断降级与超时预算结论。单体定位=本地联调 / 小部署试点；承接真实流量前须另行评估容量
+  与降级面（待证⑦：产品/运维确认口径）。
 
 ### 构建与镜像
 

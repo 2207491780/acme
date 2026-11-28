@@ -94,6 +94,46 @@ patches:
     target:
       kind: Deployment
       name: platform-system
+  # REQ-20261127-161433 P2-06（2026-11-28）：补删 platform-scheduler / platform-workflow 两组
+  # ——单体聚合替代其全部职责；漏删曾致双 tick（scheduler 双实例同轮触发）/双 BPM 引擎/
+  # 双 Flyway 写同一 schema。锁 provider 收敛（遗留清单「单体 @SchedulerLock 失效」同域）
+  # 另立任务，不在本清单范围。
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: platform-scheduler
+      $patch: delete
+    target:
+      kind: Service
+      name: platform-scheduler
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platform-scheduler
+      $patch: delete
+    target:
+      kind: Deployment
+      name: platform-scheduler
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: platform-workflow
+      $patch: delete
+    target:
+      kind: Service
+      name: platform-workflow
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: platform-workflow
+      $patch: delete
+    target:
+      kind: Deployment
+      name: platform-workflow
   # ingress /ws 后端改指单体（9680；原 acme-gateway:9888 在本形态不存在）
   - patch: |-
       - op: replace

@@ -4,6 +4,12 @@ import { apiFetch, apiJson } from '../http/client';
  * 请假域消费面（REQ-20261124-213008 契约⑥⑦）：/admin/v1/leave/** 的类型与调用封装。
  * 无权限点（B 端用户令牌面，认证即可）；遵循 REQ-20261122-233425 确认⑦：
  * 不进菜单、审批面走待办中心；失败沿用统一响应体（Result 信封，由 apiFetch/apiJson 解析）。
+ *
+ * ⚠️ 形态约束（REQ-20261127-161433 P1-09、决策② 2026-11-28）：本域请求与通用 `/admin` 面
+ * 共享 base URL、无独立切换开关——而网关路由白名单**未登记** `/admin/v1/leave/**`，
+ * 分布式五件套形态下这些请求到网关即 404。**仅在单体形态端点可达（单体试点）**；
+ * 上分布式栈另立专项（届时补网关路由 + 服务注册 + business-leave application.yml 基线）。
+ * 部署形态说明见 env-stack/ENV-STACK.md「双形态·形态边界标注」。
  */
 
 /** 请假单状态（契约状态机：APPLYING→APPROVING→FILED→DONE/REJECTED；中文映射经 i18n workflow.leave.status）。 */
