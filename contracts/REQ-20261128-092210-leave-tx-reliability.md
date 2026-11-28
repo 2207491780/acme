@@ -119,7 +119,7 @@ apis:                      # 机器层路径清单（跨需求冲突扫描用）
 
 ## 流程状态（TL 每次行动后更新；这是唯一现场，跨会话据此恢复）
 
-- phase: I-DONE           # I-REQ | I-DONE | II-DEV | III-GATE | III-TEST | III-REVIEW | DONE
+- phase: DONE             # 2026-11-28 主线程收口（用户指令：并发受限，后续工作全主线程完成）：tester 18/18 集成绿但披露①生产级缺陷（UNBOUND_TENANT 哨兵致 @Scheduled 补偿死面）→round-1 主线程修复（IgnoreTenant 门面+逐任务绑定行租户，回归证明=无上下文直驱 12 例）→合并 db93c80（含整批：V2 迁移/事务化/下发权威推进）。tester 披露 2/3/4/5 已录（attempts=失败计数、businessKey=leaveId 数字串、warn 日志面未钉、ShedLock 双 provider 噪声=N-01 同域）
 - round: 0                # 连续修复轮次，满 3 触发升级
 - 门禁台账：
   - （未进入 III-GATE）

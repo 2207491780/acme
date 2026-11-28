@@ -223,8 +223,8 @@
 | P2-02 | B3a | AdminMenuView id/parentId TS 改 string + 根节点语义 | 已修复(B3a/REQ-20261127-234158，64ef965) |
 | P1-07 | B3b | 错误码全码统一 + i18n/页面分支/MSW + 全码快照测试（决策①已定：全码） | 已修复(B3b 8a51fae) |
 | P2-16 | B3b | MSW 幂等/fanout/状态机/码值对齐后端 | 已修复(B3b 8a51fae) |
-| P1-03 | B4 | apply 事务化 + afterCommit 启流程 + 补偿/重试 | 未开始 |
-| P1-04 | B4 | 去 Thread.sleep 轮询、事件驱动、超时不写终态 | 未开始 |
+| P1-03 | B4 | apply 事务化 + afterCommit 启流程 + 补偿/重试 | 已修复(B4-事务 db93c80；含 round-1 租户死面修复) |
+| P1-04 | B4 | 去 Thread.sleep 轮询、事件驱动、超时不写终态 | 已修复(B4-事务 db93c80；口径演进=下发权威推进，见 §4 标注) |
 | P1-11 | B4 | DLQ 消费/告警/重放 + 双形态 binding 下发面 | 未开始 |
 | P2-12 | B4 | partition key + 串行派发 + 消费侧终态保护 | 未开始 |
 | P2-01 | B5 | 角色批量查询消 N+1 + 查询次数断言 | 未开始 |
