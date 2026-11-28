@@ -25,7 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 用户管理用例（FR-006/007，架构设计 5.1 用户行）：事务边界在应用层、仅覆盖本服务库（10.2.1）；
@@ -81,6 +83,17 @@ public class UserUseCase {
     /** 已绑定角色 ID 集。 */
     public List<Long> roleIdsOf(Long userId) {
         return userRoleRepository.findByUserId(userId).stream().map(SysUserRole::getRoleId).toList();
+    }
+
+    /** 用户列表角色批量装配（REQ-20261127-161433 P2-01）：一次 IN 查询分组返回，
+     *  替代逐用户 roleIdsOf 的 N+1（单页 200 用户 201 次查询 → 常数次）。 */
+    public Map<Long, List<Long>> roleIdsGroupedByUserIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        return userRoleRepository.findByUserIdIn(userIds).stream()
+                .collect(Collectors.groupingBy(SysUserRole::getUserId,
+                        Collectors.mapping(SysUserRole::getRoleId, Collectors.toList())));
     }
 
     /** 修改基本信息（乐观锁版本对照；deptId / positionId null=不调整，非空时校验存在）。 */

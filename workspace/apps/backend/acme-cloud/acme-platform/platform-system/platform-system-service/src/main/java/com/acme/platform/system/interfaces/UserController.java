@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 用户管理接口（FR-006/007；路径含端别前缀——网关不 StripPrefix，架构设计 6.1 取舍 #8）。
@@ -50,8 +51,12 @@ public class UserController {
                                           @RequestParam(required = false) EnableStatus status,
                                           @RequestParam(required = false) Long deptId) {
         PageResult<SysUser> result = userUseCase.page(new PageQuery(page, size), username, status, deptId);
+        // 角色批量装配（REQ-20261127-161433 P2-01）：一次 IN 查询分组，消除逐用户 N+1
+        Map<Long, List<Long>> rolesByUser = userUseCase.roleIdsGroupedByUserIds(
+                result.records().stream().map(SysUser::getId).toList());
         List<AdminUserView> records = result.records().stream()
-                .map(user -> EntityViews.userView(user, userUseCase.roleIdsOf(user.getId()))).toList();
+                .map(user -> EntityViews.userView(user,
+                        rolesByUser.getOrDefault(user.getId(), List.of()))).toList();
         return new PageResult<>(records, result.total());
     }
 

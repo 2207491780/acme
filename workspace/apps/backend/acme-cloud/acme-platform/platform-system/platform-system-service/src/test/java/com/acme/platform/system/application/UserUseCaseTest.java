@@ -9,26 +9,33 @@ import com.acme.platform.system.api.dto.AdminUserCreate;
 import com.acme.platform.system.api.dto.AdminUserUpdate;
 import com.acme.platform.system.domain.SysDept;
 import com.acme.platform.system.domain.SysUser;
+import com.acme.platform.system.domain.SysUserRole;
 import com.acme.platform.system.infrastructure.repository.SysDeptRepository;
 import com.acme.platform.system.infrastructure.repository.SysPositionRepository;
 import com.acme.platform.system.infrastructure.repository.SysRoleRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRepository;
 import com.acme.platform.system.infrastructure.repository.SysUserRoleRepository;
 import com.acme.platform.system.security.DataScopeService;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
-import java.util.Optional;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -209,5 +216,27 @@ class UserUseCaseTest {
         } catch (ReflectiveOperationException ex) {
             throw new IllegalStateException(ex);
         }
+    }
+
+    // ---------- REQ-20261127-161433 P2-01：用户列表角色批量装配（N+1 消除） ----------
+
+    @Test
+    void roleIdsGroupedByUserIdsGroupsInOneBatchQuery() {
+        when(userRoleRepository.findByUserIdIn(List.of(1L, 2L))).thenReturn(List.of(
+                new SysUserRole(1L, 10L), new SysUserRole(1L, 11L), new SysUserRole(2L, 10L)));
+
+        Map<Long, List<Long>> grouped = useCase.roleIdsGroupedByUserIds(List.of(1L, 2L));
+
+        assertThat(grouped)
+                .containsEntry(1L, List.of(10L, 11L))
+                .containsEntry(2L, List.of(10L));
+        verify(userRoleRepository, times(1)).findByUserIdIn(anyList());
+        verify(userRoleRepository, never()).findByUserId(anyLong());
+    }
+
+    @Test
+    void roleIdsGroupedByUserIdsReturnsEmptyMapWithoutQueryWhenIdsEmpty() {
+        assertThat(useCase.roleIdsGroupedByUserIds(List.of())).isEmpty();
+        verifyNoInteractions(userRoleRepository);
     }
 }
