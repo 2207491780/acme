@@ -49,4 +49,4 @@
 - 单模块快速验证：`mvn -pl <模块相对路径> -B test`（依赖已安装时免 `-am`；若跨分支切换后 API 变更，先 `mvn -T 1C -B install -DskipTests` 刷新本地 `.m2`，约 30 秒）。
 - 定向用例：Surefire 3.5.4 须 `-Dsurefire.failIfNoSpecifiedTests=false`（`-DfailIfNoTests=false` 无效，多模块 `-am` 会在无匹配模块直接 BUILD FAILURE）。
 - 判定口径：日志须见 `Tests run: N, Failures: 0, Errors: 0, Skipped: 0`。
-- 并发建议：全量后端与全量前端（`CI=true pnpm test`，实测约 **88s**）宜串行先后执行，避免 16 核机器下大量 JVM 与 Node 进程争抢 CPU 放大超时波动；前端定向单文件复跑可直接 `pnpm --filter @acme/web test <file>`（`scripts/run-tests.mjs` 自动透传参数给 `vitest run`）。
+- 并发建议：全量后端与全量前端（`CI=true pnpm test`，零 Docker，实测约 **50s**，其中 `@acme/web` 约 **40s**）宜串行先后执行，避免 16 核机器下大量 JVM 与 Node 进程争抢 CPU 放大超时波动；前端定向单文件复跑可直接 `pnpm --filter @acme/web test <file>`（`scripts/run-tests.mjs` 自动透传参数给 `vitest run`）。

@@ -12,8 +12,9 @@ TypeScript 5 / React 18 多端 pnpm monorepo（Node ≥22.13、pnpm 11.8）：`p
   PC 复用 Web 产物（不维护第二套页面），Mobile 用 RN 原生组件（不复用 DOM/AntD，图标纯 View 绘制）。
 - **改令牌后**跑 `pnpm -r test && pnpm ui:guide`，在校验页核对 Web/Mobile 两栏；`web/tests/theme.test.ts`
   与 `mobile/tests/theme.test.ts` 锁定派生输出，不得绕过。
-- **测试与门禁**（相对 `frontend/`，用 pnpm）：core/web/mobile 用 Vitest、desktop 用 node:test；
+- **测试与门禁**（相对 `frontend/`，用 pnpm，全链路零 Docker）：core/web/mobile 用 Vitest、desktop 用 node:test；
   门禁 `pnpm typecheck`、`pnpm test`、`pnpm build`，桌面额外 `pnpm --filter @acme/desktop check`；
+  `@acme/web` 全量测试经 `scripts/prebundle-test-deps.mjs`（缓存于 `node_modules/.cache/acme-test-deps/`）+ LPT 5 分片持久化 `shared-jsdom` 并发执行（定向单文件复跑 `pnpm --filter @acme/web test <file>` 自动透传）；新增 `web/tests/*.test.tsx` **勿**在首行重复写 `@vitest-environment jsdom` 注释（配置已默认注入，重复声明会破坏 `shared-jsdom` 复用）；
   入口 `pnpm dev`（Web）/ `pnpm desktop:dev` / `pnpm mobile:start`。
-- 技术栈取舍见 `.ai-memory/decisions/2026-11-11-02-frontend-react-stack.md`、
-  `2026-11-12-01-mobile-ui-native-rn.md`；命名见 `.ai-memory/playbooks/naming.md`；总览见同目录 `FRONTEND.md`。
+- 技术栈与测试取舍见 `.ai-memory/decisions/2026-11-11-02-frontend-react-stack.md`、
+  `2026-11-12-01-mobile-ui-native-rn.md`、`2026-11-28-01-frontend-test-engine-prebundle-lpt.md`；命名见 `.ai-memory/playbooks/naming.md`；总览见同目录 `FRONTEND.md`。
