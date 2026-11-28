@@ -40,6 +40,12 @@ acme:
       # 与网关同键单源（确认记录⑬）：测试占位密钥，非生产取值
       hmac-secret: notify-ws-handshake-test-secret-0123456789abcdef
       issuer: acme-auth
+  rls:
+    it:
+      # RLS 铁证角色 acme_rls_app 的 PG IT 联调口令（REQ-20261127-234335 决策⑥）：V37 收口后迁移内
+      # NOLOGIN + 口令清空，登录由测试夹具在 Flyway 迁移完成后经本键注入重开。值为测试联调专用随机串，
+      # 禁止复用 V33 历史明文、禁止回填为任何生产口令；环境变量 ACME_RLS_IT_ROLE_PASSWORD 可覆盖。
+      role-password: rls-it-6e0485df4d9dd5010cf54031ba0b04ce
 
 management:
   endpoint:

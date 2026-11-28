@@ -19,6 +19,10 @@ Java 25 + Spring Boot 4.1.1 多模块 Maven 后端工程，已落地平台服务
 
 > **部署红线**：主配置中的口令均为 `${ENV_VAR:本地默认}` 占位形态（如 `PG_PASSWORD`、`NACOS_PASSWORD`、`REDIS_PASSWORD`），
 > 本地默认值仅供 `env-stack/` 本地栈使用；**生产部署必须通过环境变量全部覆盖，禁止沿用任何默认值**。
+>
+> **RLS 铁证角色红线（REQ-20261127-234335 / V37 起）**：RLS 试点铁证角色 `acme_rls_app` 自 V37 迁移起为
+> NOLOGIN 且口令清空（生产形态；策略旁路判据另绑可信角色 `acme_rls_bypass`）；PG 集成测试联调口令经测试配置
+> 注入（属性键 `acme.rls.it.role-password` / 环境变量 `ACME_RLS_IT_ROLE_PASSWORD`），禁止回填明文、禁止沿用历史默认值。
 
 ## 目录结构
 
