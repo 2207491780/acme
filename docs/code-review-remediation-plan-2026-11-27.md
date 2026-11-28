@@ -245,12 +245,12 @@
 | P2-10 | B6 | Nacos 鉴权 + seed 带 token（重合遗留清单，部署侧） | 已修复(B6 ab0d58e：配置/脚本/文档；实际开启=运维三步) |
 | P2-11 | B6 | Redis ACL 基线文档 | 已修复(B6 ab0d58e：ACL 基线文档；待证⑥留核验) |
 | P3-12 | B6 | 单体 SLA 口径文档 | 已修复(B6 ab0d58e：单体 SLA 口径文档) |
-| P2-18 | B7 | JsonbTypeHandler 上提 framework | 未开始 |
+| P2-18 | B7 | JsonbTypeHandler 上提 framework | 已修复(B7 220bb2c：framework/flex/typehandler/JsonbTypeHandler 上提+三域改引) |
 | P2-19 | B7 | RequirePermissionInterceptor 抽 Abstract + 策略 | 已修复(B7：RequirePermissionInterceptorSupport 上提+四域子类) |
 | P2-20 | B7 | RequirePermission 注解三份上提 | 已修复(B7：四注解统一上提 framework-web) |
 | P3-08 | B7 | @Target 统一 METHOD+TYPE（随 P2-20） | 已修复(B7：@Target 统一 {METHOD, TYPE}+类级生效测试锁死) |
-| P3-01 | B7 | mobile 跨端声明改从 @acme/core 重导出 | 未开始 |
-| P3-09 | B7 | ActionCount 镜像锁定单测 | 未开始 |
+| P3-01 | B7 | mobile 跨端声明改从 @acme/core 重导出 | 已修复(B7 1df1655：ApiEnvelope/QrTicket 系列重导出) |
+| P3-09 | B7 | ActionCount 镜像锁定单测 | 已修复(B7 b70ef36：ActionCountMirrorTest 镜像锁定) |
 | P3-02 | B8 | mobile apiFetch 超时护栏 | 已修复(B8 5d087f6) |
 | P3-03 | B8 | notifyStore messageId 去重 | 已修复(B8 5d087f6) |
 | P3-04 | B8 | redirectToLogin 平台适配 | 已修复(B8 5d087f6) |
