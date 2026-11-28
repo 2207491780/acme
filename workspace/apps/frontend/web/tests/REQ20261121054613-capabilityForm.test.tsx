@@ -62,25 +62,26 @@ const PACKAGE_ROWS: AdminTenantPackageView[] = [
 ];
 
 /** 菜单树（Tree 勾选数据源）：目录 1 → 叶 11（挂按钮 21）+ 叶 12；本用例不勾选菜单，
- *  名称语言随 fixture 注入（en 腿配英文样例名，避免数据中文污染 en 无裸 key 扫描）。 */
+ *  名称语言随 fixture 注入（en 腿配英文样例名，避免数据中文污染 en 无裸 key 扫描）；
+ *  id/parentId wire 字符串口径（REQ-20261127-234158，根 parentId='0'）。 */
 const menuTree = (dirName: string, usersName: string, deptsName: string, btnName: string): AdminMenuView[] => [
   {
-    id: 1, parentId: 0, menuName: dirName, menuType: 'DIRECTORY', path: null, component: null, icon: null,
+    id: '1', parentId: '0', menuName: dirName, menuType: 'DIRECTORY', path: null, component: null, icon: null,
     sortOrder: 1, visible: true, permissionCode: null, status: 'ENABLED', version: '0',
     children: [
       {
-        id: 11, parentId: 1, menuName: usersName, menuType: 'MENU', path: '/users', component: null, icon: null,
+        id: '11', parentId: '1', menuName: usersName, menuType: 'MENU', path: '/users', component: null, icon: null,
         sortOrder: 1, visible: true, permissionCode: 'system:user:list', status: 'ENABLED', version: '0',
         children: [
           {
-            id: 21, parentId: 11, menuName: btnName, menuType: 'BUTTON', path: null, component: null, icon: null,
+            id: '21', parentId: '11', menuName: btnName, menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 1, visible: true, permissionCode: 'system:user:create', status: 'ENABLED', version: '0',
             children: [],
           },
         ],
       },
       {
-        id: 12, parentId: 1, menuName: deptsName, menuType: 'MENU', path: '/depts', component: null, icon: null,
+        id: '12', parentId: '1', menuName: deptsName, menuType: 'MENU', path: '/depts', component: null, icon: null,
         sortOrder: 2, visible: true, permissionCode: 'system:dept:list', status: 'ENABLED', version: '0',
         children: [],
       },

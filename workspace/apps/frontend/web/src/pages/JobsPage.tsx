@@ -48,20 +48,22 @@ const SEED_APP_NAME = 'platform-infra';
 /** 状态 → AntD 预设名（ENABLED=success / DISABLED=default）；单元格文本取状态域字面量。 */
 const jobStatusTone = (status: JobStatus): string => (status === 'ENABLED' ? 'success' : 'default');
 
-/** 调度规则渲染：cron 或 fixedRate（契约②「cron 或 fixedRate」合并列）。 */
+/** 调度规则渲染：cronExpr 或 fixedRateMs（契约②「cron 或 fixedRate」合并列；
+ *  REQ-20261127-234158 wire 对齐——视图键为长名，fixedRateMs 为字符串口径）。 */
 function renderSchedule(record: JobAdminView): string {
-  if (record.cron) return record.cron;
-  if (record.fixedRate !== null && record.fixedRate !== undefined) return `${record.fixedRate} ms`;
+  if (record.cronExpr) return record.cronExpr;
+  if (record.fixedRateMs !== null && record.fixedRateMs !== undefined) return `${record.fixedRateMs} ms`;
   return '—';
 }
 
-/** 任务定义表单值（cron/fixedRate/onceFireAt 按触发类型条件出现）。 */
+/** 任务定义表单值（cronExpr/fixedRateMs/onceFireAt 按触发类型条件出现；
+ *  REQ-20261127-234158 wire 对齐：表单字段名随载荷键长名，回填做 Number 换算）。 */
 interface JobFormValues {
   jobKey: string;
   appName: string;
   triggerType: JobTriggerType;
-  cron?: string;
-  fixedRate?: number;
+  cronExpr?: string;
+  fixedRateMs?: number;
   onceFireAt?: Dayjs | null;
   timeoutMs?: number;
   shardTotal?: number;
@@ -130,10 +132,11 @@ function JobDefinitionsTab() {
       jobKey: record.jobKey,
       appName: record.appName,
       triggerType: record.triggerType,
-      cron: record.cron ?? undefined,
-      fixedRate: record.fixedRate ?? undefined,
+      cronExpr: record.cronExpr ?? undefined,
+      // AC-5 回填换算：视图 fixedRateMs/timeoutMs wire 字符串 → 表单 number（InputNumber 数值口径）
+      fixedRateMs: record.fixedRateMs !== null && record.fixedRateMs !== undefined ? Number(record.fixedRateMs) : undefined,
       onceFireAt: record.onceFireAt ? dayjs(record.onceFireAt) : undefined,
-      timeoutMs: record.timeoutMs ?? undefined,
+      timeoutMs: record.timeoutMs !== null && record.timeoutMs !== undefined ? Number(record.timeoutMs) : undefined,
       shardTotal: record.shardTotal,
       // 历史 wire 行可能缺省 misfirePolicy（旧数据/外部桩）：缺省回落配置默认值，保证校验可通过
       misfirePolicy: record.misfirePolicy ?? 'FIRE_ONCE_NOW',
@@ -152,8 +155,9 @@ function JobDefinitionsTab() {
       jobKey: values.jobKey,
       appName: values.appName,
       triggerType: values.triggerType,
-      cron: values.triggerType === 'CRON' ? values.cron : null,
-      fixedRate: values.triggerType === 'FIXED_RATE' ? values.fixedRate : null,
+      // AC-4：载荷键为长名 cronExpr/fixedRateMs（短名 cron/fixedRate 后端不映射）
+      cronExpr: values.triggerType === 'CRON' ? values.cronExpr : null,
+      fixedRateMs: values.triggerType === 'FIXED_RATE' ? values.fixedRateMs : null,
       onceFireAt: values.triggerType === 'ONCE' && values.onceFireAt ? values.onceFireAt.toISOString() : null,
       shardTotal: values.shardTotal,
       timeoutMs: values.timeoutMs ?? null,
@@ -233,7 +237,7 @@ function JobDefinitionsTab() {
         return <Tag color={jobStatusTone(status)}>{status}</Tag>;
       },
     },
-    { title: t('jobs.columns.timeoutMs'), dataIndex: 'timeoutMs', key: 'timeoutMs', minWidth: 100, render: (v: number | null) => (v === null || v === undefined ? '—' : v) },
+    { title: t('jobs.columns.timeoutMs'), dataIndex: 'timeoutMs', key: 'timeoutMs', minWidth: 100, render: (v: string | null) => (v === null || v === undefined ? '—' : v) },
     { title: t('jobs.columns.shardTotal'), dataIndex: 'shardTotal', key: 'shardTotal', minWidth: 90 },
     {
       title: t('jobs.columns.actions'), key: 'actions', minWidth: 260, fixed: 'right',
@@ -251,7 +255,7 @@ function JobDefinitionsTab() {
             <Auth code="scheduler:job:update">
               <Popconfirm
                 title={confirmTitle}
-                description={isSeedDisabled ? t('jobs.status.takeoverHint', { cron: record.cron ?? '—' }) : undefined}
+                description={isSeedDisabled ? t('jobs.status.takeoverHint', { cron: record.cronExpr ?? '—' }) : undefined}
                 onConfirm={() => void toggleStatus(record)}
               >
                 <Switch size="small" checked={status === 'ENABLED'} aria-label={t('jobs.columns.status')} />
@@ -359,12 +363,12 @@ function JobDefinitionsTab() {
             />
           </Form.Item>
           {triggerType === 'CRON' ? (
-            <Form.Item name="cron" label={t('jobs.form.cron')} rules={[{ required: true, message: t('common.validation.optional') }]}>
+            <Form.Item name="cronExpr" label={t('jobs.form.cron')} rules={[{ required: true, message: t('common.validation.optional') }]}>
               <Input placeholder={t('jobs.form.cronPlaceholder')} autoComplete="off" />
             </Form.Item>
           ) : null}
           {triggerType === 'FIXED_RATE' ? (
-            <Form.Item name="fixedRate" label={t('jobs.form.fixedRate')} rules={[{ required: true, message: t('common.validation.optional') }]}>
+            <Form.Item name="fixedRateMs" label={t('jobs.form.fixedRate')} rules={[{ required: true, message: t('common.validation.optional') }]}>
               <InputNumber min={1} style={{ width: '100%' }} />
             </Form.Item>
           ) : null}

@@ -44,6 +44,13 @@
         </dependency>
 
         <!-- 测试域 -->
+        <!-- REQ-20261127-234158 案A：wire 契约测试用真实 JsonModules.standard() mapper
+            （platform-system-api SystemApiContractTest 先例口径；版本由父 dependencyManagement 管理） -->
+        <dependency>
+            <groupId>com.acme</groupId>
+            <artifactId>common-serialization</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

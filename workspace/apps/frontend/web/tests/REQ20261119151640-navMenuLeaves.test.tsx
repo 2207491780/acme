@@ -14,35 +14,36 @@ import { FALLBACK_ICON, resolveMenuIcon } from '../src/menuIcons';
 import type { AdminMenuView } from '@acme/core';
 
 const menuNode = (over: Partial<AdminMenuView> = {}): AdminMenuView => ({
-  id: 0, parentId: 0, menuName: '', menuType: 'MENU', path: null, component: null, icon: null,
+  id: '0', parentId: '0', menuName: '', menuType: 'MENU', path: null, component: null, icon: null,
   sortOrder: 0, visible: true, permissionCode: null, status: 'ENABLED', children: [], version: '0',
   ...over,
 });
 
-/** 契约明细表六叶子（id/parent_id/menu_name/path/component/icon/sort_order/permission_code）。 */
+/** 契约明细表六叶子（id/parent_id/menu_name/path/component/icon/sort_order/permission_code；
+ *  id/parentId wire 字符串口径——REQ-20261127-234158 LongToStringModule 全局生效）。 */
 const LEAVES = [
-  { id: 40, parentId: 1, menuName: '部门管理', path: '/depts', component: 'system/dept/index', icon: 'depts', sortOrder: 16, permissionCode: 'system:dept:list' },
-  { id: 41, parentId: 1, menuName: '岗位管理', path: '/positions', component: 'system/position/index', icon: 'positions', sortOrder: 17, permissionCode: 'system:position:list' },
-  { id: 42, parentId: 1, menuName: '通知公告', path: '/notices', component: 'system/notice/index', icon: 'notification', sortOrder: 18, permissionCode: 'system:notice:list' },
-  { id: 43, parentId: 8, menuName: '文件管理', path: '/files', component: 'infra/file/index', icon: 'files', sortOrder: 5, permissionCode: 'infra:file:list' },
-  { id: 44, parentId: 8, menuName: '登录日志', path: '/login-logs', component: 'auth/loginlog/index', icon: 'loginlogs', sortOrder: 6, permissionCode: 'auth:loginlog:list' },
-  { id: 45, parentId: 8, menuName: '在线用户', path: '/online-users', component: 'auth/online/index', icon: 'onlineusers', sortOrder: 7, permissionCode: 'auth:online:list' },
+  { id: '40', parentId: '1', menuName: '部门管理', path: '/depts', component: 'system/dept/index', icon: 'depts', sortOrder: 16, permissionCode: 'system:dept:list' },
+  { id: '41', parentId: '1', menuName: '岗位管理', path: '/positions', component: 'system/position/index', icon: 'positions', sortOrder: 17, permissionCode: 'system:position:list' },
+  { id: '42', parentId: '1', menuName: '通知公告', path: '/notices', component: 'system/notice/index', icon: 'notification', sortOrder: 18, permissionCode: 'system:notice:list' },
+  { id: '43', parentId: '8', menuName: '文件管理', path: '/files', component: 'infra/file/index', icon: 'files', sortOrder: 5, permissionCode: 'infra:file:list' },
+  { id: '44', parentId: '8', menuName: '登录日志', path: '/login-logs', component: 'auth/loginlog/index', icon: 'loginlogs', sortOrder: 6, permissionCode: 'auth:loginlog:list' },
+  { id: '45', parentId: '8', menuName: '在线用户', path: '/online-users', component: 'auth/online/index', icon: 'onlineusers', sortOrder: 7, permissionCode: 'auth:online:list' },
 ];
 
 const SIX_PATHS = LEAVES.map((l) => l.path);
 
-/** 确认④：V20 临时直挂目录的 BUTTON 归位映射（buttonId → 新叶子 id）。 */
-const BUTTON_PARENT: Record<number, number> = {
-  30: 40, 31: 40, 32: 40,
-  33: 41, 34: 41, 35: 41,
-  36: 42, 37: 42,
-  38: 43,
+/** 确认④：V20 临时直挂目录的 BUTTON 归位映射（buttonId → 新叶子 id；字符串口径）。 */
+const BUTTON_PARENT: Record<string, string> = {
+  30: '40', 31: '40', 32: '40',
+  33: '41', 34: '41', 35: '41',
+  36: '42', 37: '42',
+  38: '43',
 };
 
-const buttonIdsOf = (leafId: number) =>
-  Object.keys(BUTTON_PARENT).map(Number).filter((bid) => BUTTON_PARENT[bid] === leafId).sort((a, b) => a - b);
+const buttonIdsOf = (leafId: string) =>
+  Object.keys(BUTTON_PARENT).filter((bid) => BUTTON_PARENT[bid] === leafId).sort((a, b) => Number(a) - Number(b));
 
-const buttonNode = (id: number, parentId: number, sortOrder: number): AdminMenuView => menuNode({
+const buttonNode = (id: string, parentId: string, sortOrder: number): AdminMenuView => menuNode({
   id, parentId, menuName: `按钮${id}`, menuType: 'BUTTON', path: null,
   permissionCode: `fixture:button:${id}`, sortOrder,
 });
@@ -55,12 +56,12 @@ const leafNode = (leaf: (typeof LEAVES)[number]): AdminMenuView => menuNode({
 /** 两级树：目录归属按确认①（depts/positions/notices→系统管理1；files/login-logs/online-users→平台运营8）。 */
 const TREE: AdminMenuView[] = [
   menuNode({
-    id: 1, parentId: 0, menuName: '系统管理', menuType: 'DIRECTORY', path: '/system', sortOrder: 1,
-    children: LEAVES.filter((l) => l.parentId === 1).map(leafNode),
+    id: '1', parentId: '0', menuName: '系统管理', menuType: 'DIRECTORY', path: '/system', sortOrder: 1,
+    children: LEAVES.filter((l) => l.parentId === '1').map(leafNode),
   }),
   menuNode({
-    id: 8, parentId: 0, menuName: '平台运营', menuType: 'DIRECTORY', path: '/infra', sortOrder: 2,
-    children: LEAVES.filter((l) => l.parentId === 8).map(leafNode),
+    id: '8', parentId: '0', menuName: '平台运营', menuType: 'DIRECTORY', path: '/infra', sortOrder: 2,
+    children: LEAVES.filter((l) => l.parentId === '8').map(leafNode),
   }),
 ];
 

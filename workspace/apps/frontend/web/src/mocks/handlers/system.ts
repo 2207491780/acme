@@ -44,10 +44,11 @@ const keywordOf = (request: Request): string | null => urlOf(request).searchPara
 const MENU_TYPE_ENUM = ['DIRECTORY', 'MENU', 'BUTTON'];
 const MENU_STATUS_ENUM = ['ENABLED', 'DISABLED'];
 
-/** 菜单树筛选：返回「命中节点∪其全部祖先」构成的树（保持父子层级；命中节点的子孙不自动带出）。 */
+/** 菜单树筛选：返回「命中节点∪其全部祖先」构成的树（保持父子层级；命中节点的子孙不自动带出）。
+ *  REQ-20261127-234158 wire 对齐：菜单 id/parentId 为字符串口径，收集集与祖先链 number[]→string[]。 */
 function filterMenuTree(nodes: AdminMenuView[], predicate: (node: AdminMenuView) => boolean): AdminMenuView[] {
-  const selected = new Set<number>();
-  const collect = (list: AdminMenuView[], ancestorIds: number[]) => {
+  const selected = new Set<string>();
+  const collect = (list: AdminMenuView[], ancestorIds: string[]) => {
     for (const node of list) {
       if (predicate(node)) {
         selected.add(node.id);
@@ -113,9 +114,10 @@ function collectDeptIds(root: AdminDeptView, into: Set<string>): void {
 
 const DATA_SCOPE_ENUM: RoleDataScope[] = ['ALL', 'DEPT', 'DEPT_AND_CHILD', 'SELF', 'CUSTOM'];
 
-/** 全菜单树节点 id 全集（REQ-20261121-022910：套餐 menuIds 合法性校验 TENANT_PACKAGE_MENU_INVALID 口径）。 */
-function collectAllMenuIds(nodes: AdminMenuView[]): Set<number> {
-  const ids = new Set<number>();
+/** 全菜单树节点 id 全集（REQ-20261121-022910：套餐 menuIds 合法性校验 TENANT_PACKAGE_MENU_INVALID 口径；
+ *  REQ-20261127-234158 wire 对齐：菜单 id 字符串口径，绑定表行经 String 归一比对）。 */
+function collectAllMenuIds(nodes: AdminMenuView[]): Set<string> {
+  const ids = new Set<string>();
   const walk = (list: AdminMenuView[]): void => {
     for (const node of list) {
       ids.add(node.id);
@@ -129,9 +131,10 @@ function collectAllMenuIds(nodes: AdminMenuView[]): Set<number> {
 /**
  * 菜单树套餐过滤（REQ-20261121-022910 确认②）：下发集 = 套餐菜单集 ∪ 命中节点 BUTTON 级联，
  * 再自动补全祖先链（叶在包内而目录不在时补祖先，保证树完整渲染）；读时实时过滤（无物化拷贝）。
+ * REQ-20261127-234158 wire 对齐：菜单 id 字符串口径，套餐绑定表（数字行）经 String 归一比对。
  */
-function filterMenusByPackage(nodes: AdminMenuView[], packageMenuIds: Set<number>): AdminMenuView[] {
-  const selected = new Set<number>();
+function filterMenusByPackage(nodes: AdminMenuView[], packageMenuIds: Set<string>): AdminMenuView[] {
+  const selected = new Set<string>();
   // 第一遍：命中套餐集的节点入选，其直接子节点（BUTTON）级联入选
   const walk = (list: AdminMenuView[]): void => {
     for (const node of list) {
@@ -146,7 +149,7 @@ function filterMenusByPackage(nodes: AdminMenuView[], packageMenuIds: Set<number
   };
   walk(nodes);
   // 第二遍：祖先链自动补全（选中节点的全部祖先入选）
-  const collectAncestors = (list: AdminMenuView[], ancestorIds: number[]): void => {
+  const collectAncestors = (list: AdminMenuView[], ancestorIds: string[]): void => {
     for (const node of list) {
       if (selected.has(node.id)) {
         for (const ancestorId of ancestorIds) selected.add(ancestorId);
@@ -362,7 +365,8 @@ function parsePackageBody(
   }
   const menuIds = Array.isArray(body.menuIds) ? (body.menuIds as unknown[]).map(Number) : [];
   const knownMenus = collectAllMenuIds(store.menus);
-  if (menuIds.some((menuId) => !Number.isFinite(menuId) || !knownMenus.has(menuId))) {
+  // REQ-20261127-234158 wire 对齐：菜单 id 字符串口径——载荷 string/number 双收，String 归一比对
+  if (menuIds.some((menuId) => !Number.isFinite(menuId) || !knownMenus.has(String(menuId)))) {
     return { ok: false, response: fail('TENANT_PACKAGE_MENU_INVALID', 'menuIds 含不存在或已删除的菜单', 400) };
   }
   // 能力码（REQ-20261121-054613）：可分配集合=目录中 status=ENABLED 的能力码（目录端点同口径）；
@@ -519,14 +523,15 @@ function templateViewOf(row: AdminTenantInitTemplateView): AdminTenantInitTempla
 }
 
 /** 本人菜单树（确认② mock 过滤接线）：本人租户绑定套餐 → 实时过滤（∩ 套餐菜单集+祖先补全+BUTTON 级联）；
- *  未绑定（packageId null）= 全量下发（回归基线，行为与改造前一致）。 */
+ *  未绑定（packageId null）= 全量下发（回归基线，行为与改造前一致）。
+ *  绑定表行（数字菜单 id）经 String 归一为菜单 wire 字符串口径（REQ-20261127-234158）。 */
 function meMenus(): AdminMenuView[] {
   const tenant = store.tenants.find((row) => row.id === db.ME_TENANT_ID);
   const packageId = tenant?.packageId ?? null;
   if (!packageId) {
     return store.menus;
   }
-  return filterMenusByPackage(store.menus, new Set(store.packageMenuIds[packageId] ?? []));
+  return filterMenusByPackage(store.menus, new Set((store.packageMenuIds[packageId] ?? []).map(String)));
 }
 
 /** 本人租户生效能力码集（REQ-20261121-054613 确认⑤）：绑定套餐 → 套餐能力码数组（读绑定表实时装配，

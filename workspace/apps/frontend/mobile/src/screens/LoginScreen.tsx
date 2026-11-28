@@ -142,7 +142,8 @@ export function LoginScreen() {
         useAuthStore.getState().setSession({
           accessToken: issued.accessToken,
           refreshToken: issued.refreshToken,
-          accessExpiresAtMs: Date.parse(issued.expiresAt),
+          // REQ-20261127-234158 wire 对齐：C 端 AppTokenIssued 键为 accessExpiresAt（不存在 expiresAt）
+          accessExpiresAtMs: Date.parse(issued.accessExpiresAt),
           refreshExpiresAtMs: Date.parse(issued.refreshExpiresAt),
           userId: issued.userId,
           phone: issued.phone,

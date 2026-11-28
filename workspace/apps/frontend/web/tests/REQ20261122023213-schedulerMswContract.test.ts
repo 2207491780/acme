@@ -131,7 +131,8 @@ describe('REQ20261122023213 msw 调度中心八端点契约同形（AC-10）', (
       jobKey: 'file-retention-cleanup',
       appName: 'platform-infra',
       triggerType: 'CRON',
-      cron: '0 0 3 * * *',
+      // REQ-20261127-234158 wire 对齐：载荷键长名 cronExpr（短名 cron 后端不映射）
+      cronExpr: '0 0 3 * * *',
     });
     expect(body.success, '业务冲突信封 success=false').toBe(false);
     expect(body.code, '契约确认⑦错误码字面量').toBe('KEY_DUPLICATE');

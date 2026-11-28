@@ -20,8 +20,9 @@
  *   pickOption 限定在下拉浮层容器内；断言口径数据驱动 + 宽容正则（pitfall 10/13/14）。
  *
  * 【fixture 形状 = 契约钉死事实】
- *   JobAdminView 列集精简列：jobKey/appName/triggerType/cron 或 fixedRate/nextFireTime/status/timeoutMs/shardTotal
- *   （id/version wire 字符串化）；ExecutionView 12 字段；种子 4 行 DISABLED、appName=platform-infra、cron 见契约背景。
+ *   JobAdminView 列集精简列：jobKey/appName/triggerType/cronExpr 或 fixedRateMs/nextFireTime/status/timeoutMs/shardTotal
+ *   （id/version wire 字符串化；REQ-20261127-234158 对齐——fixedRateMs/timeoutMs 视图 wire 字符串）；
+ *   ExecutionView 12 字段；种子 4 行 DISABLED、appName=platform-infra、cronExpr 见契约背景。
  *
  * 【AMB 假设（TL 裁决锚点）】
  *   - AMB-1：Tab 名取确认⑤字面量（任务定义/执行历史/执行器监控）；
@@ -89,31 +90,32 @@ const parseBody = (body: unknown): Record<string, unknown> => {
 };
 
 // ————— fixtures（契约钉死形状；id/version wire string） —————
+// REQ-20261127-234158 wire 对齐：视图键长名 cronExpr/fixedRateMs（字符串口径，LongToStringModule）
 const JOB_ROWS = [
   {
     id: '301', version: '0', jobKey: 'file-retention-cleanup', appName: 'platform-infra',
-    triggerType: 'CRON', cron: '0 0 3 * * *', fixedRate: null, nextFireTime: '2026-11-23T03:00:00Z',
-    status: 'DISABLED', timeoutMs: 60000, shardTotal: 1,
+    triggerType: 'CRON', cronExpr: '0 0 3 * * *', fixedRateMs: null, nextFireTime: '2026-11-23T03:00:00Z',
+    status: 'DISABLED', timeoutMs: '60000', shardTotal: 1,
   },
   {
     id: '302', version: '0', jobKey: 'login-log-retention-cleanup', appName: 'platform-infra',
-    triggerType: 'CRON', cron: '0 30 3 * * *', fixedRate: null, nextFireTime: '2026-11-23T03:30:00Z',
-    status: 'DISABLED', timeoutMs: 60000, shardTotal: 1,
+    triggerType: 'CRON', cronExpr: '0 30 3 * * *', fixedRateMs: null, nextFireTime: '2026-11-23T03:30:00Z',
+    status: 'DISABLED', timeoutMs: '60000', shardTotal: 1,
   },
   {
     id: '303', version: '0', jobKey: 'exception-log-retention-cleanup', appName: 'platform-infra',
-    triggerType: 'CRON', cron: '0 40 3 * * *', fixedRate: null, nextFireTime: '2026-11-23T03:40:00Z',
-    status: 'DISABLED', timeoutMs: 60000, shardTotal: 1,
+    triggerType: 'CRON', cronExpr: '0 40 3 * * *', fixedRateMs: null, nextFireTime: '2026-11-23T03:40:00Z',
+    status: 'DISABLED', timeoutMs: '60000', shardTotal: 1,
   },
   {
     id: '304', version: '0', jobKey: 'audit-log-retention-cleanup', appName: 'platform-infra',
-    triggerType: 'CRON', cron: '0 40 4 * * *', fixedRate: null, nextFireTime: '2026-11-23T04:40:00Z',
-    status: 'DISABLED', timeoutMs: 60000, shardTotal: 1,
+    triggerType: 'CRON', cronExpr: '0 40 4 * * *', fixedRateMs: null, nextFireTime: '2026-11-23T04:40:00Z',
+    status: 'DISABLED', timeoutMs: '60000', shardTotal: 1,
   },
   {
     id: '305', version: '2', jobKey: 'custom-report-sync', appName: 'business-report',
-    triggerType: 'FIXED_RATE', cron: null, fixedRate: 300000, nextFireTime: '2026-11-22T10:05:00Z',
-    status: 'ENABLED', timeoutMs: 30000, shardTotal: 1,
+    triggerType: 'FIXED_RATE', cronExpr: null, fixedRateMs: '300000', nextFireTime: '2026-11-22T10:05:00Z',
+    status: 'ENABLED', timeoutMs: '30000', shardTotal: 1,
   },
 ];
 
@@ -206,8 +208,9 @@ const schedulerRoutes = () => {
         }
         const created = {
           id: String(state.nextId++), version: '0', status: 'DISABLED',
-          appName: '', triggerType: 'CRON', cron: null, fixedRate: null,
-          nextFireTime: null, timeoutMs: 60000, shardTotal: 1, ...body,
+          // REQ-20261127-234158 wire 对齐：载荷/视图键长名 cronExpr/fixedRateMs（body 覆盖默认值）
+          appName: '', triggerType: 'CRON', cronExpr: null, fixedRateMs: null,
+          nextFireTime: null, timeoutMs: '60000', shardTotal: 1, ...body,
         };
         state.jobs.push(created as unknown as (typeof state.jobs)[number]);
         return envelope(created);

@@ -145,7 +145,8 @@ describe('REQ20261125230807 AC-26 core api 代表性端点雪花精度清扫', (
     await systemApi.roleCreate({ parentId: SF_ROLE_PARENT, roleCode: 'ops', roleName: '运维员' });
     await systemApi.roleBindPermissions(SF_ROLE, [SF_PERMISSION]);
     // 路径段 ID：menuUpdate(menuId)/tenantUpdate(tenantId) 路径原样字符串
-    await systemApi.menuUpdate(SF_MENU as unknown as number, { menuName: '用户管理', sortOrder: 1, visible: true, version: '0' });
+    //（REQ-20261127-234158：menuId wire 字符串口径，无需数值化绕转）
+    await systemApi.menuUpdate(SF_MENU, { menuName: '用户管理', sortOrder: 1, visible: true, version: '0' });
     await systemApi.tenantUpdate(SF_TENANT, { tenantName: '总部', version: '0' });
 
     const deptPosts = callsOf(fetchMock, 'POST', '/admin/v1/system/depts');

@@ -18,11 +18,11 @@ interface AuthStore {
   /** 应用启动时从安全存储恢复会话（App 门禁在 hydrate 完成前不渲染主界面）。 */
   hydrate: () => Promise<void>;
   setSession: (session: AuthSession) => void;
-  /** 刷新轮换后仅替换令牌对与过期时间（主体沿用）。 */
+  /** 刷新轮换后仅替换令牌对与过期时间（主体沿用；REQ-20261127-234158 wire 对齐：入参键 accessExpiresAt）。 */
   renewed: (issued: {
     accessToken: string;
     refreshToken: string;
-    expiresAt: string;
+    accessExpiresAt: string;
     refreshExpiresAt: string;
   }) => void;
   clear: () => void;
@@ -86,7 +86,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       ...current,
       accessToken: issued.accessToken,
       refreshToken: issued.refreshToken,
-      accessExpiresAtMs: Date.parse(issued.expiresAt),
+      accessExpiresAtMs: Date.parse(issued.accessExpiresAt),
       refreshExpiresAtMs: Date.parse(issued.refreshExpiresAt),
     };
     void secureSet(KEY, JSON.stringify(session));

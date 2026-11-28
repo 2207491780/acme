@@ -28,10 +28,13 @@ export interface AdminUserView {
   version: string;
 }
 
-/** 菜单节点（树形，children 嵌套；契约对齐 AdminMenuView）。 */
+/** 菜单节点（树形，children 嵌套；契约对齐 AdminMenuView）。
+ *  REQ-20261127-234158 wire golden 对齐：id/parentId/version 均 JSON 字符串
+ *  （LongToStringModule 全局生效），根节点 parentId="0"（字符串零，非 null）；
+ *  menuType 枚举名 DIRECTORY|MENU|BUTTON、status 枚举名 ENABLED|DISABLED。 */
 export interface AdminMenuView {
-  id: number;
-  parentId: number;
+  id: string;
+  parentId: string;
   menuName: string;
   menuType: string;
   path: string | null;
@@ -825,14 +828,14 @@ export const systemApi = {
     const suffix = query ? `?${query}` : '';
     return apiFetch<AdminMenuView[]>(`/admin/v1/system/menus${suffix}`, { signal });
   },
-  /** 新建菜单（parentId 空=根；menuType DIRECTORY|MENU）。 */
-  menuCreate: (payload: { parentId?: number | null; menuName: string; menuType: string; path?: string; component?: string; icon?: string; sortOrder: number; visible?: boolean; permissionCode?: string }): Promise<AdminMenuView> =>
+  /** 新建菜单（REQ-20261127-234158 wire 对齐：parentId 字符串口径，空=根；menuType DIRECTORY|MENU）。 */
+  menuCreate: (payload: { parentId?: string | null; menuName: string; menuType: string; path?: string; component?: string; icon?: string; sortOrder: number; visible?: boolean; permissionCode?: string }): Promise<AdminMenuView> =>
     apiJson<AdminMenuView>('/admin/v1/system/menus', 'POST', { ...payload, parentId: payload.parentId ?? null }),
-  /** 菜单改名/形态/排序/可见性（version 乐观锁）。 */
-  menuUpdate: (menuId: number, payload: { menuName: string; path?: string; component?: string; icon?: string; sortOrder: number; visible?: boolean; permissionCode?: string; version: string }): Promise<AdminMenuView> =>
+  /** 菜单改名/形态/排序/可见性（version 乐观锁；menuId wire 字符串口径）。 */
+  menuUpdate: (menuId: string, payload: { menuName: string; path?: string; component?: string; icon?: string; sortOrder: number; visible?: boolean; permissionCode?: string; version: string }): Promise<AdminMenuView> =>
     apiJson<AdminMenuView>(`/admin/v1/system/menus/${menuId}`, 'PUT', payload),
-  /** 删除菜单。 */
-  menuDelete: (menuId: number): Promise<void> =>
+  /** 删除菜单（menuId wire 字符串口径）。 */
+  menuDelete: (menuId: string): Promise<void> =>
     apiFetch<void>(`/admin/v1/system/menus/${menuId}`, { method: 'DELETE' }),
 
   // ---- 部门管理（DEPT_* 权限码，REQ-20261114-120104） ----

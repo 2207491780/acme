@@ -24,11 +24,14 @@ export interface JobRetryPolicy {
 }
 
 /**
- * 任务定义管理视图（契约对齐后端 JobView，17 字段；id/version wire 字符串化）。
+ * 任务定义管理视图（契约对齐后端 JobView，17 字段；REQ-20261127-234158 wire golden 对齐：
+ * 后端序列化为权威——视图键 cronExpr/fixedRateMs；LongToStringModule 全局生效，
+ * id/version/fixedRateMs/timeoutMs 视图 wire 均为 JSON 字符串，shardTotal（Integer）为数值，
+ * cronExpr 为字符串或 null）。
  * 字段集=JOB-1 契约 §③ sch_job_definition 列面（id/job_key/app_name/handler/trigger_type/
  * cron_expr/fixed_rate_ms/once_fire_at/param/retry_policy/shard_total/timeout_ms/misfire_policy/
  * status/next_fire_time/审计列/version）。列表列取精简集（契约②）：
- * jobKey/appName/triggerType/cron 或 fixedRate/nextFireTime/status/timeoutMs/shardTotal。
+ * jobKey/appName/triggerType/cronExpr 或 fixedRateMs/nextFireTime/status/timeoutMs/shardTotal。
  */
 export interface JobAdminView {
   id: string;
@@ -39,18 +42,18 @@ export interface JobAdminView {
   /** 处理器标识（@JobHandler 注册的 handler）。 */
   handler: string | null;
   triggerType: JobTriggerType;
-  /** Cron 表达式（仅 CRON）。 */
-  cron: string | null;
-  /** 固定频率毫秒（仅 FIXED_RATE）。 */
-  fixedRate: number | null;
+  /** Cron 表达式（仅 CRON；wire 键 cronExpr，短名 cron 不映射）。 */
+  cronExpr: string | null;
+  /** 固定频率毫秒（仅 FIXED_RATE；wire 键 fixedRateMs，LongToStringModule 字符串化）。 */
+  fixedRateMs: string | null;
   /** 一次性触发时间（仅 ONCE，ISO-8601）。 */
   onceFireAt: string | null;
   /** 任务参数（jsonb，透传下发指令）。 */
   param: Record<string, unknown> | null;
   retryPolicy: JobRetryPolicy | null;
   shardTotal: number;
-  /** 执行超时毫秒（RUNNING 超时巡检 → TIMEOUT）。 */
-  timeoutMs: number | null;
+  /** 执行超时毫秒（RUNNING 超时巡检 → TIMEOUT；wire 字符串化）。 */
+  timeoutMs: string | null;
   misfirePolicy: JobMisfirePolicy;
   status: JobStatus;
   /** 下次触发时间（ISO-8601；停用=null，启用=算初始排期回填）。 */
@@ -111,14 +114,16 @@ export interface JobPageFilters {
   status?: JobStatus;
 }
 
-/** 任务创建/编辑载荷（job_key 创建后不可改；编辑不带 jobKey 并随体携带 version）。 */
+/** 任务创建/编辑载荷（job_key 创建后不可改；编辑不带 jobKey 并随体携带 version）。
+ *  REQ-20261127-234158 wire 对齐：载荷键为 cronExpr/fixedRateMs（短名 cron/fixedRate 后端不映射）；
+ *  载荷发 number 合法（后端反序列化接受 number 与 string 双口径），FE 保持发 number。 */
 export interface JobSavePayload {
   jobKey: string;
   appName: string;
   handler?: string | null;
   triggerType: JobTriggerType;
-  cron?: string | null;
-  fixedRate?: number | null;
+  cronExpr?: string | null;
+  fixedRateMs?: number | null;
   onceFireAt?: string | null;
   param?: Record<string, unknown> | null;
   retryPolicy?: JobRetryPolicy | null;

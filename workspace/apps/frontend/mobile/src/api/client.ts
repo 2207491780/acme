@@ -46,7 +46,7 @@ function refreshOnce(): Promise<boolean> {
       const envelope = (await res.json()) as ApiEnvelope<{
         accessToken: string;
         refreshToken: string;
-        expiresAt: string;
+        accessExpiresAt: string;
         refreshExpiresAt: string;
       }>;
       if (!envelope.success || !envelope.data?.accessToken) {

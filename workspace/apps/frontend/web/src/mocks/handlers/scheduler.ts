@@ -53,13 +53,19 @@ export const schedulerHandlers = [
       appName,
       handler: typeof body.handler === 'string' ? body.handler : null,
       triggerType: body.triggerType === 'FIXED_RATE' || body.triggerType === 'ONCE' ? body.triggerType : 'CRON',
-      cron: typeof body.cron === 'string' ? body.cron : null,
-      fixedRate: typeof body.fixedRate === 'number' ? body.fixedRate : null,
+      // REQ-20261127-234158 wire golden：载荷键长名 cronExpr/fixedRateMs（短名不映射）；
+      // 视图 fixedRateMs/timeoutMs wire 字符串（LongToStringModule），shardTotal 数值
+      cronExpr: typeof body.cronExpr === 'string' ? body.cronExpr : null,
+      fixedRateMs: typeof body.fixedRateMs === 'number' || typeof body.fixedRateMs === 'string'
+        ? String(body.fixedRateMs)
+        : null,
       onceFireAt: typeof body.onceFireAt === 'string' ? body.onceFireAt : null,
       param: (body.param && typeof body.param === 'object' ? body.param : null) as Record<string, unknown> | null,
       retryPolicy: (body.retryPolicy && typeof body.retryPolicy === 'object' ? body.retryPolicy : null) as JobAdminView['retryPolicy'],
       shardTotal: typeof body.shardTotal === 'number' && body.shardTotal >= 1 ? Math.floor(body.shardTotal) : 1,
-      timeoutMs: typeof body.timeoutMs === 'number' ? body.timeoutMs : null,
+      timeoutMs: typeof body.timeoutMs === 'number' || typeof body.timeoutMs === 'string'
+        ? String(body.timeoutMs)
+        : null,
       misfirePolicy: body.misfirePolicy === 'IGNORE' ? 'IGNORE' : 'FIRE_ONCE_NOW',
       // 契约：创建默认 DISABLED（显式启用才入时间轮）
       status: 'DISABLED',
@@ -111,13 +117,17 @@ export const schedulerHandlers = [
             appName: typeof body.appName === 'string' ? body.appName : job.appName,
             handler: body.handler === undefined ? job.handler : (body.handler as string | null),
             triggerType: body.triggerType === 'FIXED_RATE' || body.triggerType === 'ONCE' ? body.triggerType : job.triggerType,
-            cron: body.cron === undefined ? job.cron : (body.cron as string | null),
-            fixedRate: body.fixedRate === undefined ? job.fixedRate : (body.fixedRate as number | null),
+            // REQ-20261127-234158 wire golden：载荷键长名 cronExpr/fixedRateMs（短名不映射）；
+            // 视图 fixedRateMs/timeoutMs wire 字符串（LongToStringModule），shardTotal 数值
+            cronExpr: body.cronExpr === undefined ? job.cronExpr : (body.cronExpr as string | null),
+            fixedRateMs: body.fixedRateMs === undefined ? job.fixedRateMs
+              : (body.fixedRateMs === null ? null : String(body.fixedRateMs)),
             onceFireAt: body.onceFireAt === undefined ? job.onceFireAt : (body.onceFireAt as string | null),
             param: body.param === undefined ? job.param : ((body.param && typeof body.param === 'object' ? body.param : null) as Record<string, unknown> | null),
             retryPolicy: body.retryPolicy === undefined ? job.retryPolicy : ((body.retryPolicy && typeof body.retryPolicy === 'object' ? body.retryPolicy : null) as JobAdminView['retryPolicy']),
             shardTotal: typeof body.shardTotal === 'number' && body.shardTotal >= 1 ? Math.floor(body.shardTotal) : job.shardTotal,
-            timeoutMs: body.timeoutMs === undefined ? job.timeoutMs : (body.timeoutMs as number | null),
+            timeoutMs: body.timeoutMs === undefined ? job.timeoutMs
+              : (body.timeoutMs === null ? null : String(body.timeoutMs)),
             misfirePolicy: body.misfirePolicy === undefined ? job.misfirePolicy : (body.misfirePolicy === 'IGNORE' ? 'IGNORE' : 'FIRE_ONCE_NOW'),
             version: String(Number(job.version) + 1),
           }

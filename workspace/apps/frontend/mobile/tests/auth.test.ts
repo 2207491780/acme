@@ -21,7 +21,8 @@ describe('mobile auth', () => {
   const issued = () => ({
     accessToken: 'access-1',
     refreshToken: 'refresh-1',
-    expiresAt: new Date(Date.now() + 7_200_000).toISOString(),
+    // REQ-20261127-234158 wire 对齐：C 端 AppTokenIssued 键为 accessExpiresAt（不存在 expiresAt）
+    accessExpiresAt: new Date(Date.now() + 7_200_000).toISOString(),
     refreshExpiresAt: new Date(Date.now() + 12_096_000_000).toISOString(),
     userId: '7',
     phone: '13800138000',
@@ -60,7 +61,7 @@ describe('mobile auth', () => {
     const result = await authApi.login('13800138000', '123456');
     expect(result.accessToken).toBe('access-1');
     expect(result.refreshToken).toBe('refresh-1');
-    expect(result.expiresAt).toBeTruthy();
+    expect(result.accessExpiresAt).toBeTruthy();
     // 会话写入由 LoginScreen 调 setSession 完成（接口层不触碰 store）
   });
 
@@ -71,7 +72,7 @@ describe('mobile auth', () => {
       .mockResolvedValueOnce(envelope({
         accessToken: 'access-2',
         refreshToken: 'refresh-2',
-        expiresAt: new Date(Date.now() + 7_200_000).toISOString(),
+        accessExpiresAt: new Date(Date.now() + 7_200_000).toISOString(),
         refreshExpiresAt: new Date(Date.now() + 12_096_000_000).toISOString(),
       }))
       .mockResolvedValueOnce(envelope({ ok: true }));

@@ -25,7 +25,7 @@ import { apiFetch } from '../src/api/client';
 
 const SESSION_KEY = 'acme.auth.session.v1';
 
-/** AuthSession 完整形状（范本：mobile/tests/auth.test.ts seedSession；毫秒字段与 AppTokenIssued 的 ISO expiresAt 不同名）。 */
+/** AuthSession 完整形状（范本：mobile/tests/auth.test.ts seedSession；毫秒字段与 AppTokenIssued 的 ISO accessExpiresAt 不同名——REQ-20261127-234158 wire 对齐后键名）。 */
 const session = (accessToken = 'access-1') => ({
   accessToken,
   refreshToken: 'refresh-1',
@@ -93,7 +93,8 @@ describe('REQ20261114120110 SecureStore 会话回归（AC-4）', () => {
       .mockResolvedValueOnce(envelope({
         accessToken: 'access-2',
         refreshToken: 'refresh-2',
-        expiresAt: new Date(Date.now() + 7_200_000).toISOString(),
+        // REQ-20261127-234158 wire 对齐：C 端刷新 envelope 键为 accessExpiresAt（不存在 expiresAt）
+        accessExpiresAt: new Date(Date.now() + 7_200_000).toISOString(),
         refreshExpiresAt: new Date(Date.now() + 12_096_000_000).toISOString(),
       }))
       .mockResolvedValueOnce(envelope({ ok: true }));

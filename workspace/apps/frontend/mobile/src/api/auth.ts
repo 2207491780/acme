@@ -53,12 +53,13 @@ export const authApi = {
     }),
 };
 
-/** 令牌签发结果（契约对齐 AppTokenIssued；expiresAt / refreshExpiresAt 为 ISO-8601）。
- *  userId 为字符串化雪花 ID（wire string，防 JS Number 精度丢失）。 */
+/** 令牌签发结果（契约对齐 AppTokenIssued；REQ-20261127-234158 wire golden 对齐——
+ *  后端序列化为权威：C 端 wire 键为 accessExpiresAt/refreshExpiresAt（ISO-8601 UTC 字符串），
+ *  不存在 expiresAt 键；userId 为 JSON 字符串（字符串化雪花 ID，防 JS Number 精度丢失）。 */
 export interface AppTokenIssued {
   accessToken: string;
   refreshToken: string;
-  expiresAt: string;
+  accessExpiresAt: string;
   refreshExpiresAt: string;
   userId: string;
   phone: string;

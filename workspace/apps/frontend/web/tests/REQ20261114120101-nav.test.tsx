@@ -196,9 +196,10 @@ describe('REQ20261114120101 导航动态化（AC-7）', () => {
 });
 
 // ————— REQ-20261119-051119：BUTTON 菜单节点显式剔除（纯结构单测，无需渲染 App） —————
-// 注意：直接调用 buildDynamicNav，节点须为 AdminMenuView 结构（id number / path 可空），与上方 wire fixture 无关
+// 注意：直接调用 buildDynamicNav，节点须为 AdminMenuView 结构（id/parentId wire 字符串口径
+// REQ-20261127-234158，根 parentId='0' / path 可空），与上方 wire fixture 无关
 const btnMenuNode = (over: Partial<AdminMenuView> = {}): AdminMenuView => ({
-  id: 31, parentId: 2, menuName: '', menuType: 'BUTTON', path: null, component: null, icon: null,
+  id: '31', parentId: '2', menuName: '', menuType: 'BUTTON', path: null, component: null, icon: null,
   sortOrder: 9, visible: true, permissionCode: null, status: 'ENABLED', children: [], version: '0',
   ...over,
 });
@@ -206,11 +207,11 @@ const btnMenuNode = (over: Partial<AdminMenuView> = {}): AdminMenuView => ({
 describe('REQ20261119051119 导航剔除 BUTTON 节点', () => {
   const treeWithButton: AdminMenuView[] = [
     {
-      id: 2, parentId: 0, menuName: '系统管理', menuType: 'DIRECTORY', path: '/system', component: null,
+      id: '2', parentId: '0', menuName: '系统管理', menuType: 'DIRECTORY', path: '/system', component: null,
       icon: null, sortOrder: 2, visible: true, permissionCode: null, status: 'ENABLED', version: '0',
       children: [
-        { id: 21, parentId: 2, menuName: '用户中心', menuType: 'MENU', path: '/users', component: null, icon: null, sortOrder: 1, visible: true, permissionCode: 'system:user:list', status: 'ENABLED', children: [], version: '0' },
-        btnMenuNode({ parentId: 2, menuName: '用户新建按钮', permissionCode: 'system:user:create' }),
+        { id: '21', parentId: '2', menuName: '用户中心', menuType: 'MENU', path: '/users', component: null, icon: null, sortOrder: 1, visible: true, permissionCode: 'system:user:list', status: 'ENABLED', children: [], version: '0' },
+        btnMenuNode({ parentId: '2', menuName: '用户新建按钮', permissionCode: 'system:user:create' }),
       ],
     },
   ];
@@ -227,7 +228,7 @@ describe('REQ20261119051119 导航剔除 BUTTON 节点', () => {
 
   it('should_return_null_when_only_button_roots_present', () => {
     // 根级仅剩 BUTTON 叶子（无 path）→ 过滤后为空 → 回退静态 NAV 的 null 约定
-    expect(buildDynamicNav([btnMenuNode({ parentId: 0, menuName: '孤立按钮' })], [])).toBeNull();
+    expect(buildDynamicNav([btnMenuNode({ parentId: '0', menuName: '孤立按钮' })], [])).toBeNull();
   });
 });
 

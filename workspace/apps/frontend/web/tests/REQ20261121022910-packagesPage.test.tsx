@@ -61,25 +61,26 @@ const PACKAGE_ROWS: AdminTenantPackageView[] = [
   },
 ];
 
-/** 菜单树（Tree 勾选数据源）：目录 1 → 叶 11（挂按钮 21）+ 叶 12；勾选断言只锚叶 id。 */
+/** 菜单树（Tree 勾选数据源）：目录 1 → 叶 11（挂按钮 21）+ 叶 12；勾选断言只锚叶 id。
+ *  id/parentId wire 字符串口径（REQ-20261127-234158，根 parentId='0'）。 */
 const MENU_TREE: AdminMenuView[] = [
   {
-    id: 1, parentId: 0, menuName: '系统管理', menuType: 'DIRECTORY', path: null, component: null, icon: null,
+    id: '1', parentId: '0', menuName: '系统管理', menuType: 'DIRECTORY', path: null, component: null, icon: null,
     sortOrder: 1, visible: true, permissionCode: null, status: 'ENABLED', version: '0',
     children: [
       {
-        id: 11, parentId: 1, menuName: '用户管理', menuType: 'MENU', path: '/users', component: null, icon: null,
+        id: '11', parentId: '1', menuName: '用户管理', menuType: 'MENU', path: '/users', component: null, icon: null,
         sortOrder: 1, visible: true, permissionCode: 'system:user:list', status: 'ENABLED', version: '0',
         children: [
           {
-            id: 21, parentId: 11, menuName: '新建用户', menuType: 'BUTTON', path: null, component: null, icon: null,
+            id: '21', parentId: '11', menuName: '新建用户', menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 1, visible: true, permissionCode: 'system:user:create', status: 'ENABLED', version: '0',
             children: [],
           },
         ],
       },
       {
-        id: 12, parentId: 1, menuName: '部门管理', menuType: 'MENU', path: '/depts', component: null, icon: null,
+        id: '12', parentId: '1', menuName: '部门管理', menuType: 'MENU', path: '/depts', component: null, icon: null,
         sortOrder: 2, visible: true, permissionCode: 'system:dept:list', status: 'ENABLED', version: '0',
         children: [],
       },

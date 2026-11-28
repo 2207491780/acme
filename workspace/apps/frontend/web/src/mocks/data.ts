@@ -262,44 +262,46 @@ export const permissions: AdminPermissionView[] = [
   { id: '3', permissionCode: 'system:user:delete', permissionName: '用户删除', permissionType: 'API', httpMethod: 'DELETE', httpPath: '/admin/v1/system/users/{id}', service: 'system', status: 'DISABLED', version: '0' },
 ];
 
+/** 菜单树种子（REQ-20261127-234158 wire golden 对齐：id/parentId/version 均 JSON 字符串，
+ *  根节点 parentId="0"——字符串零非 null；menuType 枚举名 DIRECTORY|MENU|BUTTON）。 */
 export const menus: AdminMenuView[] = [
   {
-    id: 1, parentId: 0, menuName: '系统管理', menuType: 'DIRECTORY', path: null, component: null, icon: 'setting',
+    id: '1', parentId: '0', menuName: '系统管理', menuType: 'DIRECTORY', path: null, component: null, icon: 'setting',
     sortOrder: 1, visible: true, permissionCode: null, status: 'ENABLED', version: '0',
     children: [
       {
-        id: 11, parentId: 1, menuName: '用户管理', menuType: 'MENU', path: '/users', component: 'users', icon: 'users',
+        id: '11', parentId: '1', menuName: '用户管理', menuType: 'MENU', path: '/users', component: 'users', icon: 'users',
         sortOrder: 1, visible: true, permissionCode: 'system:user:list', status: 'ENABLED', version: '0', children: [],
       },
       {
-        id: 12, parentId: 1, menuName: '系统配置', menuType: 'MENU', path: '/system/config', component: 'system/config/index', icon: 'control',
+        id: '12', parentId: '1', menuName: '系统配置', menuType: 'MENU', path: '/system/config', component: 'system/config/index', icon: 'control',
         sortOrder: 2, visible: true, permissionCode: 'system:config:list', status: 'ENABLED', version: '0', children: [],
       },
       // REQ-20261120-213603：补停用/隐藏样例（菜单筛选演示命中；nav 渲染剔除 DISABLED/隐藏节点，不影响导航）
       {
-        id: 13, parentId: 1, menuName: '任务调度', menuType: 'MENU', path: '/jobs', component: 'jobs/index', icon: 'clock-circle',
+        id: '13', parentId: '1', menuName: '任务调度', menuType: 'MENU', path: '/jobs', component: 'jobs/index', icon: 'clock-circle',
         sortOrder: 3, visible: true, permissionCode: 'system:job:list', status: 'DISABLED', version: '0', children: [],
       },
       {
-        id: 14, parentId: 1, menuName: '文件管理', menuType: 'MENU', path: '/files', component: 'files/index', icon: 'folder',
+        id: '14', parentId: '1', menuName: '文件管理', menuType: 'MENU', path: '/files', component: 'files/index', icon: 'folder',
         sortOrder: 4, visible: false, permissionCode: null, status: 'ENABLED', version: '0', children: [],
       },
       // REQ-20261121-022910（契约确认⑥）：套餐管理 MENU 叶（id 46，path /tenant-packages，
       // permission system:tenant-package:list）+ BUTTON×3（47 新增/48 编辑/49 删除，挂叶 46）
       {
-        id: 46, parentId: 1, menuName: '套餐管理', menuType: 'MENU', path: '/tenant-packages', component: 'system/tenant-package/index', icon: 'gift',
+        id: '46', parentId: '1', menuName: '套餐管理', menuType: 'MENU', path: '/tenant-packages', component: 'system/tenant-package/index', icon: 'gift',
         sortOrder: 5, visible: true, permissionCode: 'system:tenant-package:list', status: 'ENABLED', version: '0',
         children: [
           {
-            id: 47, parentId: 46, menuName: '套餐新增', menuType: 'BUTTON', path: null, component: null, icon: null,
+            id: '47', parentId: '46', menuName: '套餐新增', menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 1, visible: true, permissionCode: 'system:tenant-package:create', status: 'ENABLED', version: '0', children: [],
           },
           {
-            id: 48, parentId: 46, menuName: '套餐编辑', menuType: 'BUTTON', path: null, component: null, icon: null,
+            id: '48', parentId: '46', menuName: '套餐编辑', menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 2, visible: true, permissionCode: 'system:tenant-package:update', status: 'ENABLED', version: '0', children: [],
           },
           {
-            id: 49, parentId: 46, menuName: '套餐删除', menuType: 'BUTTON', path: null, component: null, icon: null,
+            id: '49', parentId: '46', menuName: '套餐删除', menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 3, visible: true, permissionCode: 'system:tenant-package:delete', status: 'ENABLED', version: '0', children: [],
           },
         ],
@@ -311,33 +313,33 @@ export const menus: AdminMenuView[] = [
   // （62 deploy/63 instance:manage/64 task:list/65 task:operate，对齐 BPM-2 fixture 先例形状；
   // 纯菜单种子无新权限点——坑 16 计数不变）
   {
-    id: 60, parentId: 0, menuName: '流程中心', menuType: 'DIRECTORY', path: null, component: null, icon: 'lucide-workflow',
+    id: '60', parentId: '0', menuName: '流程中心', menuType: 'DIRECTORY', path: null, component: null, icon: 'lucide-workflow',
     sortOrder: 2, visible: true, permissionCode: null, status: 'ENABLED', version: '0',
     children: [
       {
-        id: 61, parentId: 60, menuName: '流程定义', menuType: 'MENU', path: '/workflow', component: 'workflow/index', icon: 'lucide-workflow',
+        id: '61', parentId: '60', menuName: '流程定义', menuType: 'MENU', path: '/workflow', component: 'workflow/index', icon: 'lucide-workflow',
         sortOrder: 1, visible: true, permissionCode: 'workflow:definition:list', status: 'ENABLED', version: '0',
         children: [
           {
-            id: 62, parentId: 61, menuName: '流程部署', menuType: 'BUTTON', path: null, component: null, icon: null,
+            id: '62', parentId: '61', menuName: '流程部署', menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 1, visible: true, permissionCode: 'workflow:definition:deploy', status: 'ENABLED', version: '0', children: [],
           },
           {
-            id: 63, parentId: 61, menuName: '实例管理', menuType: 'BUTTON', path: null, component: null, icon: null,
+            id: '63', parentId: '61', menuName: '实例管理', menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 2, visible: true, permissionCode: 'workflow:instance:manage', status: 'ENABLED', version: '0', children: [],
           },
           {
-            id: 64, parentId: 61, menuName: '任务查询', menuType: 'BUTTON', path: null, component: null, icon: null,
+            id: '64', parentId: '61', menuName: '任务查询', menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 3, visible: true, permissionCode: 'workflow:task:list', status: 'ENABLED', version: '0', children: [],
           },
           {
-            id: 65, parentId: 61, menuName: '任务办理', menuType: 'BUTTON', path: null, component: null, icon: null,
+            id: '65', parentId: '61', menuName: '任务办理', menuType: 'BUTTON', path: null, component: null, icon: null,
             sortOrder: 4, visible: true, permissionCode: 'workflow:task:operate', status: 'ENABLED', version: '0', children: [],
           },
         ],
       },
       {
-        id: 66, parentId: 60, menuName: '待办中心', menuType: 'MENU', path: '/workflow/todos', component: 'workflow/todos/index', icon: 'lucide-check-square',
+        id: '66', parentId: '60', menuName: '待办中心', menuType: 'MENU', path: '/workflow/todos', component: 'workflow/todos/index', icon: 'lucide-check-square',
         sortOrder: 2, visible: true, permissionCode: 'workflow:task:list', status: 'ENABLED', version: '0', children: [],
       },
     ],
@@ -481,43 +483,45 @@ export const opExceptions: AdminOpExceptionView[] = [
 
 /**
  * 调度中心任务定义 fixtures（REQ-20261122-023213 JOB-3）：形状对齐 core JobAdminView（17 字段，
- * id/version wire 字符串）。V2 种子 4 行（JOB-2 裁决）：appName=platform-infra、全部 DISABLED、
- * timeout 60s、misfire=FIRE_ONCE_NOW——cron=配置默认值，与 infra 运行时 acme.*.retention-cron 可能漂移。
+ * id/version wire 字符串）。REQ-20261127-234158 wire golden 对齐：视图键长名 cronExpr/fixedRateMs，
+ * fixedRateMs/timeoutMs wire 字符串（LongToStringModule），shardTotal 数值。
+ * V2 种子 4 行（JOB-2 裁决）：appName=platform-infra、全部 DISABLED、
+ * timeout 60s、misfire=FIRE_ONCE_NOW——cronExpr=配置默认值，与 infra 运行时 acme.*.retention-cron 可能漂移。
  */
 export const schedulerJobs: JobAdminView[] = [
   {
     id: '9101', jobKey: 'file-retention-cleanup', appName: 'platform-infra',
-    handler: 'fileRetentionCleanupJob', triggerType: 'CRON', cron: '0 0 3 * * *',
-    fixedRate: null, onceFireAt: null, param: null,
+    handler: 'fileRetentionCleanupJob', triggerType: 'CRON', cronExpr: '0 0 3 * * *',
+    fixedRateMs: null, onceFireAt: null, param: null,
     retryPolicy: { maxAttempts: 3, initialIntervalMs: 5000 },
-    shardTotal: 1, timeoutMs: 60000, misfirePolicy: 'FIRE_ONCE_NOW',
+    shardTotal: 1, timeoutMs: '60000', misfirePolicy: 'FIRE_ONCE_NOW',
     status: 'DISABLED', nextFireTime: null,
     createdAt: '2026-11-22T00:00:00Z', version: '0',
   },
   {
     id: '9102', jobKey: 'login-log-retention-cleanup', appName: 'platform-infra',
-    handler: 'loginLogRetentionCleanupJob', triggerType: 'CRON', cron: '0 30 3 * * *',
-    fixedRate: null, onceFireAt: null, param: null,
+    handler: 'loginLogRetentionCleanupJob', triggerType: 'CRON', cronExpr: '0 30 3 * * *',
+    fixedRateMs: null, onceFireAt: null, param: null,
     retryPolicy: { maxAttempts: 3, initialIntervalMs: 5000 },
-    shardTotal: 1, timeoutMs: 60000, misfirePolicy: 'FIRE_ONCE_NOW',
+    shardTotal: 1, timeoutMs: '60000', misfirePolicy: 'FIRE_ONCE_NOW',
     status: 'DISABLED', nextFireTime: null,
     createdAt: '2026-11-22T00:00:00Z', version: '0',
   },
   {
     id: '9103', jobKey: 'exception-log-retention-cleanup', appName: 'platform-infra',
-    handler: 'exceptionLogRetentionCleanupJob', triggerType: 'CRON', cron: '0 40 3 * * *',
-    fixedRate: null, onceFireAt: null, param: null,
+    handler: 'exceptionLogRetentionCleanupJob', triggerType: 'CRON', cronExpr: '0 40 3 * * *',
+    fixedRateMs: null, onceFireAt: null, param: null,
     retryPolicy: { maxAttempts: 3, initialIntervalMs: 5000 },
-    shardTotal: 1, timeoutMs: 60000, misfirePolicy: 'FIRE_ONCE_NOW',
+    shardTotal: 1, timeoutMs: '60000', misfirePolicy: 'FIRE_ONCE_NOW',
     status: 'DISABLED', nextFireTime: null,
     createdAt: '2026-11-22T00:00:00Z', version: '0',
   },
   {
     id: '9104', jobKey: 'audit-retention-cleanup', appName: 'platform-infra',
-    handler: 'auditRetentionCleanupJob', triggerType: 'CRON', cron: '0 40 4 * * *',
-    fixedRate: null, onceFireAt: null, param: null,
+    handler: 'auditRetentionCleanupJob', triggerType: 'CRON', cronExpr: '0 40 4 * * *',
+    fixedRateMs: null, onceFireAt: null, param: null,
     retryPolicy: { maxAttempts: 3, initialIntervalMs: 5000 },
-    shardTotal: 1, timeoutMs: 60000, misfirePolicy: 'FIRE_ONCE_NOW',
+    shardTotal: 1, timeoutMs: '60000', misfirePolicy: 'FIRE_ONCE_NOW',
     status: 'DISABLED', nextFireTime: null,
     createdAt: '2026-11-22T00:00:00Z', version: '0',
   },

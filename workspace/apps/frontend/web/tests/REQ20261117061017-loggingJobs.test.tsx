@@ -89,13 +89,14 @@ const OP_EXCEPTION_ROWS = [
 const JOB_ROWS = [
   {
     id: '301', version: '0', jobKey: 'file-retention-cleanup', appName: 'platform-infra',
-    triggerType: 'CRON', cron: '0 0 3 * * *', fixedRate: null, nextFireTime: '2026-11-23T03:00:00Z',
-    status: 'DISABLED', timeoutMs: 60000, shardTotal: 1,
+    // REQ-20261127-234158 wire 对齐：视图键长名 cronExpr/fixedRateMs（字符串口径）
+    triggerType: 'CRON', cronExpr: '0 0 3 * * *', fixedRateMs: null, nextFireTime: '2026-11-23T03:00:00Z',
+    status: 'DISABLED', timeoutMs: '60000', shardTotal: 1,
   },
   {
     id: '305', version: '2', jobKey: 'custom-report-sync', appName: 'business-report',
-    triggerType: 'FIXED_RATE', cron: null, fixedRate: 300000, nextFireTime: '2026-11-22T10:05:00Z',
-    status: 'ENABLED', timeoutMs: 30000, shardTotal: 1,
+    triggerType: 'FIXED_RATE', cronExpr: null, fixedRateMs: '300000', nextFireTime: '2026-11-22T10:05:00Z',
+    status: 'ENABLED', timeoutMs: '30000', shardTotal: 1,
   },
 ];
 
